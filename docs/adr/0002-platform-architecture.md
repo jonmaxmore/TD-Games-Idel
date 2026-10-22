@@ -1,6 +1,6 @@
 # ADR 0002: Platform architecture
 
-- Status: accepted (design); server implementation starts in M1
+- Status: **superseded by [ADR 0003](0003-node-postgres-backend.md)** (Node.js + PostgreSQL)
 - Date: 2026-10-22
 - Details: [docs/design/architecture.md](../design/architecture.md)
 

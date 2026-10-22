@@ -31,7 +31,7 @@
 ## ฟีเจอร์ที่ต้องมี (เรียงตามช่วงเวลา)
 | ฟีเจอร์ | ช่วง |
 |---|---|
-| Server-authoritative ranked (DO รัน sim ตัดสิน), anti-cheat | M1 |
+| Server-authoritative ranked (game server รัน sim ตัดสิน), anti-cheat | M1 |
 | Ranked + MMR (Glicko-2) + ลีก 7 ขั้น | v1.0 |
 | รีเพลย์ทุกแมตช์ (seed + คำสั่ง) แชร์ได้ | v1.0 |
 | ดูเพื่อนเล่นสด | v1.0 |

@@ -50,7 +50,7 @@
 - ยุทธ์ผสานข้ามผู้เล่นได้: ศิษย์ของ A + ศิษย์ของ B
 - ส่งตำลึงให้เพื่อนได้สูงสุด 30% ต่อ wave
 - เข้าห้องด้วยรหัส 4 ตัว, ลิงก์แชร์ หรือจับคู่สุ่ม
-- เทคนิค: lockstep ผ่าน Durable Object ห้องละ 1 ตัว ถ้ามีคนหลุดจะกลายเป็น AI แทน และกลับเข้ามาเล่นต่อได้
+- เทคนิค: lockstep ผ่านห้องแข่งบน game server (ห้องละ 1 ห้อง) ถ้ามีคนหลุดจะกลายเป็น AI แทน และกลับเข้ามาเล่นต่อได้
 
 ## 4. หอคอยพันชั้น — Season 1
 - ไต่ชั้นไปเรื่อยๆ ทุก 5 ชั้นเลือกคัมภีร์ยุทธ์ ทุก 10 ชั้นเป็นบอส
@@ -94,7 +94,7 @@
 |---|---|---|
 | เนื้อเรื่อง / หอคอย | เล่นออฟไลน์ได้ ซิงก์ผลภายหลัง | เซิร์ฟเวอร์รัน sim ซ้ำจาก seed + คำสั่ง (เฉพาะด่านที่ให้รางวัลหายาก/leaderboard) |
 | Async Raid | HTTP: ขอ snapshot → ส่งคำสั่ง | รัน sim ซ้ำทุกครั้ง (คำนวณถูกเพราะ headless) |
-| Co-op / PvP real-time | WebSocket lockstep ผ่าน Durable Object 1 ตัวต่อห้อง | client ส่ง state hash ทุก 5 วิ ถ้าเป็น ranked ตัว DO รัน sim คู่ขนานเป็นผู้ตัดสิน |
-| Matchmaking | Durable Object คิวตามภูมิภาค + MMR bucket | — |
+| Co-op / PvP real-time | WebSocket lockstep ผ่าน MatchRoom บน game server | client ส่ง state hash ทุก 5 วิ ถ้าเป็น ranked เซิร์ฟเวอร์รัน sim คู่ขนานเป็นผู้ตัดสิน |
+| Matchmaking | คิวใน Redis sorted set ตามภูมิภาค + MMR | — |
 
 ข้อกำหนด `sim`: fixed tick 20Hz, ใช้ RNG แบบ seeded, คณิตศาสตร์แบบ fixed-point หรือจำกัด float ให้ deterministic และมี test รัน sim สองครั้งแล้วเทียบ hash ทุกครั้งที่ CI รัน

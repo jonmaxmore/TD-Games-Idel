@@ -1,15 +1,16 @@
 # สถาปัตยกรรมระบบ
 
-> ส่วนหนึ่งของ [GDD](../GDD.md) · การตัดสินใจหลักบันทึกใน [ADR 0002](../adr/0002-platform-architecture.md)
+> ส่วนหนึ่งของ [GDD](../GDD.md) · การตัดสินใจหลักบันทึกใน [ADR 0003](../adr/0003-node-postgres-backend.md) (แทน ADR 0002)
 > สถานะ: ออกแบบแล้ว · ที่สร้างจริงแล้วคือ `packages/sim` และ `packages/client` (M0) · ฝั่งเซิร์ฟเวอร์เริ่มใน M1
+> ระดับเป้าหมาย: **ระดับกลาง** รองรับผู้เล่นออนไลน์พร้อมกันหลักหมื่นในภูมิภาคเดียว (SEA) ขยายต่อได้โดยไม่ต้องรื้อ
 
-## 1. หลักการ 5 ข้อ
+## 1. หลักการ
 
-1. **กฎเกมมีที่เดียว:** `packages/sim` (TypeScript ล้วน, deterministic) ใช้ร่วมกันทั้งเครื่องผู้เล่นและเซิร์ฟเวอร์ เซิร์ฟเวอร์จึงรันเกมซ้ำเพื่อตรวจผลได้ ทำให้ไม่ต้องเขียนกฎสองชุด
-2. **เซิร์ฟเวอร์เป็นผู้ตัดสินเรื่องที่มีมูลค่า:** สกุลเงิน ของ ถ้วย อันดับ และผลการซื้อ client ส่งได้แค่ "คำสั่ง" (seed + commands) ไม่ส่ง "ผลลัพธ์"
-3. **Edge-first บน Cloudflare:** โค้ดรันใกล้ผู้เล่น (สำคัญกับ SEA) ไม่มีเซิร์ฟเวอร์ให้ดูแล และเริ่มได้ฟรี
-4. **เล่นออฟไลน์ได้:** เนื้อเรื่องเล่นได้โดยไม่มีเน็ต แล้วซิงก์ผลทีหลัง ส่วน PvP/co-op ต้องออนไลน์
-5. **ข้อมูลเกมเป็น data ไม่ใช่ code:** `docs/data/*.json` ถูก bundle ไปกับ client และเผยแพร่ผ่าน remote config ปรับสมดุลได้โดยไม่ต้องอัปเดตแอป
+1. **กฎเกมมีที่เดียว:** `packages/sim` (TypeScript, deterministic) ใช้ร่วมกันทั้ง client และ server เซิร์ฟเวอร์รันเกมซ้ำเพื่อตรวจผลได้ ไม่มีกฎเกมสองชุด
+2. **เซิร์ฟเวอร์ตัดสินเรื่องที่มีมูลค่า:** เงิน ของ ถ้วย อันดับ การซื้อ client ส่งได้แค่ seed + คำสั่ง ไม่ส่งผลลัพธ์
+3. **Stateless API + stateful game server แยกกัน:** API ขยายได้ง่ายแค่เพิ่ม instance ส่วนห้องแข่งอยู่ในหน่วยความจำของ game server
+4. **ทุกอย่างเป็น container:** รันบนเครื่องตัวเองด้วย Docker Compose เหมือน production ย้ายผู้ให้บริการ cloud ได้
+5. **ข้อมูลเกมเป็น data:** `docs/data/*.json` ถูก bundle กับ client และเผยแพร่เป็น remote config
 
 ## 2. ภาพรวม
 
@@ -20,290 +21,310 @@ flowchart LR
     APP[iOS / Android<br/>Capacitor + Phaser + sim]
   end
 
-  subgraph CF[Cloudflare edge]
-    ASSETS[Static Assets<br/>เกม + asset]
-    API[Worker: API<br/>Hono router]
-    subgraph DO[Durable Objects]
-      MATCH[MatchRoom<br/>1 ต่อแมตช์ PvP / co-op]
-      MM[Matchmaker<br/>1 ต่อภูมิภาค+โหมด]
-      PLAYER[PlayerState<br/>1 ต่อผู้เล่น: เงิน/ของ]
-      GUILD[GuildRoom<br/>1 ต่อชุมนุม: แชท]
-    end
-    D1[(D1<br/>SQL)]
-    KV[(KV<br/>remote config)]
-    R2[(R2<br/>replay / asset)]
-    Q[[Queues<br/>verify / analytics]]
+  CDN[CDN<br/>เกม + asset]
+
+  subgraph Backend[Backend · Node.js 22 + TypeScript]
+    LB[Load balancer<br/>TLS, sticky ตาม room]
+    API[api<br/>Fastify REST<br/>stateless × N]
+    GAME[game<br/>WebSocket rooms<br/>MatchRoom / GuildRoom × N]
+    WORKER[worker<br/>BullMQ jobs<br/>verify / mail / analytics]
+  end
+
+  subgraph Data
+    PG[(PostgreSQL 16<br/>ข้อมูลหลัก)]
+    REDIS[(Redis 7<br/>cache, คิว, อันดับ,<br/>matchmaking, pub/sub)]
+    S3[(Object storage<br/>S3-compatible<br/>replay / asset)]
   end
 
   subgraph Ext[บริการภายนอก]
-    IDP[Apple / Google<br/>Sign-in]
-    STORE[App Store /<br/>Google Play]
+    IDP[Apple / Google Sign-in]
+    STORE[App Store / Google Play]
     PUSH[APNs / FCM]
     SENTRY[Sentry]
   end
 
-  WEB & APP -->|HTTPS| ASSETS
-  WEB & APP -->|HTTPS REST| API
-  WEB & APP <-->|WebSocket| MATCH
-  WEB & APP <-->|WebSocket| GUILD
-  API --> PLAYER & MM & D1 & KV & R2 & Q
-  MM --> MATCH
-  MATCH --> R2 & Q
-  Q --> D1
+  WEB & APP --> CDN
+  WEB & APP -->|HTTPS| LB
+  WEB & APP <-->|WSS| LB
+  LB --> API
+  LB <--> GAME
+  API --> PG & REDIS & S3
+  GAME --> REDIS & S3
+  API -->|enqueue| REDIS
+  REDIS -->|jobs| WORKER
+  WORKER --> PG & S3
   API --> IDP & STORE & PUSH
-  WEB & APP & API -.-> SENTRY
+  WEB & APP & API & GAME & WORKER -.-> SENTRY
 ```
 
-## 3. โครงสร้าง repo (monorepo)
+## 3. โครงสร้าง repo
 
 ```
 packages/
-  sim/        กฎเกม deterministic (มีแล้ว) ── ใช้ทั้ง client และ server
-  client/     หน้าบ้าน Phaser 3 + Vite (มีแล้ว) → build เป็นเว็บ และห่อด้วย Capacitor
-  protocol/   type ของ API และข้อความ WebSocket + zod schema สำหรับตรวจ input (M1)
-  server/     Worker + Durable Objects + migrations ของ D1 (M1)
-  admin/      หน้าเครื่องมือแอดมิน (M4) ใช้ Worker เดียวกัน แต่ route แยก
-docs/data/    ข้อมูลเกม → bundle เข้า client และ publish ขึ้น KV
+  sim/        กฎเกม deterministic (มีแล้ว) ── ใช้ทั้ง client, game, worker
+  client/     Phaser 3 + Vite (มีแล้ว) → เว็บ และห่อด้วย Capacitor
+  protocol/   type ของ API / ข้อความ WebSocket + zod schema ตรวจ input (ใช้ร่วม client/server)
+  db/         schema + migrations (Drizzle ORM) และ query ที่ใช้ร่วม
+  api/        Fastify REST service
+  game/       WebSocket game server (rooms, lockstep, matchmaking worker loop)
+  worker/     BullMQ job processors (ตรวจรีเพลย์ด้วย sim, ส่งจดหมาย/push, analytics)
+  admin/      เว็บเครื่องมือแอดมิน (M4)
+infra/
+  docker-compose.yml   postgres, redis, minio (S3 จำลอง), api, game, worker
+  docker/              Dockerfile ต่อ service (multi-stage, node:22-slim)
+docs/data/             ข้อมูลเกม → bundle เข้า client และ publish เป็น remote config
 ```
 
-`sim` ห้ามพึ่ง DOM หรือ Node API เพื่อให้รันได้ทั้งเบราว์เซอร์, Worker และ Durable Object
+เหตุผลที่แยก `api` / `game` / `worker` เป็นสาม process: ภาระงานต่างกันมาก (request สั้น / การเชื่อมต่อค้างนาน / CPU หนักจากการรัน sim) ขยายแยกกันได้ และถ้า worker ทำงานหนัก จะไม่ทำให้ห้องแข่งกระตุก
 
 ## 4. หน้าบ้าน (client)
 
 | ชั้น | หน้าที่ | เทคโนโลยี |
 |---|---|---|
-| Scenes | เมนู, ด่าน, บุกค่าย, ลานสำนัก, ร้านค้า, ชุมนุม | Phaser 3 scenes (มีแล้ว 3 scene) |
-| Game loop | รัน `sim` ที่ 20Hz, ประมาณตำแหน่งระหว่าง tick, บันทึก replay | มีแล้วใน `DefendScene` |
-| Net | REST client (เติม token ให้อัตโนมัติ, retry), WebSocket (ต่อใหม่อัตโนมัติ) | `fetch` + `WebSocket` ล้วน |
-| State | profile, กระเป๋าเงิน, progress → cache ใน IndexedDB, ซิงก์เมื่อออนไลน์ | outbox pattern: เก็บผลด่านที่ยังไม่ส่งไว้ในคิว |
-| Config | ข้อมูลเกมฉบับที่ bundle มา + ฉบับใหม่จาก `/config` ถ้า version ใหม่กว่า | ตรวจ hash ก่อนใช้ |
-| Native | IAP, push, haptics, secure storage ของ refresh token | Capacitor plugins |
-| i18n | ข้อความ TH/EN แยกไฟล์ | JSON ต่อภาษา |
+| Scenes | เมนู, ด่าน, บุกค่าย, ลานสำนัก, ร้านค้า, ชุมนุม | Phaser 3 (มีแล้ว 3 scene) |
+| Game loop | รัน `sim` 20Hz, interpolate, บันทึก replay | มีแล้วใน `DefendScene` |
+| Net | REST client (แนบ token, refresh อัตโนมัติ, retry) และ WebSocket (ต่อใหม่อัตโนมัติ) | `fetch` + `WebSocket` + type จาก `protocol` |
+| State | profile, wallet, progress cache ใน IndexedDB; outbox ของผลด่านที่ยังไม่ส่ง | เล่นเนื้อเรื่องออฟไลน์ได้ |
+| Config | ข้อมูลเกมที่ bundle มา + เวอร์ชันใหม่จาก `/config` | ตรวจ hash ก่อนใช้ |
+| Native | IAP, push, haptics, secure storage | Capacitor plugins |
 
-**ข้อมูลที่ client เก็บ:** refresh token (Keychain/Keystore บนมือถือ หรือ IndexedDB บนเว็บ), cache profile และคิวผลด่านที่ยังไม่ซิงก์ **ไม่เก็บ** ค่าเงินที่เชื่อถือได้ ค่าที่จริงอยู่ที่เซิร์ฟเวอร์เสมอ
+client ไม่เก็บค่าเงินที่เชื่อถือได้ ค่าที่แท้จริงอยู่ที่เซิร์ฟเวอร์เสมอ
 
-## 5. หลังบ้าน (server)
+## 5. หลังบ้าน (Node.js 22 + TypeScript)
 
-### 5.1 Worker: API (stateless)
-ใช้ [Hono](https://hono.dev) เป็น router (เล็ก เร็ว ออกแบบมาสำหรับ Workers) ทุก route ตรวจ input ด้วย schema จาก `packages/protocol`
+### 5.1 `api` (stateless REST)
+- **Framework:** [Fastify](https://fastify.dev) เพราะเร็ว มีระบบ plugin และ schema validation ในตัว ใช้คู่กับ zod schema จาก `protocol`
+- **DB access:** [Drizzle ORM](https://orm.drizzle.team) ได้ SQL ที่ type-safe และมี migration
+- **ขยาย:** เพิ่ม instance หลัง load balancer ไม่มีสถานะในหน่วยความจำ
 
-| กลุ่ม | Endpoint ตัวอย่าง | หมายเหตุ |
-|---|---|---|
-| Auth | `POST /auth/guest`, `POST /auth/apple`, `POST /auth/google`, `POST /auth/refresh`, `POST /auth/logout`, `DELETE /me` | ดู §7 |
-| Profile | `GET /me`, `PATCH /me` (ชื่อ, ภาษา) | |
-| Progress | `POST /runs` (ส่ง replay ของด่าน) → `202` + run id · `GET /runs/:id` | ตรวจผลผ่าน Queue ดู §6.1 |
-| Economy | `GET /wallet`, `POST /buildings/:id/upgrade`, `POST /idle/claim` | ผ่าน `PlayerState` DO เท่านั้น |
-| Gacha/Shop | `POST /gacha/:banner/pull`, `GET /shop`, `POST /iap/verify` | สุ่มฝั่งเซิร์ฟเวอร์, บันทึก pity |
-| Raid | `GET /raid/opponents`, `PUT /courtyard/layout`, `POST /raid/:id/result` | ตรวจผลด้วย sim |
-| PvP | `POST /match/queue` → ได้ ticket สำหรับ WebSocket | |
-| Guild | `POST /guilds`, `POST /guilds/:id/join`, `GET /guilds/:id` | แชทใช้ WebSocket ของ `GuildRoom` |
-| Live ops | `GET /config` (version + hash), `GET /events`, `GET /mail` | |
-| Admin | `/admin/*` | Cloudflare Access + role |
-
-### 5.2 Durable Objects (stateful, 1 อินสแตนซ์ต่อ key)
-
-| DO | Key | ทำอะไร | ทำไมใช้ DO |
-|---|---|---|---|
-| `PlayerState` | player id | เงิน, ของ, pity, คิว idle ทุกการเปลี่ยนแปลงทำทีละรายการ | ป้องกันการกดซ้ำ/race (เช่น ซื้อสองครั้งพร้อมกัน) โดยไม่ต้องใช้ lock ใน DB |
-| `Matchmaker` | ภูมิภาค + โหมด | คิวจับคู่ตาม MMR ขยายช่วงตามเวลารอ, ใส่ bot หลัง 45 วิ | ต้องมีที่เดียวที่เห็นคิวทั้งหมด |
-| `MatchRoom` | match id | lockstep relay, ตรวจ hash, ต่อใหม่, รัน sim คู่ขนานใน ranked, เก็บ replay ลง R2 | สถานะของแมตช์อยู่ในหน่วยความจำ ใกล้ผู้เล่น |
-| `GuildRoom` | guild id | แชท, กรองคำ, ข้อความล่าสุด 200 ข้อความ | WebSocket ต่อชุมนุม |
-
-WebSocket ทั้งหมดใช้ **Hibernation API** ของ DO: เวลาห้องเงียบจะไม่ถูกคิดเงินค่าหน่วยความจำ
-
-### 5.3 Queues (งานเบื้องหลัง)
-- `verify-runs`: รัน sim ตรวจผลด่าน/raid แล้วให้รางวัล
-- `analytics`: รวม event ส่งเข้าคลังข้อมูลเป็น batch
-- `mail-push`: ส่งจดหมายในเกมและ push notification
-
-## 6. Flow สำคัญ
-
-### 6.1 จบด่านแล้วได้รางวัล (กันโกง)
-
-```mermaid
-sequenceDiagram
-  participant C as Client
-  participant A as API Worker
-  participant Q as Queue verify-runs
-  participant V as Verifier (Worker + sim)
-  participant P as PlayerState DO
-  C->>C: เล่นด่านด้วย sim (seed จากเซิร์ฟเวอร์)
-  C->>A: POST /runs {stageId, seed, commands, claimedStars, hash}
-  A->>Q: enqueue run
-  A-->>C: 202 run id (แสดงผลทันทีแบบ "รอยืนยัน")
-  Q->>V: run
-  V->>V: runReplay() → เทียบ phase, stars, hash
-  alt ตรงกัน
-    V->>P: grant(rewards)
-  else ไม่ตรง
-    V->>V: บันทึก flag ไว้ตรวจ ไม่ให้รางวัล
-  end
-  C->>A: GET /runs/:id → confirmed
-```
-
-seed ของด่านออกโดยเซิร์ฟเวอร์ (`POST /runs/start`) จึงเลือก seed ที่ดีเองไม่ได้ ถ้าเล่นออฟไลน์ client สร้าง seed เองได้ แต่ด่านนั้นจะไม่นับ leaderboard
-
-### 6.2 PvP บุก–ตั้งรับ real-time
-
-```mermaid
-sequenceDiagram
-  participant A as ผู้เล่น A
-  participant B as ผู้เล่น B
-  participant MM as Matchmaker DO
-  participant R as MatchRoom DO
-  A->>MM: join queue (MMR, deck)
-  B->>MM: join queue
-  MM->>R: create(match, seed, decks)
-  MM-->>A: ticket + room
-  MM-->>B: ticket + room
-  A->>R: WebSocket connect(ticket)
-  B->>R: WebSocket connect(ticket)
-  loop ทุก tick (20Hz)
-    A->>R: commands @ tick+3
-    B->>R: commands @ tick+3
-    R-->>A: ประกาศคำสั่งของทั้งสองฝ่ายใน tick นั้น
-    R-->>B: ประกาศคำสั่งของทั้งสองฝ่ายใน tick นั้น
-    R->>R: step(sim) คู่ขนาน (ranked)
-  end
-  A->>R: state hash ทุก 5 วิ
-  R->>R: hash ไม่ตรง → ส่ง snapshot ให้ซิงก์ใหม่
-  R->>R: จบ → เก็บ replay ลง R2, อัปเดต MMR ใน D1
-```
-
-- **Input delay 3 tick (150 ms):** คำสั่งนัดทำใน tick ข้างหน้า ทั้งสองเครื่องจึงทำพร้อมกันได้แม้ ping ต่างกัน
-- **หลุดการเชื่อมต่อ:** มีเวลากลับมา 30 วิ ระหว่างนั้นเกมเดินต่อโดยไม่มีคำสั่งจากฝั่งที่หลุด กลับมาแล้วได้ snapshot ล่าสุด
-- **Ranked:** ผลที่นับคือผลจาก sim ใน DO ไม่ใช่ผลที่ client ส่งมา
-
-### 6.3 ซื้อของ (IAP)
-
-```mermaid
-sequenceDiagram
-  participant C as Client (Capacitor)
-  participant S as App Store / Google Play
-  participant A as API Worker
-  participant P as PlayerState DO
-  C->>S: ซื้อ
-  S-->>C: transaction / purchase token
-  C->>A: POST /iap/verify {platform, token}
-  A->>S: ตรวจกับ App Store Server API / Play Developer API
-  S-->>A: ถูกต้อง + product id
-  A->>P: grant (idempotent ด้วย transaction id)
-  A-->>C: wallet ใหม่
-  S-)A: server notification (refund / renew)
-  A->>P: หักคืน / ต่ออายุ subscription
-```
-
-## 7. ระบบยืนยันตัวตน (Auth)
-
-**เป้าหมาย:** เข้าเล่นได้ทันทีโดยไม่ต้องสมัคร แล้วผูกบัญชีภายหลังเพื่อย้ายเครื่อง/กู้บัญชี
-
-| ขั้น | วิธี |
+| กลุ่ม | Endpoint ตัวอย่าง |
 |---|---|
-| เข้าเล่นครั้งแรก | `POST /auth/guest` → สร้าง player + guest identity คืน access + refresh token |
-| ผูกบัญชี | Sign in with Apple (บังคับบน iOS ถ้ามี social login อื่น), Google, อีเมล magic link · เซิร์ฟเวอร์ตรวจ `id_token` กับ public key ของผู้ให้บริการ |
-| Access token | JWT อายุ 15 นาที ลงนามด้วย key ใน Workers Secrets ตรวจได้ในทุก Worker/DO โดยไม่ต้องอ่าน DB |
-| Refresh token | ค่าสุ่มยาว เก็บแบบ hash ใน D1 หมุนใหม่ทุกครั้งที่ใช้ (rotation) ถ้าใช้ตัวเก่าซ้ำ → เพิกถอนทั้งชุด (กันขโมย token) |
-| WebSocket | ใช้ ticket อายุ 30 วิ ที่ได้จาก REST (ไม่ใส่ token ใน URL ระยะยาว) |
-| แอดมิน | Cloudflare Access (SSO ของทีม) + role ใน D1 |
-| ลบบัญชี | `DELETE /me` → ลบข้อมูลส่วนตัว เก็บเฉพาะบันทึกการซื้อตามที่กฎหมายกำหนด |
+| Auth | `POST /auth/guest`, `/auth/apple`, `/auth/google`, `/auth/refresh`, `/auth/logout`, `DELETE /me` |
+| Profile / Progress | `GET /me`, `POST /runs/start` (ขอ seed), `POST /runs` (ส่ง replay), `GET /runs/:id` |
+| Economy | `GET /wallet`, `POST /buildings/:id/upgrade`, `POST /idle/claim` |
+| Gacha / Shop / IAP | `POST /gacha/:banner/pull`, `GET /shop`, `POST /iap/verify`, `POST /iap/notify/{apple,google}` |
+| Raid | `GET /raid/opponents`, `PUT /courtyard/layout`, `POST /raid/:id/result` |
+| PvP | `POST /match/queue` → ticket + ที่อยู่ game server |
+| Guild | `POST /guilds`, `POST /guilds/:id/join`, `GET /guilds/:id` |
+| Live ops | `GET /config`, `GET /events`, `GET /mail` |
+| Admin | `/admin/*` (role + IP allowlist / SSO) |
 
-**ทำไมทำเองแทนการใช้บริการสำเร็จรูป:** เกมต้องมี guest account และ token ที่ตรวจได้ทั้งใน Worker และ DO แบบไม่มี latency เพิ่ม ส่วนที่ทำเองจึงเล็ก คือการตรวจ `id_token` + JWT + refresh rotation ใช้ไลบรารี `jose` ถ้าภายหลังต้องการลดภาระ ระบบนี้ย้ายไปบริการภายนอกได้เพราะแยกอยู่ใน `/auth` เท่านั้น
+**กัน race ของเงิน:** การเปลี่ยนเงิน/ของทุกครั้งทำใน transaction ของ PostgreSQL บนตาราง `wallets` ด้วย `SELECT … FOR UPDATE` และมี `idempotency_key` ต่อคำขอ กดซื้อซ้ำสองครั้งพร้อมกันจึงไม่ได้ของสองครั้ง
 
-## 8. ฐานข้อมูล
+### 5.2 `game` (stateful WebSocket)
+- **WebSocket:** `ws` (หรือ `uWebSockets.js` ถ้าต้องการรีดประสิทธิภาพ) บน Node
+- **MatchRoom:** ห้องอยู่ในหน่วยความจำของ instance เดียว รับคำสั่ง ประกาศคำสั่งทุก tick (20Hz) รัน `sim` คู่ขนานใน ranked และเก็บ replay ลง object storage
+- **การหาห้อง:** registry ใน Redis (`room:{id} → instance`) load balancer ส่ง WebSocket ไปถูกเครื่องด้วย sticky routing ตาม room id
+- **Matchmaker:** loop ใน `game` อ่านคิวจาก Redis sorted set (คะแนน = MMR) ขยายช่วง MMR ตามเวลารอ ใส่ bot หลัง 45 วิ ใช้ Redis lock ให้มีตัวจับคู่ทำงานทีละตัวต่อโหมด
+- **GuildRoom:** แชทชุมนุม ใช้ Redis pub/sub กระจายข้อความข้าม instance
 
-### 8.1 อะไรเก็บที่ไหน
+### 5.3 `worker` (งานเบื้องหลัง)
+- **คิว:** [BullMQ](https://docs.bullmq.io) บน Redis (retry, delay, priority, dashboard)
+- **งาน:**
+  - `verify-run` รัน `sim` ตรวจรีเพลย์ แล้วให้รางวัล
+  - `verify-raid` ตรวจผลตีสำนัก
+  - `mail` / `push` ส่งจดหมายในเกมและ push notification
+  - `analytics` รวม event เป็น batch
+  - `season-rollover` ปิด season และแจกรางวัล
+- รัน sim ใน `worker_threads` ใช้ CPU ได้หลาย core
+
+## 6. ฐานข้อมูล
+
+### 6.1 อะไรเก็บที่ไหน
 | ข้อมูล | ที่เก็บ | เหตุผล |
 |---|---|---|
-| บัญชี, identity, refresh token, progress, ลีก/MMR, ชุมนุม, การซื้อ, รายงาน/แบน | **D1** (SQL) | ต้อง query/join, ข้อมูลถาวร |
-| เงิน/ของ/pity ที่เปลี่ยนบ่อย | **PlayerState DO storage** + เขียนสำเนาลง D1 เป็นระยะ | เขียนเร็ว ทีละรายการ ไม่ชนกัน |
-| สถานะแมตช์ระหว่างเล่น | หน่วยความจำของ **MatchRoom DO** | ชั่วคราว |
-| ข้อมูลเกม/สมดุล, ธงฟีเจอร์, อีเวนต์ | **KV** | อ่านเยอะ เขียนน้อย กระจายทั่วโลก |
-| รีเพลย์, asset บทถัดไป, คลิปแชร์ | **R2** | ไฟล์ใหญ่ ไม่มีค่า egress |
-| event analytics | Queue → คลังข้อมูล (Analytics Engine หรือ BigQuery) | ปริมาณมาก ไม่ควรอยู่ใน DB หลัก |
+| บัญชี, identity, refresh token, progress, วีรชน, wallet, ประวัติธุรกรรม, การซื้อ, ลานสำนัก, raid, แมตช์, MMR, ชุมนุม, จดหมาย, รายงาน/แบน | **PostgreSQL** | ข้อมูลหลัก ต้องถูกต้อง มี transaction และ join |
+| session ชั่วคราว, rate limit, คิวจับคู่, room registry, leaderboard รายสัปดาห์, คิวงาน, pub/sub แชท | **Redis** | เร็ว ข้อมูลชั่วคราวหรือคำนวณใหม่ได้ |
+| รีเพลย์, asset บทถัดไป, คลิปแชร์ | **Object storage (S3-compatible)** | ไฟล์ใหญ่ ราคาถูก |
+| event analytics | worker → คลังข้อมูล (BigQuery หรือ ClickHouse) | ปริมาณมาก ไม่ควรอยู่ใน DB หลัก |
 
-### 8.2 ตารางหลักใน D1 (ร่าง)
+### 6.2 ตารางหลักใน PostgreSQL (ร่าง)
 
 ```mermaid
 erDiagram
   players ||--o{ identities : has
   players ||--o{ refresh_tokens : has
+  players ||--|| wallets : owns
+  players ||--o{ wallet_ledger : records
   players ||--o{ stage_progress : has
   players ||--o{ heroes_owned : has
   players ||--o{ purchases : makes
   players ||--o| courtyards : owns
+  players ||--o{ runs : submits
+  players ||--o{ raids : attacks
   players ||--o{ ratings : has
   players }o--o| guild_members : joins
   guilds ||--o{ guild_members : has
-  players ||--o{ runs : submits
-  players ||--o{ raids : attacks
   matches ||--o{ match_players : has
   players ||--o{ match_players : plays
   seasons ||--o{ ratings : scopes
 
-  players { text id PK; text display_name; text locale; int created_at; int deleted_at; int banned_until }
-  identities { text provider; text subject; text player_id FK }
-  refresh_tokens { text hash PK; text player_id FK; text family; int expires_at; int revoked }
-  stage_progress { text player_id FK; text stage_id; int stars_mask; int best_ticks }
-  heroes_owned { text player_id FK; text hero_id; text skin_id; int obtained_at }
-  purchases { text tx_id PK; text player_id FK; text platform; text product_id; text status; int at }
-  courtyards { text player_id PK; text layout_json; int version; int shield_until }
-  runs { text id PK; text player_id FK; text stage_id; int seed; text replay_key; text status }
-  raids { text id PK; text attacker_id; text defender_id; int stars; text replay_key; int at }
-  matches { text id PK; text mode; text season_id; text replay_key; int at }
-  match_players { text match_id FK; text player_id FK; int result; int mmr_delta }
-  ratings { text player_id FK; text season_id FK; text mode; real mmr; real rd; real vol }
-  seasons { text id PK; int starts_at; int ends_at }
-  guilds { text id PK; text name; text owner_id; int created_at }
-  guild_members { text guild_id FK; text player_id FK; text role }
+  players { uuid id PK; text display_name; text locale; timestamptz created_at; timestamptz deleted_at; timestamptz banned_until }
+  identities { text provider; text subject; uuid player_id FK }
+  refresh_tokens { bytea hash PK; uuid player_id FK; uuid family; timestamptz expires_at; bool revoked }
+  wallets { uuid player_id PK; bigint silver; bigint jade; bigint qi; int pity_legendary; int version }
+  wallet_ledger { bigserial id PK; uuid player_id FK; text currency; bigint delta; text reason; text idempotency_key; timestamptz at }
+  stage_progress { uuid player_id FK; text stage_id; smallint stars_mask; int best_ticks }
+  heroes_owned { uuid player_id FK; text hero_id; text skin_id; timestamptz obtained_at }
+  purchases { text tx_id PK; uuid player_id FK; text platform; text product_id; text status; timestamptz at }
+  courtyards { uuid player_id PK; jsonb layout; int version; timestamptz shield_until }
+  runs { uuid id PK; uuid player_id FK; text stage_id; bigint seed; text replay_key; text status }
+  raids { uuid id PK; uuid attacker_id; uuid defender_id; smallint stars; text replay_key; timestamptz at }
+  matches { uuid id PK; text mode; text season_id; text replay_key; timestamptz at }
+  match_players { uuid match_id FK; uuid player_id FK; smallint result; real mmr_delta }
+  ratings { uuid player_id FK; text season_id FK; text mode; real mmr; real rd; real vol }
+  seasons { text id PK; timestamptz starts_at; timestamptz ends_at }
+  guilds { uuid id PK; text name; uuid owner_id; timestamptz created_at }
+  guild_members { uuid guild_id FK; uuid player_id FK; text role }
 ```
 
-- **Migrations:** `wrangler d1 migrations` เก็บไฟล์ SQL ใน `packages/server/migrations/` และรันใน CI ก่อน deploy
-- **ขยายตัว:** D1 หนึ่งฐานมีขนาดจำกัด (ราว 10GB) เมื่อโตขึ้นจะแยกตามหน้าที่ (account / pvp / guild) และย้ายข้อมูลรายผู้เล่นที่เขียนบ่อยไปอยู่ใน `PlayerState` DO ซึ่งขยายตามจำนวนผู้เล่นได้เอง
+- **`wallet_ledger`** บันทึกทุกการเปลี่ยนแปลงเงินพร้อมเหตุผล ใช้ตรวจย้อนหลัง ชดเชย และหาการโกง ค่าใน `wallets` คือยอดรวมที่ต้องตรงกับผลรวมของ ledger
+- **Migrations:** Drizzle Kit (`packages/db/migrations`) รันใน CI ก่อน deploy
+- **Index สำคัญ:** `identities(provider, subject)` unique, `ratings(season_id, mode, mmr)`, `runs(player_id, status)`, `wallet_ledger(player_id, at)`, `raids(defender_id, at)`
+- **ขยายตัว:** read replica สำหรับ leaderboard และ analytics, ใช้ PgBouncer จัดการ connection, แบ่ง `wallet_ledger`/`raids`/`runs` เป็น partition รายเดือน ระดับกลางยังไม่ต้อง shard
+
+## 7. ระบบยืนยันตัวตน (Auth)
+
+| ขั้น | วิธี |
+|---|---|
+| เข้าเล่นครั้งแรก | `POST /auth/guest` สร้าง player + identity แบบ guest |
+| ผูกบัญชี | Sign in with Apple (บังคับบน iOS ถ้ามี social login อื่น), Google, อีเมล magic link · เซิร์ฟเวอร์ตรวจ `id_token` กับ public key ของผู้ให้บริการ |
+| Access token | JWT อายุ 15 นาที (ES256) ตรวจได้ใน `api` และ `game` โดยไม่ต้องอ่าน DB |
+| Refresh token | ค่าสุ่ม 256 บิต เก็บเป็น hash ใน `refresh_tokens` หมุนทุกครั้งที่ใช้ ถ้ามีการใช้ token เก่าซ้ำ ระบบเพิกถอนทั้ง family |
+| WebSocket | ticket อายุ 30 วิ เก็บใน Redis ใช้ได้ครั้งเดียว |
+| แอดมิน | SSO ของทีม + role + IP allowlist |
+| ลบบัญชี | `DELETE /me` ลบข้อมูลส่วนตัว เก็บไว้เฉพาะบันทึกการซื้อที่กฎหมายกำหนด |
+
+ไลบรารี: `jose` (JWT/JWK), `@fastify/rate-limit` (rate limit บน Redis) Auth แยกอยู่ใน module `auth` เดียว ถ้าภายหลังต้องการใช้บริการภายนอกก็เปลี่ยนได้
+
+## 8. Flow สำคัญ
+
+### 8.1 จบด่านแล้วได้รางวัล
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant A as api
+  participant R as Redis (BullMQ)
+  participant W as worker (sim)
+  participant P as PostgreSQL
+  C->>A: POST /runs/start {stageId}
+  A-->>C: seed (ลงนาม)
+  C->>C: เล่นด่านด้วย sim
+  C->>A: POST /runs {seed, commands, claimedStars, hash}
+  A->>P: insert run (pending)
+  A->>R: add job verify-run
+  A-->>C: 202 run id
+  R->>W: job
+  W->>W: runReplay() เทียบ phase / stars / hash
+  alt ตรงกัน
+    W->>P: transaction: run=confirmed, ledger + wallet, stage_progress
+  else ไม่ตรง
+    W->>P: run=rejected + flag
+  end
+  C->>A: GET /runs/:id → confirmed
+```
+
+### 8.2 PvP บุก–ตั้งรับ real-time
+
+```mermaid
+sequenceDiagram
+  participant A as ผู้เล่น A
+  participant B as ผู้เล่น B
+  participant API as api
+  participant MM as Matchmaker (game + Redis)
+  participant R as MatchRoom (game)
+  A->>API: POST /match/queue {mode, deck}
+  B->>API: POST /match/queue
+  API->>MM: ZADD queue (MMR)
+  MM->>R: สร้างห้อง (seed, decks) บน instance ที่ว่าง
+  MM-->>A: ticket + ที่อยู่ห้อง (ผ่าน API / push)
+  MM-->>B: ticket + ที่อยู่ห้อง
+  A->>R: WSS connect(ticket)
+  B->>R: WSS connect(ticket)
+  loop ทุก tick (20Hz)
+    A->>R: commands @ tick+3
+    B->>R: commands @ tick+3
+    R-->>A: ประกาศคำสั่งของทั้งสองฝ่าย
+    R-->>B: ประกาศคำสั่งของทั้งสองฝ่าย
+    R->>R: step(sim) (ranked)
+  end
+  R->>R: จบ → replay ลง S3, บันทึก match + MMR ลง PostgreSQL
+```
+
+- **Input delay 3 tick (150 ms):** ทั้งสองเครื่องทำคำสั่งพร้อมกันได้แม้ ping ต่างกัน
+- **หลุดการเชื่อมต่อ:** กลับเข้ามาได้ภายใน 30 วิ แล้วได้ snapshot ล่าสุด
+- **Ranked:** ผลที่นับคือผลจาก sim บนเซิร์ฟเวอร์
+
+### 8.3 ซื้อของ (IAP)
+- ตรวจใบเสร็จที่ `api` กับ App Store Server API / Google Play Developer API
+- ให้ของครั้งเดียวต่อ `tx_id`: `purchases.tx_id` เป็น primary key และอยู่ใน transaction เดียวกับ ledger
+- รับ server notification (refund / ต่ออายุ) แล้วปรับ wallet ผ่าน ledger
 
 ## 9. ความปลอดภัยและกันโกง
 
 | ภัย | การป้องกัน |
 |---|---|
-| แก้ค่าเงินในเครื่อง | เงินจริงอยู่ที่เซิร์ฟเวอร์เท่านั้น ค่าที่ client มีเป็นเพียงสำเนาแสดงผล |
-| ส่งผลด่านปลอม | ส่งแค่ replay แล้วเซิร์ฟเวอร์รัน sim ซ้ำ (§6.1) · seed ออกโดยเซิร์ฟเวอร์ |
-| คำสั่งผิดรูปแบบ | `validCommand()` ใน sim (มีแล้ว) + zod schema ที่ขอบ API |
-| Desync / โกงใน PvP | DO รัน sim เป็นผู้ตัดสิน · hash ทุก 5 วิ |
-| ซื้อปลอม / refund แล้วเก็บของ | ตรวจ receipt ที่เซิร์ฟเวอร์ + รับ server notifications |
-| ยิง API ถี่ | Rate limiting binding ของ Workers ต่อ player/IP + Turnstile ตอนสร้าง guest จำนวนมาก |
-| ขโมย token | access สั้น, refresh rotation + ตรวจการใช้ซ้ำ |
-| ข้อมูลส่วนบุคคล | เก็บน้อยที่สุด, ลบได้, PDPA/GDPR (ดู [economy.md](economy.md)) |
-| Secret รั่ว | Workers Secrets เท่านั้น ไม่มี secret ใน client หรือ repo |
+| แก้ค่าเงินในเครื่อง | เงินจริงอยู่ใน PostgreSQL เท่านั้น |
+| ส่งผลด่านปลอม | ส่งเฉพาะ replay, worker รัน sim ซ้ำ, seed ลงนามโดยเซิร์ฟเวอร์ |
+| คำสั่งผิดรูปแบบ | `validCommand()` ใน sim (มีแล้ว) + zod ที่ขอบ API/WebSocket |
+| PvP desync / โกง | sim บนเซิร์ฟเวอร์ตัดสิน, hash ทุก 5 วิ |
+| ซื้อปลอม / refund | ตรวจที่เซิร์ฟเวอร์ + server notifications + ledger |
+| กดซ้ำ / race | transaction + `FOR UPDATE` + idempotency key |
+| ยิง API ถี่ / บอทสมัคร | rate limit บน Redis + CAPTCHA ตอนสร้าง guest จำนวนมาก |
+| SQL injection | query ผ่าน Drizzle (parameterized) เท่านั้น |
+| ขโมย token | access สั้น + refresh rotation + ตรวจใช้ซ้ำ |
+| Secret | เก็บใน secret manager ของผู้ให้บริการ ไม่อยู่ใน repo หรือ client |
+| ข้อมูลส่วนบุคคล | เก็บน้อยที่สุด, ลบได้, PDPA/GDPR |
 
 ## 10. สภาพแวดล้อมและการ deploy
 
 | สภาพแวดล้อม | ใช้ทำอะไร | วิธีรัน |
 |---|---|---|
-| local | พัฒนา, เล่นหลายคนบนเครื่องเดียว | `npm run dev` + `wrangler dev` (จำลอง D1/KV/R2/DO ในเครื่อง) |
-| preview | ทุก PR ได้ URL ของตัวเอง | Workers preview deployments |
-| staging | ทดสอบก่อนปล่อย, playtest | `wrangler deploy --env staging` |
-| production | ผู้เล่นจริง | deploy หลังกดอนุมัติใน GitHub Actions |
+| local | พัฒนา, ทดสอบหลายคนบนเครื่องเดียว | `docker compose up` (postgres, redis, minio) + `npm run dev:server` |
+| staging | playtest, ทดสอบก่อนปล่อย | container เดียวกับ production ขนาดเล็ก |
+| production | ผู้เล่นจริง | ภูมิภาค Singapore (ใกล้ไทย/SEA) |
 
-**CI (GitHub Actions):** typecheck → test (รวม determinism + balance) → build → smoke (Playwright) → migrate D1 → deploy
+**ทางเลือกการโฮสต์ระดับกลาง** (ทุกทางใช้ Docker image ชุดเดียวกัน ย้ายภายหลังได้):
 
-**Version gate:** client ส่ง `sim` version มากับทุก request ถ้าไม่ตรงกับเซิร์ฟเวอร์จะถูกบังคับอัปเดตก่อนเข้า PvP เพราะ PvP ต้องใช้กฎเกมชุดเดียวกัน
+| ทางเลือก | เหมาะเมื่อ | หมายเหตุ |
+|---|---|---|
+| **Managed containers** (เช่น Fly.io, Railway, Render, Google Cloud Run สำหรับ api) + managed PostgreSQL + managed Redis | ทีมเล็ก ไม่มีคนดูแล ops | เริ่มเร็วที่สุด · game server ต้องรองรับ WebSocket ที่ค้างนาน |
+| **AWS ap-southeast-1** (ECS Fargate + RDS PostgreSQL + ElastiCache Redis + S3) | ต้องการความมั่นคงระดับองค์กร | ค่าใช้จ่ายและความซับซ้อนสูงกว่า |
+| **VPS** (เช่น DigitalOcean SGP) + Docker Compose | งบน้อยมาก ช่วง playtest | ต้องดูแล backup และอัปเดตเอง |
+
+PostgreSQL แบบ managed ใช้ได้หลายเจ้า (RDS, Cloud SQL, Neon, Supabase) Supabase มี MCP เชื่อมกับ session นี้ไว้แล้ว ตัดสินใจเรื่องโฮสต์ก่อนเริ่ม M1 deploy staging
+
+**CDN ของตัวเกม:** ใช้ Cloudflare (หรือ CDN ของผู้ให้บริการที่เลือก) เสิร์ฟไฟล์ static ของ client
+
+**CI (GitHub Actions):** typecheck → test (รวม determinism + balance) → build client + Docker images → smoke (Playwright) → migrate DB → deploy staging อัตโนมัติ → production เมื่อกดอนุมัติ
+
+**Version gate:** client ส่ง sim version มากับทุกคำขอ ถ้าไม่ตรงกับเซิร์ฟเวอร์จะถูกบังคับอัปเดตก่อนเข้า PvP
 
 ## 11. การมอนิเตอร์
-- **Sentry:** error ทั้ง client, Worker และ DO (มี MCP เชื่อมไว้แล้ว)
-- **Workers Logs / Analytics:** latency, error rate ต่อ route
+- **Sentry:** error ทั้ง client และทุก service
+- **Metrics:** OpenTelemetry → Prometheus/Grafana (หรือเครื่องมือของผู้ให้บริการ) เก็บ latency, error rate, จำนวนห้อง, จำนวน connection, ความยาวคิว BullMQ
 - **Dashboard เกม:** DAU, retention, ARPDAU, win-rate ต่อสำนัก, เวลาจับคู่, อัตรา desync
-- **Alert:** desync เกิน 0.5% ของแมตช์, เวลาจับคู่ p90 เกิน 60 วิ, ตรวจ IAP ล้มเหลว
+- **Alert:**
+  - desync เกิน 0.5% ของแมตช์
+  - เวลาจับคู่ p90 เกิน 60 วิ
+  - คิว verify ค้างเกิน 2 นาที
+  - ตรวจ IAP ล้มเหลว
+- **Backup:** point-in-time recovery ของ PostgreSQL, ทดสอบกู้คืนเดือนละครั้ง
 
-## 12. ค่าใช้จ่าย (ประมาณการคร่าวๆ ต้องวัดจริง)
-- **ช่วงพัฒนา:** free tier ของ Workers/D1/KV/R2/DO
-- **Soft launch:** Workers Paid เริ่ม $5/เดือน + ค่าใช้ตามจริง
-- **ตัวแปรหลักของต้นทุน:** เวลา CPU ที่ใช้รัน sim ซ้ำ (ตรวจด่าน, ranked) ต้องวัดตั้งแต่ M1 ถ้าแพงเกินจะเปลี่ยนเป็นสุ่มตรวจ (เช่น ตรวจ 100% เฉพาะ leaderboard/ranked และสุ่มตรวจด่านทั่วไป)
+## 12. ขนาดและต้นทุน (ประมาณการ ต้องวัดจริง)
+- **เริ่มต้น / staging:** api ×1, game ×1, worker ×1, PostgreSQL ขนาดเล็ก, Redis ขนาดเล็ก
+- **Soft launch:** api ×2, game ×2, worker ×2 (เพิ่มตามความยาวคิว), PostgreSQL + read replica 1 ตัว
+- **ตัวแปรต้นทุนหลัก:**
+  - CPU ที่ใช้รัน sim ซ้ำ ต้องวัดใน M1 ถ้าสูงเกินจะเปลี่ยนเป็นตรวจทุกครั้งเฉพาะ ranked/leaderboard และสุ่มตรวจด่านทั่วไป
+  - จำนวนห้องแข่งต่อ instance ของ game server
 
 ## 13. ลำดับการสร้างตาม milestone
 
-| Milestone | สิ่งที่สร้างฝั่งเซิร์ฟเวอร์ |
+| Milestone | สิ่งที่สร้าง |
 |---|---|
-| M1 Online core | `packages/protocol`, `packages/server`: guest auth, `/me`, cloud save + `/runs` (ตรวจด้วย sim), `MatchRoom` สำหรับ co-op lockstep, D1 migrations, CI deploy staging |
-| M2 Competitive | `Matchmaker`, ranked ใน `MatchRoom`, `ratings`/`seasons`, replay ใน R2, โหมดผู้ชมเพื่อน |
-| M2b Meta + Raid | `PlayerState` DO (เงิน/อาคาร/idle claim), ลานสำนัก + raid + โล่ |
-| M4 Monetization/Live ops | IAP verify + notifications, gacha ฝั่งเซิร์ฟเวอร์, shop, mail, remote config ใน KV, admin, Apple/Google sign-in |
-| ก่อนเปิดตัว | rate limit, Turnstile, ลบบัญชี, privacy, load test MatchRoom/Matchmaker |
+| M1 Online core | `infra/docker-compose.yml`, `packages/{protocol,db,api,game,worker}` โครงพื้นฐาน, guest auth + refresh rotation, `/me`, cloud save, `/runs` + verify-run, ห้อง co-op lockstep, migrations, CI deploy staging |
+| M2 Competitive | Matchmaker, ranked ใน MatchRoom, ratings/seasons, replay ลง S3, ดูเพื่อนเล่นสด |
+| M2b Meta + Raid | wallet + ledger, อาคาร/idle claim, ลานสำนัก + raid + โล่ |
+| M4 Monetization / Live ops | IAP verify + notifications, gacha ฝั่งเซิร์ฟเวอร์, shop, mail/push, remote config, admin, Apple/Google sign-in |
+| ก่อนเปิดตัว | rate limit + CAPTCHA, ลบบัญชี, privacy, load test (k6) ของ game server และ matchmaker, ทดสอบกู้คืน backup |

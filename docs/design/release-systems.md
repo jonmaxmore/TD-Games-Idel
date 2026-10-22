@@ -12,11 +12,11 @@
 
 ## 2. ความยุติธรรมและความปลอดภัย
 - [ ] เซิร์ฟเวอร์ยืนยันผลด่านที่ให้รางวัลหายาก, หอคอย, Async Raid ด้วยการรัน sim ซ้ำจาก seed + คำสั่ง
-- [ ] Real-time: ตรวจ state hash ของ lockstep, ranked ใช้ DO เป็นผู้ตัดสิน
+- [ ] Real-time: ตรวจ state hash ของ lockstep, ranked ใช้ sim บน game server เป็นผู้ตัดสิน
 - [ ] ตรวจ receipt IAP ที่เซิร์ฟเวอร์ (App Store Server API / Google Play Developer API) และจัดการ refund
 - [ ] Rate limit ทุก endpoint, ตรวจความผิดปกติ (ทรัพยากรเพิ่มเร็วเกิน, ชนะผิดปกติ)
 - [ ] ระบบรายงานผู้เล่น + บทลงโทษเป็นขั้น (เตือน → ระงับ ranked → แบน)
-- [ ] เก็บ secret ทั้งหมดใน Cloudflare secrets ไม่ใส่ใน client
+- [ ] เก็บ secret ทั้งหมดใน secret manager ของผู้ให้บริการ ไม่ใส่ใน client
 
 ## 3. โซเชียลและชุมชน
 - [ ] เพื่อน (เพิ่มด้วยรหัส / ลิงก์ / ผู้เล่นที่เพิ่งเล่นด้วย)
@@ -63,22 +63,19 @@
 ## 9. ร้านค้าแอปและการตลาด
 - [ ] เรตอายุ IARC, privacy policy, privacy label/data safety form
 - [ ] ASO: ชื่อ, คำค้น, screenshot 6 ภาพ, วิดีโอ 30 วินาที (ใช้ฉากยุทธ์ผสาน)
-- [ ] เว็บเวอร์ชัน: เล่นได้ทันทีบนเว็บ (Cloudflare) + ลง itch.io / CrazyGames / Poki เพื่อทดสอบตลาดก่อน
+- [ ] เว็บเวอร์ชัน: เล่นได้ทันทีบนเว็บ (CDN) + ลง itch.io / CrazyGames / Poki เพื่อทดสอบตลาดก่อน
 - [ ] Pre-registration + Discord + TikTok
 
-## 10. โครงสร้างพื้นฐาน (Cloudflare)
+## 10. โครงสร้างพื้นฐาน
 
-| บริการ | ใช้ทำอะไร |
-|---|---|
-| Workers + Static Assets | เว็บเกม, API |
-| Durable Objects | ห้อง co-op/PvP, คิว matchmaking, ล็อกเซฟต่อผู้เล่น |
-| D1 | บัญชี, เซฟ, ลีก/leaderboard, ชุมนุม |
-| KV | remote config, ข้อมูลอีเวนต์ |
-| R2 | รีเพลย์, asset บทถัดไป, คลิปแชร์ |
-| Queues | ยืนยันผล raid, ส่งจดหมาย, analytics batch |
+ดูรายละเอียดที่ [architecture.md](architecture.md):
+- Node.js 22 services แยกเป็น `api` / `game` / `worker`
+- PostgreSQL 16 + Redis 7 + object storage แบบ S3
+- Docker Compose สำหรับรันบนเครื่อง และ managed containers ในภูมิภาค Singapore สำหรับ production
 
-- **ค่าใช้จ่าย:** ช่วงพัฒนาใช้ free tier · soft launch ใช้ Workers Paid ($5/เดือน + ตามการใช้งาน) · ต้อง **วัด CPU ของการรัน sim ฝั่งเซิร์ฟเวอร์จริง** ก่อนประเมินต้นทุนต่อผู้เล่น
-- **สภาพแวดล้อม:** local (`wrangler dev`) → staging → production แยก D1/KV/R2
+- [ ] เลือกผู้ให้บริการโฮสต์และ managed PostgreSQL/Redis ก่อน M1 staging
+- [ ] Backup แบบ point-in-time + ทดสอบกู้คืนเดือนละครั้ง
+- [ ] Load test ด้วย k6 (game server, matchmaker) ก่อนเปิดตัว
 
 ## 11. CI/CD
 - [ ] GitHub Actions: lint + typecheck + unit test + determinism test + balance sim → build web → deploy staging อัตโนมัติ

@@ -216,44 +216,27 @@
 
 **ตัวเลือก:** Phaser 3 แทน three.js — เกมเป็น pixel art 2D, Phaser มี sprite sheet, tilemap, pixel-perfect scaling, particle และ WebGL post-FX (bloom) ในตัว ขณะที่ three.js ออกแบบมาสำหรับ 3D และต้องเขียนเองมากกว่า
 
-```
-td-games-idel/
-├─ packages/
-│  ├─ sim/        TypeScript ล้วน: กฎเกม, deterministic (fixed tick 20Hz, seeded RNG) — อ่าน docs/data/*.json
-│  ├─ client/     Vite + Phaser 3: render, input, UI, เสียง — เรียก sim
-│  └─ server/     Cloudflare Worker + Durable Object "Room" (WebSocket)
-└─ docs/          GDD + data
-```
+สถาปัตยกรรมเต็มอยู่ที่ [design/architecture.md](design/architecture.md) ([ADR 0003](adr/0003-node-postgres-backend.md))
 
-**Multiplayer แบบ lockstep (ประหยัดเซิร์ฟเวอร์):**
-1. ผู้เล่นส่ง "คำสั่ง" (วางศิษย์, อัปเกรด, ผสาน, ใช้ไม้ตาย) ไปที่ Room
-2. Room (Durable Object 1 ตัวต่อห้อง) ประทับเลข tick แล้ว broadcast ให้ทุกคน
-3. ทุกเครื่องรัน `sim` เดียวกันแบบ deterministic → เห็นผลเหมือนกัน
-4. ทุก 5 วิ client ส่ง hash ของ state; ถ้าไม่ตรงให้ resync จาก snapshot
+- **หน้าบ้าน:** Phaser 3 + Vite (มีแล้ว) → เว็บ และห่อเป็นแอปด้วย Capacitor
+- **หลังบ้าน:** Node.js 22 + TypeScript แยก 3 service: `api` (Fastify REST), `game` (WebSocket ห้องแข่ง + จับคู่), `worker` (BullMQ ตรวจรีเพลย์ด้วย sim)
+- **ข้อมูล:** PostgreSQL 16 (ข้อมูลหลัก) + Redis 7 (คิว, อันดับ, จับคู่, cache) + object storage แบบ S3 (รีเพลย์)
+- **Multiplayer:** lockstep ผ่านห้องแข่งบน `game` server ซึ่งรัน sim เดียวกับ client เป็นผู้ตัดสินผล
+- **รันบนเครื่อง:** `npm run dev` (client) · `docker compose up` (postgres, redis, minio) สำหรับหลังบ้านตั้งแต่ M1
 
-ข้อดี: เซิร์ฟเวอร์แค่รับส่งข้อความ ใช้ CPU น้อยมาก อยู่ใน **Cloudflare free tier** ได้สบาย (Workers + Durable Objects แบบ SQLite มีใน free plan)
-
-**ขั้นตอนการรัน:**
-| ขั้น | คำสั่ง | ที่ไหน |
-|---|---|---|
-| เล่นคนเดียวบนเครื่องนี้ | `npm run dev` (Vite) | `localhost:5173` |
-| ทดสอบ multiplayer บนเครื่อง | `npx wrangler dev` (จำลอง Worker + Durable Object) | `localhost:8787` เปิดหลายแท็บ |
-| ขึ้นออนไลน์ฟรี | `npx wrangler deploy` (Workers + static assets) | `*.workers.dev` |
-| ภายหลัง | D1 (เซฟ/leaderboard), Capacitor (iOS/Android) | — |
-
-**Save:** v1 เซฟใน localStorage + export code; v2 ย้ายขึ้น D1 ผูกบัญชี
+**Save:** M0 เก็บดาวใน localStorage · ตั้งแต่ M1 เซฟอยู่ใน PostgreSQL ผูกกับบัญชี
 
 ## 11. Roadmap สู่การวางตลาด
 
 | Milestone | เนื้อหา | เกณฑ์ผ่าน |
 |---|---|---|
 | **M0 Vertical slice** | `sim` deterministic + client Phaser, บท 1 ด่าน 1-1 ถึง 1-4 (ตั้งรับ + บุกค่าย), 6 สำนัก, ยุทธ์ผสาน, art placeholder | เล่นบนเครื่องได้ ผู้ทดสอบภายในอยากเล่นต่อ |
-| **M1 Online core** | Worker + D1 บัญชี guest/cloud save, co-op lockstep, ยืนยันผลด้วย sim ฝั่งเซิร์ฟเวอร์ | 2–4 แท็บเล่นด้วยกัน 20 waves ไม่ desync |
+| **M1 Online core** | Node services + PostgreSQL/Redis, บัญชี guest/cloud save, co-op lockstep, ยืนยันผลด้วย sim ฝั่งเซิร์ฟเวอร์ | 2–4 แท็บเล่นด้วยกัน 20 waves ไม่ desync |
 | **M2 Competitive core** | บุก–ตั้งรับ 1v1 real-time, ranked/MMR, รีเพลย์, ห้องส่วนตัว, balance sim ใน CI | 1v1 ไม่ desync, เซิร์ฟเวอร์ตัดสินผลได้, playtest ภายในอยากเล่นซ้ำ |
 | **M2b Meta & Async PvP** | สำนักใหญ่, บำเพ็ญ, prestige, คัมภีร์, ตีสำนัก, หอคอย | วงจรรายวันครบ: idle → ด่าน → raid → ranked |
 | **M3 Content & Art** | pixel art จริง, บท 1–5 ครบ 60 ด่าน, เสียง/ดนตรี, FTUE, ภาษาไทย/อังกฤษ | playtest ภายนอก 20 คนเล่นจบบท 1 |
 | **M4 Monetization & Live ops** | ร้านค้า, pass, เซียมซี (อัตรา/pity), subscription, rewarded ads, remote config, analytics, admin tools | ผ่าน checklist ใน release-systems.md |
-| **M5 Soft launch** | เว็บ (Cloudflare + CrazyGames/Poki) + Android ใน 1–2 ประเทศ | D1 ≥ 40%, D7 ≥ 15%, crash-free ≥ 99.5% |
+| **M5 Soft launch** | เว็บ (CDN + CrazyGames/Poki) + Android ใน 1–2 ประเทศ | D1 ≥ 40%, D7 ≥ 15%, crash-free ≥ 99.5% |
 | **M6 Global launch v1.0** | iOS + Android + เว็บ, store compliance ครบ | — |
 | **Season 1** (+8–10 สัปดาห์) | ศึกชิงยุทธภพ 1v1, ban/pick + Bo3 ในห้องส่วนตัว, โหมดผู้ชม, บท 6–7, ภาษา ZH/VI/ID | — |
 | **หลังเกมแมส** | บันไดสู่ esports: ทัวร์ชุมชน → ลีกมหาวิทยาลัย → ทัวร์ทางการ → ลีกอาชีพ ([esports.md](design/esports.md)) | ตามเกณฑ์ในแต่ละขั้น |
