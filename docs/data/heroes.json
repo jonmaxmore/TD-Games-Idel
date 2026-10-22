@@ -1,0 +1,102 @@
+{
+  "_notes": "วีรชน: gacha sidegrades. Same total power budget as the base disciple of the sect (balance sim must keep win-rate within ±2%). Base disciples of every sect are always free.",
+  "powerBudgetRule": "heroWinRate - baseWinRate within +/-0.02 in headless sim, else rebalance",
+  "heroes": [
+    {
+      "id": "hero_1",
+      "sect": "metal",
+      "nameTh": "ม่อเหลียน กระบี่ไร้เงา",
+      "name": "Mo Lian, Shadowless Sword",
+      "rarity": "legendary",
+      "sidegrade": "sword qi ricochets between 3 targets instead of piercing"
+    },
+    {
+      "id": "hero_2",
+      "sect": "metal",
+      "nameTh": "เถี่ยหลาง นักดาบคู่",
+      "name": "Tie Lang, Twin Blades",
+      "rarity": "epic",
+      "sidegrade": "two weak hits per attack; crits trigger bleed"
+    },
+    {
+      "id": "hero_3",
+      "sect": "wood",
+      "nameTh": "ชิงอี หมอพิษ",
+      "name": "Qing Yi, Poison Physician",
+      "rarity": "legendary",
+      "sidegrade": "poison spreads on death instead of stacking"
+    },
+    {
+      "id": "hero_4",
+      "sect": "wood",
+      "nameTh": "ลู่เหยา คนเป่าขลุ่ยเร่ร่อน",
+      "name": "Lu Yao, Wandering Flutist",
+      "rarity": "epic",
+      "sidegrade": "aura slow 15% instead of root"
+    },
+    {
+      "id": "hero_5",
+      "sect": "water",
+      "nameTh": "นางพญาเหมันต์",
+      "name": "Frost Empress",
+      "rarity": "legendary",
+      "sidegrade": "freezes a whole lane segment every 12s, lower single-target dps"
+    },
+    {
+      "id": "hero_6",
+      "sect": "water",
+      "nameTh": "ไป๋ซู่ นางระบำแพร",
+      "name": "Bai Su, Ribbon Dancer",
+      "rarity": "epic",
+      "sidegrade": "ribbon pulls 1 enemy back instead of slowing all"
+    },
+    {
+      "id": "hero_7",
+      "sect": "fire",
+      "nameTh": "เยี่ยนหง ทายาทหงส์",
+      "name": "Yan Hong, Phoenix Heir",
+      "rarity": "legendary",
+      "sidegrade": "phoenix dive every 15s instead of cone fire"
+    },
+    {
+      "id": "hero_8",
+      "sect": "fire",
+      "nameTh": "จูเหลย จอมพลุ",
+      "name": "Zhu Lei, Firework Master",
+      "rarity": "epic",
+      "sidegrade": "long-range firework burst, slower rate"
+    },
+    {
+      "id": "hero_9",
+      "sect": "earth",
+      "nameTh": "หลวงจีนเหล็ก",
+      "name": "Iron Monk",
+      "rarity": "legendary",
+      "sidegrade": "Golden Bell lasts longer, blocks fewer enemies"
+    },
+    {
+      "id": "hero_10",
+      "sect": "earth",
+      "nameTh": "ซือหยวน นักมวยเมา",
+      "name": "Shi Yuan, Drunken Fist",
+      "rarity": "epic",
+      "sidegrade": "random stagger hits, no splash"
+    },
+    {
+      "id": "hero_11",
+      "sect": "yinyang",
+      "nameTh": "นักพรตกระจก",
+      "name": "Mirror Taoist",
+      "rarity": "legendary",
+      "sidegrade": "reflects 20% damage to attacker units instead of +silver"
+    },
+    {
+      "id": "hero_12",
+      "sect": "yinyang",
+      "nameTh": "หมิงเยว่ หมอดู",
+      "name": "Ming Yue, Fortune Teller",
+      "rarity": "epic",
+      "sidegrade": "predicts next wave element: +10% dmg vs it"
+    }
+  ]
+}

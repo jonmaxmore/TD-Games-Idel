@@ -88,6 +88,12 @@ button[aria-pressed="true"] { background: var(--line); border-color: var(--c, va
 .items ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
 .r-common { color: #B9B3C7; } .r-rare { color: var(--water); } .r-epic { color: #C77DFF; } .r-legendary { color: var(--gold); }
 .foot { font-size: 13px; color: var(--mist); }
+.phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.phase { border-left: 3px solid var(--line); padding: 4px 0 4px 16px; display: grid; gap: 8px; align-content: start; }
+.phase:first-child { border-left-color: var(--gold); }
+.phase ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rules { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (prefers-reduced-motion: reduce) { .seal { transform: none; } }
 </style>
 
@@ -142,6 +148,52 @@ button[aria-pressed="true"] { background: var(--line); border-color: var(--c, va
         <p id="fxdesc" class="muted"></p>
         <p class="muted">Sprite เป็น pixel คม ส่วนแสงเรืองเป็นชั้น additive แยกทับด้านบน (HD-2D-lite) โหมด Low FX ลด particle ครึ่งหนึ่งและปิด bloom</p>
       </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="zh">戰場</span> โหมดเกม</h2>
+    <p class="muted">เปิดตัวด้วยโหมดที่ไม่ต้องมีคนออนไลน์พร้อมกัน แล้วเพิ่ม PvP real-time เมื่อผู้เล่นมากพอ ใน ranked ทุกคนใช้ค่าสถานะเท่ากัน</p>
+    <div class="phases">
+      <div class="phase"><span class="label">v1.0 · เปิดตัว</span>
+        <ul>
+          <li><b>เนื้อเรื่อง</b> 5 บท 60 ด่าน มีทั้งตั้งรับ บุกค่าย คุ้มกัน ปิดล้อม ดวลบอส ปริศนา</li>
+          <li><b>ตีสำนัก</b> จัดผังป้องกันไว้ ให้คนอื่นมาบุกตอนเราออฟไลน์ ดูรีเพลย์แล้วแก้แค้นได้</li>
+          <li><b>ล่าบอสพันธมิตร</b> co-op 2–4 คน บอสเปลี่ยนทุกสัปดาห์</li>
+          <li><b>หอคอยพันชั้น</b> roguelite ไม่สิ้นสุด seed เดียวกันทั้งโลก</li>
+        </ul></div>
+      <div class="phase"><span class="label">Season 1 · +8–10 สัปดาห์</span>
+        <ul>
+          <li><b>ศึกชิงยุทธภพ 1v1</b> ป้องกันเลนตัวเองและส่งทหารพรรคใส่คู่แข่ง</li>
+          <li><b>บุก–ตั้งรับ 1v1</b> ฝ่ายหนึ่งวางศิษย์ อีกฝ่ายคุมกองบุก สองรอบสลับกัน</li>
+          <li>ranked 7 ลีก ศิลา ถึง เทพยุทธ์</li>
+          <li>บท 6–7 ดินแดนทะเลทรายตะวันตก</li>
+        </ul></div>
+      <div class="phase"><span class="label">Season 2</span>
+        <ul>
+          <li><b>2v2 พันธมิตร</b> ยุทธ์ผสานข้ามเพื่อนร่วมทีม</li>
+          <li><b>ศึกสำนัก</b> ชุมนุมแย่งดินแดน 30 แห่ง</li>
+          <li>สำนักใหม่</li>
+        </ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="zh">生財</span> เกมฟรีหาเงินอย่างไร</h2>
+    <p class="muted">ผู้เล่นส่วนใหญ่ไม่จ่ายเลยและยังสนุกได้ครบ รายได้มาจากคนส่วนน้อยที่อยากได้ความสวยงาม ความสะดวก และอยากสนับสนุนเกม สัดส่วนเป็นสมมติฐานที่ต้องวัดจริงตอน soft launch</p>
+    <div class="tbl"><table>
+      <thead><tr><th>แหล่งรายได้</th><th>ผู้เล่นได้อะไร</th><th>ราคา</th><th>สัดส่วน (สมมติฐาน)</th></tr></thead>
+      <tbody>
+        <tr><td><b>ตั๋วยุทธภพ</b></td><td>ชุดพิเศษ เอฟเฟกต์ หยก มีแถวฟรีให้ทุกคน</td><td class="num">149 ฿ / 30 วัน</td><td class="num">25–30%</td></tr>
+        <tr><td><b>ศาลาเสี่ยงเซียมซี</b></td><td>วีรชน (ท่าต่าง พลังเท่ากัน) และชุด อัตราเปิดเผย การันตีที่ 60 ครั้ง เลือกตัวได้ที่ 120</td><td class="num">หยก</td><td class="num">25–35%</td></tr>
+        <tr><td><b>ร้านซื้อตรง</b></td><td>ชุดเลือกเอง ธีมแผนที่ แพ็กผู้เริ่มต้น</td><td class="num">35–749 ฿</td><td class="num">15–20%</td></tr>
+        <tr><td><b>ศิษย์ในสังกัด</b></td><td>ปราณออฟไลน์ ×1.5 ไม่มีโฆษณา หยกรายวัน</td><td class="num">99 ฿ / เดือน</td><td class="num">10–15%</td></tr>
+        <tr><td><b>โฆษณาแบบสมัครใจ</b></td><td>×2 รางวัลออฟไลน์ ฟื้นชีวิต หีบรายวัน</td><td class="num">ฟรี</td><td class="num">10–15%</td></tr>
+        <tr><td><b>คอลแลบ / esports</b></td><td>ชุดคอลแลบ tournament pass</td><td class="num">ตามแคมเปญ</td><td class="num">0–10%</td></tr>
+      </tbody>
+    </table></div>
+    <div class="rules">
+      <span class="chip">ranked ค่าสถานะเท่ากัน</span><span class="chip">gacha ไม่ขายพลัง</span><span class="chip">เนื้อเรื่องจบได้โดยไม่จ่าย</span><span class="chip">ไม่มีโฆษณาบังคับ</span><span class="chip">หยกฟรี ~1,500 / สัปดาห์</span>
     </div>
   </section>
 

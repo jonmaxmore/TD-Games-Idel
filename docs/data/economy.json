@@ -1,0 +1,173 @@
+{
+  "_notes": "Prototype values; see docs/design/economy.md. Prices THB at store tiers.",
+  "currencies": [
+    {
+      "id": "silver",
+      "nameTh": "ตำลึงเงิน",
+      "scope": "in-run",
+      "purchasable": false
+    },
+    {
+      "id": "qi",
+      "nameTh": "ปราณ",
+      "scope": "meta/idle",
+      "purchasable": "indirect"
+    },
+    {
+      "id": "jade",
+      "nameTh": "หยก",
+      "scope": "premium",
+      "purchasable": true,
+      "f2pWeekly": 1500
+    },
+    {
+      "id": "merit",
+      "nameTh": "แต้มบุญ",
+      "scope": "prestige",
+      "purchasable": false
+    },
+    {
+      "id": "war_seal",
+      "nameTh": "ตราศึก",
+      "scope": "pvp shop",
+      "purchasable": false
+    },
+    {
+      "id": "fortune_stick",
+      "nameTh": "ป้ายเซียมซี",
+      "scope": "gacha ticket",
+      "purchasable": "indirect"
+    },
+    {
+      "id": "skin_shard",
+      "nameTh": "เศษชุด",
+      "scope": "duplicate conversion",
+      "purchasable": false
+    }
+  ],
+  "gacha": {
+    "nameTh": "ศาลาเสี่ยงเซียมซี",
+    "costSingle": 150,
+    "costTen": 1350,
+    "tenPullGuarantee": "rare+",
+    "rates": [
+      {
+        "tier": "legendary",
+        "pct": 1.5
+      },
+      {
+        "tier": "epic",
+        "pct": 8.5
+      },
+      {
+        "tier": "rare",
+        "pct": 30
+      },
+      {
+        "tier": "common",
+        "pct": 60
+      }
+    ],
+    "pity": {
+      "legendaryAt": 60,
+      "carriesOver": "per banner type"
+    },
+    "spark": {
+      "every": 120,
+      "reward": "pick any banner item"
+    },
+    "duplicates": "convert to skin_shard; never adds power",
+    "disabledRegions": [
+      "BE"
+    ]
+  },
+  "battlePass": {
+    "days": 30,
+    "tiers": 50,
+    "premiumTHB": 149,
+    "premiumPlusTHB": 379,
+    "premiumPlusSkipTiers": 20,
+    "freeTrack": true
+  },
+  "subscription": {
+    "nameTh": "ศิษย์ในสังกัด",
+    "THB": 99,
+    "benefits": {
+      "offlineQiMult": 1.5,
+      "extraPatrolSlots": 1,
+      "noAds": true,
+      "dailyJade": 60
+    }
+  },
+  "shop": [
+    {
+      "id": "starter",
+      "THB": 35,
+      "oncePerAccount": true,
+      "contains": [
+        "rare_skin",
+        "jade:300",
+        "fortune_stick:3"
+      ]
+    },
+    {
+      "id": "jade_330",
+      "THB": 35,
+      "jade": 330
+    },
+    {
+      "id": "jade_980",
+      "THB": 99,
+      "jade": 980,
+      "firstBuyBonus": 2
+    },
+    {
+      "id": "jade_3280",
+      "THB": 349,
+      "jade": 3280
+    },
+    {
+      "id": "jade_6480",
+      "THB": 699,
+      "jade": 6480
+    },
+    {
+      "id": "jade_16480",
+      "THB": 1690,
+      "jade": 16480
+    },
+    {
+      "id": "direct_skin",
+      "THBRange": [
+        99,
+        379
+      ]
+    }
+  ],
+  "ads": {
+    "type": "rewarded only",
+    "placements": [
+      "offline_x2",
+      "revive_once_per_stage",
+      "daily_chest",
+      "speed_up_building"
+    ],
+    "dailyCap": 10,
+    "removedBySubscription": true
+  },
+  "minorSpendCapTHBPerMonth": 1500,
+  "kpiTargets": {
+    "d1": 0.4,
+    "d7": 0.15,
+    "d30": 0.06,
+    "payerConversion": [
+      0.02,
+      0.04
+    ],
+    "arpdauUSD": [
+      0.05,
+      0.15
+    ],
+    "top1pctRevenueShareMax": 0.5
+  }
+}

@@ -2,18 +2,202 @@
   "_notes": "Invaders of the Blood Moon Cult (พรรคจันทร์โลหิต) and its allies. hp is wave-1 baseline scaled by waveHpCurve. element drives Wu Xing overcome bonus (see sects.json).",
   "waveHpCurve": "hp * (1 + 0.18*w) * 1.06^max(0, w-10)",
   "enemies": [
-    { "id": "cultist",   "name": "Cult Footman",       "nameTh": "สมุนพรรคมาร",        "element": "earth", "layer": "ground", "hp": 60,  "speed": 1.0, "bounty": 3,  "trait": null },
-    { "id": "runner",    "name": "Qinggong Bandit",    "nameTh": "โจรวิชาตัวเบา",       "element": "wood",  "layer": "ground", "hp": 35,  "speed": 1.8, "bounty": 3,  "trait": "dashes 2 tiles every 4s" },
-    { "id": "brute",     "name": "Iron Shirt Brute",   "nameTh": "ยักษ์เสื้อเหล็ก",      "element": "metal", "layer": "ground", "hp": 300, "speed": 0.6, "bounty": 10, "trait": "armor 5 (Iron Shirt)" },
-    { "id": "leaper",    "name": "Rooftop Leaper",     "nameTh": "นักกระโดดหลังคา",     "element": "wood",  "layer": "air",    "hp": 45,  "speed": 1.3, "bounty": 4,  "trait": "flies over roofs (ignores path); only ranged/air-capable disciples hit" },
-    { "id": "puppet",    "name": "Corpse Puppet",      "nameTh": "หุ่นศพ",              "element": "water", "layer": "ground", "hp": 120, "speed": 0.9, "bounty": 6,  "trait": "splits into 3 lesser puppets on death" },
-    { "id": "assassin",  "name": "Shadow Assassin",    "nameTh": "มือสังหารเงา",         "element": "metal", "layer": "ground", "hp": 70,  "speed": 1.2, "bounty": 6,  "trait": "stealth until revealed by Taiji Mirror Hall" },
-    { "id": "healer",    "name": "Blood Monk",         "nameTh": "ภิกษุโลหิต",          "element": "fire",  "layer": "ground", "hp": 90,  "speed": 0.9, "bounty": 8,  "trait": "heals nearby 5%/s" },
-    { "id": "mimic",     "name": "Mirror Sect Traitor","nameTh": "ศิษย์ทรยศ",            "element": "water", "layer": "ground", "hp": 150, "speed": 0.8, "bounty": 9,  "trait": "copies resistance to the last element that hit it (3s)" }
+    {
+      "id": "cultist",
+      "name": "Cult Footman",
+      "nameTh": "สมุนพรรคมาร",
+      "element": "earth",
+      "layer": "ground",
+      "hp": 60,
+      "speed": 1.0,
+      "bounty": 3,
+      "trait": null
+    },
+    {
+      "id": "runner",
+      "name": "Qinggong Bandit",
+      "nameTh": "โจรวิชาตัวเบา",
+      "element": "wood",
+      "layer": "ground",
+      "hp": 35,
+      "speed": 1.8,
+      "bounty": 3,
+      "trait": "dashes 2 tiles every 4s"
+    },
+    {
+      "id": "brute",
+      "name": "Iron Shirt Brute",
+      "nameTh": "ยักษ์เสื้อเหล็ก",
+      "element": "metal",
+      "layer": "ground",
+      "hp": 300,
+      "speed": 0.6,
+      "bounty": 10,
+      "trait": "armor 5 (Iron Shirt)"
+    },
+    {
+      "id": "leaper",
+      "name": "Rooftop Leaper",
+      "nameTh": "นักกระโดดหลังคา",
+      "element": "wood",
+      "layer": "air",
+      "hp": 45,
+      "speed": 1.3,
+      "bounty": 4,
+      "trait": "flies over roofs (ignores path); only ranged/air-capable disciples hit"
+    },
+    {
+      "id": "puppet",
+      "name": "Corpse Puppet",
+      "nameTh": "หุ่นศพ",
+      "element": "water",
+      "layer": "ground",
+      "hp": 120,
+      "speed": 0.9,
+      "bounty": 6,
+      "trait": "splits into 3 lesser puppets on death"
+    },
+    {
+      "id": "assassin",
+      "name": "Shadow Assassin",
+      "nameTh": "มือสังหารเงา",
+      "element": "metal",
+      "layer": "ground",
+      "hp": 70,
+      "speed": 1.2,
+      "bounty": 6,
+      "trait": "stealth until revealed by Taiji Mirror Hall"
+    },
+    {
+      "id": "healer",
+      "name": "Blood Monk",
+      "nameTh": "ภิกษุโลหิต",
+      "element": "fire",
+      "layer": "ground",
+      "hp": 90,
+      "speed": 0.9,
+      "bounty": 8,
+      "trait": "heals nearby 5%/s"
+    },
+    {
+      "id": "mimic",
+      "name": "Mirror Sect Traitor",
+      "nameTh": "ศิษย์ทรยศ",
+      "element": "water",
+      "layer": "ground",
+      "hp": 150,
+      "speed": 0.8,
+      "bounty": 9,
+      "trait": "copies resistance to the last element that hit it (3s)"
+    }
   ],
   "bosses": [
-    { "id": "boss_ch1", "name": "Hundred-Hand Bandit King", "nameTh": "ราชาโจรร้อยมือ",     "chapter": 1, "wave": 10, "element": "wood",  "hp": 5000,  "speed": 0.5, "mechanic": "throws hidden weapons that disable a random disciple for 3s at 75/50/25% HP" },
-    { "id": "boss_ch1b","name": "Blood Moon Envoy",         "nameTh": "ทูตจันทร์โลหิต",     "chapter": 1, "wave": 20, "element": "fire",  "hp": 20000, "speed": 0.4, "mechanic": "each phase seals one sect (its disciples deal 0) - player must re-balance" },
-    { "id": "boss_final","name": "Demon Sovereign Xue Yue", "nameTh": "จอมมารเสวี่ยเยว่",   "chapter": 5, "wave": 30, "element": "yinyang","hp": 120000,"speed": 0.35,"mechanic": "absorbs one Wu Xing element per phase; only the element that overcomes the absorbed one hurts her" }
-  ]
+    {
+      "id": "boss_ch1",
+      "name": "Hundred-Hand Bandit King",
+      "nameTh": "ราชาโจรร้อยมือ",
+      "chapter": 1,
+      "wave": 10,
+      "element": "wood",
+      "hp": 5000,
+      "speed": 0.5,
+      "mechanic": "throws hidden weapons that disable a random disciple for 3s at 75/50/25% HP"
+    },
+    {
+      "id": "boss_ch1b",
+      "name": "Blood Moon Envoy",
+      "nameTh": "ทูตจันทร์โลหิต",
+      "chapter": 1,
+      "wave": 20,
+      "element": "fire",
+      "hp": 20000,
+      "speed": 0.4,
+      "mechanic": "each phase seals one sect (its disciples deal 0) - player must re-balance"
+    },
+    {
+      "id": "boss_final",
+      "name": "Demon Sovereign Xue Yue",
+      "nameTh": "จอมมารเสวี่ยเยว่",
+      "chapter": 5,
+      "wave": 30,
+      "element": "yinyang",
+      "hp": 120000,
+      "speed": 0.35,
+      "mechanic": "absorbs one Wu Xing element per phase; only the element that overcomes the absorbed one hurts her"
+    }
+  ],
+  "attackerUnits": {
+    "_notes": "Units the attacking side deploys in Async Raid, Siege 1v1 (attacker role) and story Assault stages. cost = war drums (กลองศึก).",
+    "items": [
+      {
+        "id": "cultist",
+        "cost": 1,
+        "note": "cheap filler"
+      },
+      {
+        "id": "runner",
+        "cost": 2,
+        "note": "fast flanker"
+      },
+      {
+        "id": "brute",
+        "cost": 5,
+        "note": "tank, soaks crowd control"
+      },
+      {
+        "id": "leaper",
+        "cost": 3,
+        "note": "air: ignores ground blockers"
+      },
+      {
+        "id": "puppet",
+        "cost": 4,
+        "note": "splits; punishes single-target defences"
+      },
+      {
+        "id": "assassin",
+        "cost": 4,
+        "note": "stealth; counters defences without Taiji"
+      },
+      {
+        "id": "healer",
+        "cost": 4,
+        "note": "sustain for pushes"
+      },
+      {
+        "id": "mimic",
+        "cost": 6,
+        "note": "adapts to the defence's main element"
+      }
+    ]
+  },
+  "attackerArts": {
+    "_notes": "Secret arts available to the attacking side.",
+    "items": [
+      {
+        "id": "smoke_poison",
+        "nameTh": "ควันพิษ",
+        "cooldown": 45,
+        "effect": "disciples in r=2 lose 50% range for 5s"
+      },
+      {
+        "id": "wall_breaker",
+        "nameTh": "ระเบิดกำแพง",
+        "cooldown": 60,
+        "effect": "destroy a Golden Bell / trap, open a shortcut tile"
+      },
+      {
+        "id": "war_drum",
+        "nameTh": "กลองเร่งพล",
+        "cooldown": 50,
+        "effect": "all units +40% speed 6s"
+      },
+      {
+        "id": "blood_moon",
+        "nameTh": "จันทร์โลหิต",
+        "cooldown": 120,
+        "effect": "units heal 30% and gain 3s immunity to control"
+      }
+    ]
+  }
 }
