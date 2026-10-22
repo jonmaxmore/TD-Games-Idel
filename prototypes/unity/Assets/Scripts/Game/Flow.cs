@@ -266,6 +266,13 @@ namespace FiveSects.Game
                 Ui.Label(r, L("เวลาจากเปิดเกมถึงวางศิษย์ตัวแรก: ", "App start to first disciple placed: ") + (Profile.FirstPlaceMs / 1000f).ToString("0.0") + L(" วินาที", " s"),
                     20, new Vector2(0, 0.2f), new Vector2(1, 0.24f), "#9A92AE");
             Ui.Label(r, FileAnalytics.PathOf, 16, new Vector2(0, 0.16f), new Vector2(1, 0.2f), "#5A5266");
+            Ui.Btn(r, L("ตัวอย่างภาพ 3D pixel (ทดลอง)", "3D pixel look test"), new Vector2(0.2f, 0.27f), new Vector2(0.8f, 0.33f), () =>
+            {
+                Analytics.Track("diorama_open");
+                var d = new GameObject("Diorama").AddComponent<Diorama>();
+                d.OnClose = ShowLobby;
+                Destroy(screen.gameObject); screen = null;
+            }, true, "#2A1E14", 24);
             Ui.Btn(r, L("เริ่มใหม่ (ลบเซฟทดสอบ)", "Start over (delete test save)"), new Vector2(0.25f, 0.11f), new Vector2(0.75f, 0.155f), () =>
             {
                 Store.Reset(); Profile = new Profile(); Analytics.Track("profile_reset"); ShowBoot();
