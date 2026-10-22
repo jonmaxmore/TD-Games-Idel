@@ -13,7 +13,8 @@
     "sim:replay": "vite-node packages/sim/scripts/replay.ts --",
     "smoke": "node packages/client/scripts/smoke.mjs",
     "sim:golden": "vite-node packages/sim/scripts/write-golden.ts",
-    "unity:sync": "node prototypes/unity/sync-data.mjs"
+    "unity:sync": "node prototypes/unity/sync-data.mjs",
+    "art:build": "node tools/blender/build.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.21",

@@ -66,7 +66,7 @@
 - ไฟล์เล็ก โหลดเว็บเร็ว สำคัญกับ web game
 - เข้ากับการ "ผสม" แสงสมัยใหม่: sprite คมแบบ pixel + ชั้นแสงเรืองและ particle แบบ HD ทับด้านบน
 
-**กฎภาพ** (ตัวเลขละเอียดใน `effects.json > render`):
+**กฎภาพ** (ตัวเลขละเอียดใน `effects.json > render`; ท่อผลิตจาก Blender: [tools/blender.md](tools/blender.md)):
 - ความละเอียดภายใน 180×320 ขยายแบบ integer, nearest-neighbour
 - Tile 16 px · ศิษย์ 24×32 · บอส 64×64 · กระสุน 8×8
 - Master palette 48 สี; แต่ละสำนักใช้ได้ 6 เฉด + สีผิว/เส้นขอบร่วม

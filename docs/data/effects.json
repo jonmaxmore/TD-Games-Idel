@@ -7,7 +7,19 @@
     "characterSprite": [24, 32],
     "bossSprite": [64, 64],
     "projectile": [8, 8],
-    "palette": "48-colour master palette; each sect limited to 6 shades + shared skin/outline",
+    "paletteRule": "48-colour master palette; each sect limited to 6 shades + shared skin/outline",
+    "palette": {
+      "shared": ["#1A1423", "#F2C9A0", "#C9966E", "#E3B04B", "#D2412F", "#EEF3F8"],
+      "metal": ["#E5EAF0", "#D9E1EA", "#9FB3CA", "#6B8AAD", "#486483", "#304357"],
+      "wood": ["#9FDCA7", "#5BC46A", "#3DA94C", "#2F833B", "#225F2B", "#173F1D"],
+      "water": ["#ABDBFF", "#4FB3FF", "#0C96FF", "#0076CF", "#005596", "#003964"],
+      "fire": ["#FF9E7B", "#FF5A1F", "#E53C00", "#B12F00", "#812200", "#561700"],
+      "earth": ["#DEC191", "#C99A4A", "#A97D33", "#836127", "#5F471C", "#402F13"],
+      "yinyang": ["#F2F2F2", "#C8C4CC", "#8F8A96", "#5A5266", "#3A3442", "#FFFFFF"],
+      "enemy": ["#8A2A1A", "#5A1820", "#2A0A10", "#3E5A2A", "#6E6A78", "#120A10"],
+      "env": ["#16201A", "#1E2B22", "#24352A", "#3B2C2A", "#4A3833", "#5E4A42", "#7A8C7E", "#C9D3D8"]
+    },
+    "paletteNote": "shared + one sect group (6 shades each) per sprite; enemies use shared+enemy; terrain uses env. Blender pipeline: docs/tools/blender.md",
     "outline": "1px dark outline #1A1423 on all characters for readability",
     "targetFps": 60, "maxParticles": 1500, "bloom": { "threshold": 0.65, "strength": 0.8 }
   },
