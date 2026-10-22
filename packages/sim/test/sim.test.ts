@@ -325,6 +325,22 @@ describe('canonical hash (engine-port parity)', () => {
     expect(b).toEqual(a);
     expect(a.final.phase).toBe('won');
   });
+  it('committed Unity goldens and synced data are up to date (run npm run sim:golden / unity:sync)', async () => {
+    const { GOLDENS } = await import('../scripts/golden');
+    const unity = fileURLToPath(new URL('../../../prototypes/unity/Assets/', import.meta.url));
+    for (const [name, make] of Object.entries(GOLDENS)) {
+      const committed = JSON.parse(readFileSync(join(unity, 'Editor/Tests', `golden-${name}.json`), 'utf8'));
+      expect(committed, name).toEqual(JSON.parse(JSON.stringify(make())));
+    }
+    const data = fileURLToPath(new URL('../../../docs/data/', import.meta.url));
+    for (const f of readdirSync(data).filter((x) => x.endsWith('.json')))
+      expect(readFileSync(join(unity, 'Resources/data', f), 'utf8'), f).toBe(readFileSync(join(data, f), 'utf8'));
+  });
+  it('the actions golden exercises merge, arts, targets, sell and picks', async () => {
+    const { goldenActions } = await import('../scripts/golden');
+    const all = Object.values(goldenActions().commands).flat().map((c) => c.t);
+    for (const t of ['merge', 'cast', 'target', 'sell', 'pick', 'upgrade', 'place']) expect(all, t).toContain(t);
+  });
   it('uses a fixed layout other engines can reproduce', () => {
     const s = defend('1-1');
     expect(canonicalString(s)).toBe('0|120|20|0|build|1|||');

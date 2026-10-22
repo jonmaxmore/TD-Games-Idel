@@ -49,6 +49,9 @@ namespace FiveSects.Sim
         public static void Load(Func<string, string> read)
         {
             if (Loaded) return;
+            // Start clean so a failed earlier attempt can't leave duplicates behind.
+            Sects.Clear(); SectOrder.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
+            StageList.Clear(); Stages.Clear(); Arts.Clear(); Cards.Clear(); Elites.Clear();
             var sects = JObject.Parse(read("sects"));
             foreach (var s in sects["sects"])
             {

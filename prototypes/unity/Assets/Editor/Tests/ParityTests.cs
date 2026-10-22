@@ -17,10 +17,11 @@ namespace FiveSects.Tests
 
         [TestCase("1-1")]
         [TestCase("T-1")]
+        [TestCase("T-1-actions")]
         public void MatchesTypeScriptGolden(string stage)
         {
             var g = JObject.Parse(File.ReadAllText(Path.Combine(Application.dataPath, "Editor", "Tests", "golden-" + stage + ".json")));
-            var s = Defend.Create(stage, (uint)(long)g["seed"]);
+            var s = Defend.Create((string)g["stageId"], (uint)(long)g["seed"]);
             var commands = (JObject)g["commands"];
             var trace = (JArray)g["trace"];
             int ti = 0;
@@ -52,7 +53,16 @@ namespace FiveSects.Tests
         static Command ToCommand(JToken c) => new Command
         {
             T = (string)c["t"], Sect = (string)c["sect"], Art = (string)c["art"], Card = (string)c["card"], Mode = (string)c["mode"],
-            Tx = (int?)c["tx"] ?? 0, Ty = (int?)c["ty"] ?? 0, Id = (int?)c["id"] ?? 0, A = (int?)c["a"] ?? 0, B = (int?)c["b"] ?? 0,
+            Tx = Int(c, "tx"), Ty = Int(c, "ty"), Id = Int(c, "id"), A = Int(c, "a"), B = Int(c, "b"),
         };
+
+        // Replays are untrusted input: reject non-integers instead of letting Newtonsoft round 1.5 to 2.
+        static int Int(JToken c, string key)
+        {
+            var v = c[key];
+            if (v == null) return 0;
+            if (v.Type != JTokenType.Integer) throw new System.FormatException("command field '" + key + "' must be an integer: " + v);
+            return (int)v;
+        }
     }
 }

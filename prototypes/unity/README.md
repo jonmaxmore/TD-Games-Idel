@@ -17,7 +17,7 @@
 
 ## ขั้นตอน (ประมาณ 20–40 นาที รวมติดตั้ง)
 
-1. **ติดตั้ง** Unity Hub แล้วติดตั้ง **Unity 6 LTS (6000.0.x)** พร้อมโมดูล **WebGL Build Support** (และ **Android Build Support** ถ้าจะวัด APK)
+1. **ติดตั้ง** Unity Hub แล้วติดตั้ง **Unity 6 LTS (6000.0.58f2 ขึ้นไป)** พร้อมโมดูล **WebGL Build Support** (และ **Android Build Support** ถ้าจะวัด APK)
 2. **เปิดโปรเจกต์:** Unity Hub → Add → เลือกโฟลเดอร์ `prototypes/unity`
    - ครั้งแรกจะใช้เวลาสักพัก Unity สร้าง `Library/` และ `ProjectSettings/` ให้เอง
    - ถ้าขึ้นถามเรื่อง Input System / restart ให้กด **Yes**

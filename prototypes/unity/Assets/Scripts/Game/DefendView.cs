@@ -6,7 +6,7 @@ using FiveSects.Sim;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-#if !ENABLE_LEGACY_INPUT_MANAGER && ENABLE_INPUT_SYSTEM
+#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 #endif
@@ -37,6 +37,8 @@ namespace FiveSects.Game
         bool thai;
         Text silverText, livesText, waveText, fpsText, toastText;
         Button waveButton;
+        Text waveButtonText;
+        float nextFpsUpdate;
         RectTransform panel;
         float toastUntil;
         float fpsSmoothed = 60f;
@@ -75,7 +77,7 @@ namespace FiveSects.Game
                 {
                     prev.Clear();
                     foreach (var e in s.Enemies) prev[e.Id] = new Vector2(e.X, e.Y);
-                    var events = Defend.Step(s, pending.ToList());
+                    var events = Defend.Step(s, pending.Count > 0 ? pending.ToArray() : System.Array.Empty<Command>());
                     pending.Clear();
                     Handle(events);
                     acc -= TickSec;
@@ -100,23 +102,34 @@ namespace FiveSects.Game
 
         bool PointerDown(out Vector2 screen)
         {
-#if ENABLE_LEGACY_INPUT_MANAGER
-            screen = Input.mousePosition;
-            return Input.GetMouseButtonDown(0);
-#elif ENABLE_INPUT_SYSTEM
+// Prefer the Input System when present: its UI module reports touches over uGUI correctly.
+#if ENABLE_INPUT_SYSTEM
             var p = Pointer.current;
             screen = p != null ? p.position.ReadValue() : Vector2.zero;
             return p != null && p.press.wasPressedThisFrame;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            screen = Input.mousePosition;
+            return Input.GetMouseButtonDown(0);
 #else
             screen = Vector2.zero;
             return false;
 #endif
         }
 
+        static bool OverUi()
+        {
+            var es = EventSystem.current;
+            if (es == null) return false;
+#if !ENABLE_INPUT_SYSTEM && ENABLE_LEGACY_INPUT_MANAGER
+            if (Input.touchCount > 0) return es.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
+#endif
+            return es.IsPointerOverGameObject();
+        }
+
         void HandleInput()
         {
             if (!PointerDown(out var screen)) return;
-            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+            if (OverUi()) return;
             var w = Camera.main.ScreenToWorldPoint(new Vector3(screen.x, screen.y, 10));
             float gx = w.x, gy = -w.y;
             int tx = Mathf.FloorToInt((gx - OX) / T), ty = Mathf.FloorToInt((gy - OY) / T);
@@ -152,7 +165,7 @@ namespace FiveSects.Game
                     case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
                     case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
                     case "end":
-                        Toast(ev.Won ? L("ชนะ! ", "Victory! ") + string.Concat(ev.Stars.Select(x => x ? "★" : "☆")) : L("พ่ายแพ้", "Defeat"), 999f);
+                        Toast(ev.Won ? L("ชนะ! ", "Victory! ") + string.Concat(ev.Stars.Select(x => x ? "*" : "-")) : L("พ่ายแพ้", "Defeat"), 999f);
                         break;
                 }
             }
@@ -255,7 +268,7 @@ namespace FiveSects.Game
             if (EventSystem.current == null)
             {
                 var es = new GameObject("EventSystem").AddComponent<EventSystem>();
-#if !ENABLE_LEGACY_INPUT_MANAGER && ENABLE_INPUT_SYSTEM
+#if ENABLE_INPUT_SYSTEM
                 es.gameObject.AddComponent<InputSystemUIInputModule>();
 #else
                 es.gameObject.AddComponent<StandaloneInputModule>();
@@ -279,6 +292,7 @@ namespace FiveSects.Game
 
             var bottom = Box(root, "Bottom", new Vector2(0, 0), new Vector2(1, 0), Vector2.zero, new Vector2(0, 64), "#0E0B14");
             waveButton = MakeButton(bottom, L("เริ่มบุก", "Start wave"), new Vector2(0.02f, 0.1f), new Vector2(0.6f, 0.9f), () => pending.Add(new Command { T = "nextWave" }));
+            waveButtonText = waveButton.GetComponentInChildren<Text>();
             fpsText = Label(bottom, "", 20, new Vector2(0.62f, 0), new Vector2(0.98f, 1), "#9A92AE");
 
             toastText = Label(root, "", 30, new Vector2(0, 0.62f), new Vector2(1, 0.7f), "#ECE3CF");
@@ -358,13 +372,17 @@ namespace FiveSects.Game
         void UpdateHud()
         {
             silverText.text = L("ตำลึง ", "Silver ") + s.Silver;
-            livesText.text = "♥ " + s.Lives;
+            livesText.text = L("ชีวิต ", "Lives ") + s.Lives;
             waveText.text = s.Wave + "/" + s.TotalWaves;
-            waveButton.GetComponentInChildren<Text>().text = s.Phase == "build" ? L("เริ่มบุก", "Start wave")
-                : s.Phase == "break" ? L("wave ถัดไป +", "Next wave +") + GameData.EarlyCallBonus : L("กำลังสู้…", "Fighting…");
+            waveButtonText.text = s.Phase == "build" ? L("เริ่มบุก", "Start wave")
+                : s.Phase == "break" ? L("wave ถัดไป +", "Next wave +") + GameData.EarlyCallBonus : L("กำลังสู้...", "Fighting...");
             if (Time.time > toastUntil) toastText.text = "";
             fpsSmoothed = Mathf.Lerp(fpsSmoothed, 1f / Mathf.Max(0.0001f, Time.unscaledDeltaTime), 0.05f);
-            fpsText.text = Mathf.RoundToInt(fpsSmoothed) + " fps · boot " + firstFrameAt.ToString("0.00") + "s";
+            if (Time.unscaledTime >= nextFpsUpdate)
+            {
+                nextFpsUpdate = Time.unscaledTime + 0.25f;
+                fpsText.text = Mathf.RoundToInt(fpsSmoothed) + " fps, boot " + firstFrameAt.ToString("0.00") + "s";
+            }
         }
     }
 }

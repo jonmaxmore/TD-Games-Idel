@@ -28,7 +28,7 @@ namespace FiveSects.Sim
     public static class JsMath
     {
         // JS Math.round: halves round towards +infinity (C# Math.Round defaults to banker's rounding).
-        public static int Round(double x) => (int)Math.Floor(x + 0.5);
+        public static int Round(double x) { double f = Math.Floor(x); return (int)(x - f >= 0.5 ? f + 1 : f); }
         // JS Math.floor(a / b) for integers (exact for the non-negative values the sim divides).
         public static int FloorDiv(long a, long b) => (int)Math.Floor((double)a / b);
     }

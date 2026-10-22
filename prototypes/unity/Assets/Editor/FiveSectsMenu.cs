@@ -11,11 +11,15 @@ public static class FiveSectsMenu
     const string ScenePath = "Assets/Scenes/Main.unity";
 
     [InitializeOnLoadMethod]
-    static void EnsureSceneOnOpen() => EditorApplication.delayCall += () => { if (!File.Exists(ScenePath)) CreateMainScene(); };
+    static void EnsureSceneOnOpen() => EditorApplication.delayCall += () =>
+    {
+        if (!File.Exists(ScenePath) && !EditorApplication.isPlayingOrWillChangePlaymode && !Application.isBatchMode) CreateMainScene();
+    };
 
     [MenuItem("Five Sects/Create Main Scene")]
     public static void CreateMainScene()
     {
+        if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
         Directory.CreateDirectory("Assets/Scenes");
         // The game builds itself at runtime (FiveSects.Game.Bootstrap), so the scene only needs a camera.
         var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);

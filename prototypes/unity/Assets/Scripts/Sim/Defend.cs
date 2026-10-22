@@ -107,7 +107,8 @@ namespace FiveSects.Sim
             var pa = a.Split('-'); var pb = b.Split('-');
             bool okA = int.TryParse(pa[0], out int ac), okB = int.TryParse(pb[0], out int bc);
             if (okA && okB && ac != bc) return ac - bc;
-            int.TryParse(pa.Length > 1 ? pa[1] : "0", out int as_); int.TryParse(pb.Length > 1 ? pb[1] : "0", out int bs);
+            // TS yields NaN for a non-numeric stage part, and NaN <= 0 is false: never "earlier".
+            if (!int.TryParse(pa.Length > 1 ? pa[1] : "", out int as_) || !int.TryParse(pb.Length > 1 ? pb[1] : "", out int bs)) return 1;
             return as_ - bs;
         }
 
@@ -144,7 +145,8 @@ namespace FiveSects.Sim
             switch (c.T)
             {
                 case "place": return GameData.SectOrder.Contains(c.Sect);
-                case "upgrade": case "sell": case "nextWave": case "target": return true;
+                case "upgrade": case "sell": case "nextWave": return true;
+                case "target": return c.Mode == "first" || c.Mode == "strong" || c.Mode == "weak" || c.Mode == "close";
                 case "merge": return c.A != c.B;
                 case "cast": return GameData.Arts.Any(a => a.Id == c.Art);
                 case "pick": return GameData.Cards.Any(k => k.Id == c.Card);
