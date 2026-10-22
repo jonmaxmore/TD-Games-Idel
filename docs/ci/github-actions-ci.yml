@@ -1,0 +1,22 @@
+# Template: copy to .github/workflows/ci.yml (the Claude session cannot push workflow files; needs the `workflow` token scope).
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - run: npm ci
+      - run: npm run typecheck
+      # sim determinism + balance, golden/data freshness, maps, art briefs
+      - run: npm test
+      # Unity client's C# rules must match the TypeScript goldens tick for tick (ADR 0004)
+      - run: npm run sim:parity
+      - run: for f in docs/data/*.json; do python3 -m json.tool "$f" > /dev/null || exit 1; done

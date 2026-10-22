@@ -6,7 +6,7 @@
 
 ## 1. หลักการ
 
-1. **กฎเกมมีที่เดียว:** `packages/sim` (TypeScript, deterministic) ใช้ร่วมกันทั้ง client และ server เซิร์ฟเวอร์รันเกมซ้ำเพื่อตรวจผลได้ ไม่มีกฎเกมสองชุด
+1. **กฎเกมมีต้นฉบับที่เดียว:** `packages/sim` (TypeScript, deterministic) เซิร์ฟเวอร์รันเกมซ้ำด้วยตัวนี้ client Unity ใช้พอร์ต C# ที่ต้องผ่าน `npm run sim:parity` ทุก commit ([ADR 0004](../adr/0004-unity-client.md))
 2. **เซิร์ฟเวอร์ตัดสินเรื่องที่มีมูลค่า:** เงิน ของ ถ้วย อันดับ การซื้อ client ส่งได้แค่ seed + คำสั่ง ไม่ส่งผลลัพธ์
 3. **Stateless API + stateful game server แยกกัน:** API ขยายได้ง่ายแค่เพิ่ม instance ส่วนห้องแข่งอยู่ในหน่วยความจำของ game server
 4. **ทุกอย่างเป็น container:** รันบนเครื่องตัวเองด้วย Docker Compose เหมือน production ย้ายผู้ให้บริการ cloud ได้
@@ -62,7 +62,7 @@ flowchart LR
 ```
 packages/
   sim/        กฎเกม deterministic (มีแล้ว) ── ใช้ทั้ง client, game, worker
-  client/     Phaser 3 + Vite (มีแล้ว) → เว็บ และห่อด้วย Capacitor
+  client/     Phaser 3 + Vite: ต้นแบบอ้างอิง/ชุดทดสอบ (client จริงคือ Unity 6 ตาม ADR 0004: prototypes/unity → unity/)
   protocol/   type ของ API / ข้อความ WebSocket + zod schema ตรวจ input (ใช้ร่วม client/server)
   db/         schema + migrations (Drizzle ORM) และ query ที่ใช้ร่วม
   api/        Fastify REST service

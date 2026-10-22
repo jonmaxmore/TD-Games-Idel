@@ -14,6 +14,7 @@
     "smoke": "node packages/client/scripts/smoke.mjs",
     "sim:golden": "vite-node packages/sim/scripts/write-golden.ts",
     "unity:sync": "node prototypes/unity/sync-data.mjs",
+    "sim:parity": "dotnet run --project tools/parity -c Release",
     "art:build": "node tools/blender/build.mjs",
     "art:brief": "node tools/art/brief.mjs",
     "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py"

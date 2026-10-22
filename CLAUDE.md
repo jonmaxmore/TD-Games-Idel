@@ -2,7 +2,7 @@
 
 Wuxia tower defense, pixel art, web first, then mobile (Capacitor). End goal is a full esports title; flagship competitive mode is attack/defend 1v1 (`docs/design/esports.md`). Launch v1.0 + Season 1 as a mass-market game first; the esports program starts once the game is mass. Build the foundations (deterministic sim, replays, fair ranked) from day one. Design lives in `docs/`; read `docs/GDD.md` before any game work. Game data (`docs/data/*.json`) is the source of truth for numbers and names; code reads it, never hard-codes it.
 
-Architecture: `docs/design/architecture.md` (ADR 0003). Planned stack (GDD §10): TypeScript monorepo — `packages/sim` (deterministic rules, no rendering), `packages/client` (Vite + Phaser 3), `packages/protocol` (shared API types + zod), `packages/db` (PostgreSQL schema, Drizzle), `packages/api` (Fastify), `packages/game` (WebSocket rooms), `packages/worker` (BullMQ); Node.js 22, PostgreSQL 16, Redis 7. No SQLite. The server never trusts client outcomes: it re-runs replays with `sim`.
+Architecture: `docs/design/architecture.md` (ADR 0003) and ADR 0004: the client is **Unity 6** (`prototypes/unity`, C#; moves to `unity/` in M1). Planned stack (GDD §10): TypeScript monorepo — `packages/sim` (deterministic rules, source of truth, run by the server), `packages/client` (Vite + Phaser 3: reference/test harness only, no new features), `packages/protocol` (shared API types + zod), `packages/db` (PostgreSQL schema, Drizzle), `packages/api` (Fastify), `packages/game` (WebSocket rooms), `packages/worker` (BullMQ); Node.js 22, PostgreSQL 16, Redis 7. No SQLite. The server never trusts client outcomes: it re-runs replays with `sim`.
 
 ## Skills and agents to use, by phase
 
@@ -14,7 +14,7 @@ Installed under `.claude/` (sources in `.claude/THIRD_PARTY.md`). Use them; don'
 | Unclear ask | `interview-me` or `idea-refine` before writing anything |
 | Implementing | `/build` (incremental-implementation) + `/test` (test-driven-development). `ponytail` is always on via hooks: smallest change that works. |
 | Large or parallel work | `poteto-mode`; delegate subtasks to `poteto-agent` |
-| Framework/API decisions (Phaser, Fastify, Drizzle, BullMQ, Capacitor) | `source-driven-development` |
+| Framework/API decisions (Unity, Fastify, Drizzle, BullMQ) | `source-driven-development` |
 | UI / HUD / menus | `frontend-ui-engineering` |
 | Before merge | `/review` + `code-reviewer` agent; `security-auditor` for server, accounts, IAP; `ponytail-review` for bloat |
 | Performance (60fps mid-range phone) | `/webperf` + `web-performance-auditor`, `performance-optimization` |
@@ -28,6 +28,8 @@ Installed under `.claude/` (sources in `.claude/THIRD_PARTY.md`). Use them; don'
 Do not use `caveman` for design docs or user-facing explanations; it is fine for terse subagent output.
 
 ## Rules
+
+- Rules exist twice: `packages/sim` (TS) and `prototypes/unity/Assets/Scripts/Sim` (C# port). Change both in the same PR, add a scripted golden for new rules (`packages/sim/scripts/golden.ts`), run `npm run sim:golden` then `npm run sim:parity` (plain .NET, no Unity needed). After data edits run `npm run unity:sync`.
 
 - `packages/sim` must stay deterministic: fixed 20Hz tick, seeded RNG, no `Math.random`, no `Date.now`, no iteration over unordered maps for game logic. Every change runs the double-run hash test. PvP, replays and anti-cheat depend on it.
 - PvP ranked uses normalized stats. Nothing purchasable may change PvP power (`docs/design/economy.md`).
