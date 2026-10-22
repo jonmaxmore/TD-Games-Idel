@@ -46,7 +46,11 @@ try {
   const place = [[3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [3, 5], [4, 5], [5, 5], [6, 5]];
   const sects = ['metal', 'water', 'fire', 'earth', 'wood', 'yinyang', 'metal', 'fire', 'water'];
   await play('defend', 'T-1', [...place.map(([tx, ty], i) => ({ t: 'place', sect: sects[i], tx, ty })), { t: 'nextWave' }]);
-  await page.waitForTimeout(8000);
+  await page.waitForTimeout(5000);
+  await page.evaluate(() => window.__game.scene.getScene('defend').pending.push({ t: 'cast', art: 'heaven_sword' }));
+  await page.waitForTimeout(300);
+  if (shots) await page.screenshot({ path: `${shots}/art.png` });
+  await page.waitForTimeout(3000);
   const fps = await page.evaluate(() => Math.round(window.__game.loop.actualFps));
   const placed = await page.evaluate(() => window.__game.scene.getScene('defend').s.disciples.length);
   if (placed !== 9) errors.push(`expected 9 disciples placed in training ground, got ${placed}`);

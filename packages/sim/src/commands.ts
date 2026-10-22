@@ -1,4 +1,4 @@
-import { SECT_ORDER } from './data';
+import { ARTS, CARDS, SECT_ORDER } from './data';
 import type { Command } from './types';
 
 const int = (v: unknown) => Number.isInteger(v);
@@ -15,6 +15,8 @@ export function validCommand(c: Command): boolean {
     case 'nextWave': return true;
     case 'route': return c.choice === 'left' || c.choice === 'right';
     case 'skill': return int(c.member);
+    case 'cast': return ARTS.some((a) => a.id === c.art);
+    case 'pick': return CARDS.some((k) => k.id === c.card);
     default: return false;
   }
 }

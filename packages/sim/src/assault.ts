@@ -121,7 +121,9 @@ export function stepAssault(s: AssaultState, commands: Command[]): SimEvent[] {
   else s.phase = blocked ? 'fighting' : 'moving';
   if (s.phase === 'moving') s.d = Math.min(s.pathLen, s.d + SPEED);
 
-  s.members.forEach((m, i) => { [m.x, m.y] = pointAt(s.path, Math.max(0, s.d - i * SPACING)); });
+  // Survivors close ranks: the first living member leads, so the halt point is always in their reach.
+  // Fallen members stay where they fell.
+  alive(s).forEach((m, slot) => { [m.x, m.y] = pointAt(s.path, Math.max(0, s.d - slot * SPACING)); });
 
   for (let i = s.pills.length - 1; i >= 0; i--) {
     const p = s.pills[i]!;

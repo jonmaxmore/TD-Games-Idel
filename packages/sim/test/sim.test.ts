@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   COMBOS, createGame, ENEMIES, hashState, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
-  type Command, type DefendState, type Element, type AssaultState, type Replay,
+  type Command, type DefendState, type Element, type SimEvent, type AssaultState, type Replay,
 } from '../src/index';
 import { overcomePct, isGenerated } from '../src/wuxing';
 import { playBot } from './bot';
@@ -155,6 +155,50 @@ describe('combos and timers', () => {
   });
 });
 
+describe('secret arts and cards', () => {
+  it('heaven sword hits the lead enemy area, then goes on cooldown', () => {
+    const s = defend('1-1');
+    run(s, 60, [{ t: 'nextWave' }]);
+    const before = s.enemies.reduce((sum, e) => sum + e.hp, 0);
+    const ev = run(s, 1, [{ t: 'cast', art: 'heaven_sword' }]);
+    expect(ev).toContainEqual(expect.objectContaining({ e: 'art', art: 'heaven_sword' }));
+    expect(s.enemies.reduce((sum, e) => sum + e.hp, 0)).toBeLessThan(before);
+    const again = run(s, 1, [{ t: 'cast', art: 'heaven_sword' }]);
+    expect(again).toContainEqual({ e: 'error', msg: 'art on cooldown' });
+  });
+  it('lion roar stuns everything and reveals stealth', () => {
+    const s = defend();
+    run(s, 200, [{ t: 'nextWave' }]);
+    run(s, 1, [{ t: 'cast', art: 'lion_roar' }]);
+    expect(s.enemies.every((e) => e.stunT > 0)).toBe(true);
+    expect(s.revealAllT).toBeGreaterThan(0);
+  });
+  it('offers 3 cards after wave 5, auto-picks when idle, and the pick changes the rules', () => {
+    const s = defend('1-1');
+    s.silver = 10000;
+    run(s, 1, [[3, 3], [5, 3], [7, 3], [3, 6], [5, 8], [7, 8]].map(([tx, ty]) => ({ t: 'place' as const, sect: 'metal' as const, tx: tx!, ty: ty! })));
+    let ev: SimEvent[] = [];
+    while (s.phase !== 'picking' && !isOver(s)) ev = step(s, s.phase === 'build' || s.phase === 'break' ? [{ t: 'nextWave' }] : []);
+    expect(s.wave).toBe(5);
+    expect(s.offer).toHaveLength(3);
+    expect(new Set(s.offer).size).toBe(3);
+    expect(s.offer!.every((id) => !['overheat', 'deep_freeze', 'mountain_root'].includes(id))).toBe(true); // needs locked sects
+    const first = s.offer![0]!;
+    ev = run(s, 20 * 16);
+    expect(ev).toContainEqual({ e: 'picked', card: first });
+    expect(s.cards).toEqual([first]);
+  });
+  it('bounty board adds silver per kill', () => {
+    const a = defend('1-1'), b = defend('1-1');
+    b.cards.push('bounty_board');
+    for (const s of [a, b]) run(s, 1, [{ t: 'place', sect: 'metal', tx: 3, ty: 3 }, { t: 'nextWave' }]);
+    const kill = (s: DefendState) => run(s, 900).find((e) => e.e === 'kill');
+    const ka = kill(a), kb = kill(b);
+    if (ka?.e === 'kill' && kb?.e === 'kill') expect(kb.bounty).toBe(ka.bounty + 1);
+    else throw new Error('no kill');
+  });
+});
+
 describe('command validation', () => {
   it('rejects non-integer tiles, unknown sects and bad route choices', () => {
     const s = defend('1-1');
@@ -180,6 +224,16 @@ describe('assault 1-3', () => {
     while (!isOver(s) && guard++ < 20 * 60 * 5) step(s, [0, 1, 2].map((member) => ({ t: 'skill', member })));
     expect(s.phase).toBe('won');
     expect(s.stars?.[0]).toBe(true);
+  });
+  it('survivors close ranks and keep going when the leader falls', () => {
+    const s = createGame('1-3', 7) as AssaultState;
+    let guard = 0;
+    while (!isOver(s) && guard++ < 20 * 60 * 5) {
+      if (s.tick === 30) s.members[0]!.hp = 1;
+      step(s, s.phase === 'choosing' ? [{ t: 'route', choice: 'right' }] : []);
+    }
+    expect(s.members[0]!.hp).toBeLessThanOrEqual(0);
+    expect(isOver(s)).toBe(true);
   });
   it('a party that never chooses a route never wins', () => {
     const s = createGame('1-3', 7) as AssaultState;

@@ -8,7 +8,9 @@ export type Command =
   | { t: 'merge'; a: number; b: number }
   | { t: 'nextWave' }
   | { t: 'route'; choice: 'left' | 'right' }
-  | { t: 'skill'; member: number };
+  | { t: 'skill'; member: number }
+  | { t: 'cast'; art: string }
+  | { t: 'pick'; card: string };
 
 export type SimEvent =
   | { e: 'hit'; from: number; to: number; dmg: number; pct: number; crit: boolean; el: Element }
@@ -26,6 +28,10 @@ export type SimEvent =
   | { e: 'outpostDown'; outpost: number }
   | { e: 'memberDown'; member: number }
   | { e: 'pill'; at: Pt }
+  | { e: 'art'; art: string; x: number; y: number }
+  | { e: 'offer'; cards: string[] }
+  | { e: 'picked'; card: string }
+  | { e: 'newEnemy'; type: string }
   | { e: 'end'; won: boolean; stars: boolean[] };
 
 export interface Disciple {
@@ -81,7 +87,7 @@ export interface DefendState {
   lives: number;
   wave: number;
   totalWaves: number;
-  phase: 'build' | 'spawning' | 'clearing' | 'break' | 'won' | 'lost';
+  phase: 'build' | 'spawning' | 'clearing' | 'break' | 'picking' | 'won' | 'lost';
   spawnQueue: string[];
   spawnT: number;
   breakT: number;
@@ -95,6 +101,13 @@ export interface DefendState {
   livesLost: number;
   combosMade: number;
   peakDisciples: number;
+  artCd: number[];
+  bountyMultT: number;
+  revealAllT: number;
+  cards: string[];
+  offer: string[] | null;
+  offerT: number;
+  seenTypes: string[];
   stars: boolean[] | null;
 }
 

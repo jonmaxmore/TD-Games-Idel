@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  canBuild, COMBOS, createGame, ECONOMY, findCombo, GRID_H, GRID_W, isOver, placeCost, SECTS, sellValue, step, upgradeCost,
+  ARTS, canBuild, CARDS, COMBOS, createGame, ECONOMY, ENEMIES, findCombo, GRID_H, GRID_W, isOver, placeCost, SECTS, sellValue, step, upgradeCost,
   UPGRADE, type Command, type DefendState, type Disciple, type Replay, type SimEvent,
 } from '@five-sects/sim';
 import { discipleKey, EL_COLOR, EL_GLYPH, enemyKey, groundKey } from '../art';
@@ -30,6 +30,8 @@ export class DefendScene extends Phaser.Scene {
   private panel: Phaser.GameObjects.Container | null = null;
   private rangeRing: Phaser.GameObjects.Arc | null = null;
   private waveBtn!: Phaser.GameObjects.Container;
+  private artBtns: Phaser.GameObjects.Container[] = [];
+  private cardPanel: Phaser.GameObjects.Container | null = null;
   private ended = false;
   // seed + commands per tick: enough to replay this exact game with runReplay()
   private replay!: Replay;
@@ -43,7 +45,7 @@ export class DefendScene extends Phaser.Scene {
     this.replay = { stageId: data.stageId, seed, commands: {} };
     (window as unknown as { __lastReplay: Replay }).__lastReplay = this.replay;
     this.pending = []; this.acc = 0; this.speed = 1; this.ended = false; this.panel = null; this.rangeRing = null;
-    this.prev.clear(); this.enemySprites.clear(); this.discipleSig = '';
+    this.prev.clear(); this.enemySprites.clear(); this.discipleSig = ''; this.artBtns = []; this.cardPanel = null;
 
     const pathTiles = new Set(this.s.pathTiles);
     this.add.image(OX, OY, groundKey(this, `ground-${data.stageId}`, GRID_W, GRID_H, pathTiles)).setOrigin(0);
@@ -67,8 +69,17 @@ export class DefendScene extends Phaser.Scene {
     }, { size: 6 }).setDepth(42);
 
     this.add.rectangle(0, H - 16, W, 16, COLORS.ink).setOrigin(0).setDepth(40);
-    this.waveBtn = button(this, 4, H - 14, 100, 12, 'เริ่มบุก (wave 1)', () => this.pending.push({ t: 'nextWave' }), { size: 6, color: 0x3a2a14 }).setDepth(42);
-    button(this, W - 40, H - 14, 36, 12, 'เมนู', () => this.scene.start('menu'), { size: 6 }).setDepth(42);
+    this.waveBtn = button(this, 2, H - 14, 66, 12, 'เริ่มบุก', () => this.pending.push({ t: 'nextWave' }), { size: 6, color: 0x3a2a14 }).setDepth(42);
+    // Secret arts (ไม้ตาย): player-cast abilities with cooldowns.
+    ARTS.forEach((art, i) => {
+      const b = button(this, 71 + i * 20, H - 15, 18, 14, art.glyph, () => {
+        this.pending.push({ t: 'cast', art: art.id });
+      }, { size: 8, color: 0x2a1420 }).setDepth(42);
+      this.artBtns.push(b);
+    });
+    button(this, W - 28, H - 14, 26, 12, 'เมนู', () => this.scene.start('menu'), { size: 6 }).setDepth(42);
+    const hint = text(this, W / 2, H - 24, ARTS.map((x) => `${x.glyph} ${x.nameTh}`).join(' · '), 5, COLORS.mist).setOrigin(0.5).setDepth(42);
+    this.time.delayedCall(12000, () => this.tweens.add({ targets: hint, alpha: 0, duration: 600, onComplete: () => hint.destroy() }));
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length > 0) return; // a button handled it
@@ -173,8 +184,13 @@ export class DefendScene extends Phaser.Scene {
     this.hud.silver.setText(`ตำลึง ${this.s.silver}`);
     this.hud.lives.setText(`♥ ${this.s.lives}`);
     this.hud.wave.setText(`${this.s.wave}/${this.s.totalWaves}`);
-    const label = this.s.phase === 'build' ? 'เริ่มบุก (wave 1)'
-      : this.s.phase === 'break' ? `เรียก wave ถัดไป (+${ECONOMY.earlyCallBonus})` : 'กำลังสู้…';
+    const label = this.s.phase === 'build' ? 'เริ่มบุก'
+      : this.s.phase === 'break' ? `wave ถัดไป +${ECONOMY.earlyCallBonus}` : this.s.phase === 'picking' ? 'เลือกคัมภีร์' : 'กำลังสู้…';
+    ARTS.forEach((art, i) => {
+      const cd = this.s.artCd[i]!;
+      const t = this.artBtns[i]?.list[1] as Phaser.GameObjects.Text | undefined;
+      t?.setText(cd > 0 ? `${Math.ceil(cd / 20)}` : art.glyph).setColor(cd > 0 ? COLORS.mist : COLORS.gold).setFontSize(cd > 0 ? 6 : 8);
+    });
     (this.waveBtn.list[1] as Phaser.GameObjects.Text).setText(label);
   }
 
@@ -216,12 +232,59 @@ export class DefendScene extends Phaser.Scene {
         case 'error':
           floatText(this, W / 2, H - 30, ev.msg === 'not enough silver' ? 'ตำลึงไม่พอ' : ev.msg, '#D2412F', 6);
           break;
+        case 'art': {
+          const art = ARTS.find((a) => a.id === ev.art)!;
+          floatText(this, W / 2, 120, `${art.nameTh}`, '#E3B04B', 9);
+          if (art.type === 'strike') {
+            const x = sx(ev.x), y = sy(ev.y);
+            const blade = this.add.rectangle(x, y - 60, 4, 30, 0xeef3f8).setDepth(70).setBlendMode(Phaser.BlendModes.ADD);
+            this.tweens.add({ targets: blade, y: y - 8, duration: 160, onComplete: () => {
+              blade.destroy(); impact(this, 'metal', x, y, true); impact(this, 'earth', x, y, true);
+              this.cameras.main.shake(160, 0.008);
+            } });
+          } else if (art.type === 'slowAll') this.cameras.main.flash(250, 79, 179, 255);
+          else if (art.type === 'stunAll') {
+            this.cameras.main.shake(200, 0.006);
+            const ring = this.add.circle(W / 2, H / 2, 10).setStrokeStyle(2, 0xffffff).setDepth(70);
+            this.tweens.add({ targets: ring, scale: 12, alpha: 0, duration: 450, onComplete: () => ring.destroy() });
+          } else this.cameras.main.flash(250, 227, 176, 75);
+          break;
+        }
+        case 'offer':
+          this.showCards(ev.cards);
+          break;
+        case 'picked':
+          this.cardPanel?.destroy(); this.cardPanel = null;
+          floatText(this, W / 2, 140, CARDS.find((c) => c.id === ev.card)?.nameTh ?? ev.card, '#E3B04B', 8);
+          break;
+        case 'newEnemy': {
+          const def = ENEMIES[ev.type];
+          if (def) banner(this, 60, `ศัตรูใหม่: ${def.nameTh}`, def.traitTh, ['#D2412F', '#D2412F']);
+          break;
+        }
         case 'end':
           this.ended = true;
           this.time.delayedCall(600, () => showResult(this, this.s.stageId, ev.won, ev.stars, 'defend'));
           break;
       }
     }
+  }
+
+  private showCards(ids: string[]) {
+    this.closePanel();
+    this.cardPanel?.destroy();
+    const c = this.add.container(0, 0).setDepth(90);
+    c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.55).setOrigin(0).setInteractive());
+    c.add(text(this, W / 2, 70, 'เลือกคัมภีร์ยุทธ์ 1 เล่ม', 10, COLORS.gold).setOrigin(0.5));
+    c.add(text(this, W / 2, 84, 'ไม่เลือกภายใน 15 วิ จะได้เล่มแรกอัตโนมัติ', 5, COLORS.mist).setOrigin(0.5));
+    ids.forEach((id, i) => {
+      const card = CARDS.find((k) => k.id === id)!;
+      const y = 96 + i * 46;
+      c.add(button(this, 16, y, W - 32, 40, '', () => this.pending.push({ t: 'pick', card: id }), { color: 0x221a2c }));
+      c.add(text(this, 26, y + 7, card.nameTh, 9));
+      c.add(text(this, 26, y + 22, card.effectTh, 6, COLORS.mist));
+    });
+    this.cardPanel = c;
   }
 
   update(_t: number, delta: number) {

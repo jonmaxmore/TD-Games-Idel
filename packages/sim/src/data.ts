@@ -4,6 +4,7 @@ import sectsJson from '../../../docs/data/sects.json';
 import enemiesJson from '../../../docs/data/enemies.json';
 import stagesJson from '../../../docs/data/stages.json';
 import economyJson from '../../../docs/data/economy.json';
+import itemsJson from '../../../docs/data/items.json';
 
 export const TICK_HZ = 20;
 export const TILE = 1000;
@@ -31,6 +32,7 @@ export interface EnemyDef {
   hp: number;
   speed: number;
   bounty: number;
+  traitTh: string;
 }
 
 export interface ComboDef {
@@ -103,6 +105,7 @@ export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(
       hp: e.hp,
       speed: Math.round((e.speed * TILE) / TICK_HZ),
       bounty: 'bounty' in e ? (e.bounty as number) : 50,
+      traitTh: 'traitTh' in e ? String(e.traitTh) : '',
     },
   ]),
 );
@@ -129,3 +132,63 @@ export function waveHp(baseHp: number, wave: number): number {
   for (let i = 10; i < wave; i++) bp = Math.floor((bp * 106) / 100);
   return Math.floor((baseHp * bp) / 10000);
 }
+
+export interface ArtDef {
+  id: string;
+  nameTh: string;
+  glyph: string;
+  effect: string;
+  effectTh: string;
+  type: 'strike' | 'slowAll' | 'bountyMult' | 'stunAll';
+  cooldown: number;
+  dmg: number;
+  radius: number;
+  pct: number;
+  mult: number;
+  duration: number;
+}
+
+export const ARTS: ArtDef[] = itemsJson.secretArts.items.map((a) => {
+  const x = a as Record<string, unknown>;
+  return {
+    id: a.id,
+    nameTh: a.nameTh,
+    glyph: String(x.glyph ?? ''),
+    effect: a.effect,
+    effectTh: String(x.effectTh ?? a.effect),
+    type: x.effectType as ArtDef['type'],
+    cooldown: ticks(a.cooldown),
+    dmg: Number(x.dmg ?? 0),
+    radius: Math.round(Number(x.radius ?? 0) * TILE),
+    pct: Number(x.pct ?? 0),
+    mult: Number(x.mult ?? 1),
+    duration: ticks(Number(x.durationSec ?? 0)),
+  };
+});
+
+export interface CardDef {
+  id: string;
+  nameTh: string;
+  effect: string;
+  effectTh: string;
+  kind: string;
+  element?: Element;
+  needs?: Element;
+  pct: number;
+  value: number;
+}
+
+const m = itemsJson.manuals;
+export const CARDS: CardDef[] = [...m.damage, ...m.economy, ...m.ruleBender]
+  .map((c) => {
+    const x = c as Record<string, unknown>;
+    return {
+      id: c.id, nameTh: c.nameTh, effect: c.effect, effectTh: String(x.effectTh ?? c.effect), kind: String(x.kind),
+      element: x.element as Element | undefined, needs: x.needs as Element | undefined,
+      pct: Number(x.pct ?? 0), value: Number(x.value ?? 0),
+    };
+  })
+  .filter((c) => c.kind !== 'disabled');
+
+export const CARD_EVERY_WAVES = 5;
+export const CARD_AUTO_PICK = ticks(15);
