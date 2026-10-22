@@ -33,6 +33,8 @@
 - ตัวการแข่งขันมักเป็นต้นทุนการตลาด รายได้มาจากของในเกมที่ผูกกับการแข่ง
 - ความเสี่ยงอันดับหนึ่งคือผู้เล่นออนไลน์ไม่พอให้จับคู่ ทุกการตัดสินใจช่วงแรกจึงต้องเพิ่มจำนวนผู้เล่น
 
+**ลำดับที่อนุมัติ:** v1.0 และ Season 1 วางตลาดเป็นเกม mass-market ก่อน แล้วเริ่มโปรแกรม esports เมื่อเกมแมส
+
 รายละเอียด รูปแบบการแข่ง ฟีเจอร์ และบันไดสู่ลีกอาชีพ: [design/esports.md](design/esports.md)
 
 ## 2. วิเคราะห์ตลาดและเทรนด์ 2026
@@ -242,14 +244,14 @@ td-games-idel/
 |---|---|---|
 | **M0 Vertical slice** | `sim` deterministic + client Phaser, บท 1 ด่าน 1-1 ถึง 1-4 (ตั้งรับ + บุกค่าย), 6 สำนัก, ยุทธ์ผสาน, art placeholder | เล่นบนเครื่องได้ ผู้ทดสอบภายในอยากเล่นต่อ |
 | **M1 Online core** | Worker + D1 บัญชี guest/cloud save, co-op lockstep, ยืนยันผลด้วย sim ฝั่งเซิร์ฟเวอร์ | 2–4 แท็บเล่นด้วยกัน 20 waves ไม่ desync |
-| **M2 Competitive core** | บุก–ตั้งรับ 1v1 real-time, ranked/MMR, รีเพลย์, โหมดผู้ชม, ห้องส่วนตัว + ban/pick, balance sim ใน CI | 1v1 ไม่ desync, เซิร์ฟเวอร์ตัดสินผลได้, playtest ภายในอยากเล่นซ้ำ |
+| **M2 Competitive core** | บุก–ตั้งรับ 1v1 real-time, ranked/MMR, รีเพลย์, ห้องส่วนตัว, balance sim ใน CI | 1v1 ไม่ desync, เซิร์ฟเวอร์ตัดสินผลได้, playtest ภายในอยากเล่นซ้ำ |
 | **M2b Meta & Async PvP** | สำนักใหญ่, บำเพ็ญ, prestige, คัมภีร์, ตีสำนัก, หอคอย | วงจรรายวันครบ: idle → ด่าน → raid → ranked |
 | **M3 Content & Art** | pixel art จริง, บท 1–5 ครบ 60 ด่าน, เสียง/ดนตรี, FTUE, ภาษาไทย/อังกฤษ | playtest ภายนอก 20 คนเล่นจบบท 1 |
 | **M4 Monetization & Live ops** | ร้านค้า, pass, เซียมซี (อัตรา/pity), subscription, rewarded ads, remote config, analytics, admin tools | ผ่าน checklist ใน release-systems.md |
 | **M5 Soft launch** | เว็บ (Cloudflare + CrazyGames/Poki) + Android ใน 1–2 ประเทศ | D1 ≥ 40%, D7 ≥ 15%, crash-free ≥ 99.5% |
 | **M6 Global launch v1.0** | iOS + Android + เว็บ, store compliance ครบ | — |
-| **Season 1** (+8–10 สัปดาห์) | ศึกชิงยุทธภพ 1v1, ทัวร์ในเกม, observer UI, บท 6–7, ภาษา ZH/VI/ID | — |
-| **ต่อเนื่อง** | บันไดสู่ esports: ทัวร์ชุมชน → ลีกมหาวิทยาลัย → ทัวร์ทางการ → ลีกอาชีพ ([esports.md](design/esports.md)) | ตามเกณฑ์ในแต่ละขั้น |
+| **Season 1** (+8–10 สัปดาห์) | ศึกชิงยุทธภพ 1v1, ban/pick + Bo3 ในห้องส่วนตัว, โหมดผู้ชม, บท 6–7, ภาษา ZH/VI/ID | — |
+| **หลังเกมแมส** | บันไดสู่ esports: ทัวร์ชุมชน → ลีกมหาวิทยาลัย → ทัวร์ทางการ → ลีกอาชีพ ([esports.md](design/esports.md)) | ตามเกณฑ์ในแต่ละขั้น |
 | **Season 2** | 2v2, ศึกสำนัก, สำนักใหม่ | — |
 
 ## 12. ความเสี่ยง
