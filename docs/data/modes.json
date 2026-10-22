@@ -35,7 +35,7 @@
     },
     {
       "id": "coop_boss",
-      "nameTh": "ล่าบอสพันธมิตร",
+      "nameTh": "ล่าบอสชุมนุม",
       "players": "2-4",
       "release": "v1.0",
       "net": "lockstep via Durable Object",
@@ -51,12 +51,24 @@
       "id": "tower",
       "nameTh": "หอคอยพันชั้น",
       "players": "1",
-      "release": "v1.0",
+      "release": "S1",
       "net": "offline + server verify (weekly seed)",
       "statsNormalized": true,
       "minutes": "endless",
       "rewards": [
         "weekly_rank_rewards"
+      ]
+    },
+    {
+      "id": "guild_basic",
+      "nameTh": "ชุมนุมพื้นฐาน",
+      "players": "20-30",
+      "release": "v1.0",
+      "features": [
+        "chat_filtered",
+        "lend_disciple_for_courtyard_defence",
+        "coop_boss",
+        "guild_quests"
       ]
     },
     {

@@ -1,5 +1,5 @@
 {
-  "_notes": "วีรชน: gacha sidegrades. Same total power budget as the base disciple of the sect (balance sim must keep win-rate within ±2%). Base disciples of every sect are always free.",
+  "_notes": "วีรชน: gacha sidegrades, 4 per sect at launch (24). Same total power budget as the base disciple of the sect (balance sim must keep win-rate within ±2%). Base disciples of every sect are always free.",
   "powerBudgetRule": "heroWinRate - baseWinRate within +/-0.02 in headless sim, else rebalance",
   "heroes": [
     {
@@ -97,6 +97,114 @@
       "name": "Ming Yue, Fortune Teller",
       "rarity": "epic",
       "sidegrade": "predicts next wave element: +10% dmg vs it"
+    },
+    {
+      "id": "hero_13",
+      "sect": "metal",
+      "nameTh": "ฉินอวี่ ศิษย์พี่ใหญ่สำนักเมฆา",
+      "name": "Qin Yu, Eldest Disciple",
+      "rarity": "epic",
+      "sidegrade": "guards: hits nearest enemy instead of furthest, +stun 0.3s on crit",
+      "bioTh": "สุขุม รับผิดชอบเกินตัว แบกชื่อเสียงสำนัก"
+    },
+    {
+      "id": "hero_14",
+      "sect": "metal",
+      "nameTh": "หลิวเฟิง จอมดาบพเนจร",
+      "name": "Liu Feng, Wandering Blade",
+      "rarity": "legendary",
+      "sidegrade": "every 4th hit dashes to a second target in range",
+      "bioTh": "ปากร้ายใจดี เคยเป็นนักล่าค่าหัว"
+    },
+    {
+      "id": "hero_15",
+      "sect": "wood",
+      "nameTh": "อาเหมย ผู้เลี้ยงผึ้งหุบไผ่",
+      "name": "A Mei, Bee Keeper",
+      "rarity": "epic",
+      "sidegrade": "poison applies to 2 targets, max 2 stacks",
+      "bioTh": "ร่าเริง คุยกับผึ้งรู้เรื่อง"
+    },
+    {
+      "id": "hero_16",
+      "sect": "wood",
+      "nameTh": "ซือหมิง นักพรตเถาวัลย์",
+      "name": "Si Ming, Vine Hermit",
+      "rarity": "legendary",
+      "sidegrade": "root lasts longer, poison weaker",
+      "bioTh": "เงียบขรึม อยู่ในป่ามาร้อยปี"
+    },
+    {
+      "id": "hero_17",
+      "sect": "water",
+      "nameTh": "หลานซิน ผู้เฝ้าทะเลสาบ",
+      "name": "Lan Xin, Lake Warden",
+      "rarity": "epic",
+      "sidegrade": "slow 40% single target, no freeze",
+      "bioTh": "ใจเย็น ชอบตกปลา"
+    },
+    {
+      "id": "hero_18",
+      "sect": "water",
+      "nameTh": "เสวี่ยหลิง ศิษย์น้ำแข็งน้อย",
+      "name": "Xue Ling, Little Frost",
+      "rarity": "legendary",
+      "sidegrade": "freeze every 4th hit, lower damage",
+      "bioTh": "ขี้อาย แต่พลังน้ำแข็งแรงที่สุดในรุ่น"
+    },
+    {
+      "id": "hero_19",
+      "sect": "fire",
+      "nameTh": "หงอวี๋ นางรำพัดเพลิง",
+      "name": "Hong Yu, Fire Fan Dancer",
+      "rarity": "epic",
+      "sidegrade": "wider burn cone, shorter burn",
+      "bioTh": "มั่นใจ ชอบเป็นจุดสนใจ"
+    },
+    {
+      "id": "hero_20",
+      "sect": "fire",
+      "nameTh": "เหลยเจิ้ง ช่างหลอมเพลิง",
+      "name": "Lei Zheng, Forge Master",
+      "rarity": "legendary",
+      "sidegrade": "burning enemies take +15% from metal disciples",
+      "bioTh": "ห้าวหาญ ทำกระบี่ให้ทุกสำนัก"
+    },
+    {
+      "id": "hero_21",
+      "sect": "earth",
+      "nameTh": "หลวงพี่ต้า พระครัว",
+      "name": "Brother Da, Kitchen Monk",
+      "rarity": "epic",
+      "sidegrade": "bell heals nearby disciples' cooldown instead of stun",
+      "bioTh": "ตลก กินจุ หัวใจใหญ่กว่าตัว"
+    },
+    {
+      "id": "hero_22",
+      "sect": "earth",
+      "nameTh": "เจ้าอาวาสหินผา",
+      "name": "Abbot of Cliffs",
+      "rarity": "legendary",
+      "sidegrade": "quake radius larger, slower",
+      "bioTh": "พูดน้อย ทุกคำมีความหมาย"
+    },
+    {
+      "id": "hero_23",
+      "sect": "yinyang",
+      "nameTh": "จางซวน นักพรตหนุ่ม",
+      "name": "Zhang Xuan, Young Taoist",
+      "rarity": "epic",
+      "sidegrade": "reveal radius smaller, +10% rate aura",
+      "bioTh": "ซุกซน ชอบแกล้งอาจารย์"
+    },
+    {
+      "id": "hero_24",
+      "sect": "yinyang",
+      "nameTh": "เทพธิดาจันทร์ขาว",
+      "name": "White Moon Maiden",
+      "rarity": "legendary",
+      "sidegrade": "once per wave reverses the first leaking enemy",
+      "bioTh": "ลึกลับ เชื่อมโยงกับจันทร์โลหิต"
     }
   ]
 }
