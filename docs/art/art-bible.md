@@ -2,7 +2,7 @@
 
 > **Art Asset Design Document.** Pixel-art wuxia tower defense for web and mobile, portrait. This file is the style guide, the technical spec (v1), the delivery rules and the production order for outside artists. Per-asset briefs live in [assets/](assets/README.md). Questions → the project owner.
 >
-> ส่วนหนึ่งของ [GDD §3](../GDD.md) · ตัวละคร: [character-design](character-design.md) · ศัตรู: [monster-design](monster-design.md) · เอฟเฟกต์: [vfx-design](vfx-design.md) · UI: [ui-design](ui-design.md) · แผนที่: [map-design](map-design.md)
+> ส่วนหนึ่งของ [GDD §3](../GDD.md) · ตัวละคร: [character-design](character-design.md) · ศัตรู: [monster-design](monster-design.md) · เอฟเฟกต์: [vfx-design](vfx-design.md) · UI: [ui-design](ui-design.md) · แผนที่: [map-design](map-design.md) · แผนที่โลก/ลานสำนัก/คัมภีร์: [world-base-design](world-base-design.md)
 
 ## 1. สไตล์ภาพ
 
