@@ -40,13 +40,15 @@ export class AssaultScene extends Phaser.Scene {
   private shade: Phaser.GameObjects.Rectangle[] = [];
   private status!: Phaser.GameObjects.Text;
   private ended = false;
+  private paused = false;
+  private routeMarks: Phaser.GameObjects.GameObject[] = [];
 
   constructor() { super('assault'); }
 
   create(data: { stageId: string }) {
     setupCamera(this);
     this.s = createGame(data.stageId, (Math.random() * 2 ** 31) >>> 0) as AssaultState;
-    this.pending = []; this.acc = 0; this.ended = false; this.routePanel = null;
+    this.pending = []; this.acc = 0; this.ended = false; this.paused = false; this.routePanel = null; this.routeMarks = [];
     this.members = []; this.outposts = []; this.skillBtns = []; this.pills = []; this.shade = [];
 
     const layout = LAYOUTS[STAGES[data.stageId]?.layout ?? ''];
@@ -72,10 +74,14 @@ export class AssaultScene extends Phaser.Scene {
     this.add.rectangle(0, 0, W, OY, COLORS.ink).setOrigin(0).setDepth(40);
     text(this, 4, 3, `${data.stageId} บุกค่าย`, 8).setDepth(41);
     this.status = text(this, W - 4, 3, '', 7, COLORS.mist).setOrigin(1, 0).setDepth(41);
+    const pauseText = text(this, W / 2, 150, 'หยุดชั่วคราว · แตะ ❚❚ เพื่อเล่นต่อ', 8).setOrigin(0.5).setDepth(85).setVisible(false);
+    button(this, 58, 2, 22, 12, '❚❚', () => { this.paused = !this.paused; pauseText.setVisible(this.paused); }, { size: 6 }).setDepth(42);
+    const hint = text(this, W / 2, H - 24, 'ขบวนเดินเอง · กด "ปราณกระบี่" เมื่อปุ่มเป็นสีทอง', 6, COLORS.mist).setOrigin(0.5).setDepth(42);
+    this.time.delayedCall(10000, () => hint.destroy());
 
     this.add.rectangle(0, H - 16, W, 16, COLORS.ink).setOrigin(0).setDepth(40);
     this.s.members.forEach((m, i) => {
-      const b = button(this, 4 + i * 44, H - 14, 42, 12, 'ปราณกระบี่', () => this.pending.push({ t: 'skill', member: i }), { size: 5, color: 0x3a2a14 }).setDepth(42);
+      const b = button(this, 4 + i * 44, H - 14, 42, 12, 'ปราณกระบี่', () => this.pending.push({ t: 'skill', member: i }), { size: 6, color: 0x3a2a14 }).setDepth(42);
       this.skillBtns.push(b);
     });
     button(this, W - 40, H - 14, 36, 12, 'เมนู', () => this.scene.start('menu'), { size: 6 }).setDepth(42);
@@ -83,15 +89,27 @@ export class AssaultScene extends Phaser.Scene {
 
   private showRoutePanel() {
     if (this.routePanel) return;
+    // Colour the two branches on the map so the choice is visible, not just described.
+    for (const [key, col, label] of [['assault-left-tiles', 0x4fb3ff, 'ซ้าย'], ['assault-right-tiles', 0xd2412f, 'ขวา']] as const) {
+      const tiles = this.registry.get(key) as string[];
+      tiles.forEach((k) => {
+        const [x, y] = k.split(',').map(Number);
+        const r = this.add.rectangle(OX + x! * T, OY + y! * T, T, T, col, 0.25).setOrigin(0).setDepth(4);
+        this.tweens.add({ targets: r, alpha: 0.1, yoyo: true, repeat: -1, duration: 500 });
+        this.routeMarks.push(r);
+      });
+      const mid = tiles[Math.floor(tiles.length / 2)]!.split(',').map(Number);
+      this.routeMarks.push(text(this, OX + mid[0]! * T + T / 2, OY + mid[1]! * T + T / 2, label, 8).setOrigin(0.5).setDepth(6));
+    }
     const c = this.add.container(0, 0).setDepth(60);
     c.add(this.add.rectangle(8, 200, W - 16, 70, COLORS.panel, 0.96).setOrigin(0).setStrokeStyle(1, COLORS.line).setInteractive());
     c.add(text(this, W / 2, 206, 'ทางแยก: เลือกเส้นทางบุก', 8).setOrigin(0.5, 0));
     c.add(button(this, 14, 222, 74, 40, '', () => this.pending.push({ t: 'route', choice: 'left' })));
     c.add(text(this, 51, 228, 'ซ้าย', 8).setOrigin(0.5, 0));
-    c.add(text(this, 51, 242, 'ป้อมเล็ก 2 + ยาฟื้นพลัง', 5, COLORS.mist).setOrigin(0.5, 0));
+    c.add(text(this, 51, 242, 'ป้อมเล็ก 2 + ยาฟื้นพลัง', 6, COLORS.mist).setOrigin(0.5, 0));
     c.add(button(this, W - 88, 222, 74, 40, '', () => this.pending.push({ t: 'route', choice: 'right' })));
     c.add(text(this, W - 51, 228, 'ขวา', 8).setOrigin(0.5, 0));
-    c.add(text(this, W - 51, 242, 'ป้อมใหญ่ 1 · สั้นกว่า', 5, COLORS.mist).setOrigin(0.5, 0));
+    c.add(text(this, W - 51, 242, 'ป้อมใหญ่ 1 · สั้นกว่า', 6, COLORS.mist).setOrigin(0.5, 0));
     this.routePanel = c;
   }
 
@@ -126,7 +144,7 @@ export class AssaultScene extends Phaser.Scene {
   }
 
   update(_t: number, delta: number) {
-    if (!this.ended) {
+    if (!this.ended && !this.paused) {
       this.acc += Math.min(delta, 250);
       while (this.acc >= TICK_MS && !isOver(this.s)) {
         this.prev = this.s.members.map((m) => [m.x, m.y]);
@@ -144,6 +162,7 @@ export class AssaultScene extends Phaser.Scene {
 
   private onRouteChosen() {
     this.routePanel?.destroy(); this.routePanel = null;
+    this.routeMarks.forEach((m) => m.destroy()); this.routeMarks = [];
     const other = this.registry.get(this.s.route === 'left' ? 'assault-right-tiles' : 'assault-left-tiles') as string[];
     for (const k of other) {
       const [x, y] = k.split(',').map(Number);
@@ -163,8 +182,15 @@ export class AssaultScene extends Phaser.Scene {
         this.bars.fillStyle(0x7ce08a).fillRect(Math.round(x - 5), Math.round(y - 12), Math.max(0, Math.round((10 * m.hp) / m.maxHp)), 2);
       }
       const btn = this.skillBtns[i]!;
+      const bg = btn.list[0] as Phaser.GameObjects.Rectangle;
       const label = btn.list[1] as Phaser.GameObjects.Text;
-      label.setText(m.hp <= 0 ? 'ล้มแล้ว' : m.skillCd > 0 ? `ปราณกระบี่ ${Math.ceil(m.skillCd / TICK_HZ)}` : 'ปราณกระบี่');
+      const inRange = this.s.outposts.some((o) => o.hp > 0 && (o.route === 'any' || o.route === this.s.route)
+        && (o.x - m.x) ** 2 + (o.y - m.y) ** 2 <= 3500 ** 2);
+      const ready = m.hp > 0 && m.skillCd === 0 && inRange;
+      label.setText(m.hp <= 0 ? 'ล้มแล้ว' : m.skillCd > 0 ? `ปราณกระบี่ ${Math.ceil(m.skillCd / TICK_HZ)}` : 'ปราณกระบี่')
+        .setColor(ready ? COLORS.gold : m.hp <= 0 ? COLORS.mist : COLORS.paper);
+      bg.setStrokeStyle(1, ready ? 0xe3b04b : COLORS.line);
+      bg.setFillStyle(m.hp <= 0 ? 0x1a1a1a : 0x3a2a14);
     });
     this.s.outposts.forEach((o) => {
       if (o.hp <= 0) return;
