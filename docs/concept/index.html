@@ -1,0 +1,501 @@
+<title>ศึกห้าสำนัก Concept Sheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;600&family=Sarabun:wght@400;600&family=Silkscreen&family=Ma+Shan+Zheng&display=swap">
+<style>
+/* Layout: one night-ink scroll; live pixel battlefield as hero, then reference sections stacked, two-column where wide. Single dark look by choice. */
+:root {
+  --ink: #0E0B14;
+  --panel: #17121F;
+  --line: #2A2236;
+  --paper: #ECE3CF;
+  --mist: #9A92AE;
+  --seal: #D2412F;
+  --gold: #E3B04B;
+  --metal: #D9E1EA; --wood: #5BC46A; --water: #4FB3FF; --fire: #FF5A1F; --earth: #C99A4A; --yinyang: #F2F2F2;
+  --f-display: "Mitr", "Sarabun", system-ui, sans-serif;
+  --f-body: "Sarabun", system-ui, sans-serif;
+  --f-pixel: "Silkscreen", ui-monospace, monospace;
+  --f-brush: "Ma Shan Zheng", "KaiTi", "STKaiti", serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--ink); color: var(--paper); font-family: var(--f-body); font-size: 16px; line-height: 1.6; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 56px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.25; }
+h1 { font-size: clamp(2rem, 6vw, 3.4rem); }
+h2 { font-size: 1.6rem; display: flex; align-items: baseline; gap: 12px; }
+h2 .zh { font-family: var(--f-brush); color: var(--seal); font-weight: 400; font-size: 1.9rem; }
+h3 { font-size: 1.1rem; }
+p { margin: 0; max-width: 65ch; }
+.muted { color: var(--mist); }
+.label { font-family: var(--f-pixel); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mist); }
+section { display: grid; gap: 20px; }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 40px; align-items: center; }
+.hero-copy { display: grid; gap: 18px; min-width: 0; }
+.seal { display: inline-grid; place-items: center; width: 56px; height: 56px; background: var(--seal); color: var(--paper); font-family: var(--f-brush); font-size: 30px; border-radius: 6px; transform: rotate(-4deg); }
+.phone { width: 360px; max-width: 100%; aspect-ratio: 9 / 16; border: 3px solid var(--line); border-radius: 22px; overflow: hidden; background: #000; box-shadow: 0 0 0 6px var(--panel); }
+canvas.px { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--f-pixel); font-size: 11px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--paper); background: var(--panel); }
+@media (max-width: 760px) { .hero { grid-template-columns: 1fr; } .phone { margin: 0 auto; } }
+
+/* wuxing */
+.wuxing { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 32px; align-items: center; }
+.wuxing svg { width: 100%; max-width: 320px; height: auto; }
+.legend { display: grid; gap: 12px; }
+.legend div { display: flex; gap: 10px; align-items: baseline; }
+.sw { width: 24px; height: 3px; flex: none; transform: translateY(-4px); }
+@media (max-width: 760px) { .wuxing { grid-template-columns: 1fr; } .wuxing svg { margin: 0 auto; } }
+
+/* sects */
+.sects { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.sect { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--c); border-radius: 6px; padding: 16px; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 14px; }
+.sect canvas { width: 72px; height: 96px; image-rendering: pixelated; background: #0A0810; border-radius: 4px; }
+.sect .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.sect .glyph { font-family: var(--f-brush); font-size: 26px; color: var(--c); line-height: 1; }
+.sect ul { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14px; }
+.sect li b { color: var(--c); font-weight: 600; }
+.stats { font-family: var(--f-pixel); font-size: 10px; color: var(--mist); display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+
+/* tables */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 560px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-pixel); font-size: 10px; letter-spacing: .08em; color: var(--mist); font-weight: 400; background: var(--panel); }
+tr:last-child td { border-bottom: 0; }
+.pair { white-space: nowrap; font-family: var(--f-brush); font-size: 20px; }
+.rel { font-family: var(--f-pixel); font-size: 10px; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+.rel.gen { color: var(--wood); border: 1px solid var(--wood); }
+.rel.ovr { color: var(--seal); border: 1px solid var(--seal); }
+
+/* lab */
+.lab { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px; align-items: start; }
+.stage { width: 360px; max-width: 100%; aspect-ratio: 3 / 2; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #000; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: inherit; font-family: var(--f-display); font-size: 14px; color: var(--paper); background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--c, var(--gold)); padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+button:hover { background: var(--line); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--line); border-color: var(--c, var(--gold)); }
+.fxnote { font-size: 14px; display: grid; gap: 6px; }
+@media (max-width: 760px) { .lab { grid-template-columns: 1fr; } .stage { margin: 0 auto; } }
+
+/* items */
+.items { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.items > div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 10px; align-content: start; }
+.items ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
+.r-common { color: #B9B3C7; } .r-rare { color: var(--water); } .r-epic { color: #C77DFF; } .r-legendary { color: var(--gold); }
+.foot { font-size: 13px; color: var(--mist); }
+@media (prefers-reduced-motion: reduce) { .seal { transform: none; } }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="hero-copy">
+      <span class="seal" aria-hidden="true">五</span>
+      <span class="label">Concept sheet · v0.1 · idle wuxia tower defense</span>
+      <h1>ศึกห้าสำนัก</h1>
+      <p>ส่งศิษย์จากห้าสำนักไปยืนเฝ้าเส้นทาง หยุดพรรคมารจันทร์โลหิต ธาตุทั้งห้าเสริมและข่มกัน ศิษย์สองสำนักรวมกันได้ยุทธ์ผสาน ตอนออฟไลน์ศิษย์ยังบำเพ็ญเพียรสะสมปราณให้ และเล่น co-op กับเพื่อนได้ 2–4 คนบนเว็บ</p>
+      <p class="muted">ฉากจำลองในกรอบจอโทรศัพท์ใช้ความละเอียดจริงของเกม 180×320 px ขยายแบบ pixel-perfect ศิษย์ยิงศัตรูด้วยเอฟเฟกต์ประจำสำนัก ทุกไม่กี่วินาทีจะเกิดยุทธ์ผสาน</p>
+      <div class="facts">
+        <span class="chip">180×320 internal</span><span class="chip">16px tiles</span><span class="chip">24×32 sprites</span><span class="chip">48-colour palette</span><span class="chip">Phaser 3 + Cloudflare</span>
+      </div>
+    </div>
+    <div class="phone"><canvas id="hero" class="px" width="180" height="320" aria-label="Animated pixel battlefield preview"></canvas></div>
+  </header>
+
+  <section>
+    <h2><span class="zh">五行</span> ธาตุทั้งห้า</h2>
+    <div class="wuxing">
+      <svg id="wheel" viewBox="0 0 320 320" role="img" aria-label="Wu Xing cycle: generating and overcoming"></svg>
+      <div class="legend">
+        <div><span class="sw" style="background: var(--wood)"></span><p><b>สร้างเสริม 相生</b> (วงนอก) โลหะ → น้ำ → ไม้ → ไฟ → ดิน → โลหะ ศิษย์ที่ยืนติดกับศิษย์ธาตุที่ "สร้าง" ตัวเองได้ +15% ดาเมจ ผู้เล่นจึงต้องคิดเรื่องตำแหน่ง</p></div>
+        <div><span class="sw" style="background: var(--seal)"></span><p><b>ข่มกัน 相克</b> (ดาวใน) โลหะข่มไม้ · ไม้ข่มดิน · ดินข่มน้ำ · น้ำข่มไฟ · ไฟข่มโลหะ ศัตรูทุกตัวมีธาตุ ตีธาตุที่ข่มได้ ×1.5 ตีธาตุที่ข่มเรา ×0.7 ผู้เล่นจึงต้องเลือกทีมตาม wave</p></div>
+        <p class="muted">หอกระจกไท่จี๋ ☯ อยู่นอกวง ทำหน้าที่ support: เปิดเผยมือสังหารล่องหน บัฟความเร็ว เพิ่มรายได้</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="zh">門派</span> หกสำนัก</h2>
+    <p class="muted">Sprite ด้านล่างเป็นต้นแบบ 12×16 ขยาย 6 เท่า ไว้กำหนด silhouette และสี งานจริงใช้ 24×32 แต่ละสำนักมีท่าทางและอาวุธต่างกันเพื่อให้แยกออกจากระยะไกล</p>
+    <div class="sects" id="sects"></div>
+  </section>
+
+  <section>
+    <h2><span class="zh">合擊</span> ยุทธ์ผสาน 10 ท่า</h2>
+    <p class="muted">ลากศิษย์ระดับผู้อาวุโสสองสำนักมาซ้อนกัน คู่ที่สร้างเสริมกันเน้นควบคุม คู่ที่ข่มกันเน้นดาเมจ</p>
+    <div class="tbl"><table>
+      <thead><tr><th>คู่ธาตุ</th><th>ชื่อท่า</th><th>ความสัมพันธ์</th><th>ผล</th></tr></thead>
+      <tbody id="combos"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2><span class="zh">特效</span> ห้องทดลองเอฟเฟกต์</h2>
+    <div class="lab">
+      <div class="stage"><canvas id="lab" class="px" width="180" height="120" aria-label="Effect preview"></canvas></div>
+      <div class="fxnote">
+        <div class="btns" id="fxbtns"></div>
+        <p id="fxdesc" class="muted"></p>
+        <p class="muted">Sprite เป็น pixel คม ส่วนแสงเรืองเป็นชั้น additive แยกทับด้านบน (HD-2D-lite) โหมด Low FX ลด particle ครึ่งหนึ่งและปิด bloom</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="zh">寶物</span> ไอเทม</h2>
+    <div class="items">
+      <div><span class="label">ของวิเศษ · relic ถาวร</span><ul id="relics"></ul></div>
+      <div><span class="label">ไม้ตาย · ใช้ในด่าน</span><ul id="arts"></ul></div>
+      <div><span class="label">คัมภีร์ยุทธ์ · เลือก 1 ใน 3</span><ul id="manuals"></ul></div>
+      <div><span class="label">บำเพ็ญเพียร · ชั้น idle</span><ul id="cult"></ul></div>
+    </div>
+  </section>
+
+  <p class="foot">ข้อมูลทั้งหมดในหน้านี้มาจาก docs/data/*.json ใน repo td-games-idel ตัวเลขเป็นค่าตั้งต้นสำหรับ prototype ยังไม่ผ่านการปรับสมดุล</p>
+</div>
+
+<script>
+const EL = {
+  metal:   { c: '#D9E1EA', d: '#8C99A8', g: '金', th: 'โลหะ' },
+  wood:    { c: '#5BC46A', d: '#2E7A3C', g: '木', th: 'ไม้' },
+  water:   { c: '#4FB3FF', d: '#22609C', g: '水', th: 'น้ำ' },
+  fire:    { c: '#FF5A1F', d: '#A02A10', g: '火', th: 'ไฟ' },
+  earth:   { c: '#C99A4A', d: '#7A5524', g: '土', th: 'ดิน' },
+  yinyang: { c: '#F2F2F2', d: '#3A3442', g: '☯', th: 'หยินหยาง' }
+};
+const SECTS = [
+  { id: 'metal', name: 'สำนักกระบี่เมฆา', en: 'Cloud Sword Pavilion', role: 'ดาเมจเป้าเดียว คริติคอล', hair: '#2A2030', weapon: 'sword', stats: 'DMG 30 · 1.2/s · R 2.6',
+    skills: [['ปราณกระบี่', 'คลื่นกระบี่ระยะไกล'], ['พันกระบี่ร่วง', 'ทุกครั้งที่ 6 กระบี่ห้าเล่มร่วง'], ['กระบี่ในใจ', 'คริทะลุทั้งแนว']] },
+  { id: 'wood', name: 'หุบไผ่หยก', en: 'Jade Bamboo Valley', role: 'พิษสะสม · รัด', hair: '#1E3A22', weapon: 'flute', stats: 'DMG 8 · 1.5/s · R 3.0',
+    skills: [['พิษมรกต', 'พิษ 8/วิ ซ้อน 3 ชั้น'], ['เถาวัลย์รัด', 'รัด 1 วิ ทุก 8 วิ'], ['เพลงขลุ่ยร่วงโรย', 'ศัตรูติดพิษรับดาเมจ +25%']] },
+  { id: 'water', name: 'วังธาราเหมันต์', en: 'Frost Tide Palace', role: 'ชะลอ · แช่แข็ง', hair: '#DDE8F5', weapon: 'palm', stats: 'DMG 12 · 1.4/s · R 2.8',
+    skills: [['ฝ่ามือเหมันต์', 'ช้าลง 30%'], ['บัวน้ำแข็ง', 'แช่แข็งทุกครั้งที่ 5'], ['คลื่นไม่สิ้นสุด', 'ผลักศัตรูถอยหลัง 1 ช่อง']] },
+  { id: 'fire', name: 'สำนักหงส์เพลิง', en: 'Crimson Phoenix Sect', role: 'ไฟวงกว้าง', hair: '#3A1210', weapon: 'fan', stats: 'DMG 20 · 1.0/s · R 2.4',
+    skills: [['พัดเพลิง', 'ไฟรูปกรวย ไหม้ 3 วิ'], ['ขนหงส์กระจาย', 'ศัตรูที่ไหม้ระเบิดเมื่อตาย'], ['เพลิงคืนชีพ', 'หงส์บินกวาดเส้นทางทุก 20 วิ']] },
+  { id: 'earth', name: 'วัดวัชระศิลา', en: 'Vajra Stone Monastery', role: 'ดาเมจกระจาย · มึน · ขวางทาง', hair: null, weapon: 'staff', stats: 'DMG 45 · 0.6/s · R 1.8',
+    skills: [['ไม้พลองสะเทือนขุนเขา', 'ดาเมจกระจายรัศมี 1'], ['ระฆังทอง', 'ยืนขวางเส้นทาง กั้นได้ 3 ตัว'], ['ท่วงท่าธรณีไหว', 'ทำศัตรูภาคพื้นมึนทั้งวง']] },
+  { id: 'yinyang', name: 'หอกระจกไท่จี๋', en: 'Taiji Mirror Hall', role: 'support · เปิดเผย · เงิน', hair: '#1A1423', weapon: 'taiji', stats: 'DMG 6 · 2.0/s · R 3.2',
+    skills: [['ญาณกระจก', 'เปิดเผยศัตรูล่องหน'], ['สมดุลปราณ', 'ศิษย์ข้างๆ ยิงเร็วขึ้น 20%'], ['ยันต์โชคลาภ', '+1 ตำลึงต่อการฆ่า']] }
+];
+const COMBOS = [
+  ['metal', 'water', 'กระบี่เหมันต์', 'gen', 'ปราณกระบี่แช่แข็ง ศัตรูที่แข็งอยู่รับคริ ×2'],
+  ['metal', 'wood', 'กระบี่หนามพิษ', 'ovr', 'ทุกครั้งที่คริ ใส่พิษ 3 ชั้น'],
+  ['metal', 'fire', 'คมดาบหลอมเหลว', 'ovr', 'ทะลุเป้า + ไหม้ ไม่สนเกราะ'],
+  ['metal', 'earth', 'ภูผาเหล็กกล้า', 'gen', 'ยืนขวางทาง สะท้อนดาเมจ 30%'],
+  ['water', 'wood', 'ฝนวสันต์', 'gen', 'สนามฝน: ช้าลง 30% + พิษ'],
+  ['water', 'fire', 'ฝ่ามือไอระอุ', 'ovr', 'เมฆไอน้ำ: ช้าลง + ไหม้ ศัตรูบินมองไม่เห็น'],
+  ['water', 'earth', 'บึงทรายดูด', 'ovr', 'ช่องหนองบึงรัด 1 วิ เมื่อเหยียบ'],
+  ['wood', 'fire', 'ขลุ่ยไฟป่า', 'gen', 'ไฟลามไปศัตรูข้างเคียง 2 ตัว'],
+  ['wood', 'earth', 'รากแผ่นดินไหว', 'ovr', 'รากพุ่งตามเส้นทาง มึน 0.6 วิ'],
+  ['fire', 'earth', 'หมัดภูเขาไฟ', 'gen', 'ระเบิดวงใหญ่ ทิ้งลาวา 4 วิ']
+];
+const FXDESC = {
+  metal: 'กระสุน: คลื่นปราณกระบี่จันทร์เสี้ยว · กระทบ: ประกายกากบาท + flash ขาว 1 เฟรม · เสียง: ชิ้ง',
+  wood: 'กระสุน: เข็มเขียว + ใบไม้ปลิว · กระทบ: ใบไม้แตกกระจาย · สถานะ: ฟองพิษ 1–3 ชั้น · เสียง: ขลุ่ย',
+  water: 'กระสุน: วงคลื่นฝ่ามือ · กระทบ: น้ำกระเซ็น + เศษน้ำแข็ง · สถานะ: น้ำแข็งเกาะ · เสียง: กริ๊ง',
+  fire: 'กระสุน: กรวยเพลิงจากพัด · กระทบ: เสาไฟ 6 เฟรม · สถานะ: ไฟเล็กบนหัว · เสียง: ฟู่-เปรี๊ยะ',
+  earth: 'กระสุน: คลื่นกระแทกตามพื้น · กระทบ: เศษหิน + ฝุ่น จอสั่น 2 px · สถานะ: ดาวหมุน · เสียง: ฆ้อง',
+  yinyang: 'กระสุน: ยันต์กระดาษหมุน · กระทบ: สัญลักษณ์ไท่จี๋ผุด · สถานะ: ขอบขาวดำ (ถูกเปิดเผย) · เสียง: ระฆัง',
+  combo: 'ยุทธ์ผสาน: ศิษย์สองคนพุ่งชนกลางอากาศ → flash หมึก → ชื่อท่าตัวพู่กัน · slow-mo 0.2× นาน 0.25 วิ'
+};
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- pixel sprites ----------
+const BODY = [
+  '....oooo....', '...ohhhho...', '..ohhhhhho..', '..ohssssho..', '..osesseso..', '..oossssoo..',
+  '...occcco...', '..occaacco..', '.occcaaccco.', '.ocdccccdco.', '.ocdccccdco.', '..occaacco..',
+  '..occcccco..', '..oddddddo..', '..odo..odo..', '..oo....oo..'
+];
+const OUT = '#1A1423', SKIN = '#F2C9A0';
+function spriteCanvas(robe, dark, hair, accent, weapon) {
+  const cv = document.createElement('canvas'); cv.width = 12; cv.height = 16;
+  const x = cv.getContext('2d');
+  const pal = { o: OUT, h: hair || SKIN, s: SKIN, e: OUT, c: robe, d: dark, a: accent };
+  BODY.forEach((row, y) => [...row].forEach((ch, i) => { if (pal[ch]) { x.fillStyle = pal[ch]; x.fillRect(i, y, 1, 1); } }));
+  const px = (c, pts) => { x.fillStyle = c; pts.forEach(([a, b]) => x.fillRect(a, b, 1, 1)); };
+  if (weapon === 'sword') px('#EEF3F8', [[11,1],[11,2],[11,3],[11,4],[11,5],[11,6],[11,7]]), px('#E3B04B', [[10,8],[11,8],[11,9]]);
+  if (weapon === 'flute') px('#9BD17A', [[0,8],[1,8],[2,8],[3,8]]), px(OUT, [[1,8]]);
+  if (weapon === 'palm') px(SKIN, [[0,8],[0,9],[11,8],[11,9]]), px('#BFE6FF', [[0,7],[11,7]]);
+  if (weapon === 'fan') px('#FFB347', [[0,6],[1,6],[0,7],[1,7],[2,7],[0,8],[1,8]]), px(OUT, [[2,8]]);
+  if (weapon === 'staff') px('#8A5A2B', [[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[0,8],[0,9],[0,10],[0,11],[0,12],[0,13],[0,14],[0,15]]), px('#E3B04B', [[0,1],[0,9]]);
+  if (weapon === 'taiji') px('#F2F2F2', [[10,0],[10,1]]), px('#5A5266', [[11,0],[11,1]]), px(SKIN, [[0,9],[11,9]]);
+  return cv;
+}
+function sectSprite(s) {
+  const e = EL[s.id];
+  const accent = s.id === 'yinyang' ? '#1A1423' : (s.id === 'earth' ? '#E3B04B' : e.d);
+  const robe = s.id === 'earth' ? '#D98A2B' : e.c;
+  const dark = s.id === 'earth' ? '#8A4F18' : e.d;
+  return spriteCanvas(robe, dark, s.hair, accent, s.weapon);
+}
+const ENEMY = {
+  cultist: spriteCanvas('#5A1820', '#2A0A10', '#120A10', '#D2412F', null),
+  brute:   spriteCanvas('#6E6A78', '#3A3642', '#120A10', '#D2412F', null)
+};
+
+// ---------- section: sect cards ----------
+const sectsEl = document.getElementById('sects');
+SECTS.forEach(s => {
+  const e = EL[s.id];
+  const card = document.createElement('article');
+  card.className = 'sect'; card.style.setProperty('--c', e.c);
+  const cv = document.createElement('canvas'); cv.width = 12; cv.height = 16;
+  cv.setAttribute('aria-hidden', 'true');
+  cv.getContext('2d').drawImage(sectSprite(s), 0, 0);
+  const body = document.createElement('div'); body.style.minWidth = '0';
+  body.innerHTML = `<div class="head"><span class="glyph">${e.g}</span><h3>${s.name}</h3></div>
+    <div class="label">${s.en} · ${e.th}</div><div style="font-size:14px">${s.role}</div>
+    <ul>${s.skills.map((k, i) => `<li><span class="label">Lv${i + 1}</span> <b>${k[0]}</b> ${k[1]}</li>`).join('')}</ul>
+    <div class="stats">${s.stats}</div>`;
+  card.append(cv, body); sectsEl.append(card);
+});
+
+// ---------- combos table ----------
+document.getElementById('combos').innerHTML = COMBOS.map(([a, b, n, r, fx]) =>
+  `<tr><td class="pair"><span style="color:${EL[a].c}">${EL[a].g}</span>+<span style="color:${EL[b].c}">${EL[b].g}</span></td>
+   <td><b>${n}</b></td><td><span class="rel ${r === 'gen' ? 'gen' : 'ovr'}">${r === 'gen' ? '相生 สร้างเสริม' : '相克 ข่มกัน'}</span></td><td>${fx}</td></tr>`).join('');
+
+// ---------- wuxing wheel ----------
+(function wheel() {
+  const svg = document.getElementById('wheel'), NS = 'http://www.w3.org/2000/svg';
+  const order = ['wood', 'fire', 'earth', 'metal', 'water']; // generating order clockwise
+  const cx = 160, cy = 165, R = 112;
+  const pos = order.map((k, i) => { const a = -Math.PI / 2 + i * 2 * Math.PI / 5; return [cx + R * Math.cos(a), cy + R * Math.sin(a)]; });
+  const mk = (t, at) => { const n = document.createElementNS(NS, t); for (const k in at) n.setAttribute(k, at[k]); svg.append(n); return n; };
+  const defs = mk('defs', {});
+  [['g', '#5BC46A'], ['r', '#D2412F']].forEach(([id, c]) => {
+    const m = document.createElementNS(NS, 'marker');
+    Object.entries({ id: 'ar' + id, viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto' }).forEach(([k, v]) => m.setAttribute(k, v));
+    const p = document.createElementNS(NS, 'path'); p.setAttribute('d', 'M0,0 L10,5 L0,10 z'); p.setAttribute('fill', c); m.append(p); defs.append(m);
+  });
+  const edge = (i, j, color, mid, curve) => {
+    const [x1, y1] = pos[i], [x2, y2] = pos[j];
+    const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, r = 30;
+    const sx = x1 + ux * r, sy = y1 + uy * r, ex = x2 - ux * r, ey = y2 - uy * r;
+    const d = curve ? `M${sx},${sy} Q${(sx + ex) / 2 + (((sx + ex) / 2) - cx) * 0.35},${(sy + ey) / 2 + (((sy + ey) / 2) - cy) * 0.35} ${ex},${ey}` : `M${sx},${sy} L${ex},${ey}`;
+    mk('path', { d, stroke: color, 'stroke-width': 2, fill: 'none', 'marker-end': `url(#ar${mid})`, opacity: curve ? 1 : 0.85 });
+  };
+  for (let i = 0; i < 5; i++) edge(i, (i + 1) % 5, '#5BC46A', 'g', true);
+  for (let i = 0; i < 5; i++) edge(i, (i + 2) % 5, '#D2412F', 'r', false);
+  order.forEach((k, i) => {
+    const [x, y] = pos[i];
+    mk('circle', { cx: x, cy: y, r: 26, fill: '#17121F', stroke: EL[k].c, 'stroke-width': 2 });
+    const t = mk('text', { x, y: y + 9, 'text-anchor': 'middle', 'font-size': 26, fill: EL[k].c, 'font-family': 'Ma Shan Zheng, KaiTi, serif' }); t.textContent = EL[k].g;
+  });
+})();
+
+// ---------- items ----------
+const li = (id, rows) => document.getElementById(id).innerHTML = rows.map(r => `<li>${r}</li>`).join('');
+li('relics', [
+  ['common', 'ขนหงส์เพลิง', '+15% เวลาไหม้'], ['rare', 'หยกเหมันต์', 'ชะลอซ้อนได้ 2 ชั้น'], ['rare', 'ลูกประคำวัชระ', 'ระฆังทองกั้นได้เพิ่ม 2 ตัว'],
+  ['epic', 'หยกคู่ใจ', 'ยุทธ์ผสานใช้เลเวลน้อยลง 1'], ['epic', 'ลูกคิดทองคำ', 'เพดานดอกเบี้ย +50%'], ['legendary', 'ตราเจ้ายุทธภพ', 'ปรมาจารย์ถูกลง 30%']
+].map(([r, n, e]) => `<b class="r-${r}">${n}</b> ${e}`));
+li('arts', ['<b>กระบี่สวรรค์ทลายฟ้า</b> 500 ดาเมจ รัศมี 2 · CD 60 วิ', '<b>ธูปหยุดกาล</b> ศัตรูทั้งจอช้าลง 50% · CD 90 วิ', '<b>ฝนตำลึงเงิน</b> เงิน ×2 นาน 30 วิ · CD 120 วิ', '<b>สิงห์คำราม</b> มึนทั้งจอ 1.5 วิ เปิดเผยล่องหน · CD 75 วิ']);
+li('manuals', ['<b>ห้าธาตุประสาน</b> โบนัสสร้างเสริม 15% → 35%', '<b>หนึ่งสำนักหนึ่งใจ</b> ทั้งทีมสำนักเดียว +60% ดาเมจ', '<b>วิชาต้องห้าม</b> ผสานได้ไม่ต้องเต็มเลเวล แลก 1 ชีวิต', '<b>ป้ายค่าหัว</b> +1 ตำลึงต่อการฆ่า']);
+li('cult', ['<b>ปราณ</b> ผลิตตลอดเวลา สูงสุด 12 ชม. ออฟไลน์', '<b>อาคาร 5 หลัง</b> หอฝึกยุทธ์ · หอคัมภีร์ · โรงหลอมกระบี่ · สวนสมุนไพร · ลานบำเพ็ญ', '<b>ขั้นบำเพ็ญ (prestige)</b> ฝึกปราณ → สร้างฐาน → แก่นทอง → ทารกวิญญาณ → แปลงเทพ', '<b>ด่านลาดตระเวน</b> ด่าน 3 ดาวเล่นเองได้ 60%']);
+
+// ---------- tiny engine ----------
+function Stage(canvas, opt) {
+  const g = canvas.getContext('2d'); g.imageSmoothingEnabled = false;
+  const W = canvas.width, H = canvas.height;
+  const st = { towers: [], enemies: [], shots: [], parts: [], texts: [], banner: null, shake: 0, t: 0, slow: 1, slowT: 0 };
+  const path = opt.path; // array of [x,y]
+  const segLen = []; let total = 0;
+  for (let i = 1; i < path.length; i++) { const l = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); segLen.push(l); total += l; }
+  const at = d => { for (let i = 0; i < segLen.length; i++) { if (d <= segLen[i]) { const k = d / segLen[i]; return [path[i][0] + (path[i + 1][0] - path[i][0]) * k, path[i][1] + (path[i + 1][1] - path[i][1]) * k]; } d -= segLen[i]; } return path[path.length - 1]; };
+  const spawn = (kind) => st.enemies.push({ d: 0, hp: kind === 'brute' ? 140 : 60, max: kind === 'brute' ? 140 : 60, kind, speed: kind === 'brute' ? 7 : 11, slowT: 0, burnT: 0, poison: 0, x: path[0][0], y: path[0][1], flash: 0 });
+  const part = (x, y, vx, vy, life, c, sz = 1, grav = 0) => st.parts.push({ x, y, vx, vy, life, max: life, c, sz, grav });
+  function impact(el, x, y, e) {
+    const c = EL[el].c;
+    if (el === 'metal') { for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; part(x, y, Math.cos(a) * 40, Math.sin(a) * 40, .18, '#FFFFFF', 1); } st.flash = .05; }
+    if (el === 'wood') { for (let i = 0; i < 8; i++) part(x, y, (Math.random() - .5) * 50, (Math.random() - .8) * 40, .5, i % 2 ? c : '#9BE07A', 1, 60); if (e) e.poison = Math.min(3, e.poison + 1); }
+    if (el === 'water') { for (let i = 0; i < 10; i++) { const a = Math.random() * 6.28; part(x, y, Math.cos(a) * 35, Math.sin(a) * 35 - 10, .4, i % 3 ? c : '#E8F6FF', 1, 80); } if (e) e.slowT = 2; }
+    if (el === 'fire') { for (let i = 0; i < 14; i++) part(x + (Math.random() - .5) * 6, y, (Math.random() - .5) * 14, -20 - Math.random() * 40, .6, i % 3 ? c : '#FFD34A', 1); if (e) e.burnT = 3; }
+    if (el === 'earth') { for (let i = 0; i < 10; i++) part(x, y, (Math.random() - .5) * 70, -Math.random() * 60, .6, i % 2 ? c : '#6B5A44', 2, 160); st.shake = .15; }
+    if (el === 'yinyang') { st.parts.push({ taiji: true, x, y, life: .4, max: .4 }); }
+  }
+  function fire(t, e) {
+    const el = t.el;
+    if (el === 'earth') { st.shots.push({ el, x: t.x, y: t.y + 6, tx: e.x, ty: e.y, sp: 90, wave: true, e }); return; }
+    st.shots.push({ el, x: t.x, y: t.y - 2, tx: e.x, ty: e.y, sp: el === 'metal' ? 160 : el === 'water' ? 90 : 120, e, rot: 0 });
+  }
+  function combo(a, b, name) {
+    st.banner = { text: name, a, b, t: 0 }; st.slow = .2; st.slowT = .35; st.flash = .12;
+    const [x, y] = [W / 2, H * .45];
+    for (let i = 0; i < 40; i++) { const ang = Math.random() * 6.28, sp = 30 + Math.random() * 60; part(x, y, Math.cos(ang) * sp, Math.sin(ang) * sp, .9, i % 2 ? EL[a].c : EL[b].c, 1); }
+    st.enemies.forEach(e => { e.hp -= 45; e.flash = .1; e.slowT = 2; });
+  }
+  function update(dt) {
+    st.t += dt;
+    if (st.slowT > 0) { st.slowT -= dt; if (st.slowT <= 0) st.slow = 1; }
+    const gdt = dt * st.slow;
+    opt.tick && opt.tick(st, gdt, spawn);
+    st.enemies.forEach(e => {
+      const sp = e.speed * (e.slowT > 0 ? .55 : 1);
+      if (opt.dummy) { e.x = opt.dummy[0]; e.y = opt.dummy[1]; } else { e.d += sp * gdt; [e.x, e.y] = at(e.d); }
+      e.slowT -= gdt; e.flash -= gdt;
+      if (e.burnT > 0) { e.burnT -= gdt; e.hp -= 6 * gdt; if (Math.random() < .3) part(e.x + (Math.random() - .5) * 6, e.y - 10, 0, -18, .35, '#FF7A2F'); }
+      if (e.poison > 0) { e.hp -= 3 * e.poison * gdt; if (Math.random() < .08) part(e.x, e.y - 12, 0, -10, .5, '#7CE08A'); }
+    });
+    st.enemies = st.enemies.filter(e => {
+      if (e.hp <= 0) { for (let i = 0; i < 8; i++) part(e.x, e.y - 6, (Math.random() - .5) * 40, -Math.random() * 40, .5, '#E3B04B', 1, 80); st.texts.push({ x: e.x, y: e.y - 14, t: '+3', life: .8, c: '#E3B04B' }); return !!opt.dummy ? (e.hp = e.max, true) : false; }
+      return opt.dummy || e.d < total;
+    });
+    st.towers.forEach(t => {
+      t.cd -= gdt; t.anim = Math.max(0, t.anim - gdt);
+      if (t.cd > 0 || opt.manual) return;
+      const tgt = st.enemies.filter(e => Math.hypot(e.x - t.x, e.y - t.y) < t.range).sort((a, b) => b.d - a.d)[0];
+      if (tgt) { fire(t, tgt); t.cd = t.rate; t.anim = .15; }
+    });
+    st.shots = st.shots.filter(s => {
+      const e = s.e; if (e) { s.tx = e.x; s.ty = e.y - 6; }
+      const dx = s.tx - s.x, dy = s.ty - s.y, L = Math.hypot(dx, dy);
+      if (L < 4) {
+        if (e) { const dmg = { metal: 30, wood: 8, water: 12, fire: 20, earth: 45, yinyang: 6 }[s.el]; const crit = s.el === 'metal' && Math.random() < .3; e.hp -= crit ? dmg * 2 : dmg; e.flash = .08;
+          st.texts.push({ x: e.x + (Math.random() - .5) * 6, y: e.y - 16, t: String(crit ? dmg * 2 : dmg), life: .6, c: crit ? '#FFD34A' : '#FFFFFF', big: crit }); }
+        impact(s.el, s.tx, s.ty, e); return false;
+      }
+      s.x += dx / L * s.sp * gdt; s.y += dy / L * s.sp * gdt; s.rot = (s.rot || 0) + gdt * 12;
+      if (s.el === 'wood' && Math.random() < .4) part(s.x, s.y, 0, 0, .25, '#9BE07A');
+      if (s.el === 'fire') part(s.x + (Math.random() - .5) * 3, s.y + (Math.random() - .5) * 3, 0, -8, .25, Math.random() < .5 ? '#FF5A1F' : '#FFD34A');
+      if (s.el === 'metal' && Math.random() < .6) part(s.x, s.y, 0, 0, .12, '#FFFFFF');
+      if (s.wave && Math.random() < .5) part(s.x, s.y + 2, (Math.random() - .5) * 20, -15, .3, '#C99A4A', 1, 80);
+      return true;
+    });
+    st.parts = st.parts.filter(p => { p.life -= dt; if (!p.taiji) { p.vy += (p.grav || 0) * dt; p.x += p.vx * dt; p.y += p.vy * dt; } return p.life > 0; });
+    st.texts = st.texts.filter(t => { t.life -= dt; t.y -= 14 * dt; return t.life > 0; });
+    if (st.banner) { st.banner.t += dt; if (st.banner.t > 1.6) st.banner = null; }
+    st.shake = Math.max(0, st.shake - dt); st.flash = Math.max(0, (st.flash || 0) - dt);
+  }
+  function draw() {
+    g.save();
+    if (st.shake > 0 && !REDUCED) g.translate(Math.round((Math.random() - .5) * 4), Math.round((Math.random() - .5) * 4));
+    opt.bg(g, W, H, st.t);
+    // path tiles
+    g.fillStyle = '#3B2C2A';
+    for (let d = 0; d < total; d += 2) { const [x, y] = at(d); g.fillRect(Math.round(x) - 5, Math.round(y) - 3, 10, 7); }
+    g.fillStyle = '#4A3833';
+    for (let d = 0; d < total; d += 9) { const [x, y] = at(d); g.fillRect(Math.round(x) - 2, Math.round(y), 2, 1); }
+    // towers + enemies sorted by y
+    const ents = [...st.towers.map(t => ({ y: t.y, t })), ...st.enemies.map(e => ({ y: e.y, e }))].sort((a, b) => a.y - b.y);
+    ents.forEach(o => {
+      if (o.t) { const t = o.t; g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(t.x - 5, t.y + 7, 10, 2);
+        g.drawImage(t.spr, Math.round(t.x - 6), Math.round(t.y - 8 - (t.anim > 0 ? 1 : 0)));
+        if (opt.ring) { g.fillStyle = EL[t.el].c; g.fillRect(t.x - 1, t.y + 10, 3, 1); } }
+      else { const e = o.e; g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(e.x - 5, e.y + 6, 10, 2);
+        const bob = Math.floor(st.t * 8 + e.d) % 2;
+        g.drawImage(ENEMY[e.kind], Math.round(e.x - 6), Math.round(e.y - 9 - bob));
+        if (e.flash > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = .7; g.drawImage(ENEMY[e.kind], Math.round(e.x - 6), Math.round(e.y - 9 - bob)); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+        if (e.slowT > 0) { g.fillStyle = '#BFE6FF'; g.fillRect(e.x - 5, e.y + 4, 10, 2); }
+        if (e.burnT > 0) { g.fillStyle = Math.floor(st.t * 10) % 2 ? '#FF5A1F' : '#FFD34A'; g.fillRect(e.x - 1, e.y - 12, 2, 2); }
+        for (let i = 0; i < e.poison; i++) { g.fillStyle = '#7CE08A'; g.fillRect(e.x - 4 + i * 3, e.y - 13, 2, 2); }
+        g.fillStyle = '#1A1423'; g.fillRect(e.x - 6, e.y - 12 - (e.poison ? 3 : 0), 12, 2); g.fillStyle = '#D2412F'; g.fillRect(e.x - 6, e.y - 12 - (e.poison ? 3 : 0), Math.max(0, 12 * e.hp / e.max), 2); }
+    });
+    // shots + particles (additive glow layer)
+    g.globalCompositeOperation = 'lighter';
+    st.shots.forEach(s => {
+      const c = EL[s.el].c, x = Math.round(s.x), y = Math.round(s.y);
+      if (s.el === 'metal') { g.fillStyle = 'rgba(217,225,234,.35)'; g.fillRect(x - 3, y - 3, 7, 7); g.fillStyle = '#FFFFFF'; g.fillRect(x - 2, y - 1, 5, 1); g.fillRect(x - 1, y - 2, 3, 1); g.fillRect(x - 1, y, 3, 1); }
+      else if (s.el === 'water') { const r = 3 + Math.sin(st.t * 20) * 1; g.strokeStyle = c; g.lineWidth = 1; g.beginPath(); g.arc(x, y, r, 0, 6.28); g.stroke(); g.fillStyle = 'rgba(79,179,255,.3)'; g.fillRect(x - 2, y - 2, 5, 5); }
+      else if (s.el === 'yinyang') { g.fillStyle = '#F2E7C9'; const k = Math.round(Math.sin(s.rot) * 2); g.fillRect(x - 1, y - 2, 2 + Math.abs(k), 4); g.fillStyle = '#D2412F'; g.fillRect(x, y - 1, 1, 2); }
+      else if (s.el === 'earth') { g.fillStyle = 'rgba(201,154,74,.5)'; g.fillRect(x - 4, y - 1, 8, 3); g.fillStyle = '#E8C27A'; g.fillRect(x - 2, y - 2, 4, 2); }
+      else { g.fillStyle = c; g.fillRect(x - 1, y - 1, 3, 3); g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(x - 2, y - 2, 5, 5); }
+    });
+    st.parts.forEach(p => {
+      const a = Math.max(0, p.life / p.max);
+      if (p.taiji) { const r = 3 + (1 - a) * 6; g.globalAlpha = a; g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(p.x, p.y, r, -Math.PI / 2, Math.PI / 2); g.fill(); g.fillStyle = '#5A5266'; g.beginPath(); g.arc(p.x, p.y, r, Math.PI / 2, Math.PI * 1.5); g.fill(); g.globalAlpha = 1; return; }
+      g.globalAlpha = a; g.fillStyle = p.c; g.fillRect(Math.round(p.x), Math.round(p.y), p.sz, p.sz);
+    });
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    // damage numbers
+    g.font = '8px Silkscreen, monospace'; g.textAlign = 'center';
+    st.texts.forEach(t => { g.globalAlpha = Math.min(1, t.life * 3); g.fillStyle = '#1A1423'; g.fillText(t.t, Math.round(t.x) + 1, Math.round(t.y) + 1); g.fillStyle = t.c; g.fillText(t.t, Math.round(t.x), Math.round(t.y)); });
+    g.globalAlpha = 1;
+    // combo banner (ink brush)
+    if (st.banner) {
+      const b = st.banner, k = Math.min(1, b.t * 4), fade = b.t > 1.2 ? 1 - (b.t - 1.2) / .4 : 1;
+      g.globalAlpha = .75 * fade; g.fillStyle = '#0A0810'; g.fillRect(0, H * .38, W, 38 * k);
+      g.globalAlpha = fade; g.fillStyle = EL[b.a].c; g.fillRect(0, H * .38, W * k, 1); g.fillStyle = EL[b.b].c; g.fillRect(W * (1 - k), H * .38 + 37 * k, W * k, 1);
+      g.font = '22px "Ma Shan Zheng", KaiTi, serif'; g.fillStyle = '#ECE3CF'; g.fillText(EL[b.a].g + EL[b.b].g + '合擊', W / 2, H * .38 + 22);
+      g.font = '10px Mitr, Sarabun, sans-serif'; g.fillStyle = '#E3B04B'; g.fillText(b.text, W / 2, H * .38 + 34);
+      g.globalAlpha = 1;
+    }
+    if (st.flash > 0 && !REDUCED) { g.globalAlpha = Math.min(.5, st.flash * 5); g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H); g.globalAlpha = 1; }
+    opt.hud && opt.hud(g, W, H, st);
+    g.restore();
+  }
+  let last = performance.now(), running = true;
+  function loop(now) { const dt = Math.min(.05, (now - last) / 1000); last = now; update(dt); draw(); if (running) requestAnimationFrame(loop); }
+  new IntersectionObserver(es => es.forEach(e => { const was = running; running = e.isIntersecting; if (running && !was) { last = performance.now(); requestAnimationFrame(loop); } })).observe(canvas);
+  if (REDUCED) { for (let i = 0; i < 120; i++) update(1 / 30); draw(); running = false; } else requestAnimationFrame(loop);
+  return { st, fire, impact, combo, spawn, addTower: (el, x, y, range = 60, rate = 1) => { const s = SECTS.find(q => q.id === el); st.towers.push({ el, x, y, range, rate, cd: Math.random(), anim: 0, spr: sectSprite(s) }); } };
+}
+
+// ---------- hero battlefield ----------
+function nightBg(g, W, H, t) {
+  g.fillStyle = '#120E1E'; g.fillRect(0, 0, W, H);
+  const bands = ['#1A1430', '#211A3A', '#2A2045']; bands.forEach((c, i) => { g.fillStyle = c; g.fillRect(0, 20 + i * 14, W, 14); });
+  // blood moon
+  g.fillStyle = '#7A1E22'; g.beginPath(); g.arc(132, 34, 16, 0, 6.28); g.fill(); g.fillStyle = '#A8302E'; g.beginPath(); g.arc(130, 32, 13, 0, 6.28); g.fill();
+  // stepped mountains
+  const mtn = (base, amp, col, off) => { g.fillStyle = col; for (let x = 0; x < W; x += 4) { const h = Math.round((Math.sin((x + off) * .045) + Math.sin((x + off) * .11) * .5) * amp + amp); g.fillRect(x, base - h, 4, H); } };
+  mtn(92, 12, '#1E1830', 0); mtn(104, 9, '#171226', 60);
+  g.fillStyle = '#16201A'; g.fillRect(0, 104, W, H);
+  // grass speckle (deterministic)
+  for (let i = 0; i < 160; i++) { const x = (i * 53) % W, y = 108 + (i * 97) % (H - 110); g.fillStyle = i % 3 ? '#1E2B22' : '#24352A'; g.fillRect(x, y, 2, 1); }
+  // pagoda roofs
+  [[24, 140], [150, 214]].forEach(([x, y]) => { g.fillStyle = '#2B1A1A'; g.fillRect(x - 10, y, 20, 10); g.fillStyle = '#5A1820'; g.fillRect(x - 13, y - 3, 26, 3); g.fillRect(x - 9, y - 6, 18, 3); g.fillStyle = '#E3B04B'; g.fillRect(x - 1, y + 3, 2, 3); });
+  // mist
+  g.fillStyle = 'rgba(200,190,230,.05)'; for (let i = 0; i < 3; i++) g.fillRect(((t * 6 + i * 70) % (W + 60)) - 60, 96 + i * 6, 60, 3);
+}
+const HERO_PATH = [[-8, 128], [60, 128], [60, 176], [126, 176], [126, 232], [40, 232], [40, 290], [188, 290]];
+const COMBO_SEQ = [['metal', 'water', 'กระบี่เหมันต์'], ['water', 'fire', 'ฝ่ามือไอระอุ'], ['fire', 'earth', 'หมัดภูเขาไฟ'], ['wood', 'fire', 'ขลุ่ยไฟป่า']];
+let spawnT = 0, comboT = 0, comboI = 0, waveN = 7;
+const hero = Stage(document.getElementById('hero'), {
+  path: HERO_PATH, bg: nightBg, ring: true,
+  tick(st, dt, spawn) {
+    spawnT -= dt; if (spawnT <= 0) { spawn(Math.random() < .25 ? 'brute' : 'cultist'); spawnT = 1.1 + Math.random() * .6; }
+    comboT += dt; if (comboT > 7) { comboT = 0; const c = COMBO_SEQ[comboI++ % COMBO_SEQ.length]; hero.combo(...c); waveN++; }
+  },
+  hud(g, W, H, st) {
+    g.fillStyle = 'rgba(10,8,16,.8)'; g.fillRect(0, 0, W, 16);
+    g.font = '8px Silkscreen, monospace'; g.textAlign = 'left';
+    g.fillStyle = '#E3B04B'; g.fillText('$ 248', 4, 11); g.fillStyle = '#D2412F'; g.fillText('♥ 18', 48, 11);
+    g.fillStyle = '#ECE3CF'; g.textAlign = 'right'; g.fillText('WAVE ' + waveN + '/20', W - 4, 11);
+    // bottom bar: sect picker
+    g.fillStyle = 'rgba(10,8,16,.85)'; g.fillRect(0, H - 22, W, 22);
+    SECTS.forEach((s, i) => { const x = 6 + i * 29; g.fillStyle = '#17121F'; g.fillRect(x, H - 19, 24, 16); g.fillStyle = EL[s.id].c; g.fillRect(x, H - 19, 24, 1); g.drawImage(sectSprite(s), 0, 0, 12, 10, x + 6, H - 17, 12, 10); });
+  }
+});
+[['metal', 40, 112], ['water', 82, 160], ['fire', 100, 196], ['earth', 104, 214], ['wood', 148, 200], ['yinyang', 70, 250], ['metal', 20, 210], ['fire', 110, 270]]
+  .forEach(([el, x, y]) => hero.addTower(el, x, y, el === 'earth' ? 30 : 56, el === 'earth' ? 1.4 : el === 'yinyang' ? .5 : 0.8));
+
+// ---------- effect lab ----------
+const lab = Stage(document.getElementById('lab'), {
+  path: [[0, 92], [180, 92]], dummy: [132, 86], manual: true,
+  bg(g, W, H) { g.fillStyle = '#100C1A'; g.fillRect(0, 0, W, H); g.fillStyle = '#16201A'; g.fillRect(0, 70, W, H); for (let i = 0; i < 40; i++) { g.fillStyle = '#1E2B22'; g.fillRect((i * 37) % W, 74 + (i * 13) % 40, 2, 1); } },
+  tick() {}
+});
+lab.spawn('cultist');
+let labSect = 'metal';
+const placeLab = el => { lab.st.towers = []; lab.addTower(el, 40, 86, 200, 1); };
+placeLab(labSect);
+let labAuto = setInterval(() => { if (lab.st.enemies[0]) lab.fire(lab.st.towers[0], lab.st.enemies[0]); }, 900);
+const btns = document.getElementById('fxbtns'), desc = document.getElementById('fxdesc');
+const setDesc = k => desc.textContent = FXDESC[k];
+[...SECTS.map(s => [s.id, s.name]), ['combo', 'ยุทธ์ผสาน']].forEach(([k, n]) => {
+  const b = document.createElement('button'); b.type = 'button'; b.id = 'fx-' + k; b.textContent = n; b.style.setProperty('--c', k === 'combo' ? 'var(--gold)' : EL[k].c);
+  b.setAttribute('aria-pressed', String(k === labSect));
+  b.onclick = () => {
+    btns.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); setDesc(k);
+    if (k === 'combo') { lab.combo('metal', 'water', 'กระบี่เหมันต์'); return; }
+    labSect = k; placeLab(k); lab.fire(lab.st.towers[0], lab.st.enemies[0]);
+  };
+  btns.append(b);
+});
+setDesc(labSect);
+</script>

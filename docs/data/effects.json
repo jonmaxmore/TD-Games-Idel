@@ -1,0 +1,36 @@
+{
+  "_notes": "Pixel-art VFX spec. Sprites are crisp pixel art; glow/bloom is a separate additive HD layer on top (HD-2D-lite). Low FX halves particles and disables bloom.",
+  "render": {
+    "internalResolution": [180, 320],
+    "scaling": "integer scale, nearest-neighbour, letterbox",
+    "tile": 16,
+    "characterSprite": [24, 32],
+    "bossSprite": [64, 64],
+    "projectile": [8, 8],
+    "palette": "48-colour master palette; each sect limited to 6 shades + shared skin/outline",
+    "outline": "1px dark outline #1A1423 on all characters for readability",
+    "targetFps": 60, "maxParticles": 1500, "bloom": { "threshold": 0.65, "strength": 0.8 }
+  },
+  "animations": {
+    "disciple": { "idle": 4, "attack": 6, "skill": 8, "levelUp": 6, "fps": 10 },
+    "enemy":    { "walk": 6, "hit": 2, "death": 6, "fps": 10 },
+    "boss":     { "idle": 6, "attack": 8, "phaseChange": 12, "death": 12, "fps": 12 }
+  },
+  "sects": {
+    "metal": { "projectile": "white crescent sword qi, 3-frame smear",     "impact": "spark cross + 1-frame white flash",     "status": "sword marks (bleed)",               "particles": 12, "sfx": "shing" },
+    "wood":  { "projectile": "green needle, leaf trail",                    "impact": "leaf burst",                            "status": "green bubbles (poison stacks 1-3)", "particles": 14, "sfx": "flute note" },
+    "water": { "projectile": "blue palm wave (ring)",                       "impact": "splash + ice shards",                   "status": "frost crust, frozen = ice block",   "particles": 16, "sfx": "chime + crack" },
+    "fire":  { "projectile": "fan cone of flame pixels",                    "impact": "flame pillar 6 frames",                 "status": "small flames on head",              "particles": 22, "sfx": "whoosh-crackle" },
+    "earth": { "projectile": "staff shockwave along ground",                "impact": "rock chunks + dust, 2px screen shake",  "status": "stars (stun)",                       "particles": 14, "sfx": "gong thud" },
+    "yinyang": { "projectile": "talisman paper spinning",                   "impact": "taiji symbol pop",                      "status": "revealed: black/white outline",      "particles": 8,  "sfx": "bell" }
+  },
+  "events": {
+    "comboMerge":   { "sequence": "two disciples leap, collide mid-air, ink-brush flash, calligraphy name of technique appears (e.g. 冰剑 / กระบี่เหมันต์)", "timeScale": { "value": 0.2, "duration": 0.25 }, "haptic": "medium", "sfx": "drum hit + guqin chord" },
+    "grandmaster":  { "sequence": "full-screen ink wash cut-in portrait 0.8s, then descends", "haptic": "heavy" },
+    "crit":         { "hitStopMs": 40, "damageNumber": "pixel font, gold, bounce", "haptic": "light" },
+    "bossSpawn":    { "sequence": "red moon fills sky, name banner slides in", "sfx": "war horn" },
+    "waveClear":    { "silverFountain": true, "interestPopup": true, "sfx": "coin cascade" },
+    "offlineReward":{ "sequence": "disciples meditate, qi orbs flow into gourd, counter rolls", "haptic": "success" }
+  },
+  "accessibility": { "damageNumbersToggle": true, "screenShakeToggle": true, "flashReduction": true, "colorblind": "each sect has a glyph (金木水火土 + ☯) on projectiles and status icons" }
+}

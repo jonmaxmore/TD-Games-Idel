@@ -1,0 +1,62 @@
+{
+  "treasures": {
+    "_notes": "ของวิเศษ (relics): permanent passives from chests/events. Target 30 at launch; first 12 listed. Rarity: common (สามัญ), rare (หายาก), epic (ล้ำค่า), legendary (ตำนาน).",
+    "items": [
+      { "id": "phoenix_feather", "nameTh": "ขนหงส์เพลิง",          "rarity": "common",    "effect": "+15% burn duration" },
+      { "id": "frost_jade",      "nameTh": "หยกเหมันต์",           "rarity": "rare",      "effect": "slows stack up to 2 times" },
+      { "id": "meteor_iron",     "nameTh": "เหล็กอุกกาบาต",        "rarity": "common",    "effect": "+10% crit chance for Metal" },
+      { "id": "spirit_bamboo",   "nameTh": "ไผ่วิญญาณ",            "rarity": "common",    "effect": "poison max stacks +1" },
+      { "id": "buddha_bead",     "nameTh": "ลูกประคำวัชระ",        "rarity": "rare",      "effect": "Golden Bell blocks +2 enemies" },
+      { "id": "bagua_compass",   "nameTh": "เข็มทิศปากั้ว",        "rarity": "rare",      "effect": "Taiji reveal radius +1 tile" },
+      { "id": "gold_abacus",     "nameTh": "ลูกคิดทองคำ",          "rarity": "epic",      "effect": "interest cap +50%" },
+      { "id": "twin_jade",       "nameTh": "หยกคู่ใจ",             "rarity": "epic",      "effect": "combo techniques need one level less" },
+      { "id": "incense_clock",   "nameTh": "นาฬิกาธูป",            "rarity": "epic",      "effect": "secret art cooldowns -20%" },
+      { "id": "nine_sun_pill",   "nameTh": "โอสถเก้าสุริยัน",      "rarity": "legendary", "effect": "once per run: restore 10 lives" },
+      { "id": "alliance_seal",   "nameTh": "ตราเจ้ายุทธภพ",        "rarity": "legendary", "effect": "grandmasters cost 30% less" },
+      { "id": "dream_lantern",   "nameTh": "โคมฝันบำเพ็ญ",         "rarity": "rare",      "effect": "offline cultivation cap +4h" }
+    ]
+  },
+  "secretArts": {
+    "_notes": "ไม้ตาย: player-cast abilities during a run (consumables with cooldown).",
+    "items": [
+      { "id": "heaven_sword",  "nameTh": "กระบี่สวรรค์ทลายฟ้า", "cooldown": 60,  "effect": "giant sword drops: 500 dmg r=2" },
+      { "id": "time_incense",  "nameTh": "ธูปหยุดกาล",          "cooldown": 90,  "effect": "all enemies 50% speed 6s" },
+      { "id": "silver_rain",   "nameTh": "ฝนตำลึงเงิน",         "cooldown": 120, "effect": "x2 silver from kills for 30s" },
+      { "id": "lion_roar",     "nameTh": "สิงห์คำราม",          "cooldown": 75,  "effect": "stun all enemies on screen 1.5s, reveals stealth" }
+    ]
+  },
+  "manuals": {
+    "_notes": "คัมภีร์ยุทธ์ (roguelite cards): choose 1 of 3 every 5 waves. Target 40 at launch.",
+    "damage": [
+      { "id": "overheat",     "nameTh": "คัมภีร์ไฟบรรลัยกัลป์", "effect": "Fire +30% dmg, -10% rate" },
+      { "id": "deep_freeze",  "nameTh": "คัมภีร์น้ำแข็งพันปี",  "effect": "slowed enemies take +20% dmg" },
+      { "id": "sword_heart",  "nameTh": "คัมภีร์ใจกระบี่",      "effect": "+10% crit, crits splash" }
+    ],
+    "economy": [
+      { "id": "merchant_guild","nameTh": "คัมภีร์สมาคมพ่อค้า", "effect": "interest +2%" },
+      { "id": "bounty_board",  "nameTh": "ป้ายค่าหัว",         "effect": "+1 silver per kill" },
+      { "id": "frugal_master", "nameTh": "อาจารย์ประหยัด",     "effect": "sell refund 75% -> 90%" }
+    ],
+    "ruleBender": [
+      { "id": "five_harmony", "nameTh": "ห้าธาตุประสาน",       "effect": "Wu Xing generate bonus +15% -> +35%" },
+      { "id": "single_path",  "nameTh": "หนึ่งสำนักหนึ่งใจ",   "effect": "if all disciples are one sect: +60% dmg" },
+      { "id": "forbidden",    "nameTh": "วิชาต้องห้าม",        "effect": "combo techniques no longer need max level, but cost 1 life each" }
+    ]
+  },
+  "cultivation": {
+    "_notes": "Idle layer (บำเพ็ญเพียร). Resources accrue offline up to 12h (16h with Dream Lantern).",
+    "resources": [
+      { "id": "silver", "nameTh": "ตำลึงเงิน", "use": "in-run currency" },
+      { "id": "qi",     "nameTh": "ปราณ",      "use": "offline-generated; upgrade sect halls (meta)" },
+      { "id": "jade",   "nameTh": "หยก",       "use": "premium; cosmetics, recruit, season pass" },
+      { "id": "merit",  "nameTh": "แต้มบุญ",    "use": "prestige (บรรลุขั้น) currency; permanent multipliers" }
+    ],
+    "buildings": ["หอฝึกยุทธ์ (Training Hall)", "หอคัมภีร์ (Scripture Library)", "โรงหลอมกระบี่ (Sword Forge)", "สวนสมุนไพร (Herb Garden)", "ลานบำเพ็ญ (Meditation Court)"],
+    "realms": ["ฝึกปราณ", "สร้างฐาน", "แก่นทอง", "ทารกวิญญาณ", "แปลงเทพ"]
+  },
+  "cosmetics": [
+    { "type": "discipleSkin", "examples": ["ชุดเทศกาลโคมไฟ", "ชุดหิมะขาว", "ชุดนักรบสยาม (collab-ready)", "ชุดไซเบอร์ยุทธภพ"] },
+    { "type": "skillTrail",   "examples": ["กลีบซากุระ", "ผีเสื้อทอง", "หมึกจีน"] },
+    { "type": "mapTheme",     "examples": ["ยอดเขาหัวซาน-like Five Peaks", "เมืองน้ำเจียงหนาน-like Canal Town", "ด่านทะเลทรายตะวันตก"] }
+  ]
+}
