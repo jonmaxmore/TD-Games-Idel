@@ -6,7 +6,7 @@ import { STAGE_TYPE_TH, starString } from '../stars';
 import { STAGE_ORDER } from './result';
 import { button, COLORS, text, W, setupCamera } from '../ui';
 
-const MENU_STAGES = ['T-1', '1-1', '1-2', '1-3', '1-4'];
+const MENU_STAGES = ['T-1', '1-1', '1-2', '1-3', '1-4', '1-6', '1-8'];
 const STAGE_HINT: Record<string, string> = {
   'T-1': 'ลองครบ 6 สำนัก ห้าธาตุ และยุทธ์ผสาน',
   '1-1': 'บทเรียน: วางศิษย์กระบี่ ป้องกันหมู่บ้าน',

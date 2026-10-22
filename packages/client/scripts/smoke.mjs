@@ -43,7 +43,7 @@ try {
   await page.waitForTimeout(4000);
   if (shots) await page.screenshot({ path: `${shots}/assault-1-3.png` });
 
-  const place = [[3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [3, 5], [4, 5], [5, 5], [6, 5]];
+  const place = [[3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [3, 4], [4, 4], [5, 4], [6, 4]];
   const sects = ['metal', 'water', 'fire', 'earth', 'wood', 'yinyang', 'metal', 'fire', 'water'];
   await play('defend', 'T-1', [...place.map(([tx, ty], i) => ({ t: 'place', sect: sects[i], tx, ty })), { t: 'nextWave' }]);
   await page.waitForTimeout(5000);

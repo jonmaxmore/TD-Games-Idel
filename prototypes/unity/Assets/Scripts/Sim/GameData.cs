@@ -41,6 +41,7 @@ namespace FiveSects.Sim
         public static readonly List<CardDef> Cards = new List<CardDef>();
         public static int EliteFromWave, EliteChancePct, EliteBountyMult;
         public static readonly List<EliteAffix> Elites = new List<EliteAffix>();
+        public static readonly Dictionary<string, List<string>> Palette = new Dictionary<string, List<string>>();
         public const int CardEveryWaves = 5;
         public static int CardAutoPick => Ticks(15);
         public static bool Loaded { get; private set; }
@@ -51,7 +52,7 @@ namespace FiveSects.Sim
             if (Loaded) return;
             // Start clean so a failed earlier attempt can't leave duplicates behind.
             Sects.Clear(); SectOrder.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
-            StageList.Clear(); Stages.Clear(); Arts.Clear(); Cards.Clear(); Elites.Clear();
+            StageList.Clear(); Stages.Clear(); Arts.Clear(); Cards.Clear(); Elites.Clear(); Palette.Clear();
             var sects = JObject.Parse(read("sects"));
             foreach (var s in sects["sects"])
             {
@@ -109,6 +110,7 @@ namespace FiveSects.Sim
             }
 
             Layouts.Load(JObject.Parse(read("maps")));
+            foreach (var g in (JObject)JObject.Parse(read("effects"))["render"]["palette"]) Palette[g.Key] = g.Value.Select(x => (string)x).ToList();
 
             var inRun = JObject.Parse(read("economy"))["inRun"];
             StartLives = (int)inRun["startLives"]; InterestPct = (int)inRun["interestPct"]; InterestCap = (int)inRun["interestCap"];

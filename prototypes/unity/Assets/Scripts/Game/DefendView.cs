@@ -17,6 +17,9 @@ namespace FiveSects.Game
     {
         public string StageId = "1-1";
 
+        // Playable in this prototype (defend stages with a layout), in story order. Results screen walks this list.
+        static readonly string[] Playlist = { "1-1", "1-2", "1-4", "1-6", "1-12", "T-1" };
+
         const int T = 16, OX = 2, OY = 16;
         const float TickSec = 0.05f;
 
@@ -26,8 +29,13 @@ namespace FiveSects.Game
         int speed = 1;
         readonly Dictionary<int, Vector2> prev = new Dictionary<int, Vector2>();
         readonly Dictionary<int, (SpriteRenderer body, SpriteRenderer hpBg, SpriteRenderer hp)> enemyViews = new Dictionary<int, (SpriteRenderer, SpriteRenderer, SpriteRenderer)>();
-        Transform discipleRoot;
-        string discipleSig = "";
+        Transform world, discipleRoot, hintRoot;
+        SpriteRenderer goalGate;
+        float goalFlashUntil;
+        readonly List<SpriteRenderer> hints = new List<SpriteRenderer>();
+        bool placedOnce;
+        RectTransform hudRoot, resultPanel;
+        string discipleSig = null; // null so the first SyncDisciples also draws the build-slot hints
 
         class Shot { public SpriteRenderer R; public Vector2 From, To; public float T; }
         readonly List<Shot> shots = new List<Shot>();
@@ -52,13 +60,20 @@ namespace FiveSects.Game
         {
             Bootstrap.LoadData();
             s = Defend.Create(StageId, (uint)Random.Range(1, int.MaxValue));
+            world = new GameObject("World").transform;
+            var biome = Layouts.Biomes[s.Layout.Biome];
             var ground = new GameObject("Ground").AddComponent<SpriteRenderer>();
-            ground.sprite = Art.Ground(Layouts.GridW, Layouts.GridH, s.PathTiles);
+            ground.sprite = Art.Ground(Layouts.GridW, Layouts.GridH, s.PathTiles, GameData.Palette[biome.Palette]);
+            ground.transform.SetParent(world);
             ground.transform.position = World(OX, OY);
             ground.sortingOrder = -10;
+            BuildMap(biome);
             discipleRoot = new GameObject("Disciples").transform;
+            discipleRoot.SetParent(world);
+            hintRoot = new GameObject("BuildHints").transform;
+            hintRoot.SetParent(world);
             BuildHud();
-            Toast(L("แตะช่องหญ้าข้างทางเพื่อวางศิษย์", "Tap grass next to the path to place a disciple"), 6f);
+            Toast(thai ? s.Layout.NameTh : StageId, 2f);
         }
 
         // ---------- loop ----------
@@ -86,6 +101,7 @@ namespace FiveSects.Game
                 acc = Mathf.Min(acc, 8 * TickSec);
             }
             SyncDisciples();
+            UpdateHints();
             RenderEnemies(Mathf.Clamp01(acc / TickSec));
             UpdateShots();
             UpdateHud();
@@ -164,8 +180,11 @@ namespace FiveSects.Game
                     case "newEnemy": Toast(L("ศัตรูใหม่: ", "New enemy: ") + (thai ? GameData.Enemies[ev.Type].NameTh : ev.Type), 2f); break;
                     case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
                     case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
+                    case "leak": goalFlashUntil = Time.time + 0.25f; break;
                     case "end":
-                        Toast(ev.Won ? L("ชนะ! ", "Victory! ") + string.Concat(ev.Stars.Select(x => x ? "*" : "-")) : L("พ่ายแพ้", "Defeat"), 999f);
+                        ClosePanel();
+                        RefreshHints();
+                        ShowResult(ev.Won, ev.Stars);
                         break;
                 }
             }
@@ -174,6 +193,7 @@ namespace FiveSects.Game
         void Shoot(Vector2 from, Vector2 to, string el, bool crit)
         {
             var r = new GameObject("shot").AddComponent<SpriteRenderer>();
+            r.transform.SetParent(world);
             r.sprite = Art.Pixel();
             r.color = Art.Hex(GameData.Sects[el].Color);
             r.transform.localScale = new Vector3(crit ? 3 : 2, crit ? 3 : 2, 1);
@@ -193,6 +213,58 @@ namespace FiveSects.Game
             }
         }
 
+        // ---------- map ----------
+
+        SpriteRenderer MakeSprite(string name, Sprite sp, float gx, float gy, int order)
+        {
+            var r = new GameObject(name).AddComponent<SpriteRenderer>();
+            r.sprite = sp; r.sortingOrder = order;
+            r.transform.SetParent(world);
+            r.transform.position = World(gx, gy);
+            return r;
+        }
+
+        // Tile (tx, ty) bottom edge in game pixels; sprites with a bottom-centre pivot stand on it.
+        static float TileCx(int tx) => OX + tx * T + T / 2f;
+        static float TileBottom(int ty) => OY + (ty + 1) * T;
+
+        void BuildMap(BiomeDef biome)
+        {
+            foreach (var p in s.Layout.Props)
+                MakeSprite("prop-" + p.Type, Art.Prop(p.Type), TileCx(p.At.X), TileBottom(p.At.Y), p.Type == "roof" || p.Type == "rice" ? -5 : 5 + p.At.Y);
+            var start = s.Layout.Path[0];
+            var end = s.Layout.Path[s.Layout.Path.Length - 1];
+            MakeSprite("spawn-gate", Art.Gate(biome.SpawnGate, false), TileCx(start.X), TileBottom(start.Y) + 2, -4);
+            goalGate = MakeSprite("goal-gate", Art.Gate(s.Layout.GoalGate ?? biome.GoalGate, true), TileCx(end.X), TileBottom(end.Y) + 2, 25);
+        }
+
+        // Faint frames on every tile a disciple can be placed on; they pulse while you can afford one.
+        void RefreshHints()
+        {
+            foreach (var h in hints) Destroy(h.gameObject);
+            hints.Clear();
+            if (s.IsOver) return;
+            for (int ty = 0; ty < Layouts.GridH; ty++)
+                for (int tx = 0; tx < Layouts.GridW; tx++)
+                    if (Defend.CanBuild(s, tx, ty))
+                    {
+                        var r = new GameObject("slot").AddComponent<SpriteRenderer>();
+                        r.sprite = Art.Slot(); r.sortingOrder = -3;
+                        r.transform.SetParent(hintRoot);
+                        r.transform.position = World(OX + tx * T + T / 2f, OY + ty * T + T / 2f);
+                        hints.Add(r);
+                    }
+        }
+
+        void UpdateHints()
+        {
+            int cheapest = s.Unlocked.Min(Defend.PlaceCost);
+            bool afford = s.Silver >= cheapest && !s.IsOver;
+            float a = afford ? (placedOnce ? 0.35f : 0.45f + 0.35f * Mathf.Sin(Time.time * 5f)) : 0.12f;
+            foreach (var h in hints) h.color = new Color(1f, 0.9f, 0.55f, a);
+            if (goalGate != null) goalGate.color = Time.time < goalFlashUntil ? new Color(1f, 0.4f, 0.4f) : Color.white;
+        }
+
         // ---------- rendering ----------
 
         void SyncDisciples()
@@ -200,6 +272,8 @@ namespace FiveSects.Game
             string sig = string.Join("|", s.Disciples.Select(d => d.Id + ":" + d.Level + ":" + string.Join("", d.Els)));
             if (sig == discipleSig) return;
             discipleSig = sig;
+            if (s.Disciples.Count > 0) placedOnce = true;
+            RefreshHints();
             foreach (Transform c in discipleRoot) Destroy(c.gameObject);
             foreach (var d in s.Disciples)
             {
@@ -229,6 +303,7 @@ namespace FiveSects.Game
                 if (!enemyViews.TryGetValue(e.Id, out var v))
                 {
                     var body = new GameObject("e" + e.Id).AddComponent<SpriteRenderer>();
+                    body.transform.SetParent(world);
                     body.sprite = Art.Enemy(e.Type); body.sortingOrder = 20;
                     SpriteRenderer Bar(string col, int order)
                     {
@@ -282,6 +357,7 @@ namespace FiveSects.Game
             scaler.referenceResolution = new Vector2(720, 1280);
             scaler.matchWidthOrHeight = 1f;
             var root = (RectTransform)canvasGo.transform;
+            hudRoot = root;
 
             var top = Box(root, "Top", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -64), Vector2.zero, "#0E0B14");
             silverText = Label(top, "", 28, new Vector2(0, 0), new Vector2(0.35f, 1), "#E3B04B");
@@ -334,17 +410,19 @@ namespace FiveSects.Game
 
         void ClosePanel() { if (panel != null) Destroy(panel.gameObject); panel = null; }
 
-        RectTransform OpenPanel()
+        // The panel opens on the half of the screen away from the tapped tile so it never hides it.
+        RectTransform OpenPanel(int ty)
         {
             ClosePanel();
-            var root = (RectTransform)silverText.canvas.transform;
-            panel = Box(root, "Panel", new Vector2(0.02f, 0), new Vector2(0.98f, 0), new Vector2(0, 72), new Vector2(0, 232), "#17121F");
+            panel = ty < Layouts.GridH / 2
+                ? Box(hudRoot, "Panel", new Vector2(0.02f, 0), new Vector2(0.98f, 0), new Vector2(0, 72), new Vector2(0, 232), "#17121F")
+                : Box(hudRoot, "Panel", new Vector2(0.02f, 1), new Vector2(0.98f, 1), new Vector2(0, -232), new Vector2(0, -72), "#17121F");
             return panel;
         }
 
         void OpenBuildPanel(int tx, int ty)
         {
-            var p = OpenPanel();
+            var p = OpenPanel(ty);
             int n = s.Unlocked.Count;
             for (int i = 0; i < n; i++)
             {
@@ -358,13 +436,57 @@ namespace FiveSects.Game
 
         void OpenDisciplePanel(Disciple d)
         {
-            var p = OpenPanel();
+            var p = OpenPanel(d.Ty);
             int up = Defend.UpgradeCost(d);
             bool canUp = d.Combo == null && d.Level < GameData.UpgradeLevels;
             MakeButton(p, canUp ? L("อัปเกรด ", "Upgrade ") + up : L("เต็มแล้ว", "Max level"), new Vector2(0.02f, 0.1f), new Vector2(0.49f, 0.9f),
                 () => { pending.Add(new Command { T = "upgrade", Id = d.Id }); ClosePanel(); }, canUp && s.Silver >= up);
             MakeButton(p, L("ขาย +", "Sell +") + Defend.SellValue(d, s), new Vector2(0.51f, 0.1f), new Vector2(0.98f, 0.9f),
                 () => { pending.Add(new Command { T = "sell", Id = d.Id }); ClosePanel(); });
+        }
+
+        void ShowResult(bool won, List<bool> stars)
+        {
+            resultPanel = Box(hudRoot, "Result", new Vector2(0.08f, 0.3f), new Vector2(0.92f, 0.7f), Vector2.zero, Vector2.zero, "#17121F");
+            var title = Label(resultPanel, won ? L("ชนะ!", "Victory!") : L("พ่ายแพ้", "Defeat"), 48, new Vector2(0, 0.72f), new Vector2(1, 0.95f), won ? "#E3B04B" : "#D2412F");
+            title.alignment = TextAnchor.MiddleCenter;
+            var conds = GameData.Stages[StageId].Stars;
+            for (int i = 0; i < stars.Count; i++)
+            {
+                var line = Label(resultPanel, (stars[i] ? "[*] " : "[ ] ") + (i < conds.Count ? StarName(conds[i]) : ""), 26,
+                    new Vector2(0.1f, 0.6f - i * 0.11f), new Vector2(0.95f, 0.7f - i * 0.11f), stars[i] ? "#E3B04B" : "#9A92AE");
+                line.alignment = TextAnchor.MiddleLeft;
+            }
+            int idx = System.Array.IndexOf(Playlist, StageId);
+            string next = idx >= 0 && idx + 1 < Playlist.Length ? Playlist[idx + 1] : null;
+            MakeButton(resultPanel, L("เล่นอีกครั้ง", "Retry"), new Vector2(0.05f, 0.05f), new Vector2(0.48f, 0.22f), () => Load(StageId));
+            if (won && next != null)
+                MakeButton(resultPanel, L("ด่านถัดไป ", "Next: ") + next, new Vector2(0.52f, 0.05f), new Vector2(0.95f, 0.22f), () => Load(next));
+            else if (!won && idx > 0)
+                MakeButton(resultPanel, L("ด่านก่อนหน้า", "Previous"), new Vector2(0.52f, 0.05f), new Vector2(0.95f, 0.22f), () => Load(Playlist[idx - 1]));
+        }
+
+        string StarName(string id)
+        {
+            switch (id)
+            {
+                case "clear": return L("ผ่านด่าน", "Clear the stage");
+                case "no_life_lost": return L("ไม่เสียชีวิตเลย", "No lives lost");
+                case "under_3min": return L("ผ่านภายใน 3 นาที", "Under 3 minutes");
+                case "hold_200_silver": return L("ถือตำลึง 200 ขึ้นไป", "Hold 200+ silver");
+                case "use_combo": return L("ใช้ยุทธ์ผสาน", "Use a combo");
+                case "max_2_sects": return L("ใช้ไม่เกิน 2 สำนัก", "At most 2 sects");
+                default: return id;
+            }
+        }
+
+        // Swap to another stage without reloading the scene: drop this view's world + HUD and start a fresh view.
+        void Load(string stageId)
+        {
+            Destroy(world.gameObject);
+            Destroy(hudRoot.gameObject);
+            new GameObject("Five Sects").AddComponent<DefendView>().StageId = stageId;
+            Destroy(gameObject);
         }
 
         void Toast(string msg, float seconds) { toastText.text = msg; toastUntil = Time.time + seconds; }

@@ -1,6 +1,6 @@
 # แผนที่
 
-> ส่วนหนึ่งของ [GDD](../GDD.md) · ด่านที่ใช้แผนที่แต่ละแบบอยู่ใน [`data/stages.json`](../data/stages.json)
+> ส่วนหนึ่งของ [GDD](../GDD.md) · ด่านที่ใช้แผนที่แต่ละแบบอยู่ใน [`data/stages.json`](../data/stages.json) · ผังจริง, ธีมภาพ และกติกาประตูเกิด/ประตูสำนัก: [Map Design Document](../art/map-design.md) · ข้อมูล [`data/maps.json`](../data/maps.json)
 
 ## หลักการ
 - **ภูมิภาค (biome)** = ชุดภาพ, tileset, ดนตรี, สภาพแวดล้อม 1 ชุด ต้นทุนสูง (วาดใหม่ทั้งชุด)
@@ -46,7 +46,8 @@
 - เกณฑ์ปล่อยผังเข้า pool: balance sim หลายพันเกม win-rate ฝั่งบน/ล่างห่างกันไม่เกิน 1%
 
 ## การผลิต
-- ใช้ Tiled (tilemap editor ฟรี) วาดผัง ส่งออก JSON ที่ Phaser อ่านได้ตรง
-- ผังเก็บใน `assets/maps/<biome>/<layout>.json` อ้างอิงจาก `stages.json`
+- ผังเก็บใน `docs/data/maps.json` (sim, Phaser และ Unity อ่านไฟล์เดียวกัน) อ้างอิงจาก `stages.json` ด้วย `layout` + `variant`
+- ทุกเส้นทางเริ่มที่ประตูเกิดบนขอบกระดาน และจบที่ประตูสำนักภายในกระดาน (ตรวจด้วย test)
+- เมื่อผังเยอะขึ้นจะใช้ Tiled วาดแล้วแปลงเป็น maps.json
 - 1 ภูมิภาค: tileset ~150 tiles + ฉากหลัง parallax 3 ชั้น + ของประกอบ 20 ชิ้น
 - Season ใหม่: เพิ่ม 1 ภูมิภาค + 12 ผัง (บทใหม่ 2 บท)

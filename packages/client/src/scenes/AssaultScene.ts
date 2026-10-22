@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { createGame, GRID_H, GRID_W, isOver, LAYOUTS, STAGES, step, TICK_HZ, type AssaultState, type Command, type SimEvent } from '@five-sects/sim';
-import { discipleKey, enemyKey, groundKey, outpostKey } from '../art';
+import { createGame, GRID_H, GRID_W, isOver, resolveLayout, STAGES, step, TICK_HZ, type AssaultState, type Command, type SimEvent } from '@five-sects/sim';
+import { biomePalette, discipleKey, drawMap, enemyKey, groundKey, outpostKey } from '../art';
 import { floatText, impact, projectile } from '../fx';
 import { button, COLORS, H, text, W, setupCamera } from '../ui';
 import { showResult } from './result';
@@ -51,7 +51,8 @@ export class AssaultScene extends Phaser.Scene {
     this.pending = []; this.acc = 0; this.ended = false; this.paused = false; this.routePanel = null; this.routeMarks = [];
     this.members = []; this.outposts = []; this.skillBtns = []; this.pills = []; this.shade = [];
 
-    const layout = LAYOUTS[STAGES[data.stageId]?.layout ?? ''];
+    const stage = STAGES[data.stageId];
+    const layout = stage?.layout ? resolveLayout(stage.layout, stage.variant) : undefined;
     if (!layout || layout.kind !== 'assault') throw new Error('missing assault layout');
     const branchStart = layout.start[layout.start.length - 1]!;
     // Branch tiles only (the shared final corridor belongs to neither), so shading never covers it.
@@ -59,11 +60,10 @@ export class AssaultScene extends Phaser.Scene {
     const left = tilesOf([branchStart, ...layout.left]).filter((k) => k !== `${join[0]},${join[1]}` && k !== `${branchStart[0]},${branchStart[1]}`);
     const right = tilesOf([branchStart, ...layout.right]).filter((k) => k !== `${join[0]},${join[1]}` && k !== `${branchStart[0]},${branchStart[1]}`);
     const tiles = new Set([...tilesOf(layout.start), ...tilesOf([branchStart, ...layout.left, ...layout.end]), ...tilesOf([branchStart, ...layout.right])]);
-    this.add.image(OX, OY, groundKey(this, `ground-${data.stageId}`, GRID_W, GRID_H, tiles)).setOrigin(0);
+    this.add.image(OX, OY, groundKey(this, `ground-${data.stageId}`, GRID_W, GRID_H, tiles, T, biomePalette(layout))).setOrigin(0);
     this.registry.set('assault-right-tiles', right);
     this.registry.set('assault-left-tiles', left);
-    const [ex, ey] = layout.end[0]!;
-    this.add.rectangle(OX + ex * T + T / 2, OY + ey * T + T / 2, 14, 14).setStrokeStyle(1, 0xe3b04b);
+    drawMap(this, layout, OX, OY, T, layout.start[0]!, layout.end[layout.end.length - 1]!);
 
     for (const p of this.s.pills) this.pills.push(this.add.rectangle(sx(p[0]), sy(p[1]), 4, 4, 0x7ce08a).setDepth(5));
     for (const o of this.s.outposts) this.outposts.push(this.add.image(sx(o.x), sy(o.y) - 2, outpostKey(this)).setDepth(8));

@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import {
   ARTS, canBuild, CARDS, COMBOS, createGame, ECONOMY, ELITES, ENEMIES, findCombo, GRID_H, GRID_W, isOver, placeCost,
-  previewWave, SECTS, sellValue, STAGES, step, TARGET_MODES, upgradeCost, UPGRADE,
+  previewWave, resolveLayout, SECTS, sellValue, STAGES, step, TARGET_MODES, upgradeCost, UPGRADE,
   type Command, type DefendState, type Disciple, type Replay, type SimEvent, type TargetMode,
 } from '@five-sects/sim';
-import { discipleKey, EL_COLOR, EL_GLYPH, enemyKey, groundKey } from '../art';
+import { biomePalette, discipleKey, drawMap, EL_COLOR, EL_GLYPH, enemyKey, groundKey } from '../art';
 import { banner, floatText, impact, projectile } from '../fx';
 import { button, COLORS, H, text, W, setupCamera } from '../ui';
 import { showResult } from './result';
@@ -36,6 +36,7 @@ export class DefendScene extends Phaser.Scene {
   private bars!: Phaser.GameObjects.Graphics;
   private hud!: { silver: Phaser.GameObjects.Text; lives: Phaser.GameObjects.Text; wave: Phaser.GameObjects.Text };
   private panel: Phaser.GameObjects.Container | null = null;
+  private goalGate!: Phaser.GameObjects.Image;
   private panelSpec: PanelSpec | null = null;
   private panelSilver = -1;
   private waveBtn!: Phaser.GameObjects.Container;
@@ -63,13 +64,11 @@ export class DefendScene extends Phaser.Scene {
     this.prev.clear(); this.enemySprites.clear(); this.discipleSig = ''; this.artBtns = []; this.seenElites.clear();
 
     const pathTiles = new Set(this.s.pathTiles);
-    this.add.image(OX, OY, groundKey(this, `ground-${data.stageId}`, GRID_W, GRID_H, pathTiles)).setOrigin(0);
-    const [startX, startY] = this.s.path[0]!;
-    const [endX, endY] = this.s.path[this.s.path.length - 1]!;
-    this.add.rectangle(sx(startX), sy(startY), 14, 14).setStrokeStyle(1, 0xd2412f);
-    text(this, sx(startX), sy(startY), 'มาร', 6, COLORS.seal).setOrigin(0.5).setAlpha(0.8);
-    this.add.rectangle(sx(endX), sy(endY), 14, 14).setStrokeStyle(1, 0xe3b04b);
-    text(this, sx(endX), sy(endY), 'บ้าน', 6, COLORS.gold).setOrigin(0.5).setAlpha(0.8);
+    const stage = STAGES[data.stageId]!;
+    const layout = resolveLayout(stage.layout!, stage.variant)!;
+    if (layout.kind !== 'defend') throw new Error('missing defend layout');
+    this.add.image(OX, OY, groundKey(this, `ground-${data.stageId}`, GRID_W, GRID_H, pathTiles, T, biomePalette(layout))).setOrigin(0);
+    this.goalGate = drawMap(this, layout, OX, OY, T, layout.path[0]!, layout.path[layout.path.length - 1]!);
 
     this.discipleLayer = this.add.container(0, 0).setDepth(10);
     this.bars = this.add.graphics().setDepth(30);
@@ -322,6 +321,8 @@ export class DefendScene extends Phaser.Scene {
           break;
         case 'leak':
           this.cameras.main.flash(120, 210, 65, 47);
+          this.goalGate.setTint(0xff6666);
+          this.time.delayedCall(250, () => this.goalGate.clearTint());
           break;
         case 'combo': {
           const d = this.s.disciples.find((q) => q.id === ev.id);
