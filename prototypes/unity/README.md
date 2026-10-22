@@ -17,11 +17,11 @@
 
 ## ขั้นตอน (ประมาณ 20–40 นาที รวมติดตั้ง)
 
-1. **ติดตั้ง** Unity Hub แล้วติดตั้ง **Unity 6 LTS (6000.0.58f2 ขึ้นไป)** พร้อมโมดูล **WebGL Build Support** (และ **Android Build Support** ถ้าจะวัด APK)
+1. **ติดตั้ง** Unity Hub แล้วติดตั้ง **Unity 6000.6.7f1** (เวอร์ชันที่ทดสอบแล้ว) พร้อมโมดูล **Windows Build Support** (ทดสอบบน PC ก่อนตาม ADR 0004) และ **Android Build Support** เมื่อเริ่มทำมือถือ
 2. **เปิดโปรเจกต์:** Unity Hub → Add → เลือกโฟลเดอร์ `prototypes/unity`
    - ครั้งแรกจะใช้เวลาสักพัก Unity สร้าง `Library/` และ `ProjectSettings/` ให้เอง
    - ถ้าขึ้นถามเรื่อง Input System / restart ให้กด **Yes**
-   - ถ้าเวอร์ชันไม่ตรงกับที่ติดตั้ง ให้เลือกเปิดด้วย 6000.0.x ที่มี
+   - ตอนเปิดใน Unity Hub ให้เลือก 6000.6.7f1 และ platform **Windows**
 3. **ทดสอบความตรงกันของกฎเกม:** Window → General → **Test Runner** → EditMode → Run All
    - ต้องผ่าน 3 เทสต์: `MatchesTypeScriptGolden(1-1)`, `MatchesTypeScriptGolden(T-1)`, `HashLayoutMatchesTypeScript`
    - ถ้าไม่ผ่าน ให้คัดลอกข้อความ error ทั้งหมดส่งกลับมา (บอกว่าเริ่มต่างกันที่ tick ไหน)
