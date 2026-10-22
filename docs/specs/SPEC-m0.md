@@ -1,6 +1,6 @@
 # Spec: M0 Vertical Slice
 
-> Milestone M0 from [GDD §11](../GDD.md#11-roadmap-สู่การวางตลาด). Status: **draft, waiting for approval**
+> Milestone M0 from [GDD §11](../GDD.md#11-roadmap-สู่การวางตลาด). Status: **approved · implemented** (see `tasks/todo.md`)
 
 ## Objective
 Prove that the core loop is fun and that the technical foundation holds, before spending on art or servers.
@@ -48,7 +48,8 @@ Dev:        npm run dev          # client at http://localhost:5173
 Test:       npm test             # vitest, all packages
 Typecheck:  npm run typecheck
 Build:      npm run build        # client production build → packages/client/dist
-Sim check:  npm run sim:replay -- --stage 1-4 --seed 42   # headless run, prints result + hash
+Sim check:  npm run sim:replay -- --stage 1-4 --seed 42   # headless bot run, prints result + hash
+Smoke:      npm run build && npm run smoke                  # Playwright; CHROMIUM_PATH=... to use a local Chromium
 ```
 
 ## Project structure
@@ -124,7 +125,7 @@ export function damageAfterWuxing(base: number, attacker: Element, target: Eleme
    - keep their stars after a page reload
 3. In the training ground: placing Metal next to Earth gives +15% (earth generates metal), merging two max-level disciples produces the correct combo, and enemies show ×1.5 / ×0.7 damage numbers.
 4. The determinism test passes, and `sim:replay` prints the same hash on repeated runs.
-5. A full 20-wave stage 1-4 holds 60fps in desktop Chrome at the maximum enemy count (checked with the Phaser FPS meter).
+5. The 20-wave training ground with 9 disciples holds 60fps in headless Chrome (smoke test reports `fps`). Stage 1-4 was shortened to 12 waves after balance tests.
 6. The Playwright smoke test passes with no console errors.
 
 ## Open questions

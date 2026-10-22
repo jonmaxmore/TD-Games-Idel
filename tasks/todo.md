@@ -5,5 +5,5 @@
 - [x] sim: defend stages 1-1, 1-2, 1-4, training ground; effects, combos, economy, stars — verify: rule tests + headless run
 - [x] sim: assault 1-3 — verify: win/lose tests
 - [x] sim:replay script — verify: same hash twice
-- [ ] client: scenes, sprites, FX, input, save — verify: manual play
-- [ ] Playwright smoke + 60fps check
+- [x] client: scenes, sprites, FX, input, save — verify: manual play
+- [x] Playwright smoke + 60fps check
