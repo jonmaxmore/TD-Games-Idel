@@ -243,6 +243,8 @@
       "type": "boss",
       "title": "Duel: Hundred-Hand Bandit King",
       "enemies": [
+        "cultist",
+        "runner",
         "boss_ch1"
       ],
       "stars": [
@@ -250,7 +252,8 @@
         "no_disciple_down",
         "under_2min"
       ],
-      "layout": "village-spiral"
+      "layout": "village-spiral",
+      "scriptedWaves": { "10": "boss_ch1" }
     },
     {
       "id": "1-11",
@@ -287,6 +290,7 @@
         "use_combo"
       ],
       "layout": "village-spiral",
+      "scriptedWaves": { "10": "boss_ch1", "20": "boss_ch1b" },
       "waves": 20,
       "startSilver": 300
     },

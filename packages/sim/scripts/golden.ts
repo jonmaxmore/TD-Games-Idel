@@ -4,9 +4,9 @@ import { canonicalHash, canonicalString } from '../src/canonical';
 import { ARTS, createGame, isOver, runReplay, step, TARGET_MODES, type Command, type DefendState } from '../src/index';
 import { playBot } from '../test/bot';
 
-export function golden(stageId: string, seed: number) {
+export function golden(stageId: string, seed: number, opts: { earlyCall?: boolean } = {}) {
   const commands: Record<number, Command[]> = {};
-  playBot(createGame(stageId, seed) as DefendState, { record: commands });
+  playBot(createGame(stageId, seed) as DefendState, { record: commands, maxDisciples: opts.earlyCall ? 8 : undefined, earlyCall: opts.earlyCall });
   const trace: [number, string][] = [];
   const end = runReplay({ stageId, seed, commands }, 20 * 60 * 30, (s) => {
     if (s.tick % 100 === 0) trace.push([s.tick, canonicalHash(s as DefendState)]);
@@ -63,4 +63,6 @@ export const GOLDENS = {
   '1-1': () => golden('1-1', 42),
   'T-1': () => golden('T-1', 7),
   'T-1-actions': () => goldenActions(11),
+  // Chapter finale: overlapping waves called mid-fight, both boss waves (disable at 10, seal at 20), wave recipes.
+  '1-12-bosses': () => golden('1-12', 2, { earlyCall: true }),
 } as const;

@@ -18,6 +18,7 @@ namespace FiveSects.Tests
         [TestCase("1-1")]
         [TestCase("T-1")]
         [TestCase("T-1-actions")]
+        [TestCase("1-12-bosses")]
         public void MatchesTypeScriptGolden(string stage)
         {
             var g = JObject.Parse(File.ReadAllText(Path.Combine(Application.dataPath, "Editor", "Tests", "golden-" + stage + ".json")));

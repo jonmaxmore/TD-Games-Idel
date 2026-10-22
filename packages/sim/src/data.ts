@@ -33,7 +33,18 @@ export interface EnemyDef {
   speed: number;
   bounty: number;
   traitTh: string;
+  leakCost: number;
+  boss: BossMechanics | null;
 }
+
+export interface BossMechanics {
+  effect: 'disable' | 'seal' | 'absorb';
+  phasesPct: number[];
+  count: number;
+  ticks: number;
+}
+
+export interface WaveRecipe { id: string; nameTh: string; types: string[]; countPct: number; hpPct: number }
 
 export interface ComboDef {
   id: string;
@@ -55,6 +66,8 @@ export interface StageDef {
   unlocksSect?: string;
   unlockAll?: boolean;
   guestSects?: string[];
+  scriptedWaves?: Record<string, string>;
+  wavePool?: string[];
 }
 
 const ticks = (sec: number) => Math.round(sec * TICK_HZ);
@@ -87,6 +100,8 @@ export const COMBOS: ComboDef[] = sectsJson.comboTechniques.items.map((c) => ({
   from: c.from as [Wuxing, Wuxing],
 }));
 
+export const MERGE_FEE: number = sectsJson.comboTechniques.mergeFee;
+
 export const UPGRADE = {
   levels: sectsJson.upgrade.levels,
   names: sectsJson.upgrade.names,
@@ -94,6 +109,15 @@ export const UPGRADE = {
   costPct: sectsJson.upgrade.costMultiplier.map((m) => Math.round(m * 100)),
   statPct: sectsJson.upgrade.statMultiplier.map((m) => Math.round(m * 100)),
 };
+
+function bossMechanics(m: Record<string, unknown>): BossMechanics {
+  return {
+    effect: m.effect as BossMechanics['effect'],
+    phasesPct: (m.phasesPct as number[]) ?? [],
+    count: Number(m.count ?? 1),
+    ticks: ticks(Number(m.sec ?? 0)),
+  };
+}
 
 const allEnemies = [...enemiesJson.enemies, ...enemiesJson.bosses];
 export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(
@@ -108,9 +132,19 @@ export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(
       speed: Math.round((e.speed * TILE) / TICK_HZ),
       bounty: 'bounty' in e ? (e.bounty as number) : 50,
       traitTh: 'traitTh' in e ? String(e.traitTh) : '',
+      leakCost: 'leakCost' in e ? (e.leakCost as number) : 1,
+      boss: 'mechanics' in e ? bossMechanics(e.mechanics as Record<string, unknown>) : null,
     },
   ]),
 );
+
+// Wave shapes (enemies.json waveRecipes), in file order; `mixed` is the fallback.
+export const WAVE_RECIPES: WaveRecipe[] = Object.entries(enemiesJson.waveRecipes)
+  .filter(([k]) => !k.startsWith('_'))
+  .map(([id, v]) => {
+    const r = v as { nameTh: string; types: string[]; countPct: number; hpPct: number };
+    return { id, nameTh: r.nameTh, types: r.types, countPct: r.countPct, hpPct: r.hpPct };
+  });
 
 export const STAGES: Record<string, StageDef> = Object.fromEntries(
   (stagesJson.stages as StageDef[]).map((s) => [s.id, s]),
@@ -121,6 +155,8 @@ export const ECONOMY = {
   startLives: inRun.startLives,
   interestPct: inRun.interestPct,
   interestCap: inRun.interestCap,
+  interestCapPerWave: inRun.interestCapPerWave,
+  earlyCallPct: inRun.earlyCallPct,
   sellRefundPct: inRun.sellRefundPct,
   waveBreak: ticks(inRun.waveBreakSec),
   spawnInterval: ticks(inRun.spawnIntervalSec),
@@ -148,6 +184,8 @@ export interface ArtDef {
   pct: number;
   mult: number;
   duration: number;
+  charges: number;
+  rechargeSilver: number;
 }
 
 export const ARTS: ArtDef[] = itemsJson.secretArts.items.map((a) => {
@@ -165,6 +203,8 @@ export const ARTS: ArtDef[] = itemsJson.secretArts.items.map((a) => {
     pct: Number(x.pct ?? 0),
     mult: Number(x.mult ?? 1),
     duration: ticks(Number(x.durationSec ?? 0)),
+    charges: Number(x.charges ?? 0),
+    rechargeSilver: Number(x.rechargeSilver ?? 0),
   };
 });
 

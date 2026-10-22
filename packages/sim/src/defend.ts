@@ -1,9 +1,9 @@
-import { ARTS, CARD_AUTO_PICK, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, ENEMIES, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPGRADE, waveHp, type CardDef, type Element, ELITES } from './data';
+import { ARTS, CARD_AUTO_PICK, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, ENEMIES, MERGE_FEE, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPGRADE, WAVE_RECIPES, waveHp, type CardDef, type Element, ELITES } from './data';
 import { blockedTiles, GRID_H, GRID_W, resolveLayout, tilesOnPath } from './layouts';
 import { pathLength, pointAt, toMilli, within } from './path';
 import { nextRandom, rollPct } from './rng';
 import { validCommand } from './commands';
-import type { Command, DefendState, Disciple, Enemy, SimEvent } from './types';
+import type { Command, DefendState, Disciple, Enemy, QueuedEnemy, SimEvent } from './types';
 import { isGenerated, overcomePct } from './wuxing';
 
 const MAX_LEVEL = UPGRADE.levels;
@@ -14,7 +14,7 @@ const DOT_EVERY = TICK_HZ / 2;
 const FX = {
   metalCritPct: 15,
   metalEvery: 6,
-  woodPoisonDps: 8,
+  woodPoisonDps: 10,
   woodPoisonTicks: 3 * TICK_HZ,
   woodRootEvery: 8 * TICK_HZ,
   woodRootTicks: 1 * TICK_HZ,
@@ -61,6 +61,12 @@ export function createDefend(stageId: string, seed: number): DefendState {
     totalWaves: stage.waves ?? 10,
     phase: 'build',
     spawnQueue: [],
+    recipe: 'mixed',
+    nextRecipe: 'mixed',
+    cardsOffered: 0,
+    sealEl: null,
+    sealT: 0,
+    artCharges: ARTS.map((a) => a.charges),
     spawnT: 0,
     breakT: 0,
     disciples: [],
@@ -147,7 +153,7 @@ function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
       const id = s.nextId++;
       s.disciples.push({
         id, els: [c.sect], combo: null, level: 1, tx: c.tx, ty: c.ty,
-        x: c.tx * TILE + TILE / 2, y: c.ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost, rootT: 0, pushT: 0, bellT: 0, target: 'first',
+        x: c.tx * TILE + TILE / 2, y: c.ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost, rootT: 0, pushT: 0, bellT: 0, target: 'first', offT: 0,
       });
       s.peakDisciples = Math.max(s.peakDisciples, s.disciples.length);
       ev.push({ e: 'placed', id });
@@ -177,9 +183,11 @@ function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
       if (a.combo || b.combo || a.level < MAX_LEVEL || b.level < MAX_LEVEL) return err('both must be max level');
       const combo = findCombo(a.els[0]!, b.els[0]!);
       if (!combo) return err('no combo for this pair');
+      if (s.silver < MERGE_FEE) return err('not enough silver');
+      s.silver -= MERGE_FEE;
       a.els = [a.els[0]!, b.els[0]!];
       a.combo = combo.id;
-      a.spent += b.spent;
+      a.spent += b.spent + MERGE_FEE;
       a.cd = 0;
       s.disciples.splice(s.disciples.indexOf(b), 1);
       s.combosMade++;
@@ -187,11 +195,17 @@ function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
       return;
     }
     case 'nextWave': {
+      if (s.wave >= s.totalWaves) return err('no more waves');
       if (s.phase === 'build') startWave(s, ev);
       else if (s.phase === 'break') {
         s.silver += ECONOMY.earlyCallBonus;
         startWave(s, ev);
-      }
+      } else if (s.phase === 'spawning' || s.phase === 'clearing') {
+        // Calling while enemies are still alive overlaps two waves; the bonus pays for that risk.
+        const atStake = s.enemies.reduce((sum, e) => sum + (e.hp > 0 ? e.bounty : 0), 0);
+        s.silver += ECONOMY.earlyCallBonus + Math.floor((atStake * ECONOMY.earlyCallPct) / 100);
+        startWave(s, ev);
+      } else return err('cannot call a wave now');
       return;
     }
     case 'cast': return castArt(s, c.art, ev, err);
@@ -217,6 +231,10 @@ function castArt(s: DefendState, id: string, ev: SimEvent[], err: (m: string) =>
   if (s.artCd[i]! > 0) return err('art on cooldown');
   const alive = s.enemies.filter((e) => e.hp > 0);
   if (alive.length === 0) return err('no enemies');
+  // Free charges first, then each cast costs silver.
+  if (s.artCharges[i]! > 0) s.artCharges[i]!--;
+  else if (s.silver >= art.rechargeSilver) s.silver -= art.rechargeSilver;
+  else return err('not enough silver');
   let x = 0, y = 0;
   switch (art.type) {
     case 'strike': {
@@ -259,42 +277,94 @@ function pickCard(s: DefendState, id: string, ev: SimEvent[]) {
   ev.push({ e: 'picked', card: id });
 }
 
-// Enemy types spawned in a wave, in order. New types are introduced every 2 waves.
-export function waveTypes(stageId: string, wave: number): string[] {
-  const types = STAGES[stageId]!.enemies.filter((t) => ENEMIES[t] && !t.startsWith('boss'));
+const recipeById = (id: string) => WAVE_RECIPES.find((r) => r.id === id) ?? WAVE_RECIPES[0]!;
+
+// Regular enemy types unlocked by this wave, in the stage's order (a new one every 2 waves). Bosses only come
+// from scriptedWaves.
+function availableTypes(stageId: string, wave: number): string[] {
+  const types = STAGES[stageId]!.enemies.filter((t) => ENEMIES[t] && !ENEMIES[t]!.boss);
   if (types.length === 0) throw new Error(`stage ${stageId} has no regular enemies`);
-  const available = types.slice(0, Math.min(types.length, 1 + Math.floor((wave - 1) / 2)));
-  const out: string[] = [];
-  for (let i = 0; i < 4 + wave; i++) out.push(available[(i + wave) % available.length]!);
+  return types.slice(0, Math.min(types.length, 1 + Math.floor((wave - 1) / 2)));
+}
+
+const recipeTypes = (stageId: string, wave: number, recipeId: string) => {
+  const avail = availableTypes(stageId, wave);
+  const r = recipeById(recipeId);
+  const picked = r.types.length ? avail.filter((t) => r.types.includes(t)) : avail;
+  return picked.length ? picked : avail;
+};
+
+// Seeded choice of the next wave's shape: the first two waves teach (mixed), boss waves are mixed + boss,
+// and the same shape never repeats twice in a row when there is a choice.
+function rollRecipe(s: DefendState, wave: number): string {
+  const stage = STAGES[s.stageId]!;
+  if (wave <= 2 || stage.scriptedWaves?.[String(wave)]) return 'mixed';
+  const avail = availableTypes(s.stageId, wave);
+  const pool = (stage.wavePool ?? WAVE_RECIPES.map((r) => r.id)).filter((id) => {
+    const r = recipeById(id);
+    return r.types.length === 0 || r.types.some((t) => avail.includes(t));
+  });
+  const choices = pool.length > 1 ? pool.filter((id) => id !== s.recipe) : pool;
+  return choices[Math.floor(nextRandom(s) * choices.length)] ?? 'mixed';
+}
+
+// Enemies of one wave, in spawn order.
+export function waveEntries(stageId: string, wave: number, recipeId: string): QueuedEnemy[] {
+  const r = recipeById(recipeId);
+  const types = recipeTypes(stageId, wave, recipeId);
+  const n = Math.max(1, Math.floor(((4 + wave) * r.countPct) / 100));
+  const out: QueuedEnemy[] = [];
+  for (let i = 0; i < n; i++) out.push({ type: types[(i + wave) % types.length]!, wave, hpPct: r.hpPct });
+  const boss = STAGES[stageId]!.scriptedWaves?.[String(wave)];
+  if (boss) out.push({ type: boss, wave, hpPct: 100 });
   return out;
 }
 
-// Next wave summary for the HUD: [type, count] in first-seen order.
+// Kept for tools/tests: enemy types of a wave with its default (mixed) shape.
+export function waveTypes(stageId: string, wave: number): string[] {
+  return waveEntries(stageId, wave, 'mixed').map((q) => q.type);
+}
+
+// Next wave summary for the HUD: [type, count] in first-seen order, using the already rolled shape.
 export function previewWave(s: DefendState): [string, number][] {
   if (s.wave >= s.totalWaves) return [];
   const counts: [string, number][] = [];
-  for (const t of waveTypes(s.stageId, s.wave + 1)) {
+  for (const { type: t } of waveEntries(s.stageId, s.wave + 1, s.nextRecipe)) {
     const row = counts.find((c) => c[0] === t);
     if (row) row[1]++; else counts.push([t, 1]);
   }
   return counts;
 }
 
+// Interest is paid when a wave is called: saving is rewarded, but capped by how far you are.
+function payInterest(s: DefendState, ev: SimEvent[]) {
+  const pct = ECONOMY.interestPct + (hasLevel(s, 'yinyang', 3) ? 1 : 0) + (card(s, 'interestPct')?.value ?? 0);
+  const cap = ECONOMY.interestCap + ECONOMY.interestCapPerWave * s.wave;
+  const interest = Math.min(cap, Math.floor((s.silver * pct) / 100));
+  s.silver += interest;
+  ev.push({ e: 'interest', amount: interest });
+}
+
 function startWave(s: DefendState, ev: SimEvent[]) {
+  payInterest(s, ev);
   s.wave++;
-  s.spawnQueue = waveTypes(s.stageId, s.wave);
-  s.spawnT = 0;
-  s.phase = 'spawning';
+  s.recipe = s.nextRecipe;
+  s.spawnQueue.push(...waveEntries(s.stageId, s.wave, s.recipe));
+  if (s.phase !== 'spawning') { s.spawnT = 0; s.phase = 'spawning'; }
+  if (s.wave < s.totalWaves) s.nextRecipe = rollRecipe(s, s.wave + 1);
   ev.push({ e: 'wave', wave: s.wave });
 }
 
-function spawn(s: DefendState, type: string, ev: SimEvent[], at = 0, small = false): Enemy {
+function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = false): Enemy {
+  const type = q.type;
   const def = ENEMIES[type]!;
-  let hp = small ? Math.max(1, Math.floor(waveHp(def.hp, s.wave) / 4)) : waveHp(def.hp, s.wave);
+  // Bosses use their data HP as-is (it is already tuned for their wave); regular enemies scale with the wave curve.
+  const base = def.boss ? def.hp : Math.floor((waveHp(def.hp, q.wave) * q.hpPct) / 100);
+  let hp = small ? Math.max(1, Math.floor(base / 4)) : Math.max(1, base);
   let speed = def.speed;
-  let bounty = small ? 1 : Math.floor((def.bounty * (100 + ECONOMY.bountyGrowthPct * (s.wave - 1))) / 100);
+  let bounty = small ? 1 : Math.floor((def.bounty * (100 + ECONOMY.bountyGrowthPct * (q.wave - 1))) / 100);
   let elite: (typeof ELITES.affixes)[number] | null = null;
-  if (!small && s.wave >= ELITES.fromWave && rollPct(s) < ELITES.chancePct) {
+  if (!small && !def.boss && q.wave >= ELITES.fromWave && rollPct(s) < ELITES.chancePct) {
     elite = ELITES.affixes[Math.floor(nextRandom(s) * ELITES.affixes.length)]!;
     hp = Math.floor((hp * elite.hpPct) / 100);
     speed = Math.floor((speed * elite.speedPct) / 100);
@@ -305,7 +375,7 @@ function spawn(s: DefendState, type: string, ev: SimEvent[], at = 0, small = fal
     id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, speed,
     bounty, x, y, slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, poison: 0, poisonT: 0,
     poisonDps: 0, stunT: 0, revealed: false, lastEl: null, lastElT: 0, small, age: 0,
-    elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0,
+    elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0, phase: 0,
   };
   s.enemies.push(e);
   ev.push({ e: 'spawn', id: e.id });
@@ -314,6 +384,10 @@ function spawn(s: DefendState, type: string, ev: SimEvent[], at = 0, small = fal
 }
 
 const statPct = (level: number) => UPGRADE.statPct[level - 1]!;
+
+// Poison/burn per second, scaled by level and by the Wu Xing match at the moment it is applied.
+const dotDps = (d: Disciple, e: Enemy, base: number, lvl: number) =>
+  Math.floor((Math.floor((base * statPct(lvl)) / 100) * overcomePct(d.els, e.el)) / 100);
 
 function discipleStats(s: DefendState, d: Disciple) {
   const defs = d.els.map((el) => SECTS[el]);
@@ -374,6 +448,8 @@ function better(d: Disciple, e: Enemy, cur: Enemy): boolean {
 }
 
 function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
+  if (d.offT > 0) { d.offT--; return; }
+  if (s.sealT > 0 && s.sealEl && d.els.includes(s.sealEl)) return;
   d.rootT++; d.pushT++; d.bellT++;
   const st = discipleStats(s, d);
   const lvl = d.level;
@@ -419,7 +495,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
       case 'wood':
         target.poison = Math.min(3, target.poison + 1);
         target.poisonT = FX.woodPoisonTicks;
-        target.poisonDps = Math.max(target.poisonDps, Math.floor((FX.woodPoisonDps * statPct(lvl)) / 100));
+        target.poisonDps = Math.max(target.poisonDps, dotDps(d, target, FX.woodPoisonDps, lvl));
         if (lvl >= 2 && d.rootT >= FX.woodRootEvery) {
           d.rootT = 0;
           target.stunT = Math.max(target.stunT, FX.woodRootTicks);
@@ -436,11 +512,10 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
         if (lvl >= 3 && d.pushT >= FX.waterPushEvery) { d.pushT = 0; target.d = Math.max(0, target.d - TILE); }
         break;
       case 'fire': {
-        const dps = Math.floor((FX.fireBurnDps * statPct(lvl)) / 100);
         for (const e of s.enemies)
           if (e.hp > 0 && (e === target || within(target.x, target.y, e.x, e.y, FX.fireSplash))) {
             e.burnT = FX.fireBurnTicks;
-            e.burnDps = Math.max(e.burnDps, dps);
+            e.burnDps = Math.max(e.burnDps, dotDps(d, e, FX.fireBurnDps, lvl));
           }
         break;
       }
@@ -494,11 +569,13 @@ function moveEnemies(s: DefendState, ev: SimEvent[]) {
   const yy = s.disciples.filter((d) => d.els.includes('yinyang'));
   for (const e of s.enemies) {
     e.age++;
-    e.revealed = s.revealAllT > 0 || yy.some((d) => within(d.x, d.y, e.x, e.y, FX.yyReveal));
+    // Assassins show up when stunned/slowed (any sect can answer them), near a Taiji disciple, or by Lion's Roar.
+    e.revealed = s.revealAllT > 0 || e.stunT > 0 || e.slowT > 0 || yy.some((d) => within(d.x, d.y, e.x, e.y, FX.yyReveal));
     if (e.lastElT > 0) e.lastElT--;
     if (e.age % DOT_EVERY === 0) {
-      if (e.burnT > 0) e.hp -= Math.max(1, Math.floor(e.burnDps / 2));
-      if (e.poisonT > 0 && e.poison > 0) e.hp -= Math.max(1, Math.floor((e.poison * e.poisonDps) / 2));
+      const armour = e.type === 'brute' ? 2 : 1; // Iron Shirt halves damage over time too
+      if (e.burnT > 0) e.hp -= Math.max(1, Math.floor(e.burnDps / 2 / armour));
+      if (e.poisonT > 0 && e.poison > 0) e.hp -= Math.max(1, Math.floor((e.poison * e.poisonDps) / 2 / armour));
     }
     if (e.burnT > 0) e.burnT--;
     if (e.poisonT > 0) e.poisonT--; else e.poison = 0;
@@ -519,10 +596,41 @@ function moveEnemies(s: DefendState, ev: SimEvent[]) {
     if (e.hp > 0 && e.d >= s.pathLen) {
       e.hp = 0;
       e.bounty = 0;
-      s.lives = Math.max(0, s.lives - 1);
-      s.livesLost++;
+      const cost = ENEMIES[e.type]!.leakCost;
+      s.lives = Math.max(0, s.lives - cost);
+      s.livesLost += cost;
       ev.push({ e: 'leak', id: e.id });
     }
+}
+
+// Boss mechanics fire once per HP threshold (enemies.json bosses[].mechanics).
+function bossPhases(s: DefendState, ev: SimEvent[]) {
+  for (const e of s.enemies) {
+    const m = ENEMIES[e.type]!.boss;
+    if (!m || e.hp <= 0) continue;
+    while (e.phase < m.phasesPct.length && e.hp * 100 <= e.maxHp * m.phasesPct[e.phase]!) {
+      e.phase++;
+      if (m.effect === 'disable') {
+        for (let k = 0; k < m.count; k++) {
+          const free = s.disciples.filter((d) => d.offT === 0);
+          if (free.length === 0) break;
+          const d = free[Math.floor(nextRandom(s) * free.length)]!;
+          d.offT = m.ticks;
+          ev.push({ e: 'disable', id: d.id, by: e.id });
+        }
+      } else if (m.effect === 'seal' && s.disciples.length > 0) {
+        // Seal the sect the player leans on most (ties: sect order), so one-sect builds must adapt.
+        let best: Element | null = null, bestN = 0;
+        for (const el of SECT_ORDER) {
+          const n = s.disciples.filter((d) => d.els[0] === el).length;
+          if (n > bestN) { best = el; bestN = n; }
+        }
+        s.sealEl = best;
+        s.sealT = m.ticks;
+        ev.push({ e: 'seal', el: best!, by: e.id });
+      }
+    }
+  }
 }
 
 function resolveDeaths(s: DefendState, ev: SimEvent[]) {
@@ -539,7 +647,7 @@ function resolveDeaths(s: DefendState, ev: SimEvent[]) {
     if (s.bountyMultT > 0) bounty *= 2;
     s.silver += bounty;
     ev.push({ e: 'kill', id: e.id, x: e.x, y: e.y, bounty });
-    if (e.type === 'puppet' && !e.small) for (let i = 0; i < 3; i++) spawn(s, 'puppet', ev, Math.max(0, e.d - i * 300), true);
+    if (e.type === 'puppet' && !e.small) for (let i = 0; i < 3; i++) spawn(s, { type: 'puppet', wave: s.wave, hpPct: 100 }, ev, Math.max(0, e.d - i * 300), true);
     if (e.burnT > 0 && s.disciples.some((q) => q.combo === 'wildfire_flute')) {
       const near = s.enemies.filter((o) => o.hp > 0 && within(e.x, e.y, o.x, o.y, 1500)).slice(0, 2);
       for (const o of near) { o.burnT = FX.fireBurnTicks; o.burnDps = Math.max(o.burnDps, e.burnDps); }
@@ -557,21 +665,19 @@ function waveFlow(s: DefendState, ev: SimEvent[]) {
     case 'spawning':
       if (s.spawnT > 0) s.spawnT--;
       else {
-        const type = s.spawnQueue.shift();
-        if (type) spawn(s, type, ev);
+        const q = s.spawnQueue.shift();
+        if (q) spawn(s, q, ev);
         s.spawnT = ECONOMY.spawnInterval - 1;
         if (s.spawnQueue.length === 0) s.phase = 'clearing';
       }
       break;
     case 'clearing':
       if (s.enemies.length === 0) {
-        const pct = ECONOMY.interestPct + (hasLevel(s, 'yinyang', 3) ? 1 : 0) + (card(s, 'interestPct')?.value ?? 0);
-        const interest = Math.min(ECONOMY.interestCap, Math.floor((s.silver * pct) / 100));
-        s.silver += interest;
-        ev.push({ e: 'interest', amount: interest });
         if (s.wave >= s.totalWaves) finish(s, true, ev);
-        else if (s.wave % CARD_EVERY_WAVES === 0) offerCards(s, ev);
-        else { s.phase = 'break'; s.breakT = ECONOMY.waveBreak; }
+        else if (Math.floor(s.wave / CARD_EVERY_WAVES) > s.cardsOffered) {
+          s.cardsOffered = Math.floor(s.wave / CARD_EVERY_WAVES);
+          offerCards(s, ev);
+        } else { s.phase = 'break'; s.breakT = ECONOMY.waveBreak; }
       }
       break;
     case 'break':
@@ -612,9 +718,11 @@ export function stepDefend(s: DefendState, commands: Command[]): SimEvent[] {
   for (let i = 0; i < s.artCd.length; i++) if (s.artCd[i]! > 0) s.artCd[i]!--;
   if (s.bountyMultT > 0) s.bountyMultT--;
   if (s.revealAllT > 0) s.revealAllT--;
+  if (s.sealT > 0 && --s.sealT === 0) s.sealEl = null;
   waveFlow(s, ev);
   moveEnemies(s, ev);
   for (const d of s.disciples) attack(s, d, ev);
+  bossPhases(s, ev);
   resolveDeaths(s, ev);
   s.tick++;
   if (s.lives <= 0) finish(s, false, ev);

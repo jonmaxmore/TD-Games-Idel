@@ -15,7 +15,7 @@ namespace FiveSects.Sim
 
     public class SimEvent
     {
-        public string E;            // hit | kill | leak | spawn | placed | combo | wave | interest | stun | error | art | offer | picked | newEnemy | end
+        public string E;            // hit | kill | leak | spawn | placed | combo | wave | interest | stun | error | art | offer | picked | newEnemy | disable | seal | end
         public int From, To, Id, Dmg, Pct, X, Y, Amount, Wave;
         public bool Crit, Won;
         public string El, Msg, Name, Type;
@@ -25,7 +25,7 @@ namespace FiveSects.Sim
 
     public class Disciple
     {
-        public int Id, Level = 1, Tx, Ty, X, Y, Cd, Hits, Spent, RootT, PushT, BellT;
+        public int Id, Level = 1, Tx, Ty, X, Y, Cd, Hits, Spent, RootT, PushT, BellT, OffT;
         public List<string> Els = new List<string>();
         public string Combo;
         public string Target = "first";
@@ -33,17 +33,22 @@ namespace FiveSects.Sim
 
     public class Enemy
     {
-        public int Id, Hp, MaxHp, D, Speed, Bounty, X, Y, SlowT, SlowPct, BurnT, BurnDps, Poison, PoisonT, PoisonDps, StunT, LastElT, Age, RegenPct;
+        public int Id, Hp, MaxHp, D, Speed, Bounty, X, Y, SlowT, SlowPct, BurnT, BurnDps, Poison, PoisonT, PoisonDps, StunT, LastElT, Age, RegenPct, Phase;
         public string Type, El, LastEl, Elite;
         public bool Air, Revealed, Small;
     }
+
+    public class QueuedEnemy { public string Type; public int Wave, HpPct; }
 
     public class DefendState
     {
         public string StageId, Phase = "build";
         public int Tick, Silver, Lives, Wave, TotalWaves, SpawnT, BreakT, NextId = 1, PathLen, LivesLost, CombosMade, PeakDisciples, BountyMultT, RevealAllT, OfferT;
         public uint Rng;
-        public List<string> SpawnQueue = new List<string>();
+        public List<QueuedEnemy> SpawnQueue = new List<QueuedEnemy>();
+        public string Recipe = "mixed", NextRecipe = "mixed", SealEl;
+        public int CardsOffered, SealT;
+        public int[] ArtCharges;
         public List<Disciple> Disciples = new List<Disciple>();
         public List<Enemy> Enemies = new List<Enemy>();
         public List<string> Unlocked = new List<string>();
@@ -66,7 +71,7 @@ namespace FiveSects.Sim
         const int DotEvery = GameData.TickHz / 2;
 
         // Same values as the FX table in defend.ts.
-        const int MetalCritPct = 15, MetalEvery = 6, WoodPoisonDps = 8, WoodVulnPct = 25, WaterSlowPct = 30, WaterFreezeEvery = 5;
+        const int MetalCritPct = 15, MetalEvery = 6, WoodPoisonDps = 10, WoodVulnPct = 25, WaterSlowPct = 30, WaterFreezeEvery = 5;
         const int FireBurnDps = 6, FireSplash = 800, FireExplodeDmg = 30, EarthSplash = Tile, YyReveal = 3 * Tile, YyRatePct = 120;
         const int DashDist = 2 * Tile, HealRange = 1500, HealPct = 5, BruteArmor = 5, AdjacencyPct = 115;
         static readonly int WoodPoisonTicks = 3 * Hz, WoodRootEvery = 8 * Hz, WoodRootTicks = 1 * Hz, WaterSlowTicks = 2 * Hz;
@@ -86,6 +91,7 @@ namespace FiveSects.Sim
                 StageId = stageId, Rng = seed, Silver = stage.StartSilver ?? 100, Lives = GameData.StartLives,
                 TotalWaves = stage.Waves ?? 10, Unlocked = UnlockedSects(stageId), Path = path, PathLen = PathMath.Length(path),
                 PathTiles = PathMath.TilesOnPath(layout.Path), Blocked = Layouts.Blocked(layout), Layout = layout, ArtCd = new int[GameData.Arts.Count],
+                ArtCharges = GameData.Arts.Select(a => a.Charges).ToArray(),
             };
         }
 
@@ -203,16 +209,28 @@ namespace FiveSects.Sim
                     if (a.Combo != null || b.Combo != null || a.Level < MaxLevel || b.Level < MaxLevel) { Err(ev, "both must be max level"); return; }
                     var combo = FindCombo(a.Els[0], b.Els[0]);
                     if (combo == null) { Err(ev, "no combo for this pair"); return; }
+                    if (s.Silver < GameData.MergeFee) { Err(ev, "not enough silver"); return; }
+                    s.Silver -= GameData.MergeFee;
                     a.Els = new List<string> { a.Els[0], b.Els[0] };
-                    a.Combo = combo.Id; a.Spent += b.Spent; a.Cd = 0;
+                    a.Combo = combo.Id; a.Spent += b.Spent + GameData.MergeFee; a.Cd = 0;
                     s.Disciples.Remove(b);
                     s.CombosMade++;
                     ev.Add(new SimEvent { E = "combo", Id = a.Id, Name = combo.NameTh, Type = combo.Id });
                     return;
                 }
                 case "nextWave":
+                    if (s.Wave >= s.TotalWaves) { Err(ev, "no more waves"); return; }
                     if (s.Phase == "build") StartWave(s, ev);
                     else if (s.Phase == "break") { s.Silver += GameData.EarlyCallBonus; StartWave(s, ev); }
+                    else if (s.Phase == "spawning" || s.Phase == "clearing")
+                    {
+                        // Calling while enemies are still alive overlaps two waves; the bonus pays for that risk.
+                        int atStake = 0;
+                        foreach (var e in s.Enemies) if (e.Hp > 0) atStake += e.Bounty;
+                        s.Silver += GameData.EarlyCallBonus + JsMath.FloorDiv((long)atStake * GameData.EarlyCallPct, 100);
+                        StartWave(s, ev);
+                    }
+                    else Err(ev, "cannot call a wave now");
                     return;
                 case "cast": CastArt(s, c.Art, ev); return;
                 case "target":
@@ -236,6 +254,10 @@ namespace FiveSects.Sim
             if (s.ArtCd[i] > 0) { Err(ev, "art on cooldown"); return; }
             var alive = s.Enemies.Where(e => e.Hp > 0).ToList();
             if (alive.Count == 0) { Err(ev, "no enemies"); return; }
+            // Free charges first, then each cast costs silver.
+            if (s.ArtCharges[i] > 0) s.ArtCharges[i]--;
+            else if (s.Silver >= art.RechargeSilver) s.Silver -= art.RechargeSilver;
+            else { Err(ev, "not enough silver"); return; }
             int x = 0, y = 0;
             switch (art.Type)
             {
@@ -281,31 +303,83 @@ namespace FiveSects.Sim
             ev.Add(new SimEvent { E = "picked", Name = id });
         }
 
-        public static List<string> WaveTypes(string stageId, int wave)
+        static WaveRecipe RecipeById(string id) => GameData.WaveRecipes.FirstOrDefault(r => r.Id == id) ?? GameData.WaveRecipes[0];
+
+        static List<string> AvailableTypes(string stageId, int wave)
         {
-            var types = GameData.Stages[stageId].Enemies.Where(t => GameData.Enemies.ContainsKey(t) && !t.StartsWith("boss")).ToList();
-            var available = types.Take(Math.Min(types.Count, 1 + (wave - 1) / 2)).ToList();
-            var o = new List<string>();
-            for (int i = 0; i < 4 + wave; i++) o.Add(available[(i + wave) % available.Count]);
+            var types = GameData.Stages[stageId].Enemies.Where(t => GameData.Enemies.ContainsKey(t) && GameData.Enemies[t].Boss == null).ToList();
+            if (types.Count == 0) throw new Exception("stage " + stageId + " has no regular enemies");
+            return types.Take(Math.Min(types.Count, 1 + (wave - 1) / 2)).ToList();
+        }
+
+        static List<string> RecipeTypes(string stageId, int wave, string recipeId)
+        {
+            var avail = AvailableTypes(stageId, wave);
+            var r = RecipeById(recipeId);
+            var picked = r.Types.Count > 0 ? avail.Where(t => r.Types.Contains(t)).ToList() : avail;
+            return picked.Count > 0 ? picked : avail;
+        }
+
+        static string RollRecipe(DefendState s, int wave)
+        {
+            var stage = GameData.Stages[s.StageId];
+            if (wave <= 2 || stage.ScriptedWaves.ContainsKey(wave.ToString())) return "mixed";
+            var avail = AvailableTypes(s.StageId, wave);
+            var pool = (stage.WavePool ?? GameData.WaveRecipes.Select(r => r.Id).ToList()).Where(id =>
+            {
+                var r = RecipeById(id);
+                return r.Types.Count == 0 || r.Types.Any(t => avail.Contains(t));
+            }).ToList();
+            var choices = pool.Count > 1 ? pool.Where(id => id != s.Recipe).ToList() : pool;
+            if (choices.Count == 0) return "mixed";
+            return choices[(int)Math.Floor(Rng.Next(ref s.Rng) * choices.Count)];
+        }
+
+        public static List<QueuedEnemy> WaveEntries(string stageId, int wave, string recipeId)
+        {
+            var r = RecipeById(recipeId);
+            var types = RecipeTypes(stageId, wave, recipeId);
+            int n = Math.Max(1, JsMath.FloorDiv((long)(4 + wave) * r.CountPct, 100));
+            var o = new List<QueuedEnemy>();
+            for (int i = 0; i < n; i++) o.Add(new QueuedEnemy { Type = types[(i + wave) % types.Count], Wave = wave, HpPct = r.HpPct });
+            if (GameData.Stages[stageId].ScriptedWaves.TryGetValue(wave.ToString(), out var boss)) o.Add(new QueuedEnemy { Type = boss, Wave = wave, HpPct = 100 });
             return o;
+        }
+
+        public static List<string> WaveTypes(string stageId, int wave) => WaveEntries(stageId, wave, "mixed").Select(q => q.Type).ToList();
+
+        // Interest is paid when a wave is called, capped by how far the run is.
+        static void PayInterest(DefendState s, List<SimEvent> ev)
+        {
+            int pct = GameData.InterestPct + (HasLevel(s, "yinyang", 3) ? 1 : 0) + (Card(s, "interestPct")?.Value ?? 0);
+            int cap = GameData.InterestCap + GameData.InterestCapPerWave * s.Wave;
+            int interest = Math.Min(cap, JsMath.FloorDiv((long)s.Silver * pct, 100));
+            s.Silver += interest;
+            ev.Add(new SimEvent { E = "interest", Amount = interest });
         }
 
         static void StartWave(DefendState s, List<SimEvent> ev)
         {
+            PayInterest(s, ev);
             s.Wave++;
-            s.SpawnQueue = WaveTypes(s.StageId, s.Wave);
-            s.SpawnT = 0; s.Phase = "spawning";
+            s.Recipe = s.NextRecipe;
+            s.SpawnQueue.AddRange(WaveEntries(s.StageId, s.Wave, s.Recipe));
+            if (s.Phase != "spawning") { s.SpawnT = 0; s.Phase = "spawning"; }
+            if (s.Wave < s.TotalWaves) s.NextRecipe = RollRecipe(s, s.Wave + 1);
             ev.Add(new SimEvent { E = "wave", Wave = s.Wave });
         }
 
-        static Enemy Spawn(DefendState s, string type, List<SimEvent> ev, int at = 0, bool small = false)
+        static Enemy Spawn(DefendState s, QueuedEnemy q, List<SimEvent> ev, int at = 0, bool small = false)
         {
+            string type = q.Type;
             var def = GameData.Enemies[type];
-            int hp = small ? Math.Max(1, GameData.WaveHp(def.Hp, s.Wave) / 4) : GameData.WaveHp(def.Hp, s.Wave);
+            // Bosses use their data HP as-is; regular enemies scale with the wave curve.
+            int bas = def.Boss != null ? def.Hp : JsMath.FloorDiv((long)GameData.WaveHp(def.Hp, q.Wave) * q.HpPct, 100);
+            int hp = small ? Math.Max(1, JsMath.FloorDiv(bas, 4)) : Math.Max(1, bas);
             int speed = def.Speed;
-            int bounty = small ? 1 : JsMath.FloorDiv((long)def.Bounty * (100 + GameData.BountyGrowthPct * (s.Wave - 1)), 100);
+            int bounty = small ? 1 : JsMath.FloorDiv((long)def.Bounty * (100 + GameData.BountyGrowthPct * (q.Wave - 1)), 100);
             EliteAffix elite = null;
-            if (!small && s.Wave >= GameData.EliteFromWave && Rng.RollPct(ref s.Rng) < GameData.EliteChancePct)
+            if (!small && def.Boss == null && q.Wave >= GameData.EliteFromWave && Rng.RollPct(ref s.Rng) < GameData.EliteChancePct)
             {
                 elite = GameData.Elites[(int)Math.Floor(Rng.Next(ref s.Rng) * GameData.Elites.Count)];
                 hp = JsMath.FloorDiv((long)hp * elite.HpPct, 100);
@@ -325,6 +399,10 @@ namespace FiveSects.Sim
         }
 
         static int StatPct(int level) => GameData.StatPct[level - 1];
+
+        // Poison/burn per second, scaled by level and by the Wu Xing match when applied.
+        static int DotDps(Disciple d, Enemy e, int bas, int lvl) =>
+            JsMath.FloorDiv((long)JsMath.FloorDiv((long)bas * StatPct(lvl), 100) * Wuxing.OvercomePct(d.Els, e.El), 100);
 
         struct Stats { public int Dmg, Cooldown, Range; public bool HitsAir, HitsGround; }
 
@@ -389,6 +467,8 @@ namespace FiveSects.Sim
 
         static void Attack(DefendState s, Disciple d, List<SimEvent> ev)
         {
+            if (d.OffT > 0) { d.OffT--; return; }
+            if (s.SealT > 0 && s.SealEl != null && d.Els.Contains(s.SealEl)) return;
             d.RootT++; d.PushT++; d.BellT++;
             var st = DiscipleStats(s, d);
             int lvl = d.Level;
@@ -441,7 +521,7 @@ namespace FiveSects.Sim
                     case "wood":
                         target.Poison = Math.Min(3, target.Poison + 1);
                         target.PoisonT = WoodPoisonTicks;
-                        target.PoisonDps = Math.Max(target.PoisonDps, JsMath.FloorDiv((long)WoodPoisonDps * StatPct(lvl), 100));
+                        target.PoisonDps = Math.Max(target.PoisonDps, DotDps(d, target, WoodPoisonDps, lvl));
                         if (lvl >= 2 && d.RootT >= WoodRootEvery)
                         {
                             d.RootT = 0;
@@ -461,12 +541,11 @@ namespace FiveSects.Sim
                         break;
                     case "fire":
                     {
-                        int dps = JsMath.FloorDiv((long)FireBurnDps * StatPct(lvl), 100);
                         foreach (var e in s.Enemies)
                             if (e.Hp > 0 && (e == target || PathMath.Within(target.X, target.Y, e.X, e.Y, FireSplash)))
                             {
                                 e.BurnT = FireBurnTicks;
-                                e.BurnDps = Math.Max(e.BurnDps, dps);
+                                e.BurnDps = Math.Max(e.BurnDps, DotDps(d, e, FireBurnDps, lvl));
                             }
                         break;
                     }
@@ -517,12 +596,13 @@ namespace FiveSects.Sim
             foreach (var e in s.Enemies)
             {
                 e.Age++;
-                e.Revealed = s.RevealAllT > 0 || yy.Any(d => PathMath.Within(d.X, d.Y, e.X, e.Y, YyReveal));
+                e.Revealed = s.RevealAllT > 0 || e.StunT > 0 || e.SlowT > 0 || yy.Any(d => PathMath.Within(d.X, d.Y, e.X, e.Y, YyReveal));
                 if (e.LastElT > 0) e.LastElT--;
                 if (e.Age % DotEvery == 0)
                 {
-                    if (e.BurnT > 0) e.Hp -= Math.Max(1, JsMath.FloorDiv(e.BurnDps, 2));
-                    if (e.PoisonT > 0 && e.Poison > 0) e.Hp -= Math.Max(1, JsMath.FloorDiv((long)e.Poison * e.PoisonDps, 2));
+                    int armour = e.Type == "brute" ? 2 : 1; // Iron Shirt halves damage over time too
+                    if (e.BurnT > 0) e.Hp -= Math.Max(1, JsMath.FloorDiv(e.BurnDps, 2 * armour));
+                    if (e.PoisonT > 0 && e.Poison > 0) e.Hp -= Math.Max(1, JsMath.FloorDiv((long)e.Poison * e.PoisonDps, 2 * armour));
                 }
                 if (e.BurnT > 0) e.BurnT--;
                 if (e.PoisonT > 0) e.PoisonT--; else e.Poison = 0;
@@ -543,10 +623,47 @@ namespace FiveSects.Sim
                 if (e.Hp > 0 && e.D >= s.PathLen)
                 {
                     e.Hp = 0; e.Bounty = 0;
-                    s.Lives = Math.Max(0, s.Lives - 1);
-                    s.LivesLost++;
+                    int cost = GameData.Enemies[e.Type].LeakCost;
+                    s.Lives = Math.Max(0, s.Lives - cost);
+                    s.LivesLost += cost;
                     ev.Add(new SimEvent { E = "leak", Id = e.Id });
                 }
+        }
+
+        // Boss mechanics fire once per HP threshold (enemies.json bosses[].mechanics).
+        static void BossPhases(DefendState s, List<SimEvent> ev)
+        {
+            foreach (var e in s.Enemies)
+            {
+                var m = GameData.Enemies[e.Type].Boss;
+                if (m == null || e.Hp <= 0) continue;
+                while (e.Phase < m.PhasesPct.Count && (long)e.Hp * 100 <= (long)e.MaxHp * m.PhasesPct[e.Phase])
+                {
+                    e.Phase++;
+                    if (m.Effect == "disable")
+                    {
+                        for (int k = 0; k < m.Count; k++)
+                        {
+                            var free = s.Disciples.Where(d => d.OffT == 0).ToList();
+                            if (free.Count == 0) break;
+                            var d = free[(int)Math.Floor(Rng.Next(ref s.Rng) * free.Count)];
+                            d.OffT = m.Ticks;
+                            ev.Add(new SimEvent { E = "disable", Id = d.Id, From = e.Id });
+                        }
+                    }
+                    else if (m.Effect == "seal" && s.Disciples.Count > 0)
+                    {
+                        string best = null; int bestN = 0;
+                        foreach (var el in GameData.SectOrder)
+                        {
+                            int n = s.Disciples.Count(d => d.Els[0] == el);
+                            if (n > bestN) { best = el; bestN = n; }
+                        }
+                        s.SealEl = best; s.SealT = m.Ticks;
+                        ev.Add(new SimEvent { E = "seal", El = best, From = e.Id });
+                    }
+                }
+            }
         }
 
         static void ResolveDeaths(DefendState s, List<SimEvent> ev)
@@ -565,7 +682,7 @@ namespace FiveSects.Sim
                 if (s.BountyMultT > 0) bounty *= 2;
                 s.Silver += bounty;
                 ev.Add(new SimEvent { E = "kill", Id = e.Id, X = e.X, Y = e.Y, Amount = bounty });
-                if (e.Type == "puppet" && !e.Small) for (int i = 0; i < 3; i++) Spawn(s, "puppet", ev, Math.Max(0, e.D - i * 300), true);
+                if (e.Type == "puppet" && !e.Small) for (int i = 0; i < 3; i++) Spawn(s, new QueuedEnemy { Type = "puppet", Wave = s.Wave, HpPct = 100 }, ev, Math.Max(0, e.D - i * 300), true);
                 if (e.BurnT > 0 && s.Disciples.Any(q => q.Combo == "wildfire_flute"))
                     foreach (var o in s.Enemies.Where(o => o.Hp > 0 && PathMath.Within(e.X, e.Y, o.X, o.Y, 1500)).Take(2).ToList())
                     { o.BurnT = FireBurnTicks; o.BurnDps = Math.Max(o.BurnDps, e.BurnDps); }
@@ -585,7 +702,7 @@ namespace FiveSects.Sim
                     if (s.SpawnT > 0) s.SpawnT--;
                     else
                     {
-                        if (s.SpawnQueue.Count > 0) { var type = s.SpawnQueue[0]; s.SpawnQueue.RemoveAt(0); Spawn(s, type, ev); }
+                        if (s.SpawnQueue.Count > 0) { var q = s.SpawnQueue[0]; s.SpawnQueue.RemoveAt(0); Spawn(s, q, ev); }
                         s.SpawnT = GameData.SpawnInterval - 1;
                         if (s.SpawnQueue.Count == 0) s.Phase = "clearing";
                     }
@@ -593,12 +710,12 @@ namespace FiveSects.Sim
                 case "clearing":
                     if (s.Enemies.Count == 0)
                     {
-                        int pct = GameData.InterestPct + (HasLevel(s, "yinyang", 3) ? 1 : 0) + (Card(s, "interestPct")?.Value ?? 0);
-                        int interest = Math.Min(GameData.InterestCap, JsMath.FloorDiv((long)s.Silver * pct, 100));
-                        s.Silver += interest;
-                        ev.Add(new SimEvent { E = "interest", Amount = interest });
                         if (s.Wave >= s.TotalWaves) Finish(s, true, ev);
-                        else if (s.Wave % GameData.CardEveryWaves == 0) OfferCards(s, ev);
+                        else if (s.Wave / GameData.CardEveryWaves > s.CardsOffered)
+                        {
+                            s.CardsOffered = s.Wave / GameData.CardEveryWaves;
+                            OfferCards(s, ev);
+                        }
                         else { s.Phase = "break"; s.BreakT = GameData.WaveBreak; }
                     }
                     break;
@@ -645,9 +762,11 @@ namespace FiveSects.Sim
             for (int i = 0; i < s.ArtCd.Length; i++) if (s.ArtCd[i] > 0) s.ArtCd[i]--;
             if (s.BountyMultT > 0) s.BountyMultT--;
             if (s.RevealAllT > 0) s.RevealAllT--;
+            if (s.SealT > 0 && --s.SealT == 0) s.SealEl = null;
             WaveFlow(s, ev);
             MoveEnemies(s, ev);
             foreach (var d in s.Disciples.ToList()) Attack(s, d, ev);
+            BossPhases(s, ev);
             ResolveDeaths(s, ev);
             s.Tick++;
             if (s.Lives <= 0) Finish(s, false, ev);

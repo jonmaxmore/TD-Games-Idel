@@ -26,8 +26,10 @@ Unity brings native mobile builds, mobile SDKs (ads, IAP, analytics), and an edi
   - CI runs both. A mismatch blocks merge. The workflow template is `docs/ci/github-actions-ci.yml`; copy it to `.github/workflows/`.
   - Golden coverage must grow with every new rule: each new command, enemy trait or card gets a scripted golden.
 - **Data:** `docs/data/*.json` stays the single source. `npm run unity:sync` copies it into `Assets/Resources/data`, and a test fails if the copy is stale.
-- **Web:** a Unity WebGL build ships as the web version. Its size and load time are measured before soft launch.
-  - If it is too heavy for the "open a link and play" pitch, the web version becomes a trial or marketing build and the stores become primary.
+- **Platforms (owner decision, 22 Oct, after docs/research/market-players.md):**
+  - Develop and playtest on **PC first**: a Unity Windows standalone build.
+  - Ship **cross-platform PC + mobile** from one Unity project, with Android Thailand as the first mobile market.
+  - The web is no longer first. A WebGL build is optional, as a demo, a co-op invite link or a direct shop, and only if it meets the size budget (Poki < 8 MB first download).
 - **Backend:** unchanged (Node.js 22, PostgreSQL 16, Redis 7, ADR 0003).
 
 ## Alternatives considered

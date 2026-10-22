@@ -77,7 +77,7 @@
     ]
   },
   "secretArts": {
-    "_notes": "ไม้ตาย: player-cast abilities during a run (consumables with cooldown).",
+    "_notes": "ไม้ตาย: player-cast abilities during a run (consumables with cooldown). Each art has `charges` free casts per stage; after that a cast costs `rechargeSilver` (design-review N8).",
     "items": [
       {
         "id": "heaven_sword",
@@ -89,7 +89,9 @@
         "dmg": 300,
         "radius": 2,
         "targets": "lead",
-        "effectTh": "กระบี่ยักษ์ร่วงใส่ศัตรูที่นำหน้า 300 ดาเมจ รัศมี 2 ช่อง"
+        "effectTh": "กระบี่ยักษ์ร่วงใส่ศัตรูที่นำหน้า 300 ดาเมจ รัศมี 2 ช่อง",
+        "charges": 2,
+        "rechargeSilver": 80
       },
       {
         "id": "time_incense",
@@ -100,7 +102,9 @@
         "effectType": "slowAll",
         "pct": 50,
         "durationSec": 6,
-        "effectTh": "ศัตรูทั้งจอช้าลง 50% นาน 6 วิ"
+        "effectTh": "ศัตรูทั้งจอช้าลง 50% นาน 6 วิ",
+        "charges": 2,
+        "rechargeSilver": 80
       },
       {
         "id": "silver_rain",
@@ -111,7 +115,9 @@
         "effectType": "bountyMult",
         "mult": 2,
         "durationSec": 30,
-        "effectTh": "ได้ตำลึงจากการฆ่า ×2 นาน 30 วิ"
+        "effectTh": "ได้ตำลึงจากการฆ่า ×2 นาน 30 วิ",
+        "charges": 2,
+        "rechargeSilver": 80
       },
       {
         "id": "lion_roar",
@@ -122,7 +128,9 @@
         "effectType": "stunAll",
         "durationSec": 1.5,
         "reveal": true,
-        "effectTh": "ศัตรูทั้งจอมึน 1.5 วิ และเห็นมือสังหารล่องหน"
+        "effectTh": "ศัตรูทั้งจอมึน 1.5 วิ และเห็นมือสังหารล่องหน",
+        "charges": 2,
+        "rechargeSilver": 80
       }
     ]
   },

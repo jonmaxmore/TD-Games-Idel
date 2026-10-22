@@ -33,6 +33,8 @@ export type SimEvent =
   | { e: 'offer'; cards: string[] }
   | { e: 'picked'; card: string }
   | { e: 'newEnemy'; type: string }
+  | { e: 'disable'; id: number; by: number }
+  | { e: 'seal'; el: Element; by: number }
   | { e: 'end'; won: boolean; stars: boolean[] };
 
 export interface Disciple {
@@ -51,6 +53,7 @@ export interface Disciple {
   pushT: number;
   bellT: number;
   target: TargetMode;
+  offT: number; // ticks disabled by a boss
 }
 
 export interface Enemy {
@@ -80,6 +83,14 @@ export interface Enemy {
   age: number;
   elite: string | null;
   regenPct: number;
+  phase: number; // boss phases already triggered
+}
+
+// One enemy waiting to spawn; waves can overlap when the next one is called early.
+export interface QueuedEnemy {
+  type: string;
+  wave: number;
+  hpPct: number;
 }
 
 export interface DefendState {
@@ -92,7 +103,13 @@ export interface DefendState {
   wave: number;
   totalWaves: number;
   phase: 'build' | 'spawning' | 'clearing' | 'break' | 'picking' | 'won' | 'lost';
-  spawnQueue: string[];
+  spawnQueue: QueuedEnemy[];
+  recipe: string; // shape of the current wave (enemies.json waveRecipes)
+  nextRecipe: string; // already rolled, so the HUD can preview it
+  cardsOffered: number;
+  sealEl: Element | null;
+  sealT: number;
+  artCharges: number[];
   spawnT: number;
   breakT: number;
   disciples: Disciple[];

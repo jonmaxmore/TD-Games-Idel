@@ -16,15 +16,19 @@ export function bestTiles(s: DefendState, range = 2500): [number, number][] {
   return scored.map((x) => x.t);
 }
 
-export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: Element[]; record?: Record<number, Command[]> } = {}): DefendState {
+// earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
+export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: Element[]; record?: Record<number, Command[]>; earlyCall?: boolean } = {}): DefendState {
   const sects = opts.sects ?? s.unlocked;
   const max = opts.maxDisciples ?? 8;
   let placed = 0;
   while (!isOver(s) && s.tick < 20 * 60 * 30) {
     const cmds: Command[] = s.tick === 0 ? [{ t: 'nextWave' }] : [];
+    if (opts.earlyCall && s.phase === 'clearing' && s.enemies.length <= 3 && s.wave < s.totalWaves) cmds.push({ t: 'nextWave' });
     const sect = sects[placed % sects.length]!;
     const lowest = [...s.disciples].sort((a, b) => a.level - b.level)[0];
-    const wantPlace = placed < 3 || (placed < max && (!lowest || lowest.level >= 2));
+    // Past `max`, keep spending: once every disciple is maxed, place more instead of hoarding silver.
+    const allMaxed = !!lowest && lowest.level >= 3;
+    const wantPlace = placed < 3 || ((placed < max || allMaxed) && (!lowest || lowest.level >= 2));
     if (wantPlace) {
       const spot = bestTiles(s, SECTS[sect].range)[0];
       if (spot && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spot[0], ty: spot[1] }); placed++; }

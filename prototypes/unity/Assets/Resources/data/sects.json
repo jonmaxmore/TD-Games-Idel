@@ -13,7 +13,7 @@
     {
       "id": "cloud_sword", "name": "Cloud Sword Pavilion", "nameTh": "สำนักกระบี่เมฆา", "element": "metal", "color": "#D9E1EA",
       "role": "single-target DPS, crit", "weapon": "jian (straight sword)", "silhouette": "tall, sword raised",
-      "cost": 60, "dmg": 30, "rate": 1.2, "range": 2.6, "target": "ground+air",
+      "cost": 60, "dmg": 22, "rate": 1.2, "range": 2.6, "target": "ground+air",
       "skills": [
         { "lvl": 1, "name": "Sword Qi", "nameTh": "ปราณกระบี่", "effect": "ranged crescent slash" },
         { "lvl": 2, "name": "Thousand Blades", "nameTh": "พันกระบี่ร่วง", "effect": "every 6th hit rains 5 swords, crit x2" },
@@ -23,7 +23,7 @@
     {
       "id": "jade_bamboo", "name": "Jade Bamboo Valley", "nameTh": "หุบไผ่หยก", "element": "wood", "color": "#5BC46A",
       "role": "poison DoT, root", "weapon": "flute + poison needles", "silhouette": "slim, flute held sideways",
-      "cost": 50, "dmg": 8, "rate": 1.5, "range": 3.0, "target": "ground+air",
+      "cost": 50, "dmg": 11, "rate": 1.5, "range": 3.0, "target": "ground+air",
       "skills": [
         { "lvl": 1, "name": "Verdant Venom", "nameTh": "พิษมรกต", "effect": "poison 8 dps, stacks x3" },
         { "lvl": 2, "name": "Binding Vines", "nameTh": "เถาวัลย์รัด", "effect": "root 1s every 8s" },
@@ -33,7 +33,7 @@
     {
       "id": "frost_tide", "name": "Frost Tide Palace", "nameTh": "วังธาราเหมันต์", "element": "water", "color": "#4FB3FF",
       "role": "slow, freeze, control", "weapon": "palm technique + ribbon", "silhouette": "flowing robes, palms forward",
-      "cost": 50, "dmg": 12, "rate": 1.4, "range": 2.8, "target": "ground+air",
+      "cost": 50, "dmg": 17, "rate": 1.4, "range": 2.8, "target": "ground+air",
       "skills": [
         { "lvl": 1, "name": "Cold Palm", "nameTh": "ฝ่ามือเหมันต์", "effect": "slow 30% for 2s" },
         { "lvl": 2, "name": "Ice Lotus", "nameTh": "บัวน้ำแข็ง", "effect": "freeze 1.2s every 5th hit" },
@@ -43,7 +43,7 @@
     {
       "id": "crimson_phoenix", "name": "Crimson Phoenix Sect", "nameTh": "สำนักหงส์เพลิง", "element": "fire", "color": "#FF5A1F",
       "role": "AoE burn", "weapon": "fan", "silhouette": "wide stance, open fan",
-      "cost": 65, "dmg": 20, "rate": 1.0, "range": 2.4, "target": "ground+air",
+      "cost": 65, "dmg": 26, "rate": 1.0, "range": 2.4, "target": "ground+air",
       "skills": [
         { "lvl": 1, "name": "Flame Fan", "nameTh": "พัดเพลิง", "effect": "cone of fire, burn 6 dps 3s" },
         { "lvl": 2, "name": "Phoenix Feathers", "nameTh": "ขนหงส์กระจาย", "effect": "burning enemies explode on death (30 dmg r=1)" },
@@ -53,7 +53,7 @@
     {
       "id": "vajra_stone", "name": "Vajra Stone Monastery", "nameTh": "วัดวัชระศิลา", "element": "earth", "color": "#C99A4A",
       "role": "splash, stun, blocker", "weapon": "staff (gun) / iron body", "silhouette": "broad, bald monk with staff",
-      "cost": 70, "dmg": 45, "rate": 0.6, "range": 1.8, "target": "ground",
+      "cost": 70, "dmg": 45, "rate": 0.6, "range": 2.0, "target": "ground",
       "skills": [
         { "lvl": 1, "name": "Mountain Strike", "nameTh": "ไม้พลองสะเทือนขุนเขา", "effect": "splash r=1" },
         { "lvl": 2, "name": "Golden Bell", "nameTh": "ระฆังทอง", "effect": "can be placed ON the path to block 3 enemies, immune 4s" },
@@ -72,6 +72,7 @@
     }
   ],
   "comboTechniques": {
+    "mergeFee": 50,
     "_notes": "ยุทธ์ผสาน: merge two max-level disciples of different Wu Xing sects -> a duo master. 10 pairs (C(5,2)). Generating pairs lean support, overcoming pairs lean damage.",
     "items": [
       { "id": "frozen_blade",   "name": "Frozen Blade",       "nameTh": "กระบี่เหมันต์",     "from": ["metal", "water"], "relation": "generates", "effect": "sword qi freezes 0.8s; frozen enemies take x2 crit" },

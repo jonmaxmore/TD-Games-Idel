@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  BIOMES, canonicalString, GRID_H, GRID_W, LAYOUTS, PROP_TYPES, resolveLayout, tilesOnPath, COMBOS, createGame, ENEMIES, fnv1a, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
+  BIOMES, canonicalString, ECONOMY, GRID_H, GRID_W, LAYOUTS, PROP_TYPES, resolveLayout, tilesOnPath, COMBOS, createGame, ENEMIES, fnv1a, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
   type Command, type DefendState, type Element, type SimEvent, type AssaultState, type Replay, type Layout,
 } from '../src/index';
 import { overcomePct, isGenerated } from '../src/wuxing';
@@ -64,12 +64,25 @@ describe('economy', () => {
     expect(defend('1-2').unlocked).toEqual(['metal', 'water']);
     expect(defend('T-1').unlocked).toHaveLength(6);
   });
-  it('pays capped interest after a wave', () => {
+  it('pays interest when a wave is called, capped at interestCap + interestCapPerWave * wave', () => {
     const s = defend('1-1');
     s.silver = 1000;
-    const ev = run(s, 2000, [{ t: 'nextWave' }]);
-    const interest = ev.find((e) => e.e === 'interest');
-    expect(interest).toEqual({ e: 'interest', amount: 25 });
+    expect(run(s, 1, [{ t: 'nextWave' }]).find((e) => e.e === 'interest')).toEqual({ e: 'interest', amount: ECONOMY.interestCap });
+    s.wave = 5; s.silver = 100;
+    expect(run(s, 1, [{ t: 'nextWave' }]).find((e) => e.e === 'interest')).toEqual({ e: 'interest', amount: Math.floor((100 * ECONOMY.interestPct) / 100) });
+  });
+  it('calling the next wave during a fight overlaps waves and pays a share of the bounty at stake', () => {
+    const s = defend('1-1');
+    run(s, 1, [{ t: 'place', sect: 'metal', tx: 4, ty: 3 }, { t: 'nextWave' }]);
+    run(s, 60);
+    expect(s.enemies.length).toBeGreaterThan(0);
+    const atStake = s.enemies.reduce((sum, e) => sum + e.bounty, 0);
+    const before = s.silver;
+    const ev = run(s, 1, [{ t: 'nextWave' }]);
+    const interest = ev.find((e) => e.e === 'interest') as { amount: number };
+    expect(s.wave).toBe(2);
+    expect(s.silver - before).toBeGreaterThanOrEqual(ECONOMY.earlyCallBonus + Math.floor((atStake * ECONOMY.earlyCallPct) / 100) + interest.amount); // plus any bounty earned this tick
+    expect(s.spawnQueue.length).toBeGreaterThan(0);
   });
 });
 
@@ -151,8 +164,9 @@ describe('combos and timers', () => {
     run(s, 1, [{ t: 'place', sect: 'yinyang', tx: 10, ty: 0 }]);
     for (let i = 0; i < 2; i++) run(s, 1, [{ t: 'upgrade', id: s.disciples[0]!.id }]);
     s.silver = 400;
-    const ev = run(s, 2000, [{ t: 'nextWave' }]);
-    expect(ev.find((e) => e.e === 'interest')).toMatchObject({ amount: 24 });
+    s.wave = 10; // cap 40, so the +1% is visible: 400 * (4 + 1)% = 20
+    const ev = run(s, 1, [{ t: 'nextWave' }]);
+    expect(ev.find((e) => e.e === 'interest')).toMatchObject({ amount: 20 });
   });
 });
 
@@ -343,7 +357,7 @@ describe('canonical hash (engine-port parity)', () => {
   });
   it('uses a fixed layout other engines can reproduce', () => {
     const s = defend('1-1');
-    expect(canonicalString(s)).toBe('0|120|20|0|build|1|||');
+    expect(canonicalString(s)).toBe(`0|120|${ECONOMY.startLives}|0|build|1|||`);
     expect(fnv1a('abc')).toBe('1a47e90b');
   });
 });

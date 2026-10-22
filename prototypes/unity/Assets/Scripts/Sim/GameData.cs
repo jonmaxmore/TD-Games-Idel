@@ -8,14 +8,18 @@ using Newtonsoft.Json.Linq;
 namespace FiveSects.Sim
 {
     public class SectDef { public string Element, NameTh, Color; public int Cost, Dmg, Cooldown, Range; public bool HitsAir, HitsGround; }
-    public class EnemyDef { public string Id, NameTh, Element, TraitTh; public bool Air; public int Hp, Speed, Bounty; }
+    public class BossMechanics { public string Effect; public List<int> PhasesPct = new List<int>(); public int Count = 1, Ticks; }
+    public class EnemyDef { public string Id, NameTh, Element, TraitTh; public bool Air; public int Hp, Speed, Bounty, LeakCost = 1; public BossMechanics Boss; }
+    public class WaveRecipe { public string Id, NameTh; public List<string> Types = new List<string>(); public int CountPct, HpPct; }
     public class ComboDef { public string Id, NameTh, A, B; }
     public class StageDef
     {
         public string Id, Type, Layout, Variant, UnlocksSect; public int Chapter; public int? Waves, StartSilver; public bool UnlockAll;
         public List<string> Enemies = new List<string>(), Stars = new List<string>(), GuestSects = new List<string>();
+        public Dictionary<string, string> ScriptedWaves = new Dictionary<string, string>();
+        public List<string> WavePool;
     }
-    public class ArtDef { public string Id, NameTh, Glyph, Type; public int Cooldown, Dmg, Radius, Pct, Duration; }
+    public class ArtDef { public string Id, NameTh, Glyph, Type; public int Cooldown, Dmg, Radius, Pct, Duration, Charges, RechargeSilver; }
     public class CardDef { public string Id, NameTh, EffectTh, Kind, Element, Needs; public int Pct, Value; }
     public class EliteAffix { public string Id, NameTh; public int HpPct, SpeedPct, RegenPct; }
 
@@ -41,6 +45,8 @@ namespace FiveSects.Sim
         public static readonly List<CardDef> Cards = new List<CardDef>();
         public static int EliteFromWave, EliteChancePct, EliteBountyMult;
         public static readonly List<EliteAffix> Elites = new List<EliteAffix>();
+        public static readonly List<WaveRecipe> WaveRecipes = new List<WaveRecipe>();
+        public static int MergeFee, InterestCapPerWave, EarlyCallPct;
         public static readonly Dictionary<string, List<string>> Palette = new Dictionary<string, List<string>>();
         public const int CardEveryWaves = 5;
         public static int CardAutoPick => Ticks(15);
@@ -52,7 +58,7 @@ namespace FiveSects.Sim
             if (Loaded) return;
             // Start clean so a failed earlier attempt can't leave duplicates behind.
             Sects.Clear(); SectOrder.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
-            StageList.Clear(); Stages.Clear(); Arts.Clear(); Cards.Clear(); Elites.Clear(); Palette.Clear();
+            StageList.Clear(); Stages.Clear(); Arts.Clear(); Cards.Clear(); Elites.Clear(); Palette.Clear(); WaveRecipes.Clear();
             var sects = JObject.Parse(read("sects"));
             foreach (var s in sects["sects"])
             {
@@ -71,6 +77,7 @@ namespace FiveSects.Sim
             foreach (var c in sects["comboTechniques"]["items"])
                 Combos.Add(new ComboDef { Id = (string)c["id"], NameTh = (string)c["nameTh"], A = (string)c["from"][0], B = (string)c["from"][1] });
             var up = sects["upgrade"];
+            MergeFee = (int)sects["comboTechniques"]["mergeFee"];
             UpgradeLevels = (int)up["levels"];
             UpgradeNames = up["names"].Select(x => (string)x).ToList();
             CostPct = up["costMultiplier"].Select(x => JsMath.Round((double)x * 100)).ToList();
@@ -87,7 +94,24 @@ namespace FiveSects.Sim
                     Speed = JsMath.Round(((double)e["speed"] * Tile) / TickHz),
                     Bounty = e["bounty"] != null ? (int)e["bounty"] : 50,
                     TraitTh = (string)e["traitTh"] ?? "",
+                    LeakCost = e["leakCost"] != null ? (int)e["leakCost"] : 1,
                 };
+                var mech = e["mechanics"];
+                if (mech != null)
+                    Enemies[id].Boss = new BossMechanics
+                    {
+                        Effect = (string)mech["effect"], PhasesPct = mech["phasesPct"].Select(x => (int)x).ToList(),
+                        Count = mech["count"] != null ? (int)mech["count"] : 1, Ticks = Ticks(mech["sec"] != null ? (double)mech["sec"] : 0),
+                    };
+            }
+            foreach (var w in (JObject)enemies["waveRecipes"])
+            {
+                if (w.Key.StartsWith("_")) continue;
+                WaveRecipes.Add(new WaveRecipe
+                {
+                    Id = w.Key, NameTh = (string)w.Value["nameTh"], Types = w.Value["types"].Select(x => (string)x).ToList(),
+                    CountPct = (int)w.Value["countPct"], HpPct = (int)w.Value["hpPct"],
+                });
             }
             var el2 = enemies["elites"];
             EliteFromWave = (int)el2["eliteFromWave"]; EliteChancePct = (int)el2["eliteChancePct"]; EliteBountyMult = (int)el2["bountyMult"];
@@ -105,6 +129,8 @@ namespace FiveSects.Sim
                 if (s["enemies"] != null) st.Enemies = s["enemies"].Select(x => (string)x).ToList();
                 if (s["stars"] != null) st.Stars = s["stars"].Select(x => (string)x).ToList();
                 if (s["guestSects"] != null) st.GuestSects = s["guestSects"].Select(x => (string)x).ToList();
+                if (s["scriptedWaves"] != null) foreach (var p in (JObject)s["scriptedWaves"]) st.ScriptedWaves[p.Key] = (string)p.Value;
+                if (s["wavePool"] != null) st.WavePool = s["wavePool"].Select(x => (string)x).ToList();
                 StageList.Add(st);
                 Stages[st.Id] = st;
             }
@@ -117,6 +143,7 @@ namespace FiveSects.Sim
             SellRefundPct = (int)inRun["sellRefundPct"]; WaveBreak = Ticks((double)inRun["waveBreakSec"]);
             SpawnInterval = Ticks((double)inRun["spawnIntervalSec"]); EarlyCallBonus = (int)inRun["earlyCallBonusSilver"];
             BountyGrowthPct = (int)inRun["bountyGrowthPctPerWave"];
+            InterestCapPerWave = (int)inRun["interestCapPerWave"]; EarlyCallPct = (int)inRun["earlyCallPct"];
 
             var items = JObject.Parse(read("items"));
             foreach (var a in items["secretArts"]["items"])
@@ -125,6 +152,7 @@ namespace FiveSects.Sim
                     Id = (string)a["id"], NameTh = (string)a["nameTh"], Glyph = (string)a["glyph"] ?? "", Type = (string)a["effectType"],
                     Cooldown = Ticks((double)a["cooldown"]), Dmg = (int?)a["dmg"] ?? 0, Radius = JsMath.Round(((double?)a["radius"] ?? 0) * Tile),
                     Pct = (int?)a["pct"] ?? 0, Duration = Ticks((double?)a["durationSec"] ?? 0),
+                    Charges = (int?)a["charges"] ?? 0, RechargeSilver = (int?)a["rechargeSilver"] ?? 0,
                 });
             var m = items["manuals"];
             foreach (var group in new[] { "damage", "economy", "ruleBender" })

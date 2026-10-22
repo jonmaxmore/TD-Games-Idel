@@ -171,13 +171,15 @@
     "top1pctRevenueShareMax": 0.5
   },
   "inRun": {
-    "startLives": 20,
-    "interestPct": 5,
-    "interestCap": 25,
+    "startLives": 10,
+    "interestPct": 4,
+    "interestCap": 10,
+    "interestCapPerWave": 3,
     "sellRefundPct": 75,
-    "waveBreakSec": 5,
+    "waveBreakSec": 10,
     "spawnIntervalSec": 0.8,
     "earlyCallBonusSilver": 5,
+    "earlyCallPct": 30,
     "bountyGrowthPctPerWave": 10
   }
 }

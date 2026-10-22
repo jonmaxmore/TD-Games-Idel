@@ -43,7 +43,8 @@ namespace FiveSects.Game
         // HUD
         Font font;
         bool thai;
-        Text silverText, livesText, waveText, fpsText, toastText;
+        Text silverText, livesText, waveText, fpsText, toastText, nextText, bossName;
+        RectTransform bossBar, bossFill;
         Button waveButton;
         Text waveButtonText;
         float nextFpsUpdate;
@@ -101,6 +102,7 @@ namespace FiveSects.Game
                 acc = Mathf.Min(acc, 8 * TickSec);
             }
             SyncDisciples();
+            TintDisciples();
             UpdateHints();
             RenderEnemies(Mathf.Clamp01(acc / TickSec));
             UpdateShots();
@@ -181,6 +183,8 @@ namespace FiveSects.Game
                     case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
                     case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
                     case "leak": goalFlashUntil = Time.time + 0.25f; break;
+                    case "seal": Toast(L("บอสผนึก ", "Boss sealed ") + (thai ? GameData.Sects[ev.El].NameTh : ev.El) + L(" ชั่วคราว!", " for a while!"), 2.5f); break;
+                    case "disable": Toast(L("อาวุธลับ! ศิษย์ถูกสกัด", "Hidden weapon! A disciple is disabled"), 1.5f); break;
                     case "end":
                         ClosePanel();
                         RefreshHints();
@@ -294,6 +298,17 @@ namespace FiveSects.Game
             }
         }
 
+        void TintDisciples()
+        {
+            foreach (var d in s.Disciples)
+            {
+                var t = discipleRoot.Find("d" + d.Id);
+                if (t == null) continue;
+                bool off = d.OffT > 0 || (s.SealT > 0 && s.SealEl != null && d.Els.Contains(s.SealEl));
+                t.GetComponent<SpriteRenderer>().color = off ? new Color(0.45f, 0.45f, 0.55f) : Color.white;
+            }
+        }
+
         void RenderEnemies(float alpha)
         {
             var seen = new HashSet<int>();
@@ -305,6 +320,7 @@ namespace FiveSects.Game
                     var body = new GameObject("e" + e.Id).AddComponent<SpriteRenderer>();
                     body.transform.SetParent(world);
                     body.sprite = Art.Enemy(e.Type); body.sortingOrder = 20;
+                    if (GameData.Enemies[e.Type].Boss != null) { body.transform.localScale = new Vector3(2, 2, 1); body.color = Art.Hex("#FF9E7B"); }
                     SpriteRenderer Bar(string col, int order)
                     {
                         var b = new GameObject("bar").AddComponent<SpriteRenderer>();
@@ -371,6 +387,13 @@ namespace FiveSects.Game
             waveButtonText = waveButton.GetComponentInChildren<Text>();
             fpsText = Label(bottom, "", 20, new Vector2(0.62f, 0), new Vector2(0.98f, 1), "#9A92AE");
 
+            nextText = Label(root, "", 20, new Vector2(0, 1), new Vector2(1, 1), "#9A92AE");
+            nextText.rectTransform.offsetMin = new Vector2(12, -92); nextText.rectTransform.offsetMax = new Vector2(-12, -64);
+            bossBar = Box(root, "BossBar", new Vector2(0.1f, 1), new Vector2(0.9f, 1), new Vector2(0, -124), new Vector2(0, -96), "#1A1423");
+            bossFill = Box(bossBar, "Fill", Vector2.zero, Vector2.one, new Vector2(2, 2), new Vector2(-2, -2), "#D2412F");
+            bossName = Label(bossBar, "", 20, Vector2.zero, Vector2.one, "#ECE3CF");
+            bossName.alignment = TextAnchor.MiddleCenter;
+            bossBar.gameObject.SetActive(false);
             toastText = Label(root, "", 30, new Vector2(0, 0.62f), new Vector2(1, 0.7f), "#ECE3CF");
             toastText.alignment = TextAnchor.MiddleCenter;
         }
@@ -489,6 +512,36 @@ namespace FiveSects.Game
             Destroy(gameObject);
         }
 
+        // Calling mid-fight overlaps waves for a bonus (defend.ts nextWave); show what it pays right now.
+        string WaveButtonLabel()
+        {
+            if (s.IsOver) return "";
+            if (s.Wave >= s.TotalWaves) return L("wave สุดท้าย", "Final wave");
+            if (s.Phase == "build") return L("เริ่มบุก", "Start wave");
+            if (s.Phase == "picking") return L("เลือกคัมภีร์...", "Pick a manual...");
+            if (s.Phase == "break") return L("wave ถัดไป +", "Next wave +") + GameData.EarlyCallBonus;
+            int atStake = 0;
+            foreach (var e in s.Enemies) if (e.Hp > 0) atStake += e.Bounty;
+            return L("เรียกเพิ่ม +", "Call early +") + (GameData.EarlyCallBonus + atStake * GameData.EarlyCallPct / 100);
+        }
+
+        string RecipeName(string id)
+        {
+            var r = GameData.WaveRecipes.FirstOrDefault(x => x.Id == id);
+            return r == null ? id : thai ? r.NameTh : r.Id;
+        }
+
+        bool NextIsBoss() => GameData.Stages[StageId].ScriptedWaves.ContainsKey((s.Wave + 1).ToString());
+
+        void UpdateBossBar()
+        {
+            var boss = s.Enemies.FirstOrDefault(e => GameData.Enemies[e.Type].Boss != null);
+            bossBar.gameObject.SetActive(boss != null);
+            if (boss == null) return;
+            bossFill.anchorMax = new Vector2(Mathf.Clamp01((float)boss.Hp / boss.MaxHp), 1);
+            bossName.text = (thai ? GameData.Enemies[boss.Type].NameTh : boss.Type) + (s.SealT > 0 ? L("  ผนึก: ", "  sealed: ") + (thai ? GameData.Sects[s.SealEl].NameTh : s.SealEl) : "");
+        }
+
         void Toast(string msg, float seconds) { toastText.text = msg; toastUntil = Time.time + seconds; }
 
         void UpdateHud()
@@ -496,8 +549,9 @@ namespace FiveSects.Game
             silverText.text = L("ตำลึง ", "Silver ") + s.Silver;
             livesText.text = L("ชีวิต ", "Lives ") + s.Lives;
             waveText.text = s.Wave + "/" + s.TotalWaves;
-            waveButtonText.text = s.Phase == "build" ? L("เริ่มบุก", "Start wave")
-                : s.Phase == "break" ? L("wave ถัดไป +", "Next wave +") + GameData.EarlyCallBonus : L("กำลังสู้...", "Fighting...");
+            waveButtonText.text = WaveButtonLabel();
+            nextText.text = s.Wave < s.TotalWaves ? L("ถัดไป: ", "Next: ") + RecipeName(s.NextRecipe) + (NextIsBoss() ? L(" + บอส!", " + BOSS!") : "") : "";
+            UpdateBossBar();
             if (Time.time > toastUntil) toastText.text = "";
             fpsSmoothed = Mathf.Lerp(fpsSmoothed, 1f / Mathf.Max(0.0001f, Time.unscaledDeltaTime), 0.05f);
             if (Time.unscaledTime >= nextFpsUpdate)

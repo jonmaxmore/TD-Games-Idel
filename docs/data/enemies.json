@@ -12,7 +12,8 @@
       "speed": 1.0,
       "bounty": 3,
       "trait": null,
-      "traitTh": "ทหารพื้นฐาน ไม่มีลูกเล่น"
+      "traitTh": "ทหารพื้นฐาน ไม่มีลูกเล่น",
+      "leakCost": 1
     },
     {
       "id": "runner",
@@ -24,7 +25,8 @@
       "speed": 1.8,
       "bounty": 3,
       "trait": "dashes 2 tiles every 4s",
-      "traitTh": "พุ่งไปข้างหน้า 2 ช่องทุก 4 วิ — ใช้ชะลอหรือมึนหยุดไว้"
+      "traitTh": "พุ่งไปข้างหน้า 2 ช่องทุก 4 วิ — ใช้ชะลอหรือมึนหยุดไว้",
+      "leakCost": 1
     },
     {
       "id": "brute",
@@ -36,7 +38,8 @@
       "speed": 0.6,
       "bounty": 10,
       "trait": "armor 5 (Iron Shirt)",
-      "traitTh": "เกราะหนา ลดดาเมจทุกครั้ง 5 — ใช้ดาเมจแรงต่อครั้ง"
+      "traitTh": "เกราะหนา ลดดาเมจทุกครั้ง 5 — ใช้ดาเมจแรงต่อครั้ง",
+      "leakCost": 2
     },
     {
       "id": "leaper",
@@ -48,7 +51,8 @@
       "speed": 1.3,
       "bounty": 4,
       "trait": "flies over roofs (ignores path); only ranged/air-capable disciples hit",
-      "traitTh": "กระโดดข้ามหลังคา (ศัตรูบิน) — วัชระศิลาตีไม่ถึง"
+      "traitTh": "กระโดดข้ามหลังคา (ศัตรูบิน) — วัชระศิลาตีไม่ถึง",
+      "leakCost": 1
     },
     {
       "id": "puppet",
@@ -60,7 +64,8 @@
       "speed": 0.9,
       "bounty": 6,
       "trait": "splits into 3 lesser puppets on death",
-      "traitTh": "ตายแล้วแตกเป็น 3 ตัวเล็ก — ใช้ดาเมจกระจาย"
+      "traitTh": "ตายแล้วแตกเป็น 3 ตัวเล็ก — ใช้ดาเมจกระจาย",
+      "leakCost": 1
     },
     {
       "id": "assassin",
@@ -72,7 +77,8 @@
       "speed": 1.2,
       "bounty": 6,
       "trait": "stealth until revealed by Taiji Mirror Hall",
-      "traitTh": "ล่องหน — ต้องมีหอกระจกไท่จี๋ หรือไม้ตายสิงห์คำราม"
+      "traitTh": "ล่องหน — มองเห็นเมื่อโดนมึนหรือชะลอ, อยู่ใกล้หอกระจกไท่จี๋ หรือโดนไม้ตายสิงห์คำราม",
+      "leakCost": 2
     },
     {
       "id": "healer",
@@ -84,7 +90,8 @@
       "speed": 0.9,
       "bounty": 8,
       "trait": "heals nearby 5%/s",
-      "traitTh": "ฟื้นเลือดพวกข้างๆ — ฆ่าก่อน"
+      "traitTh": "ฟื้นเลือดพวกข้างๆ — ฆ่าก่อน",
+      "leakCost": 2
     },
     {
       "id": "mimic",
@@ -96,7 +103,8 @@
       "speed": 0.8,
       "bounty": 9,
       "trait": "copies resistance to the last element that hit it (3s)",
-      "traitTh": "ทนธาตุที่โดนตีล่าสุด — สลับธาตุโจมตี"
+      "traitTh": "ทนธาตุที่โดนตีล่าสุด — สลับธาตุโจมตี",
+      "leakCost": 2
     }
   ],
   "bosses": [
@@ -109,7 +117,19 @@
       "element": "wood",
       "hp": 5000,
       "speed": 0.5,
-      "mechanic": "throws hidden weapons that disable a random disciple for 3s at 75/50/25% HP"
+      "mechanic": "throws hidden weapons that disable a random disciple for 3s at 75/50/25% HP",
+      "leakCost": 10,
+      "bounty": 100,
+      "mechanics": {
+        "effect": "disable",
+        "phasesPct": [
+          75,
+          50,
+          25
+        ],
+        "count": 2,
+        "sec": 4
+      }
     },
     {
       "id": "boss_ch1b",
@@ -118,9 +138,20 @@
       "chapter": 1,
       "wave": 20,
       "element": "fire",
-      "hp": 20000,
+      "hp": 12000,
       "speed": 0.4,
-      "mechanic": "each phase seals one sect (its disciples deal 0) - player must re-balance"
+      "mechanic": "each phase seals one sect (its disciples deal 0) - player must re-balance",
+      "leakCost": 10,
+      "bounty": 200,
+      "mechanics": {
+        "effect": "seal",
+        "phasesPct": [
+          75,
+          50,
+          25
+        ],
+        "sec": 10
+      }
     },
     {
       "id": "boss_final",
@@ -131,7 +162,18 @@
       "element": "yinyang",
       "hp": 120000,
       "speed": 0.35,
-      "mechanic": "absorbs one Wu Xing element per phase; only the element that overcomes the absorbed one hurts her"
+      "mechanic": "absorbs one Wu Xing element per phase; only the element that overcomes the absorbed one hurts her",
+      "leakCost": 10,
+      "bounty": 500,
+      "mechanics": {
+        "effect": "absorb",
+        "phasesPct": [
+          80,
+          60,
+          40,
+          20
+        ]
+      }
     }
   ],
   "attackerUnits": {
@@ -242,5 +284,60 @@
         "outline": "#D2412F"
       }
     ]
+  },
+  "waveRecipes": {
+    "_notes": "Wave shapes picked per wave from the stage wavePool with the seeded RNG (never the same twice in a row). types: which of the stage enemies the recipe draws from (falls back to mixed if none unlocked yet). countPct/hpPct scale the base 4+wave count and wave HP. design-review N2.",
+    "mixed": {
+      "nameTh": "ผสม",
+      "types": [],
+      "countPct": 100,
+      "hpPct": 100
+    },
+    "rush": {
+      "nameTh": "บุกเร็ว",
+      "types": [
+        "runner",
+        "leaper",
+        "cultist"
+      ],
+      "countPct": 150,
+      "hpPct": 70
+    },
+    "armored": {
+      "nameTh": "เกราะหนัก",
+      "types": [
+        "brute",
+        "healer",
+        "mimic"
+      ],
+      "countPct": 60,
+      "hpPct": 100
+    },
+    "air": {
+      "nameTh": "จู่โจมทางหลังคา",
+      "types": [
+        "leaper"
+      ],
+      "countPct": 100,
+      "hpPct": 100
+    },
+    "split": {
+      "nameTh": "หุ่นศพ",
+      "types": [
+        "puppet",
+        "cultist"
+      ],
+      "countPct": 70,
+      "hpPct": 100
+    },
+    "swarm": {
+      "nameTh": "ฝูงสมุน",
+      "types": [
+        "cultist",
+        "runner"
+      ],
+      "countPct": 180,
+      "hpPct": 60
+    }
   }
 }
