@@ -33,7 +33,7 @@ namespace FiveSects.Game
         Transform world, discipleRoot;
         SpriteRenderer goalGate;
         float goalFlashUntil;
-        SpriteRenderer rangeRing, tileMark;
+        SpriteRenderer rangeRing, tileMark, ghost;
         float ringUntil;
         RectTransform hudRoot, resultPanel;
         string discipleSig = null;
@@ -81,6 +81,7 @@ namespace FiveSects.Game
             discipleRoot.SetParent(world);
             rangeRing = MakeOverlay("range-ring", 24);
             tileMark = MakeOverlay("tile-mark", 23);
+            ghost = MakeOverlay("ghost", 11);
             BuildHud();
             fx = new Fx(world, font);
             fx.Atmosphere(biome.Time, Layouts.GridW * T, Layouts.GridH * T, new Vector2(OX, OY));
@@ -318,7 +319,7 @@ namespace FiveSects.Game
             tileMark.enabled = true;
         }
 
-        void HideMarks() { rangeRing.enabled = false; tileMark.enabled = false; }
+        void HideMarks() { rangeRing.enabled = false; tileMark.enabled = false; ghost.enabled = false; }
 
         void UpdateHints()
         {
@@ -501,7 +502,8 @@ namespace FiveSects.Game
             return panel;
         }
 
-        void OpenBuildPanel(int tx, int ty)
+        // Two-step placement: picking a sect previews it on the tile (ghost + attack range); only Confirm places it.
+        void OpenBuildPanel(int tx, int ty, string choice = null)
         {
             var p = OpenPanel(ty);
             ShowTileMark(tx, ty);
@@ -509,16 +511,32 @@ namespace FiveSects.Game
             for (int i = 0; i < n; i++)
             {
                 string el = s.Unlocked[i];
-                int cost = Defend.PlaceCost(el);
                 string name = thai ? GameData.Sects[el].NameTh : el;
-                MakeButton(p, name + "  " + cost, new Vector2((float)i / n + 0.01f, 0.1f), new Vector2((float)(i + 1) / n - 0.01f, 0.9f),
-                    () =>
-                    {
-                        pending.Add(new Command { T = "place", Sect = el, Tx = tx, Ty = ty }); ClosePanel();
-                        ShowRing(tx, ty, GameData.Sects[el].Range, GameData.Sects[el].Color, 1.5f);
-                        if (Flow != null) Flow.FirstPlace();
-                    }, s.Silver >= cost);
+                var b = MakeButton(p, name + "  " + Defend.PlaceCost(el), new Vector2((float)i / n + 0.01f, 0.52f), new Vector2((float)(i + 1) / n - 0.01f, 0.94f),
+                    () => OpenBuildPanel(tx, ty, el));
+                if (el == choice) { var c = Art.Hex(GameData.Sects[el].Color); b.GetComponent<Image>().color = new Color(c.r * 0.6f, c.g * 0.6f, c.b * 0.6f, 1); }
             }
+            if (choice == null)
+            {
+                var hint = Label(p, L("เลือกสำนักเพื่อดูระยะโจมตีก่อนวาง", "Pick a sect to preview its range"), 22, new Vector2(0, 0.06f), new Vector2(1, 0.46f), "#9A92AE");
+                hint.alignment = TextAnchor.MiddleCenter;
+                return;
+            }
+            var def = GameData.Sects[choice];
+            int cost = Defend.PlaceCost(choice);
+            ShowRing(tx, ty, def.Range, def.Color, 0);
+            ghost.sprite = Art.Disciple(new List<string> { choice });
+            ghost.transform.position = World(OX + tx * T + T / 2f, OY + ty * T + T / 2f - 1);
+            ghost.color = new Color(1, 1, 1, 0.6f);
+            ghost.enabled = true;
+            MakeButton(p, L("ยกเลิก", "Cancel"), new Vector2(0.01f, 0.06f), new Vector2(0.35f, 0.46f), ClosePanel);
+            MakeButton(p, L("ยืนยันวาง ", "Place ") + (thai ? def.NameTh : choice) + "  " + cost, new Vector2(0.37f, 0.06f), new Vector2(0.99f, 0.46f),
+                () =>
+                {
+                    pending.Add(new Command { T = "place", Sect = choice, Tx = tx, Ty = ty }); ClosePanel();
+                    ShowRing(tx, ty, def.Range, def.Color, 1.5f);
+                    if (Flow != null) Flow.FirstPlace();
+                }, s.Silver >= cost);
         }
 
         void OpenDisciplePanel(Disciple d)
