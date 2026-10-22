@@ -98,11 +98,11 @@ def figure(look, at=(0, 0, 0), turn=-35):
     part('cyl', body, dark, (0, 0, 0.04), vertices=12, radius=0.43, depth=0.08)
     part('cyl', body, accent, (0, 0, 0.62), vertices=12, radius=0.27, depth=0.08)
     part('cyl', body, robe, (0, 0, 0.82), vertices=12, radius=0.25, depth=0.32)
-    part('ball', body, skin, (0, 0, 1.17), segments=12, ring_count=8, radius=0.25)
-    part('ball', body, hair, (0, 0.03, 1.27), (1, 1, 0.62), segments=12, ring_count=8, radius=0.27)
-    part('ball', body, hair, (0, 0.06, 1.47), segments=8, ring_count=6, radius=0.09)
-    for x in (-0.09, 0.09):
-        part('box', body, OUTLINE, (x, -0.235, 1.16), (0.03, 0.02, 0.045), size=1)
+    part('ball', body, skin, (0, 0, 1.2), segments=16, ring_count=10, radius=0.3)
+    part('ball', body, hair, (0, 0.09, 1.3), (1.04, 1, 0.7), segments=16, ring_count=10, radius=0.31)
+    part('ball', body, hair, (0, 0.12, 1.58), segments=10, ring_count=8, radius=0.1)
+    for x in (-0.11, 0.11):
+        part('box', body, OUTLINE, (x, -0.29, 1.17), (0.05, 0.02, 0.07), size=1)
     arm = empty('arm', (0.27, 0, 0.9), body)
     part('cyl', arm, robe, (0, 0, -0.16), vertices=8, radius=0.08, depth=0.34)
     part('ball', arm, skin, (0, 0, -0.36), segments=8, ring_count=6, radius=0.07)
@@ -234,7 +234,8 @@ def build_sprite(asset, render, out_dir):
         pose = slash(src['look'])
     else:
         pose = tile(src['look'], sum(map(ord, asset['id'])))
-    if kind == 'tile':
+    if kind == 'tile':  # flat light so terrain keeps its exact palette colours from straight above
+        s.display.shading.light = 'FLAT'
         camera(s, (0, 0, 5), (0, 0, 0), ortho_scale=1)
     else:  # 3/4 view from the front, above
         camera(s, (0, -6, 0.85 + 6 * math.tan(math.radians(30))), (60, 0, 0), ortho_scale=2.1)
