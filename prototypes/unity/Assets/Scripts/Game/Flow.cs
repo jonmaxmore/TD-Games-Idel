@@ -4,7 +4,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using FiveSects.Sim;
-using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -23,7 +22,6 @@ namespace FiveSects.Game
         RemoteConfig config;
         RectTransform screen;
         DefendView battle;
-        JObject sectsJson;
         System.Action afterFrame; // runs next frame, so a loading screen is drawn before the work starts
         bool skipFrame;
         int introPage;
@@ -35,7 +33,6 @@ namespace FiveSects.Game
         void Start()
         {
             Analytics.Track("boot_start");
-            sectsJson = JObject.Parse(Resources.Load<TextAsset>("data/sects").text);
             Profile = Store.Load();
             ShowBoot();
         }
@@ -155,17 +152,17 @@ namespace FiveSects.Game
             Show(r);
             Analytics.Track("sect_view");
             Ui.Label(r, L("เลือกสำนักต้นสังกัด", "Choose your sect"), 44, new Vector2(0, 0.9f), new Vector2(1, 0.97f), "#E3B04B");
-            var launch = (JArray)sectsJson["allegiance"]["launch"];
-            var upcoming = (JArray)sectsJson["allegiance"]["upcoming"];
+            var launch = GameData.Allegiance;
+            var upcoming = GameData.UpcomingSects;
             int rows = launch.Count + upcoming.Count;
             float top = 0.88f, h = 0.84f / rows;
             for (int i = 0; i < launch.Count; i++)
             {
                 var entry = launch[i];
-                string el = (string)entry["element"];
+                string el = entry.Element;
                 var def = GameData.Sects[el];
                 float y1 = top - i * h, y0 = y1 - h + 0.01f;
-                string label = (Ui.Thai ? def.NameTh : el) + "   " + new string('*', (int)entry["difficulty"]);
+                string label = (Ui.Thai ? def.NameTh : el) + "   " + new string('*', entry.Difficulty);
                 var b = Ui.Btn(r, label, new Vector2(0.05f, y0), new Vector2(0.95f, y1), () => ShowSectDetail(el, entry), true, "#2A1E14", 30);
                 Ui.Box((RectTransform)b.transform, "Mark", new Vector2(0, 0), new Vector2(0.03f, 1), def.Color);
             }
@@ -173,12 +170,12 @@ namespace FiveSects.Game
             {
                 var u = upcoming[i];
                 float y1 = top - (launch.Count + i) * h, y0 = y1 - h + 0.01f;
-                Ui.Btn(r, (Ui.Thai ? (string)u["nameTh"] : (string)u["id"]) + L("  · เปิดเดือนที่ ", "  · opens in month ") + (int)u["opensMonth"],
+                Ui.Btn(r, (Ui.Thai ? u.NameTh : u.Id) + L("  · เปิดเดือนที่ ", "  · opens in month ") + u.OpensMonth,
                     new Vector2(0.05f, y0), new Vector2(0.95f, y1), null, false);
             }
         }
 
-        void ShowSectDetail(string el, JToken entry)
+        void ShowSectDetail(string el, AllegianceDef entry)
         {
             var def = GameData.Sects[el];
             var r = Ui.NewScreen("SectDetail");
@@ -186,9 +183,8 @@ namespace FiveSects.Game
             Ui.Box(r, "Band", new Vector2(0, 0.86f), new Vector2(1, 0.87f), def.Color);
             Ui.Label(r, Ui.Thai ? def.NameTh : el, 52, new Vector2(0, 0.75f), new Vector2(1, 0.85f), def.Color);
             Ui.Label(r, L("กฎประจำสำนัก", "Sect rule"), 24, new Vector2(0, 0.66f), new Vector2(1, 0.71f), "#9A92AE");
-            Ui.Label(r, Ui.Thai ? (string)entry["ruleTh"] : "(Thai font needed)", 32, new Vector2(0.05f, 0.56f), new Vector2(0.95f, 0.66f));
-            var role = sectsJson["sects"].FirstOrDefault(s => (string)s["element"] == el)?["role"];
-            Ui.Label(r, L("ความยาก ", "Difficulty ") + new string('*', (int)entry["difficulty"]) + "\n" + (string)role, 26, new Vector2(0.05f, 0.42f), new Vector2(0.95f, 0.54f), "#9A92AE");
+            Ui.Label(r, Ui.Thai ? entry.RuleTh : "(Thai font needed)", 32, new Vector2(0.05f, 0.56f), new Vector2(0.95f, 0.66f));
+            Ui.Label(r, L("ความยาก ", "Difficulty ") + new string('*', entry.Difficulty) + "\n" + def.Role, 26, new Vector2(0.05f, 0.42f), new Vector2(0.95f, 0.54f), "#9A92AE");
             Ui.Btn(r, L("กลับ", "Back"), new Vector2(0.05f, 0.08f), new Vector2(0.35f, 0.17f), ShowSectPick, true, "#221C2A");
             Ui.Btn(r, L("เข้าสำนักนี้", "Join this sect"), new Vector2(0.4f, 0.08f), new Vector2(0.95f, 0.17f), () => ConfirmSect(el), true, "#8A2A1F", 32);
         }

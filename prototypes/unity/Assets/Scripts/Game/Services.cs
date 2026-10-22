@@ -3,11 +3,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Newtonsoft.Json;
 using UnityEngine;
 
 namespace FiveSects.Game
 {
+    [Serializable]
     public class Profile
     {
         public int Version = 1;
@@ -53,7 +53,7 @@ namespace FiveSects.Game
         {
             try
             {
-                if (File.Exists(PathOf)) return JsonConvert.DeserializeObject<Profile>(File.ReadAllText(PathOf)) ?? new Profile();
+                if (File.Exists(PathOf)) return JsonUtility.FromJson<Profile>(File.ReadAllText(PathOf)) ?? new Profile();
             }
             catch (Exception e) { Debug.Log("profile unreadable, starting fresh: " + e.Message); }
             return new Profile();
@@ -63,7 +63,7 @@ namespace FiveSects.Game
         public void Save(Profile p)
         {
             var tmp = PathOf + ".tmp";
-            File.WriteAllText(tmp, JsonConvert.SerializeObject(p, Formatting.Indented));
+            File.WriteAllText(tmp, JsonUtility.ToJson(p, true));
             if (File.Exists(PathOf)) File.Delete(PathOf);
             File.Move(tmp, PathOf);
         }

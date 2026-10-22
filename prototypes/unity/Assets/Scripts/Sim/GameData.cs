@@ -7,7 +7,7 @@ using Newtonsoft.Json.Linq;
 
 namespace FiveSects.Sim
 {
-    public class SectDef { public string Element, NameTh, Color; public int Cost, Dmg, Cooldown, Range; public bool HitsAir, HitsGround; }
+    public class SectDef { public string Element, NameTh, Color, Role; public int Cost, Dmg, Cooldown, Range; public bool HitsAir, HitsGround; }
     public class BossMechanics { public string Effect; public List<int> PhasesPct = new List<int>(); public int Count = 1, Ticks; }
     public class EnemyDef { public string Id, NameTh, Element, TraitTh; public bool Air; public int Hp, Speed, Bounty, LeakCost = 1; public BossMechanics Boss; }
     public class WaveRecipe { public string Id, NameTh; public List<string> Types = new List<string>(); public int CountPct, HpPct; }
@@ -21,6 +21,9 @@ namespace FiveSects.Sim
     }
     public class ArtDef { public string Id, NameTh, Glyph, Type; public int Cooldown, Dmg, Radius, Pct, Duration, Charges, RechargeSilver; }
     public class CardDef { public string Id, NameTh, EffectTh, Kind, Element, Needs; public int Pct, Value; }
+    // Sect the player joins after the tutorial (sects.json > allegiance); front flow only, no rules use it yet.
+    public class AllegianceDef { public string Element, RuleTh; public int Difficulty; }
+    public class UpcomingSectDef { public string Id, NameTh; public int OpensMonth; }
     public class EliteAffix { public string Id, NameTh; public int HpPct, SpeedPct, RegenPct; }
 
     public static class GameData
@@ -31,6 +34,8 @@ namespace FiveSects.Sim
 
         public static readonly Dictionary<string, SectDef> Sects = new Dictionary<string, SectDef>();
         public static readonly List<string> SectOrder = new List<string>();
+        public static readonly List<AllegianceDef> Allegiance = new List<AllegianceDef>();
+        public static readonly List<UpcomingSectDef> UpcomingSects = new List<UpcomingSectDef>();
         public static readonly Dictionary<string, string> Generates = new Dictionary<string, string>();
         public static readonly Dictionary<string, string> Overcomes = new Dictionary<string, string>();
         public static readonly List<ComboDef> Combos = new List<ComboDef>();
@@ -57,7 +62,7 @@ namespace FiveSects.Sim
         {
             if (Loaded) return;
             // Start clean so a failed earlier attempt can't leave duplicates behind.
-            Sects.Clear(); SectOrder.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
+            Sects.Clear(); SectOrder.Clear(); Allegiance.Clear(); UpcomingSects.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
             StageList.Clear(); Stages.Clear(); Arts.Clear(); Cards.Clear(); Elites.Clear(); Palette.Clear(); WaveRecipes.Clear();
             var sects = JObject.Parse(read("sects"));
             foreach (var s in sects["sects"])
@@ -66,11 +71,18 @@ namespace FiveSects.Sim
                 string target = (string)s["target"];
                 Sects[el] = new SectDef
                 {
-                    Element = el, NameTh = (string)s["nameTh"], Color = (string)s["color"], Cost = (int)s["cost"], Dmg = (int)s["dmg"],
+                    Element = el, NameTh = (string)s["nameTh"], Color = (string)s["color"], Role = (string)s["role"], Cost = (int)s["cost"], Dmg = (int)s["dmg"],
                     Cooldown = Ticks(1.0 / (double)s["rate"]), Range = JsMath.Round((double)s["range"] * Tile),
                     HitsAir = target.Contains("air"), HitsGround = target.Contains("ground"),
                 };
                 SectOrder.Add(el);
+            }
+            if (sects["allegiance"] != null)
+            {
+                foreach (var a in sects["allegiance"]["launch"])
+                    Allegiance.Add(new AllegianceDef { Element = (string)a["element"], RuleTh = (string)a["ruleTh"], Difficulty = (int)a["difficulty"] });
+                foreach (var u in sects["allegiance"]["upcoming"])
+                    UpcomingSects.Add(new UpcomingSectDef { Id = (string)u["id"], NameTh = (string)u["nameTh"], OpensMonth = (int)u["opensMonth"] });
             }
             foreach (var p in (JObject)sects["wuxing"]["generates"]) Generates[p.Key] = (string)p.Value;
             foreach (var p in (JObject)sects["wuxing"]["overcomes"]) Overcomes[p.Key] = (string)p.Value;
