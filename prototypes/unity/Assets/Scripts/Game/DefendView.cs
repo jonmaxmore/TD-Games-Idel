@@ -68,7 +68,7 @@ namespace FiveSects.Game
         void Start()
         {
             Bootstrap.LoadData();
-            s = Defend.Create(StageId, (uint)Random.Range(1, int.MaxValue));
+            s = Defend.Create(StageId, (uint)Random.Range(1, int.MaxValue), Flow != null ? Flow.Profile.Sect : null);
             world = new GameObject("World").transform;
             var biome = Layouts.Biomes[s.Layout.Biome];
             var ground = new GameObject("Ground").AddComponent<SpriteRenderer>();
@@ -212,7 +212,7 @@ namespace FiveSects.Game
                     case "newEnemy": Toast(L("ศัตรูใหม่: ", "New enemy: ") + (thai ? GameData.Enemies[ev.Type].NameTh : ev.Type), 2f); break;
                     case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
                     case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
-                    case "leak": goalFlashUntil = Time.time + 0.25f; fx.Shake(2.5f); fx.Burst(goalAt, "#D2412F", 0.6f); break;
+                    case "leak": LeakToast(ev.Id); goalFlashUntil = Time.time + 0.25f; fx.Shake(2.5f); fx.Burst(goalAt, "#D2412F", 0.6f); break;
                     case "kill":
                     {
                         var at = new Vector2(Gx(ev.X), Gy(ev.Y) - 4);
@@ -338,7 +338,7 @@ namespace FiveSects.Game
             foreach (var d in s.Disciples)
             {
                 var r = new GameObject("d" + d.Id).AddComponent<SpriteRenderer>();
-                r.sprite = Art.Disciple(d.Els);
+                r.sprite = DiscipleSprite(d);
                 r.transform.SetParent(discipleRoot);
                 r.transform.position = World(Gx(d.X), Gy(d.Y) - 1);
                 r.sortingOrder = 10;
@@ -446,6 +446,12 @@ namespace FiveSects.Game
             waveButtonText = waveButton.GetComponentInChildren<Text>();
             fpsText = Label(bottom, "", 20, new Vector2(0.62f, 0), new Vector2(0.98f, 1), "#9A92AE");
 
+            if (s.Sect != null)
+            {
+                // The player's sect colours the HUD: a band under the top bar with the sect name.
+                var band = Box(root, "SectBand", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -68), new Vector2(0, -64), GameData.Sects[s.Sect].Color);
+                band.GetComponent<Image>().raycastTarget = false;
+            }
             nextText = Label(root, "", 20, new Vector2(0, 1), new Vector2(1, 1), "#9A92AE");
             nextText.rectTransform.offsetMin = new Vector2(12, -92); nextText.rectTransform.offsetMax = new Vector2(-12, -64);
             bossBar = Box(root, "BossBar", new Vector2(0.1f, 1), new Vector2(0.9f, 1), new Vector2(0, -124), new Vector2(0, -96), "#1A1423");
@@ -502,7 +508,8 @@ namespace FiveSects.Game
             return panel;
         }
 
-        // Two-step placement: picking a sect previews it on the tile (ghost + attack range); only Confirm places it.
+        // Two-step placement: picking a disciple previews it on the tile (ghost + attack range) with the facts the choice
+        // needs (role, damage per second, range, air, which enemies it answers); only Confirm places it (SPEC-core §2.1).
         void OpenBuildPanel(int tx, int ty, string choice = null)
         {
             var p = OpenPanel(ty);
@@ -510,27 +517,30 @@ namespace FiveSects.Game
             int n = s.Unlocked.Count;
             for (int i = 0; i < n; i++)
             {
-                string el = s.Unlocked[i];
-                string name = thai ? GameData.Sects[el].NameTh : el;
-                var b = MakeButton(p, name + "  " + Defend.PlaceCost(el), new Vector2((float)i / n + 0.01f, 0.52f), new Vector2((float)(i + 1) / n - 0.01f, 0.94f),
-                    () => OpenBuildPanel(tx, ty, el));
-                if (el == choice) { var c = Art.Hex(GameData.Sects[el].Color); b.GetComponent<Image>().color = new Color(c.r * 0.6f, c.g * 0.6f, c.b * 0.6f, 1); }
+                string key = s.Unlocked[i];
+                var kd = GameData.DefOf(key);
+                var b = MakeButton(p, (thai ? kd.NameTh : key) + "  " + Defend.PlaceCost(key), new Vector2((float)i / n + 0.01f, 0.66f), new Vector2((float)(i + 1) / n - 0.01f, 0.96f),
+                    () => OpenBuildPanel(tx, ty, key));
+                var bt = b.GetComponentInChildren<Text>(); bt.fontSize = n > 4 ? 16 : 22;
+                if (key == choice) { var c = Art.Hex(kd.Color); b.GetComponent<Image>().color = new Color(c.r * 0.6f, c.g * 0.6f, c.b * 0.6f, 1); }
             }
             if (choice == null)
             {
-                var hint = Label(p, L("เลือกสำนักเพื่อดูระยะโจมตีก่อนวาง", "Pick a sect to preview its range"), 22, new Vector2(0, 0.06f), new Vector2(1, 0.46f), "#9A92AE");
+                var hint = Label(p, L("เลือกศิษย์เพื่อดูระยะและข้อมูลก่อนวาง", "Pick a disciple to preview it"), 22, new Vector2(0, 0.06f), new Vector2(1, 0.6f), "#9A92AE");
                 hint.alignment = TextAnchor.MiddleCenter;
                 return;
             }
-            var def = GameData.Sects[choice];
+            var def = GameData.DefOf(choice);
             int cost = Defend.PlaceCost(choice);
             ShowRing(tx, ty, def.Range, def.Color, 0);
-            ghost.sprite = Art.Disciple(new List<string> { choice });
+            ghost.sprite = DiscipleSprite(choice);
             ghost.transform.position = World(OX + tx * T + T / 2f, OY + ty * T + T / 2f - 1);
             ghost.color = new Color(1, 1, 1, 0.6f);
             ghost.enabled = true;
-            MakeButton(p, L("ยกเลิก", "Cancel"), new Vector2(0.01f, 0.06f), new Vector2(0.35f, 0.46f), ClosePanel);
-            MakeButton(p, L("ยืนยันวาง ", "Place ") + (thai ? def.NameTh : choice) + "  " + cost, new Vector2(0.37f, 0.06f), new Vector2(0.99f, 0.46f),
+            var info = Label(p, Facts(choice), 18, new Vector2(0, 0.36f), new Vector2(1, 0.64f), "#ECE3CF");
+            info.alignment = TextAnchor.MiddleCenter;
+            MakeButton(p, L("ยกเลิก", "Cancel"), new Vector2(0.01f, 0.04f), new Vector2(0.35f, 0.34f), ClosePanel);
+            MakeButton(p, L("ยืนยันวาง ", "Place ") + (thai ? def.NameTh : choice) + "  " + cost, new Vector2(0.37f, 0.04f), new Vector2(0.99f, 0.34f),
                 () =>
                 {
                     pending.Add(new Command { T = "place", Sect = choice, Tx = tx, Ty = ty }); ClosePanel();
@@ -538,6 +548,30 @@ namespace FiveSects.Game
                     if (Flow != null) Flow.FirstPlace();
                 }, s.Silver >= cost);
         }
+
+        // Legacy element disciples map onto the five roles by their mechanic.
+        static readonly Dictionary<string, string> KitRole = new Dictionary<string, string>
+        { ["metal"] = "striker", ["fire"] = "burst", ["water"] = "control", ["earth"] = "control", ["wood"] = "stacker", ["yinyang"] = "support" };
+
+        static string RoleOf(string key) => GameData.Units.TryGetValue(key, out var u) ? u.RoleId : KitRole.TryGetValue(key, out var r) ? r : null;
+
+        string Facts(string key)
+        {
+            var d = GameData.DefOf(key);
+            string role = RoleOf(key);
+            var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
+            float dps = d.Dmg * 20f / Mathf.Max(1, d.Cooldown);
+            string line1 = (rd != null ? (thai ? rd.NameTh : role) + " · " : "") + L("ดาเมจ ", "DPS ") + dps.ToString("0") + L("/วิ · ระยะ ", " · range ") + (d.Range / 1000f).ToString("0.0")
+                + (d.HitsAir ? L(" · ตีอากาศได้", " · hits air") : L(" · ตีอากาศไม่ได้", " · ground only"));
+            if (rd == null || rd.Counters.Count == 0) return line1;
+            var names = rd.Counters.Select(id => id == "boss" ? L("บอส", "bosses") : GameData.Enemies.TryGetValue(id, out var e) ? (thai ? e.NameTh : id) : id);
+            return line1 + "\n" + L("เก่งกับ: ", "Good vs: ") + string.Join(", ", names);
+        }
+
+        // A roster unit wears its sect's colours with its kit's weapon; legacy disciples use their element look.
+        static Sprite DiscipleSprite(string key) => GameData.Units.TryGetValue(key, out var u) ? Art.Unit(u.Sect, u.Element) : Art.Disciple(new List<string> { key });
+
+        static Sprite DiscipleSprite(Disciple d) => d.Unit != null ? Art.Unit(d.El, d.Els[0]) : Art.Disciple(d.Els);
 
         void OpenDisciplePanel(Disciple d)
         {
@@ -641,13 +675,37 @@ namespace FiveSects.Game
 
         void Toast(string msg, float seconds) { toastText.text = msg; toastUntil = Time.time + seconds; }
 
+        // Next-wave bar: which roles answer the coming shape; a missing one shows in red (SPEC-core §2.2).
+        string Needs()
+        {
+            var rec = GameData.WaveRecipes.FirstOrDefault(r => r.Id == s.NextRecipe);
+            if (rec == null || rec.NeedsRoles.Count == 0) return "";
+            var parts = new List<string>();
+            foreach (var need in rec.NeedsRoles)
+            {
+                bool have = need == "air"
+                    ? s.Disciples.Any(d => (d.Unit != null ? GameData.Units[d.Unit].HitsAir : d.Els.Any(e => GameData.Sects[e].HitsAir)))
+                    : s.Disciples.Any(d => RoleOf(d.Unit ?? d.Els[0]) == need);
+                string name = need == "air" ? L("ตีอากาศ", "anti-air") : GameData.RoleDefs.TryGetValue(need, out var rd) && thai ? rd.NameTh : need;
+                parts.Add(have ? name : "<color=#D2412F>" + name + "</color>");
+            }
+            return L("  · ต้องการ: ", "  · needs: ") + string.Join(", ", parts);
+        }
+
+        // A leak says what got through, so a loss has a reason (SPEC-core §2.3).
+        void LeakToast(int id)
+        {
+            if (!typeOf.TryGetValue(id, out var type) || !GameData.Enemies.TryGetValue(type, out var def)) return;
+            Toast(L("หลุดเข้าประตู: ", "Leaked: ") + (thai ? def.NameTh + " — " + def.TraitTh : type), 2.5f);
+        }
+
         void UpdateHud()
         {
             silverText.text = L("ตำลึง ", "Silver ") + s.Silver;
             livesText.text = L("ชีวิต ", "Lives ") + s.Lives;
             waveText.text = s.Wave + "/" + s.TotalWaves;
             waveButtonText.text = WaveButtonLabel();
-            nextText.text = s.Wave < s.TotalWaves ? L("ถัดไป: ", "Next: ") + RecipeName(s.NextRecipe) + (NextIsBoss() ? L(" + บอส!", " + BOSS!") : "") : "";
+            nextText.text = s.Wave < s.TotalWaves ? L("ถัดไป: ", "Next: ") + RecipeName(s.NextRecipe) + (NextIsBoss() ? L(" + บอส!", " + BOSS!") : "") + Needs() : "";
             UpdateBossBar();
             if (Time.time > toastUntil) toastText.text = "";
             fpsSmoothed = Mathf.Lerp(fpsSmoothed, 1f / Mathf.Max(0.0001f, Time.unscaledDeltaTime), 0.05f);

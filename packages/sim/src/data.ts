@@ -89,7 +89,51 @@ export const SECTS: Record<Element, SectDef> = Object.fromEntries(
   ]),
 ) as Record<Element, SectDef>;
 
+// Sect x role disciples (sects.json > roster). A unit fights with its kit's mechanic and takes its
+// Wu Xing element and look from its sect; dot says which status its damage over time applies.
+export interface UnitDef extends SectDef {
+  id: string;
+  sect: Element;
+  role: string;
+  dot: 'burn' | 'poison' | null;
+}
+
+export const UNITS: Record<string, UnitDef> = Object.fromEntries(
+  sectsJson.roster.units.map((u) => [
+    u.id,
+    {
+      id: u.id,
+      sect: u.sect as Element,
+      role: u.role,
+      dot: ((u as { dot?: string }).dot ?? null) as UnitDef['dot'],
+      element: u.kit as Element,
+      nameTh: u.nameTh,
+      color: SECTS[u.sect as Element].color,
+      cost: u.cost,
+      dmg: u.dmg,
+      cooldown: ticks(1 / u.rate),
+      range: Math.round(u.range * TILE),
+      hitsAir: u.target.includes('air'),
+      hitsGround: u.target.includes('ground'),
+    },
+  ]),
+);
+
+export const ROLES: string[] = sectsJson.roster.roles.map((r) => r.id);
+export const ROLE_UNLOCKS = sectsJson.roster.roleUnlocks as Record<string, string[]>;
+export const SECT_RULES = {
+  fireRampPctPerSec: sectsJson.roster.rules.fire.burnRampPctPerSec,
+  fireRampMaxPct: sectsJson.roster.rules.fire.burnRampMaxPct,
+  woodSpreadRange: Math.round(sectsJson.roster.rules.wood.spreadRange * TILE),
+  woodSpreadStacks: sectsJson.roster.rules.wood.spreadStacks,
+};
+/** Stats behind a placeable key: a roster unit id or a legacy element. */
+export const defOf = (key: string): SectDef => UNITS[key] ?? SECTS[key as Element];
+/** Sects that have a roster; picking any other sect plays the legacy element disciples. */
+export const ROSTER_SECTS: Element[] = [...new Set(Object.values(UNITS).map((u) => u.sect))];
+
 export const SECT_ORDER: Element[] = sectsJson.sects.map((s) => s.element as Element);
+
 
 export const GENERATES = sectsJson.wuxing.generates as Record<Wuxing, Wuxing>;
 export const OVERCOMES = sectsJson.wuxing.overcomes as Record<Wuxing, Wuxing>;

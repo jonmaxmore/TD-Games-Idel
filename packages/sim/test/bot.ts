@@ -1,6 +1,6 @@
 // Simple greedy player used for balance checks: builds on the tiles that cover the most path,
 // alternates the unlocked sects, and upgrades once it has enough disciples.
-import { canBuild, GRID_H, GRID_W, isOver, placeCost, SECTS, step, upgradeCost, type Command, type DefendState, type Element } from '../src/index';
+import { canBuild, defOf, GRID_H, GRID_W, isOver, placeCost, step, upgradeCost, type Command, type DefendState } from "../src/index";
 
 export function bestTiles(s: DefendState, range = 2500): [number, number][] {
   const pathTiles = s.pathTiles.map((k) => k.split(',').map(Number) as [number, number]);
@@ -17,7 +17,7 @@ export function bestTiles(s: DefendState, range = 2500): [number, number][] {
 }
 
 // earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
-export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: Element[]; record?: Record<number, Command[]>; earlyCall?: boolean } = {}): DefendState {
+export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean } = {}): DefendState {
   const sects = opts.sects ?? s.unlocked;
   const max = opts.maxDisciples ?? 8;
   let placed = 0;
@@ -30,7 +30,7 @@ export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: E
     const allMaxed = !!lowest && lowest.level >= 3;
     const wantPlace = placed < 3 || ((placed < max || allMaxed) && (!lowest || lowest.level >= 2));
     if (wantPlace) {
-      const spot = bestTiles(s, SECTS[sect].range)[0];
+      const spot = bestTiles(s, defOf(sect).range)[0];
       if (spot && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spot[0], ty: spot[1] }); placed++; }
     } else if (lowest && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
     if (opts.record && cmds.length) opts.record[s.tick] = cmds;

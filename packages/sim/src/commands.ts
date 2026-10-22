@@ -1,4 +1,4 @@
-import { ARTS, CARDS, SECT_ORDER, TARGET_MODES } from './data';
+import { ARTS, CARDS, SECT_ORDER, TARGET_MODES, UNITS, type Element } from './data';
 import type { Command } from './types';
 
 const int = (v: unknown) => Number.isInteger(v);
@@ -8,7 +8,7 @@ const int = (v: unknown) => Number.isInteger(v);
 export function validCommand(c: Command): boolean {
   if (!c || typeof c !== 'object') return false;
   switch (c.t) {
-    case 'place': return SECT_ORDER.includes(c.sect) && int(c.tx) && int(c.ty);
+    case 'place': return (SECT_ORDER.includes(c.sect as Element) || c.sect in UNITS) && int(c.tx) && int(c.ty);
     case 'upgrade':
     case 'sell': return int(c.id);
     case 'merge': return int(c.a) && int(c.b) && c.a !== c.b;

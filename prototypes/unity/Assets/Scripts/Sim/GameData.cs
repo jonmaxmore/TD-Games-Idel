@@ -10,7 +10,8 @@ namespace FiveSects.Sim
     public class SectDef { public string Element, NameTh, Color, Role; public int Cost, Dmg, Cooldown, Range; public bool HitsAir, HitsGround; }
     public class BossMechanics { public string Effect; public List<int> PhasesPct = new List<int>(); public int Count = 1, Ticks; }
     public class EnemyDef { public string Id, NameTh, Element, TraitTh; public bool Air; public int Hp, Speed, Bounty, LeakCost = 1; public BossMechanics Boss; }
-    public class WaveRecipe { public string Id, NameTh; public List<string> Types = new List<string>(); public int CountPct, HpPct; }
+    public class WaveRecipe { public string Id, NameTh; public List<string> Types = new List<string>(), NeedsRoles = new List<string>(); public int CountPct, HpPct; }
+    public class RoleDef { public string Id, NameTh, DoesTh; public List<string> Counters = new List<string>(); }
     public class ComboDef { public string Id, NameTh, A, B; }
     public class StageDef
     {
@@ -22,6 +23,8 @@ namespace FiveSects.Sim
     public class ArtDef { public string Id, NameTh, Glyph, Type; public int Cooldown, Dmg, Radius, Pct, Duration, Charges, RechargeSilver; }
     public class CardDef { public string Id, NameTh, EffectTh, Kind, Element, Needs; public int Pct, Value; }
     // Sect the player joins after the tutorial (sects.json > allegiance); front flow only, no rules use it yet.
+    // Sect x role disciple (sects.json > roster): fights with its kit's mechanic (Element), counts as its Sect for Wu Xing.
+    public class UnitDef : SectDef { public string Id, Sect, RoleId, Dot; }
     public class AllegianceDef { public string Element, RuleTh; public int Difficulty; }
     public class UpcomingSectDef { public string Id, NameTh; public int OpensMonth; }
     public class EliteAffix { public string Id, NameTh; public int HpPct, SpeedPct, RegenPct; }
@@ -35,6 +38,14 @@ namespace FiveSects.Sim
         public static readonly Dictionary<string, SectDef> Sects = new Dictionary<string, SectDef>();
         public static readonly List<string> SectOrder = new List<string>();
         public static readonly List<AllegianceDef> Allegiance = new List<AllegianceDef>();
+        public static readonly Dictionary<string, UnitDef> Units = new Dictionary<string, UnitDef>();
+        public static readonly List<UnitDef> UnitList = new List<UnitDef>();
+        public static readonly List<string> Roles = new List<string>();
+        public static readonly Dictionary<string, RoleDef> RoleDefs = new Dictionary<string, RoleDef>();
+        public static readonly List<KeyValuePair<string, List<string>>> RoleUnlocks = new List<KeyValuePair<string, List<string>>>();
+        public static readonly List<string> RosterSects = new List<string>();
+        public static int FireRampPctPerSec, FireRampMaxPct, WoodSpreadRange, WoodSpreadStacks;
+        public static SectDef DefOf(string key) => Units.TryGetValue(key, out var u) ? u : Sects[key];
         public static readonly List<UpcomingSectDef> UpcomingSects = new List<UpcomingSectDef>();
         public static readonly Dictionary<string, string> Generates = new Dictionary<string, string>();
         public static readonly Dictionary<string, string> Overcomes = new Dictionary<string, string>();
@@ -62,7 +73,7 @@ namespace FiveSects.Sim
         {
             if (Loaded) return;
             // Start clean so a failed earlier attempt can't leave duplicates behind.
-            Sects.Clear(); SectOrder.Clear(); Allegiance.Clear(); UpcomingSects.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
+            Sects.Clear(); SectOrder.Clear(); Allegiance.Clear(); UpcomingSects.Clear(); Units.Clear(); UnitList.Clear(); Roles.Clear(); RoleDefs.Clear(); RoleUnlocks.Clear(); RosterSects.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
             StageList.Clear(); Stages.Clear(); Arts.Clear(); Cards.Clear(); Elites.Clear(); Palette.Clear(); WaveRecipes.Clear();
             var sects = JObject.Parse(read("sects"));
             foreach (var s in sects["sects"])
@@ -76,6 +87,33 @@ namespace FiveSects.Sim
                     HitsAir = target.Contains("air"), HitsGround = target.Contains("ground"),
                 };
                 SectOrder.Add(el);
+            }
+            if (sects["roster"] != null)
+            {
+                var ro = sects["roster"];
+                foreach (var r in ro["roles"])
+                {
+                    Roles.Add((string)r["id"]);
+                    RoleDefs[(string)r["id"]] = new RoleDef { Id = (string)r["id"], NameTh = (string)r["nameTh"], DoesTh = (string)r["doesTh"], Counters = r["counters"]?.Select(x => (string)x).ToList() ?? new List<string>() };
+                }
+                foreach (var p in (JObject)ro["roleUnlocks"]) RoleUnlocks.Add(new KeyValuePair<string, List<string>>(p.Key, p.Value.Select(x => (string)x).ToList()));
+                FireRampPctPerSec = (int)ro["rules"]["fire"]["burnRampPctPerSec"];
+                FireRampMaxPct = (int)ro["rules"]["fire"]["burnRampMaxPct"];
+                WoodSpreadRange = JsMath.Round((double)ro["rules"]["wood"]["spreadRange"] * Tile);
+                WoodSpreadStacks = (int)ro["rules"]["wood"]["spreadStacks"];
+                foreach (var u in ro["units"])
+                {
+                    string target = (string)u["target"], sect = (string)u["sect"];
+                    var def = new UnitDef
+                    {
+                        Id = (string)u["id"], Sect = sect, RoleId = (string)u["role"], Dot = (string)u["dot"],
+                        Element = (string)u["kit"], NameTh = (string)u["nameTh"], Color = Sects[sect].Color, Cost = (int)u["cost"], Dmg = (int)u["dmg"],
+                        Cooldown = Ticks(1.0 / (double)u["rate"]), Range = JsMath.Round((double)u["range"] * Tile),
+                        HitsAir = target.Contains("air"), HitsGround = target.Contains("ground"),
+                    };
+                    Units[def.Id] = def; UnitList.Add(def);
+                    if (!RosterSects.Contains(sect)) RosterSects.Add(sect);
+                }
             }
             if (sects["allegiance"] != null)
             {
@@ -124,6 +162,7 @@ namespace FiveSects.Sim
                 {
                     Id = w.Key, NameTh = (string)w.Value["nameTh"], Types = w.Value["types"].Select(x => (string)x).ToList(),
                     CountPct = (int)w.Value["countPct"], HpPct = (int)w.Value["hpPct"],
+                    NeedsRoles = w.Value["needsRoles"]?.Select(x => (string)x).ToList() ?? new List<string>(),
                 });
             }
             var el2 = enemies["elites"];

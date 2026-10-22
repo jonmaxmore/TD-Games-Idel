@@ -1,5 +1,5 @@
 import { createAssault, stepAssault } from './assault';
-import { STAGES } from './data';
+import { STAGES, type Element } from './data';
 import { createDefend, stepDefend } from './defend';
 import type { Command, GameState, SimEvent } from './types';
 
@@ -7,12 +7,12 @@ export * from './data';
 export * from './types';
 export { BIOMES, blockedTiles, GRID_W, GRID_H, LAYOUTS, PROP_TYPES, resolveLayout, tilesOnPath, type Biome, type Layout, type Prop } from './layouts';
 export { canonicalHash, canonicalString, fnv1a } from './canonical';
-export { canBuild, findCombo, placeCost, previewWave, sellValue, unlockedSects, upgradeCost, waveTypes } from './defend';
+export { canBuild, findCombo, placeCost, previewWave, sellValue, unlockedSects, unlockedUnits, upgradeCost, waveTypes } from './defend';
 
-export function createGame(stageId: string, seed: number): GameState {
+export function createGame(stageId: string, seed: number, sect: Element | null = null): GameState {
   const stage = STAGES[stageId];
   if (!stage) throw new Error(`unknown stage ${stageId}`);
-  return stage.type === 'assault' ? createAssault(stageId, seed) : createDefend(stageId, seed);
+  return stage.type === 'assault' ? createAssault(stageId, seed) : createDefend(stageId, seed, sect);
 }
 
 // Advances exactly one tick (1/20 s). Commands apply at the start of the tick.
@@ -34,10 +34,10 @@ export function hashState(state: GameState): string {
 }
 
 // A replay is a seed plus commands keyed by tick.
-export type Replay = { stageId: string; seed: number; commands: Record<number, Command[]> };
+export type Replay = { stageId: string; seed: number; sect?: Element; commands: Record<number, Command[]> };
 
 export function runReplay(r: Replay, maxTicks = 20 * 60 * 30, onTick?: (s: GameState) => void): GameState {
-  const s = createGame(r.stageId, r.seed);
+  const s = createGame(r.stageId, r.seed, r.sect ?? null);
   while (!isOver(s) && s.tick < maxTicks) {
     step(s, r.commands[s.tick] ?? []);
     onTick?.(s);

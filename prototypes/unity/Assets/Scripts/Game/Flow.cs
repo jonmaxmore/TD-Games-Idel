@@ -163,7 +163,9 @@ namespace FiveSects.Game
                 var def = GameData.Sects[el];
                 float y1 = top - i * h, y0 = y1 - h + 0.01f;
                 string label = (Ui.Thai ? def.NameTh : el) + "   " + new string('*', entry.Difficulty);
-                var b = Ui.Btn(r, label, new Vector2(0.05f, y0), new Vector2(0.95f, y1), () => ShowSectDetail(el, entry), true, "#2A1E14", 30);
+                bool ready = GameData.RosterSects.Contains(el); // sects whose 5-role roster is in the game yet
+                if (!ready) label += L("  · กำลังพัฒนา", "  · coming soon");
+                var b = Ui.Btn(r, label, new Vector2(0.05f, y0), new Vector2(0.95f, y1), () => ShowSectDetail(el, entry), ready, "#2A1E14", 30);
                 Ui.Box((RectTransform)b.transform, "Mark", new Vector2(0, 0), new Vector2(0.03f, 1), def.Color);
             }
             for (int i = 0; i < upcoming.Count; i++)
@@ -184,7 +186,15 @@ namespace FiveSects.Game
             Ui.Label(r, Ui.Thai ? def.NameTh : el, 52, new Vector2(0, 0.75f), new Vector2(1, 0.85f), def.Color);
             Ui.Label(r, L("กฎประจำสำนัก", "Sect rule"), 24, new Vector2(0, 0.66f), new Vector2(1, 0.71f), "#9A92AE");
             Ui.Label(r, Ui.Thai ? entry.RuleTh : "(Thai font needed)", 32, new Vector2(0.05f, 0.56f), new Vector2(0.95f, 0.66f));
-            Ui.Label(r, L("ความยาก ", "Difficulty ") + new string('*', entry.Difficulty) + "\n" + def.Role, 26, new Vector2(0.05f, 0.42f), new Vector2(0.95f, 0.54f), "#9A92AE");
+            Ui.Label(r, L("ความยาก ", "Difficulty ") + new string('*', entry.Difficulty), 26, new Vector2(0.05f, 0.46f), new Vector2(0.95f, 0.54f), "#9A92AE");
+            var units = GameData.UnitList.Where(u => u.Sect == el).ToList();
+            for (int i = 0; i < units.Count; i++)
+            {
+                var u = units[i];
+                string role = GameData.RoleDefs.TryGetValue(u.RoleId, out var rd) ? rd.NameTh : u.RoleId;
+                float y1 = 0.40f - i * 0.045f;
+                Ui.Label(r, (Ui.Thai ? role + " · " + u.NameTh : u.RoleId + " · " + u.Id), 22, new Vector2(0.08f, y1 - 0.04f), new Vector2(0.92f, y1), "#ECE3CF", TextAnchor.MiddleLeft);
+            }
             Ui.Btn(r, L("กลับ", "Back"), new Vector2(0.05f, 0.08f), new Vector2(0.35f, 0.17f), ShowSectPick, true, "#221C2A");
             Ui.Btn(r, L("เข้าสำนักนี้", "Join this sect"), new Vector2(0.4f, 0.08f), new Vector2(0.95f, 0.17f), () => ConfirmSect(el), true, "#8A2A1F", 32);
         }

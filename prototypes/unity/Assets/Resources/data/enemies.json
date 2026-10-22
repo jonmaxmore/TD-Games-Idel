@@ -286,14 +286,16 @@
     ]
   },
   "waveRecipes": {
-    "_notes": "Wave shapes picked per wave from the stage wavePool with the seeded RNG (never the same twice in a row). types: which of the stage enemies the recipe draws from (falls back to mixed if none unlocked yet). countPct/hpPct scale the base 4+wave count and wave HP. design-review N2.",
+    "_notes": "Wave shapes picked per wave from the stage wavePool with the seeded RNG (never the same twice in a row). types: which of the stage enemies the recipe draws from (falls back to mixed if none unlocked yet). countPct/hpPct scale the base 4+wave count and wave HP. needsRoles: roles that answer this shape, shown in the next-wave bar (SPEC-core §2.2, §3.3; air = any unit that hits air). design-review N2.",
     "mixed": {
+      "needsRoles": [],
       "nameTh": "ผสม",
       "types": [],
       "countPct": 100,
       "hpPct": 100
     },
     "rush": {
+      "needsRoles": ["control"],
       "nameTh": "บุกเร็ว",
       "types": [
         "runner",
@@ -304,6 +306,7 @@
       "hpPct": 70
     },
     "armored": {
+      "needsRoles": ["striker", "stacker"],
       "nameTh": "เกราะหนัก",
       "types": [
         "brute",
@@ -314,6 +317,7 @@
       "hpPct": 100
     },
     "air": {
+      "needsRoles": ["air"],
       "nameTh": "จู่โจมทางหลังคา",
       "types": [
         "leaper"
@@ -322,6 +326,7 @@
       "hpPct": 100
     },
     "split": {
+      "needsRoles": ["burst"],
       "nameTh": "หุ่นศพ",
       "types": [
         "puppet",
@@ -331,6 +336,7 @@
       "hpPct": 100
     },
     "swarm": {
+      "needsRoles": ["burst"],
       "nameTh": "ฝูงสมุน",
       "types": [
         "cultist",

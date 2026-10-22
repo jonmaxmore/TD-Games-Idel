@@ -1,18 +1,19 @@
 // Golden replays for engine ports (Unity C#). Written to disk by write-golden.ts (npm run sim:golden).
 // Each file: { stageId, seed, commands: {tick: Command[]}, trace: [[tick, hash] every 100 ticks], final }
 import { canonicalHash, canonicalString } from '../src/canonical';
-import { ARTS, createGame, isOver, runReplay, step, TARGET_MODES, type Command, type DefendState } from '../src/index';
+import { ARTS, createGame, isOver, runReplay, step, TARGET_MODES, type Command, type DefendState, type Element } from '../src/index';
 import { playBot } from '../test/bot';
 
-export function golden(stageId: string, seed: number, opts: { earlyCall?: boolean } = {}) {
+export function golden(stageId: string, seed: number, opts: { earlyCall?: boolean; sect?: Element } = {}) {
   const commands: Record<number, Command[]> = {};
-  playBot(createGame(stageId, seed) as DefendState, { record: commands, maxDisciples: opts.earlyCall ? 8 : undefined, earlyCall: opts.earlyCall });
+  const sect = opts.sect;
+  playBot(createGame(stageId, seed, sect ?? null) as DefendState, { record: commands, maxDisciples: opts.earlyCall ? 8 : undefined, earlyCall: opts.earlyCall });
   const trace: [number, string][] = [];
-  const end = runReplay({ stageId, seed, commands }, 20 * 60 * 30, (s) => {
+  const end = runReplay({ stageId, seed, sect, commands }, 20 * 60 * 30, (s) => {
     if (s.tick % 100 === 0) trace.push([s.tick, canonicalHash(s as DefendState)]);
   }) as DefendState;
   return {
-    stageId, seed, commands, trace,
+    stageId, seed, ...(sect ? { sect } : {}), commands, trace,
     final: { phase: end.phase, wave: end.wave, lives: end.lives, silver: end.silver, tick: end.tick, hash: canonicalHash(end), canonical: canonicalString(end) },
   };
 }
@@ -65,4 +66,7 @@ export const GOLDENS = {
   'T-1-actions': () => goldenActions(11),
   // Chapter finale: overlapping waves called mid-fight, both boss waves (disable at 10, seal at 20), wave recipes.
   '1-12-bosses': () => golden('1-12', 2, { earlyCall: true }),
+  // Sect games: fire-sect roster with the burn ramp, wood-sect roster with poison spread (SPEC-core §4).
+  'fire-1-12': () => golden('1-12', 3, { earlyCall: true, sect: 'fire' }),
+  'wood-1-12': () => golden('1-12', 3, { earlyCall: true, sect: 'wood' }),
 } as const;

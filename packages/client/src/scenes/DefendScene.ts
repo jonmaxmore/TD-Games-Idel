@@ -3,6 +3,7 @@ import {
   ARTS, canBuild, CARDS, COMBOS, createGame, ECONOMY, ELITES, ENEMIES, findCombo, GRID_H, GRID_W, isOver, placeCost,
   previewWave, resolveLayout, SECTS, sellValue, STAGES, step, TARGET_MODES, upgradeCost, UPGRADE,
   type Command, type DefendState, type Disciple, type Replay, type SimEvent, type TargetMode,
+  type Element as SectElement,
 } from '@five-sects/sim';
 import { biomePalette, discipleKey, drawMap, EL_COLOR, EL_GLYPH, enemyKey, groundKey } from '../art';
 import { banner, floatText, impact, projectile } from '../fx';
@@ -154,7 +155,7 @@ export class DefendScene extends Phaser.Scene {
   }
 
   private buildPanel(tx: number, ty: number) {
-    const sects = this.s.unlocked;
+    const sects = this.s.unlocked as SectElement[]; // the Phaser harness only plays legacy element games (no roster sect)
     const guests = STAGES[this.s.stageId]?.guestSects ?? [];
     const { c, y } = this.panelBox(ty, 54);
     // Buildable tiles and the reach of the longest-range option, so placement is an informed choice.

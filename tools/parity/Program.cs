@@ -18,7 +18,7 @@ static class Program
         foreach (var file in Directory.GetFiles(Path.Combine(assets, "Editor", "Tests"), "golden-*.json").OrderBy(f => f, StringComparer.Ordinal))
         {
             var g = JObject.Parse(File.ReadAllText(file));
-            var s = Defend.Create((string)g["stageId"], (uint)(long)g["seed"]);
+            var s = Defend.Create((string)g["stageId"], (uint)(long)g["seed"], (string)g["sect"]);
             var commands = (JObject)g["commands"];
             var trace = (JArray)g["trace"];
             int ti = 0;

@@ -1,4 +1,4 @@
-import { ARTS, CARD_AUTO_PICK, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, COMBO_DMG_PCT, ENEMIES, MERGE_FEE, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPGRADE, WAVE_RECIPES, waveHp, type CardDef, type Element, ELITES } from './data';
+import { ARTS, CARD_AUTO_PICK, defOf, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, COMBO_DMG_PCT, ENEMIES, MERGE_FEE, ROLE_UNLOCKS, ROLES, ROSTER_SECTS, SECT_RULES, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UNITS, UPGRADE, WAVE_RECIPES, waveHp, type CardDef, type Element, type SectDef, ELITES } from './data';
 import { blockedTiles, GRID_H, GRID_W, resolveLayout, tilesOnPath } from './layouts';
 import { pathLength, pointAt, toMilli, within } from './path';
 import { nextRandom, rollPct } from './rng';
@@ -44,7 +44,8 @@ const FX = {
   adjacencyPct: 115,
 };
 
-export function createDefend(stageId: string, seed: number): DefendState {
+export function createDefend(stageId: string, seed: number, sect: Element | null = null): DefendState {
+  const rosterSect = sect && ROSTER_SECTS.includes(sect) ? sect : null;
   const stage = STAGES[stageId];
   if (!stage || !stage.layout) throw new Error(`unknown defend stage ${stageId}`);
   const layout = resolveLayout(stage.layout, stage.variant);
@@ -72,7 +73,8 @@ export function createDefend(stageId: string, seed: number): DefendState {
     disciples: [],
     enemies: [],
     nextId: 1,
-    unlocked: unlockedSects(stageId),
+    sect: rosterSect,
+    unlocked: rosterSect ? unlockedUnits(rosterSect, stageId) : unlockedSects(stageId),
     path,
     pathLen: pathLength(path),
     pathTiles: [...tilesOnPath(layout.path)].sort(),
@@ -110,13 +112,27 @@ function compareStage(a: string, b: string): number {
   return (ac ?? 0) - (bc ?? 0) || (as ?? 0) - (bs ?? 0);
 }
 
-export function placeCost(sect: Element): number {
-  return SECTS[sect].cost;
+export function placeCost(key: string): number {
+  return defOf(key).cost;
 }
+
+// Roster units of a sect unlocked up to this stage (sects.json > roster.roleUnlocks), in role order.
+export function unlockedUnits(sect: Element, stageId: string): string[] {
+  const all = STAGES[stageId]?.unlockAll;
+  const roles = new Set<string>();
+  for (const [at, rs] of Object.entries(ROLE_UNLOCKS)) if (all || compareStage(at, stageId) <= 0) for (const r of rs) roles.add(r);
+  const units = Object.values(UNITS).filter((u) => u.sect === sect);
+  return ROLES.filter((r) => roles.has(r)).flatMap((r) => units.filter((u) => u.role === r).map((u) => u.id));
+}
+
+// Stats a disciple fights with: its roster unit, or the sect defs of its element(s).
+const defsOf = (d: Disciple): SectDef[] => (d.unit ? [UNITS[d.unit]!] : d.els.map((el) => SECTS[el]));
+// Wu Xing elements of a disciple: a roster unit counts as its sect's element, whatever its kit.
+const wux = (d: Disciple): Element[] => (d.el ? [d.el] : d.els);
 
 export function upgradeCost(d: Disciple): number {
   if (d.combo || d.level >= MAX_LEVEL) return 0;
-  const base = SECTS[d.els[0]!].cost;
+  const base = defsOf(d)[0]!.cost;
   return Math.floor((base * UPGRADE.costPct[d.level]!) / 100);
 }
 
@@ -146,13 +162,14 @@ function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
   switch (c.t) {
     case 'place': {
       if (!s.unlocked.includes(c.sect)) return err('sect locked');
+      const unit = UNITS[c.sect];
       if (!canBuild(s, c.tx, c.ty)) return err('cannot build here');
       const cost = placeCost(c.sect);
       if (s.silver < cost) return err('not enough silver');
       s.silver -= cost;
       const id = s.nextId++;
       s.disciples.push({
-        id, els: [c.sect], combo: null, level: 1, tx: c.tx, ty: c.ty,
+        id, els: [unit ? unit.element : (c.sect as Element)], unit: unit?.id ?? null, el: unit?.sect ?? null, combo: null, level: 1, tx: c.tx, ty: c.ty,
         x: c.tx * TILE + TILE / 2, y: c.ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost, rootT: 0, pushT: 0, bellT: 0, target: 'first', offT: 0,
       });
       s.peakDisciples = Math.max(s.peakDisciples, s.disciples.length);
@@ -181,6 +198,7 @@ function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
       const b = s.disciples.find((x) => x.id === c.b);
       if (!a || !b || !adjacent(a, b)) return err('merge needs two adjacent disciples');
       if (a.combo || b.combo || a.level < MAX_LEVEL || b.level < MAX_LEVEL) return err('both must be max level');
+      if (a.unit || b.unit) return err('roster disciples cannot merge yet');
       const combo = findCombo(a.els[0]!, b.els[0]!);
       if (!combo) return err('no combo for this pair');
       if (s.silver < MERGE_FEE) return err('not enough silver');
@@ -373,7 +391,7 @@ function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = f
   const [x, y] = pointAt(s.path, at);
   const e: Enemy = {
     id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, speed,
-    bounty, x, y, slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, poison: 0, poisonT: 0,
+    bounty, x, y, slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, burnAge: 0, poison: 0, poisonT: 0,
     poisonDps: 0, stunT: 0, revealed: false, lastEl: null, lastElT: 0, small, age: 0,
     elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0, phase: 0,
   };
@@ -386,21 +404,23 @@ function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = f
 const statPct = (level: number) => UPGRADE.statPct[level - 1]!;
 
 // Poison/burn per second, scaled by level and by the Wu Xing match at the moment it is applied.
+const dotKind = (d: Disciple) => (d.unit ? UNITS[d.unit]!.dot : null);
+
 const dotDps = (d: Disciple, e: Enemy, base: number, lvl: number) =>
-  Math.floor((Math.floor((base * statPct(lvl)) / 100) * overcomePct(d.els, e.el)) / 100);
+  Math.floor((Math.floor((base * statPct(lvl)) / 100) * overcomePct(wux(d), e.el)) / 100);
 
 function discipleStats(s: DefendState, d: Disciple) {
-  const defs = d.els.map((el) => SECTS[el]);
+  const defs = defsOf(d);
   // Merged form: summed damage x comboDmgPct, attacking at the average cooldown (sects.json comboTechniques).
   let dmg = d.combo ? Math.floor((defs.reduce((sum, x) => sum + x.dmg, 0) * COMBO_DMG_PCT) / 100) : defs[0]!.dmg;
   dmg = Math.floor((dmg * statPct(d.level)) / 100);
   const neighbours = s.disciples.filter((o) => adjacent(d, o));
-  if (isGenerated(d.els, neighbours.map((n) => n.els)))
+  if (isGenerated(wux(d), neighbours.map(wux)))
     dmg = Math.floor((dmg * (card(s, 'adjacencyPct')?.value || FX.adjacencyPct)) / 100);
   const el = card(s, 'elementDmg');
-  if (el?.element && d.els.includes(el.element)) dmg = Math.floor((dmg * (100 + el.pct)) / 100);
+  if (el?.element && wux(d).includes(el.element)) dmg = Math.floor((dmg * (100 + el.pct)) / 100);
   const mono = card(s, 'monoSectPct');
-  if (mono && s.disciples.every((o) => o.els[0] === s.disciples[0]!.els[0])) dmg = Math.floor((dmg * (100 + mono.pct)) / 100);
+  if (mono && s.disciples.every((o) => wux(o)[0] === wux(s.disciples[0]!)[0])) dmg = Math.floor((dmg * (100 + mono.pct)) / 100);
   let cooldown = d.combo ? Math.floor(defs.reduce((sum, x) => sum + x.cooldown, 0) / defs.length) : defs[0]!.cooldown;
   if (neighbours.some((n) => n.els.includes('yinyang') && n.level >= 2)) cooldown = Math.floor((cooldown * 100) / FX.yyRatePct);
   return {
@@ -416,10 +436,10 @@ const canTarget = (e: Enemy, air: boolean, ground: boolean) =>
   e.hp > 0 && (e.air ? air : ground) && (e.type !== 'assassin' || e.revealed);
 
 function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: boolean, ev: SimEvent[]) {
-  let pct = overcomePct(d.els, e.el);
+  let pct = overcomePct(wux(d), e.el);
   let dmg = Math.floor((raw * pct) / 100);
   if (e.poison > 0 && hasLevel(s, 'wood', 3)) dmg = Math.floor((dmg * (100 + FX.woodVulnPct)) / 100);
-  if (e.type === 'mimic' && e.lastElT > 0 && e.lastEl && d.els.includes(e.lastEl)) dmg = Math.floor(dmg / 2);
+  if (e.type === 'mimic' && e.lastElT > 0 && e.lastEl && wux(d).includes(e.lastEl)) dmg = Math.floor(dmg / 2);
   const freeze = card(s, 'slowedVuln');
   if (freeze && e.slowT > 0) dmg = Math.floor((dmg * (100 + freeze.pct)) / 100);
   const heavy = card(s, 'vsHeavyPct');
@@ -427,9 +447,9 @@ function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: bo
   if (e.type === 'brute' && d.combo !== 'molten_edge') dmg -= FX.bruteArmor;
   dmg = Math.max(1, dmg);
   e.hp -= dmg;
-  e.lastEl = d.els[0]!;
+  e.lastEl = wux(d)[0]!;
   e.lastElT = FX.mimicTicks;
-  ev.push({ e: 'hit', from: d.id, to: e.id, dmg, pct, crit, el: d.els[0]! });
+  ev.push({ e: 'hit', from: d.id, to: e.id, dmg, pct, crit, el: wux(d)[0]! });
 }
 
 function hasLevel(s: DefendState, el: Element, level: number) {
@@ -494,9 +514,15 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
         }
         break;
       case 'wood':
-        target.poison = Math.min(3, target.poison + 1);
-        target.poisonT = FX.woodPoisonTicks;
-        target.poisonDps = Math.max(target.poisonDps, dotDps(d, target, FX.woodPoisonDps, lvl));
+        if (dotKind(d) === 'burn') {
+          // Fire-sect stacker: its damage over time is a burn, worth two poison stacks, that the sect rule ramps.
+          target.burnT = FX.woodPoisonTicks;
+          target.burnDps = Math.max(target.burnDps, dotDps(d, target, FX.woodPoisonDps * 2, lvl));
+        } else {
+          target.poison = Math.min(3, target.poison + 1);
+          target.poisonT = FX.woodPoisonTicks;
+          target.poisonDps = Math.max(target.poisonDps, dotDps(d, target, FX.woodPoisonDps, lvl));
+        }
         if (lvl >= 2 && d.rootT >= FX.woodRootEvery) {
           d.rootT = 0;
           target.stunT = Math.max(target.stunT, FX.woodRootTicks);
@@ -515,8 +541,15 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
       case 'fire': {
         for (const e of s.enemies)
           if (e.hp > 0 && (e === target || within(target.x, target.y, e.x, e.y, FX.fireSplash))) {
-            e.burnT = FX.fireBurnTicks;
-            e.burnDps = Math.max(e.burnDps, dotDps(d, e, FX.fireBurnDps, lvl));
+            if (dotKind(d) === 'poison') {
+              // Wood-sect burst: the splash poisons (one stack) instead of burning.
+              e.poison = Math.min(3, e.poison + 1);
+              e.poisonT = FX.woodPoisonTicks;
+              e.poisonDps = Math.max(e.poisonDps, dotDps(d, e, FX.woodPoisonDps, lvl));
+            } else {
+              e.burnT = FX.fireBurnTicks;
+              e.burnDps = Math.max(e.burnDps, dotDps(d, e, FX.fireBurnDps, lvl));
+            }
           }
         break;
       }
@@ -575,10 +608,12 @@ function moveEnemies(s: DefendState, ev: SimEvent[]) {
     if (e.lastElT > 0) e.lastElT--;
     if (e.age % DOT_EVERY === 0) {
       const armour = e.type === 'brute' ? 2 : 1; // Iron Shirt halves damage over time too
-      if (e.burnT > 0) e.hp -= Math.max(1, Math.floor(e.burnDps / 2 / armour));
+      // Fire sect rule: a burn that keeps going hits harder, +rampPctPerSec per second up to +rampMaxPct.
+      const ramp = s.sect === 'fire' ? Math.min(SECT_RULES.fireRampMaxPct, Math.floor(e.burnAge / TICK_HZ) * SECT_RULES.fireRampPctPerSec) : 0;
+      if (e.burnT > 0) e.hp -= Math.max(1, Math.floor((e.burnDps * (100 + ramp)) / 100 / 2 / armour));
       if (e.poisonT > 0 && e.poison > 0) e.hp -= Math.max(1, Math.floor((e.poison * e.poisonDps) / 2 / armour));
     }
-    if (e.burnT > 0) e.burnT--;
+    if (e.burnT > 0) { e.burnT--; e.burnAge++; } else e.burnAge = 0;
     if (e.poisonT > 0) e.poisonT--; else e.poison = 0;
     if (e.regenPct > 0 && e.age % TICK_HZ === 0) e.hp = Math.min(e.maxHp, e.hp + Math.floor((e.maxHp * e.regenPct) / 100));
     if (e.type === 'healer' && e.age % FX.healEvery === 0)
@@ -653,6 +688,14 @@ function resolveDeaths(s: DefendState, ev: SimEvent[]) {
       const near = s.enemies.filter((o) => o.hp > 0 && within(e.x, e.y, o.x, o.y, 1500)).slice(0, 2);
       for (const o of near) { o.burnT = FX.fireBurnTicks; o.burnDps = Math.max(o.burnDps, e.burnDps); }
     }
+    // Wood sect rule: a poisoned enemy that dies passes its poison to everything near it.
+    if (s.sect === 'wood' && e.poison > 0)
+      for (const o of s.enemies)
+        if (o.hp > 0 && within(e.x, e.y, o.x, o.y, SECT_RULES.woodSpreadRange)) {
+          o.poison = Math.min(3, o.poison + SECT_RULES.woodSpreadStacks);
+          o.poisonT = FX.woodPoisonTicks;
+          o.poisonDps = Math.max(o.poisonDps, e.poisonDps);
+        }
     if (fireExplodes && e.burnT > 0)
       for (const o of s.enemies) if (within(e.x, e.y, o.x, o.y, TILE)) o.hp -= FX.fireExplodeDmg;
   }

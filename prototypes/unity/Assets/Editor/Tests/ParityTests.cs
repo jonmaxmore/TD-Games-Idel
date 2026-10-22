@@ -19,10 +19,12 @@ namespace FiveSects.Tests
         [TestCase("T-1")]
         [TestCase("T-1-actions")]
         [TestCase("1-12-bosses")]
+        [TestCase("fire-1-12")]
+        [TestCase("wood-1-12")]
         public void MatchesTypeScriptGolden(string stage)
         {
             var g = JObject.Parse(File.ReadAllText(Path.Combine(Application.dataPath, "Editor", "Tests", "golden-" + stage + ".json")));
-            var s = Defend.Create((string)g["stageId"], (uint)(long)g["seed"]);
+            var s = Defend.Create((string)g["stageId"], (uint)(long)g["seed"], (string)g["sect"]);
             var commands = (JObject)g["commands"];
             var trace = (JArray)g["trace"];
             int ti = 0;

@@ -101,3 +101,12 @@ describe('bosses', () => {
     expect(seal?.el).toBeDefined();
   });
 });
+
+describe('sect rosters (SPEC-core §4)', () => {
+  const sects = ['fire', 'wood'] as Element[];
+  it('S1/S2: each roster sect wins 1-12 on most seeds, and the two are within 1 seed of each other', () => {
+    const wins = sects.map((sect) => SEEDS.filter((seed) => playBot(createGame('1-12', seed, sect) as DefendState, { maxDisciples: 8, earlyCall: true }).phase === 'won').length);
+    for (const w of wins) expect(w).toBeGreaterThanOrEqual(3);
+    expect(Math.abs(wins[0]! - wins[1]!)).toBeLessThanOrEqual(1);
+  }, 120_000);
+});

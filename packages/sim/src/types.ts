@@ -2,7 +2,7 @@ import type { Element, TargetMode } from './data';
 import type { Pt } from './layouts';
 
 export type Command =
-  | { t: 'place'; sect: Element; tx: number; ty: number }
+  | { t: 'place'; sect: string; tx: number; ty: number } // sect: an element, or a roster unit id
   | { t: 'upgrade'; id: number }
   | { t: 'sell'; id: number }
   | { t: 'merge'; a: number; b: number }
@@ -54,6 +54,8 @@ export interface Disciple {
   bellT: number;
   target: TargetMode;
   offT: number; // ticks disabled by a boss
+  unit: string | null; // roster unit id (sects.json > roster), null for legacy element disciples
+  el: Element | null; // the unit's sect element (Wu Xing, colour); null = els[0]
 }
 
 export interface Enemy {
@@ -72,6 +74,7 @@ export interface Enemy {
   slowPct: number;
   burnT: number;
   burnDps: number;
+  burnAge: number; // ticks burning without a break (fire sect rule)
   poison: number;
   poisonT: number;
   poisonDps: number;
@@ -115,7 +118,8 @@ export interface DefendState {
   disciples: Disciple[];
   enemies: Enemy[];
   nextId: number;
-  unlocked: Element[];
+  sect: Element | null; // the player's sect when it has a roster: sect rules apply
+  unlocked: string[]; // placeable keys: roster unit ids, or elements in legacy games
   path: Pt[];
   pathLen: number;
   pathTiles: string[];

@@ -86,6 +86,13 @@ namespace FiveSects.Game
             return Figure("d-" + string.Join("-", els), look);
         }
 
+        // Roster unit: robe, trim and hair of its sect, weapon of its kit (sword striker, fan burst, palm control, flute stacker, taiji support).
+        public static Sprite Unit(string sect, string kit)
+        {
+            var sl = SectLook[sect]; var kl = SectLook[kit];
+            return Figure("u-" + sect + "-" + kit, new Look { Robe = sl.Robe, Dark = sl.Dark, Hair = sl.Hair, Accent = kit == sect ? sl.Accent : kl.Robe, Weapon = kl.Weapon });
+        }
+
         public static Sprite Enemy(string type) => Figure("e-" + type, EnemyLook.TryGetValue(type, out var l) ? l : EnemyLook["cultist"]);
 
         public static Sprite Pixel()

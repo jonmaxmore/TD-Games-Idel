@@ -99,6 +99,33 @@
     ]
   },
   "upgrade": { "levels": 3, "names": ["ศิษย์", "ศิษย์เอก", "ผู้อาวุโส"], "costMultiplier": [1.0, 1.5, 2.25], "statMultiplier": [1.0, 1.6, 2.5] },
+  "roster": {
+    "_notes": "Sect x role disciples for the sect the player picks (SPEC-core §4, roster.md §5). kit = the proven element mechanic the unit fights with (metal crit, fire splash, water slow, wood damage over time, yinyang support); sect = its element for Wu Xing and colour. dot: which status its damage over time applies (fire-sect units burn, wood-sect units poison). Sects without a roster yet play the legacy element disciples.",
+    "roles": [
+      { "id": "striker", "nameTh": "กระบี่หน้า", "doesTh": "ดาเมจเป้าเดี่ยวสูง ล่าตัวหนาและบอส", "counters": ["brute", "boss"] },
+      { "id": "burst", "nameTh": "ปราณวง", "doesTh": "ตีวงกว้าง จัดการฝูง", "counters": ["puppet", "cultist"] },
+      { "id": "control", "nameTh": "ตรึง", "doesTh": "ทำให้ช้าหรือหยุด", "counters": ["runner", "assassin"] },
+      { "id": "stacker", "nameTh": "สะสม", "doesTh": "ดาเมจต่อเนื่อง กดศัตรูที่ฟื้นเลือด", "counters": ["healer", "brute"] },
+      { "id": "support", "nameTh": "ค้ำ", "doesTh": "เสริมเพื่อน เปิดเผยตัวล่องหน", "counters": ["assassin"] }
+    ],
+    "roleUnlocks": { "1-1": ["striker", "burst"], "1-2": ["control"], "1-8": ["stacker"], "1-10": ["support"] },
+    "rules": {
+      "fire": { "ruleTh": "ไฟเผาต่อเนื่อง ยิ่งโดนนานยิ่งแรง", "burnRampPctPerSec": 10, "burnRampMaxPct": 100 },
+      "wood": { "ruleTh": "พิษลามไปศัตรูข้างเคียงเมื่อเป้าตาย", "spreadRange": 1.0, "spreadStacks": 1 }
+    },
+    "units": [
+      { "id": "crimson_phoenix_striker", "sect": "fire", "role": "striker", "kit": "metal", "nameTh": "ศิษย์ขนหงส์เจาะ", "cost": 60, "dmg": 24, "rate": 1.2, "range": 2.4, "target": "ground+air" },
+      { "id": "crimson_phoenix_burst", "sect": "fire", "role": "burst", "kit": "fire", "nameTh": "ศิษย์พัดเพลิง", "cost": 65, "dmg": 26, "rate": 1.0, "range": 2.4, "target": "ground+air", "dot": "burn" },
+      { "id": "crimson_phoenix_control", "sect": "fire", "role": "control", "kit": "water", "nameTh": "ศิษย์กำแพงเพลิง", "cost": 50, "dmg": 18, "rate": 1.4, "range": 2.6, "target": "ground+air" },
+      { "id": "crimson_phoenix_stacker", "sect": "fire", "role": "stacker", "kit": "wood", "nameTh": "ศิษย์ถ่านเพลิง", "cost": 50, "dmg": 11, "rate": 1.5, "range": 2.8, "target": "ground", "dot": "burn" },
+      { "id": "crimson_phoenix_support", "sect": "fire", "role": "support", "kit": "yinyang", "nameTh": "ศิษย์เตาหลอม", "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.0, "target": "ground+air" },
+      { "id": "jade_bamboo_striker", "sect": "wood", "role": "striker", "kit": "metal", "nameTh": "ศิษย์ลูกดอกเป่า", "cost": 60, "dmg": 20, "rate": 1.2, "range": 3.2, "target": "ground+air" },
+      { "id": "jade_bamboo_burst", "sect": "wood", "role": "burst", "kit": "fire", "nameTh": "ศิษย์ใบไผ่ปลิว", "cost": 65, "dmg": 24, "rate": 1.0, "range": 2.6, "target": "ground+air", "dot": "poison" },
+      { "id": "jade_bamboo_control", "sect": "wood", "role": "control", "kit": "water", "nameTh": "ศิษย์เถาวัลย์", "cost": 50, "dmg": 16, "rate": 1.4, "range": 3.0, "target": "ground" },
+      { "id": "jade_bamboo_stacker", "sect": "wood", "role": "stacker", "kit": "wood", "nameTh": "ศิษย์ขลุ่ยพิษ", "cost": 50, "dmg": 11, "rate": 1.5, "range": 3.2, "target": "ground+air", "dot": "poison" },
+      { "id": "jade_bamboo_support", "sect": "wood", "role": "support", "kit": "yinyang", "nameTh": "ศิษย์หมอยาหุบไผ่", "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.4, "target": "ground+air" }
+    ]
+  },
   "allegiance": {
     "_notes": "Sect the player picks after the tutorial (docs/design/sect-allegiance.md). Read by the Unity front flow only; the sim roster per sect x role comes later. ruleTh is the one-line sect rule shown on the pick card. Changing sect later needs the sect-change token (SPEC-front-flow §5).",
     "launch": [
