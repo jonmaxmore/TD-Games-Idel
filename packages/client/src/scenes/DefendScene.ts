@@ -67,7 +67,9 @@ export class DefendScene extends Phaser.Scene {
     const stage = STAGES[data.stageId]!;
     const layout = resolveLayout(stage.layout!, stage.variant)!;
     if (layout.kind !== 'defend') throw new Error('missing defend layout');
-    this.add.image(OX, OY, groundKey(this, `ground-${data.stageId}`, GRID_W, GRID_H, pathTiles, T, biomePalette(layout))).setOrigin(0);
+    const pads: string[] = [];
+    for (let y = 0; y < GRID_H; y++) for (let x = 0; x < GRID_W; x++) if (canBuild(this.s, x, y)) pads.push(`${x},${y}`);
+    this.add.image(OX, OY, groundKey(this, `ground-${data.stageId}`, GRID_W, GRID_H, pathTiles, T, biomePalette(layout), pads)).setOrigin(0);
     this.goalGate = drawMap(this, layout, OX, OY, T, layout.path[0]!, layout.path[layout.path.length - 1]!);
 
     this.discipleLayer = this.add.container(0, 0).setDepth(10);

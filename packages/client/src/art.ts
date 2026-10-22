@@ -97,7 +97,8 @@ export function outpostKey(scene: Phaser.Scene): string {
 
 // Ground: grass with speckles, path tiles with pebbles. Deterministic pattern (no randomness).
 // pal: biome ground colours (effects.json render.palette env-*): base, 2 speckle shades, path, pebble.
-export function groundKey(scene: Phaser.Scene, key: string, cols: number, rows: number, pathTiles: Set<string>, tile = 16, pal = PALETTE.env!) {
+// pads: tiles a disciple can stand on get a dotted ring baked into the ground (free to draw, always visible).
+export function groundKey(scene: Phaser.Scene, key: string, cols: number, rows: number, pathTiles: Set<string>, tile = 16, pal = PALETTE.env!, pads: string[] = []) {
   addCanvasTexture(scene, key, cols * tile, rows * tile, (ctx) => {
     ctx.fillStyle = pal[0]!; ctx.fillRect(0, 0, cols * tile, rows * tile);
     for (let i = 0; i < cols * rows * 3; i++) {
@@ -108,11 +109,23 @@ export function groundKey(scene: Phaser.Scene, key: string, cols: number, rows: 
       if (pathTiles.has(`${x},${y}`)) {
         ctx.fillStyle = pal[3]!; ctx.fillRect(x * tile, y * tile, tile, tile);
         ctx.fillStyle = pal[4]!;
-        if (!pathTiles.has(`${x},${y - 1}`)) ctx.fillRect(x * tile, y * tile, tile, 1); // worn rim where the trail meets grass
+        // worn rim on every side where the trail meets grass, so the path reads as a sunken track
+        if (!pathTiles.has(`${x},${y - 1}`)) ctx.fillRect(x * tile, y * tile, tile, 1);
+        if (!pathTiles.has(`${x},${y + 1}`)) ctx.fillRect(x * tile, y * tile + tile - 1, tile, 1);
+        if (!pathTiles.has(`${x - 1},${y}`)) ctx.fillRect(x * tile, y * tile, 1, tile);
+        if (!pathTiles.has(`${x + 1},${y}`)) ctx.fillRect(x * tile + tile - 1, y * tile, 1, tile);
         ctx.fillRect(x * tile + ((x * 7 + y * 3) % 12) + 2, y * tile + ((x * 5 + y * 11) % 12) + 2, 2, 1);
         ctx.fillRect(x * tile + ((x * 13 + y * 5) % 10) + 3, y * tile + ((x * 3 + y * 7) % 10) + 4, 1, 1);
       } else {
         ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(x * tile, y * tile, 1, 1);
+      }
+    }
+    ctx.fillStyle = 'rgba(255,233,168,0.45)';
+    for (const k of pads) {
+      const [x, y] = k.split(',').map(Number) as [number, number];
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        ctx.fillRect(x * tile + Math.round(7.5 + 6 * Math.cos(a)), y * tile + Math.round(7.5 + 6 * Math.sin(a)), 1, 1);
       }
     }
   });

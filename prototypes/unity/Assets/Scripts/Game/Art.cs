@@ -114,6 +114,9 @@ namespace FiveSects.Game
                         for (int y = 0; y < tile; y++) for (int x = 0; x < tile; x++) Set(tx * tile + x, ty * tile + y, path);
                         // darker 1px rim where the path meets grass reads as a worn trail
                         if (!pathTiles.Contains(tx + "," + (ty - 1))) for (int x = 0; x < tile; x++) Set(tx * tile + x, ty * tile, peb);
+                        if (!pathTiles.Contains(tx + "," + (ty + 1))) for (int x = 0; x < tile; x++) Set(tx * tile + x, ty * tile + tile - 1, peb);
+                        if (!pathTiles.Contains((tx - 1) + "," + ty)) for (int y = 0; y < tile; y++) Set(tx * tile, ty * tile + y, peb);
+                        if (!pathTiles.Contains((tx + 1) + "," + ty)) for (int y = 0; y < tile; y++) Set(tx * tile + tile - 1, ty * tile + y, peb);
                         Set(tx * tile + (tx * 7 + ty * 3) % 12 + 2, ty * tile + (tx * 5 + ty * 11) % 12 + 2, peb);
                         Set(tx * tile + (tx * 13 + ty * 5) % 10 + 3, ty * tile + (tx * 3 + ty * 7) % 10 + 4, peb);
                     }
@@ -173,16 +176,15 @@ namespace FiveSects.Game
             return c.ToSprite("p-" + type);
         }
 
-        // Build-slot frame: corner brackets on a 16x16 tile, tinted and pulsed by DefendView.
+        // Build pad: dotted ring (12 dots, radius 6) on a 16x16 tile, tinted and pulsed by DefendView.
         public static Sprite Slot()
         {
             if (Cache.TryGetValue("slot", out var cached)) return cached;
             var c = new PixelCanvas(16, 16);
-            foreach (var (x, y) in new[] { (1, 1), (11, 1), (1, 11), (11, 11) })
+            for (int i = 0; i < 12; i++)
             {
-                bool right = x > 8, bottom = y > 8;
-                c.Rect(x, bottom ? 14 : 1, 4, 1, "#FFFFFF");
-                c.Rect(right ? 14 : 1, y, 1, 4, "#FFFFFF");
+                float a = i / 12f * Mathf.PI * 2;
+                c.Set(Mathf.RoundToInt(7.5f + 6 * Mathf.Cos(a)), Mathf.RoundToInt(7.5f + 6 * Mathf.Sin(a)), "#FFFFFF");
             }
             var t = NewTex(16, 16); t.SetPixels32(c.Px); t.Apply();
             return Cache["slot"] = Sprite.Create(t, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 1f);
