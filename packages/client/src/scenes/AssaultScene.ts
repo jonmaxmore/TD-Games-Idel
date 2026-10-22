@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { createGame, GRID_H, GRID_W, isOver, LAYOUTS, step, TICK_HZ, type AssaultState, type Command, type SimEvent } from '@five-sects/sim';
+import { createGame, GRID_H, GRID_W, isOver, LAYOUTS, STAGES, step, TICK_HZ, type AssaultState, type Command, type SimEvent } from '@five-sects/sim';
 import { discipleKey, enemyKey, groundKey, outpostKey } from '../art';
 import { floatText, impact, projectile } from '../fx';
 import { button, COLORS, H, text, W, setupCamera } from '../ui';
@@ -49,13 +49,15 @@ export class AssaultScene extends Phaser.Scene {
     this.pending = []; this.acc = 0; this.ended = false; this.routePanel = null;
     this.members = []; this.outposts = []; this.skillBtns = []; this.pills = []; this.shade = [];
 
-    const layout = LAYOUTS['assault-a'];
+    const layout = LAYOUTS[STAGES[data.stageId]?.layout ?? ''];
     if (!layout || layout.kind !== 'assault') throw new Error('missing assault layout');
     const branchStart = layout.start[layout.start.length - 1]!;
-    const left = tilesOf([branchStart, ...layout.left, ...layout.end]);
-    const right = tilesOf([branchStart, ...layout.right]);
-    const tiles = new Set([...tilesOf(layout.start), ...left, ...right]);
-    this.add.image(OX, OY, groundKey(this, 'ground-assault-a', GRID_W, GRID_H, tiles)).setOrigin(0);
+    // Branch tiles only (the shared final corridor belongs to neither), so shading never covers it.
+    const join = layout.left[layout.left.length - 1]!;
+    const left = tilesOf([branchStart, ...layout.left]).filter((k) => k !== `${join[0]},${join[1]}` && k !== `${branchStart[0]},${branchStart[1]}`);
+    const right = tilesOf([branchStart, ...layout.right]).filter((k) => k !== `${join[0]},${join[1]}` && k !== `${branchStart[0]},${branchStart[1]}`);
+    const tiles = new Set([...tilesOf(layout.start), ...tilesOf([branchStart, ...layout.left, ...layout.end]), ...tilesOf([branchStart, ...layout.right])]);
+    this.add.image(OX, OY, groundKey(this, `ground-${data.stageId}`, GRID_W, GRID_H, tiles)).setOrigin(0);
     this.registry.set('assault-right-tiles', right);
     this.registry.set('assault-left-tiles', left);
     const [ex, ey] = layout.end[0]!;
@@ -142,8 +144,7 @@ export class AssaultScene extends Phaser.Scene {
 
   private onRouteChosen() {
     this.routePanel?.destroy(); this.routePanel = null;
-    const other = (this.registry.get(this.s.route === 'left' ? 'assault-right-tiles' : 'assault-left-tiles') as string[])
-      .filter((k) => !(this.registry.get(this.s.route === 'left' ? 'assault-left-tiles' : 'assault-right-tiles') as string[]).includes(k));
+    const other = this.registry.get(this.s.route === 'left' ? 'assault-right-tiles' : 'assault-left-tiles') as string[];
     for (const k of other) {
       const [x, y] = k.split(',').map(Number);
       this.shade.push(this.add.rectangle(OX + x! * T, OY + y! * T, T, T, 0x000000, 0.45).setOrigin(0).setDepth(4));
@@ -172,6 +173,6 @@ export class AssaultScene extends Phaser.Scene {
     });
     const alive = this.s.members.filter((m) => m.hp > 0).length;
     const phaseTh = { moving: 'เดินทัพ', fighting: 'ปะทะป้อม', choosing: 'ทางแยก', won: 'ชนะ', lost: 'แพ้' }[this.s.phase];
-    this.status.setText(`${phaseTh} · ศิษย์ ${alive}/3 · ${Math.floor(this.s.tick / TICK_HZ)} วิ`);
+    this.status.setText(`${phaseTh} · ศิษย์ ${alive}/${this.s.members.length} · ${Math.floor(this.s.tick / TICK_HZ)} วิ`);
   }
 }

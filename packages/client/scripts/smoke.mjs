@@ -48,6 +48,9 @@ try {
   await play('defend', 'T-1', [...place.map(([tx, ty], i) => ({ t: 'place', sect: sects[i], tx, ty })), { t: 'nextWave' }]);
   await page.waitForTimeout(8000);
   const fps = await page.evaluate(() => Math.round(window.__game.loop.actualFps));
+  const placed = await page.evaluate(() => window.__game.scene.getScene('defend').s.disciples.length);
+  if (placed !== 9) errors.push(`expected 9 disciples placed in training ground, got ${placed}`);
+  if (fps < 50) errors.push(`fps ${fps} below 50`);
   if (shots) await page.screenshot({ path: `${shots}/training.png` });
   console.log(JSON.stringify({ fps, errors }));
 } finally {

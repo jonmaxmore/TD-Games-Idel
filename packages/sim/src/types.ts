@@ -40,7 +40,9 @@ export interface Disciple {
   cd: number;
   hits: number;
   spent: number;
-  timer: number;
+  rootT: number;
+  pushT: number;
+  bellT: number;
 }
 
 export interface Enemy {
@@ -118,6 +120,7 @@ export interface OutpostState {
   dmg: number;
   cd: number;
   route: 'any' | 'left' | 'right';
+  down: boolean;
 }
 
 export interface AssaultState {

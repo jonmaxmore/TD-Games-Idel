@@ -3,11 +3,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  createGame, ENEMIES, hashState, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
-  type Command, type DefendState, type AssaultState, type Replay,
+  COMBOS, createGame, ENEMIES, hashState, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
+  type Command, type DefendState, type Element, type AssaultState, type Replay,
 } from '../src/index';
 import { overcomePct, isGenerated } from '../src/wuxing';
 import { playBot } from './bot';
+import { COMBO_EFFECTS } from '../src/defend';
 
 const defend = (id = 'T-1', seed = 1) => createGame(id, seed) as DefendState;
 const run = (s: DefendState | AssaultState, ticks: number, cmds: Command[] = []) => {
@@ -115,6 +116,60 @@ describe('combat', () => {
   });
 });
 
+describe('combos and timers', () => {
+  const maxedPair = (a: Element, b: Element) => {
+    const s = defend();
+    s.silver = 100000;
+    run(s, 1, [{ t: 'place', sect: a, tx: 3, ty: 3 }, { t: 'place', sect: b, tx: 4, ty: 3 }]);
+    const [x, y] = s.disciples;
+    for (let i = 0; i < 2; i++) run(s, 1, [{ t: 'upgrade', id: x!.id }, { t: 'upgrade', id: y!.id }]);
+    run(s, 1, [{ t: 'merge', a: x!.id, b: y!.id }]);
+    return s;
+  };
+  it('every combo technique in the data has a signature effect', () => {
+    expect([...COMBO_EFFECTS].sort()).toEqual(COMBOS.map((c) => c.id).sort());
+  });
+  it('root_quake keeps its bell/quake stun while its root timer runs (separate timers)', () => {
+    const s = maxedPair('wood', 'earth');
+    expect(s.disciples[0]!.combo).toBe('root_quake');
+    const ev = run(s, 2500, [{ t: 'nextWave' }]);
+    expect(ev.filter((e) => e.e === 'stun' && e.by === s.disciples[0]!.id).length).toBeGreaterThan(3);
+  });
+  it('molten_edge ignores brute armor', () => {
+    const s = maxedPair('metal', 'fire');
+    run(s, 2, [{ t: 'nextWave' }]);
+    const e = s.enemies[0]!;
+    Object.assign(e, { id: 999, type: 'brute', el: 'earth', hp: 100000, maxHp: 100000, d: 3000, x: 3500, y: 2500, stunT: 1000 });
+    const hits = run(s, 60).filter((x) => x.e === 'hit' && x.to === 999 && !x.crit);
+    const expected = Math.floor((Math.floor((SECTS.metal.dmg + SECTS.fire.dmg) * 2.5) * 100) / 100);
+    expect(hits[0]).toMatchObject({ dmg: expected });
+  });
+  it('yin-yang level 3 adds +1% interest', () => {
+    const s = defend();
+    s.silver = 100000;
+    run(s, 1, [{ t: 'place', sect: 'yinyang', tx: 10, ty: 0 }]);
+    for (let i = 0; i < 2; i++) run(s, 1, [{ t: 'upgrade', id: s.disciples[0]!.id }]);
+    s.silver = 400;
+    const ev = run(s, 2000, [{ t: 'nextWave' }]);
+    expect(ev.find((e) => e.e === 'interest')).toMatchObject({ amount: 24 });
+  });
+});
+
+describe('command validation', () => {
+  it('rejects non-integer tiles, unknown sects and bad route choices', () => {
+    const s = defend('1-1');
+    const ev = run(s, 1, [
+      { t: 'place', sect: 'metal', tx: 0.5, ty: 2 }, { t: 'place', sect: 'metal', tx: Number.NaN, ty: 3 },
+      { t: 'place', sect: 'dragon' as never, tx: 4, ty: 4 },
+    ]);
+    expect(s.disciples).toHaveLength(0);
+    expect(ev.filter((e) => e.e === 'error')).toHaveLength(3);
+    const a = createGame('1-3', 1) as AssaultState;
+    run(a, 1, [{ t: 'route', choice: 'up' as never }]);
+    expect(a.route).toBeNull();
+  });
+});
+
 describe('assault 1-3', () => {
   it('waits at the fork until a route is chosen, then can be won with skills', () => {
     const s = createGame('1-3', 7) as AssaultState;
@@ -175,9 +230,11 @@ describe('data integrity', () => {
   });
   it('sim source has no non-deterministic APIs', () => {
     const dir = fileURLToPath(new URL('../src', import.meta.url));
-    for (const f of readdirSync(dir)) {
+    const files = readdirSync(dir, { recursive: true }).map(String).filter((f) => f.endsWith('.ts'));
+    expect(files.length).toBeGreaterThan(5);
+    for (const f of files) {
       const src = readFileSync(join(dir, f), 'utf8');
-      expect(src, f).not.toMatch(/Math\.random|Date\.|performance\.|window\.|document\./);
+      expect(src, f).not.toMatch(/Math\.random|\bDate\b|\bperformance\b|\bwindow\.|\bdocument\.|for\s*\([^)]*\bin\b/);
     }
   });
 });

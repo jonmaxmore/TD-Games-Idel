@@ -85,6 +85,7 @@ export const COMBOS: ComboDef[] = sectsJson.comboTechniques.items.map((c) => ({
 
 export const UPGRADE = {
   levels: sectsJson.upgrade.levels,
+  names: sectsJson.upgrade.names,
   // percent multipliers, e.g. [100, 150, 225]
   costPct: sectsJson.upgrade.costMultiplier.map((m) => Math.round(m * 100)),
   statPct: sectsJson.upgrade.statMultiplier.map((m) => Math.round(m * 100)),

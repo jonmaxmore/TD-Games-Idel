@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
-  canBuild, COMBOS, createGame, findCombo, GRID_H, GRID_W, isOver, placeCost, SECTS, sellValue, step, upgradeCost,
-  UPGRADE, type Command, type DefendState, type Disciple, type SimEvent,
+  canBuild, COMBOS, createGame, ECONOMY, findCombo, GRID_H, GRID_W, isOver, placeCost, SECTS, sellValue, step, upgradeCost,
+  UPGRADE, type Command, type DefendState, type Disciple, type Replay, type SimEvent,
 } from '@five-sects/sim';
 import { discipleKey, EL_COLOR, EL_GLYPH, enemyKey, groundKey } from '../art';
 import { banner, floatText, impact, projectile } from '../fx';
@@ -31,12 +31,17 @@ export class DefendScene extends Phaser.Scene {
   private rangeRing: Phaser.GameObjects.Arc | null = null;
   private waveBtn!: Phaser.GameObjects.Container;
   private ended = false;
+  // seed + commands per tick: enough to replay this exact game with runReplay()
+  private replay!: Replay;
 
   constructor() { super('defend'); }
 
   create(data: { stageId: string }) {
     setupCamera(this);
-    this.s = createGame(data.stageId, (Math.random() * 2 ** 31) >>> 0) as DefendState;
+    const seed = (Math.random() * 2 ** 31) >>> 0;
+    this.s = createGame(data.stageId, seed) as DefendState;
+    this.replay = { stageId: data.stageId, seed, commands: {} };
+    (window as unknown as { __lastReplay: Replay }).__lastReplay = this.replay;
     this.pending = []; this.acc = 0; this.speed = 1; this.ended = false; this.panel = null; this.rangeRing = null;
     this.prev.clear(); this.enemySprites.clear(); this.discipleSig = '';
 
@@ -121,7 +126,7 @@ export class DefendScene extends Phaser.Scene {
     const combo = d.combo ? COMBOS.find((x) => x.id === d.combo) : null;
     const title = combo ? `${combo.nameTh} (ยุทธ์ผสาน)` : `${stats.nameTh}`;
     c.add(text(this, 10, y + 4, `${d.els.map((e) => EL_GLYPH[e]).join('+')} ${title}`, 7));
-    c.add(text(this, 10, y + 15, combo ? 'ระดับสูงสุด' : `ระดับ ${d.level}/${UPGRADE.levels} · ${['ศิษย์', 'ศิษย์เอก', 'ผู้อาวุโส'][d.level - 1]}`, 6, COLORS.mist));
+    c.add(text(this, 10, y + 15, combo ? 'ระดับสูงสุด' : `ระดับ ${d.level}/${UPGRADE.levels} · ${UPGRADE.names[d.level - 1]}`, 6, COLORS.mist));
 
     const upCost = upgradeCost(d);
     const canUp = !d.combo && d.level < UPGRADE.levels;
@@ -169,7 +174,7 @@ export class DefendScene extends Phaser.Scene {
     this.hud.lives.setText(`♥ ${this.s.lives}`);
     this.hud.wave.setText(`${this.s.wave}/${this.s.totalWaves}`);
     const label = this.s.phase === 'build' ? 'เริ่มบุก (wave 1)'
-      : this.s.phase === 'break' ? `เรียก wave ถัดไป (+5)` : 'กำลังสู้…';
+      : this.s.phase === 'break' ? `เรียก wave ถัดไป (+${ECONOMY.earlyCallBonus})` : 'กำลังสู้…';
     (this.waveBtn.list[1] as Phaser.GameObjects.Text).setText(label);
   }
 
@@ -226,12 +231,14 @@ export class DefendScene extends Phaser.Scene {
       while (this.acc >= TICK_MS && steps < 8 && !isOver(this.s)) {
         this.prev.clear();
         for (const e of this.s.enemies) this.prev.set(e.id, [e.x, e.y]);
+        if (this.pending.length) this.replay.commands[this.s.tick] = this.pending;
         const events = step(this.s, this.pending);
         this.pending = [];
         this.handleEvents(events);
         this.acc -= TICK_MS;
         steps++;
       }
+      this.acc = Math.min(this.acc, 8 * TICK_MS); // don't build an endless catch-up backlog on slow frames
       this.syncDisciples();
       this.updateHud();
     }

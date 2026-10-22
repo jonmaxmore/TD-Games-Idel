@@ -2,6 +2,7 @@ import { COMBOS, ECONOMY, ENEMIES, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPG
 import { GRID_H, GRID_W, LAYOUTS, tilesOnPath } from './layouts';
 import { pathLength, pointAt, toMilli, within } from './path';
 import { rollPct } from './rng';
+import { validCommand } from './commands';
 import type { Command, DefendState, Disciple, Enemy, SimEvent } from './types';
 import { isGenerated, overcomePct } from './wuxing';
 
@@ -122,6 +123,7 @@ const adjacent = (a: Disciple, b: Disciple) => a !== b && Math.abs(a.tx - b.tx) 
 
 function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
   const err = (msg: string) => ev.push({ e: 'error', msg });
+  if (!validCommand(c)) return err('invalid command');
   switch (c.t) {
     case 'place': {
       if (!s.unlocked.includes(c.sect)) return err('sect locked');
@@ -132,7 +134,7 @@ function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
       const id = s.nextId++;
       s.disciples.push({
         id, els: [c.sect], combo: null, level: 1, tx: c.tx, ty: c.ty,
-        x: c.tx * TILE + TILE / 2, y: c.ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost, timer: 0,
+        x: c.tx * TILE + TILE / 2, y: c.ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost, rootT: 0, pushT: 0, bellT: 0,
       });
       s.peakDisciples = Math.max(s.peakDisciples, s.disciples.length);
       ev.push({ e: 'placed', id });
@@ -188,6 +190,7 @@ function startWave(s: DefendState, ev: SimEvent[]) {
   s.wave++;
   const stage = STAGES[s.stageId]!;
   const types = stage.enemies.filter((t) => ENEMIES[t] && !t.startsWith('boss'));
+  if (types.length === 0) throw new Error(`stage ${s.stageId} has no regular enemies`);
   const available = types.slice(0, Math.min(types.length, 1 + Math.floor((s.wave - 1) / 2)));
   const count = 4 + s.wave;
   s.spawnQueue = [];
@@ -238,7 +241,7 @@ function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: bo
   let dmg = Math.floor((raw * pct) / 100);
   if (e.poison > 0 && hasLevel(s, 'wood', 3)) dmg = Math.floor((dmg * (100 + FX.woodVulnPct)) / 100);
   if (e.type === 'mimic' && e.lastElT > 0 && e.lastEl && d.els.includes(e.lastEl)) dmg = Math.floor(dmg / 2);
-  if (e.type === 'brute') dmg -= FX.bruteArmor;
+  if (e.type === 'brute' && d.combo !== 'molten_edge') dmg -= FX.bruteArmor;
   dmg = Math.max(1, dmg);
   e.hp -= dmg;
   e.lastEl = d.els[0]!;
@@ -251,16 +254,21 @@ function hasLevel(s: DefendState, el: Element, level: number) {
 }
 
 function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
-  d.timer++;
+  d.rootT++; d.pushT++; d.bellT++;
   const st = discipleStats(s, d);
   const lvl = d.level;
 
   // Timed area skills (earth bell / quake, water push).
-  if (d.els.includes('earth') && lvl >= 2 && d.timer % FX.earthBellEvery === 0) {
+  if (d.els.includes('earth') && lvl >= 2 && d.bellT >= FX.earthBellEvery) {
+    d.bellT = 0;
     const r = lvl >= 3 ? 2 * TILE : TILE;
-    const t = lvl >= 3 ? FX.earthQuakeTicks : FX.earthBellTicks;
+    const t = d.combo === 'iron_mountain' ? FX.earthBellTicks + TICK_HZ : lvl >= 3 ? FX.earthQuakeTicks : FX.earthBellTicks;
     for (const e of s.enemies)
-      if (!e.air && e.hp > 0 && within(d.x, d.y, e.x, e.y, r)) { e.stunT = Math.max(e.stunT, t); ev.push({ e: 'stun', id: e.id, by: d.id }); }
+      if (!e.air && e.hp > 0 && within(d.x, d.y, e.x, e.y, r)) {
+        e.stunT = Math.max(e.stunT, t);
+        if (d.combo === 'root_quake') { e.poison = Math.min(3, e.poison + 1); e.poisonT = FX.woodPoisonTicks; e.poisonDps = Math.max(e.poisonDps, FX.woodPoisonDps); }
+        ev.push({ e: 'stun', id: e.id, by: d.id });
+      }
   }
 
   if (d.cd > 0) { d.cd--; return; }
@@ -275,6 +283,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
 
   let crit = false;
   if (d.els.includes('metal')) crit = rollPct(s) < FX.metalCritPct || (lvl >= 2 && d.hits % FX.metalEvery === 0);
+  if (d.combo === 'frozen_blade' && target.stunT > 0) crit = true;
   const raw = crit ? st.dmg * 2 : st.dmg;
   dealDamage(s, d, target, raw, crit, ev);
 
@@ -290,8 +299,8 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
         target.poison = Math.min(3, target.poison + 1);
         target.poisonT = FX.woodPoisonTicks;
         target.poisonDps = Math.max(target.poisonDps, Math.floor((FX.woodPoisonDps * statPct(lvl)) / 100));
-        if (lvl >= 2 && d.timer >= FX.woodRootEvery) {
-          d.timer = 0;
+        if (lvl >= 2 && d.rootT >= FX.woodRootEvery) {
+          d.rootT = 0;
           target.stunT = Math.max(target.stunT, FX.woodRootTicks);
           ev.push({ e: 'stun', id: target.id, by: d.id });
         }
@@ -303,7 +312,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
           target.stunT = Math.max(target.stunT, FX.waterFreezeTicks);
           ev.push({ e: 'stun', id: target.id, by: d.id });
         }
-        if (lvl >= 3 && d.timer >= FX.waterPushEvery) { d.timer = 0; target.d = Math.max(0, target.d - TILE); }
+        if (lvl >= 3 && d.pushT >= FX.waterPushEvery) { d.pushT = 0; target.d = Math.max(0, target.d - TILE); }
         break;
       case 'fire': {
         const dps = Math.floor((FX.fireBurnDps * statPct(lvl)) / 100);
@@ -314,14 +323,49 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
           }
         break;
       }
-      case 'earth':
+      case 'earth': {
+        const volcano = d.combo === 'volcano_fist';
+        const r = volcano ? (FX.earthSplash * 3) / 2 : FX.earthSplash;
         for (const e of s.enemies)
-          if (e !== target && !e.air && e.hp > 0 && within(target.x, target.y, e.x, e.y, FX.earthSplash))
-            dealDamage(s, d, e, Math.floor(raw / 2), false, ev);
+          if (e !== target && !e.air && e.hp > 0 && within(target.x, target.y, e.x, e.y, r))
+            dealDamage(s, d, e, volcano ? raw : Math.floor(raw / 2), false, ev);
         break;
+      }
       case 'yinyang':
         break;
     }
+  }
+  if (d.combo) comboOnHit(s, d, target, crit);
+}
+
+// Simplified signature effect of each combo technique (sects.json comboTechniques). Effects that
+// act outside a hit live where they trigger: iron_mountain/root_quake in the bell, molten_edge in
+// dealDamage, frozen_blade in the crit roll, volcano_fist in the earth splash, wildfire_flute on death.
+export const COMBO_EFFECTS = [
+  'frozen_blade', 'thorn_sword', 'molten_edge', 'iron_mountain', 'spring_rain',
+  'steam_palm', 'quicksand', 'wildfire_flute', 'root_quake', 'volcano_fist',
+] as const;
+
+function comboOnHit(s: DefendState, d: Disciple, target: Enemy, crit: boolean) {
+  const splash = (r: number, f: (e: Enemy) => void) => {
+    for (const e of s.enemies) if (e.hp > 0 && (e === target || within(target.x, target.y, e.x, e.y, r))) f(e);
+  };
+  switch (d.combo) {
+    case 'thorn_sword':
+      if (crit) { target.poison = 3; target.poisonT = FX.woodPoisonTicks; target.poisonDps = Math.max(target.poisonDps, FX.woodPoisonDps); }
+      break;
+    case 'spring_rain':
+      splash(TILE, (e) => {
+        e.slowT = FX.waterSlowTicks; e.slowPct = Math.max(e.slowPct, FX.waterSlowPct);
+        e.poison = Math.min(3, e.poison + 1); e.poisonT = FX.woodPoisonTicks; e.poisonDps = Math.max(e.poisonDps, FX.woodPoisonDps);
+      });
+      break;
+    case 'steam_palm':
+      splash(FX.fireSplash, (e) => { e.slowT = FX.waterSlowTicks; e.slowPct = Math.max(e.slowPct, FX.waterSlowPct); });
+      break;
+    case 'quicksand':
+      target.slowPct = Math.max(target.slowPct, 50);
+      break;
   }
 }
 
@@ -372,6 +416,10 @@ function resolveDeaths(s: DefendState, ev: SimEvent[]) {
     s.silver += bounty;
     ev.push({ e: 'kill', id: e.id, x: e.x, y: e.y, bounty });
     if (e.type === 'puppet' && !e.small) for (let i = 0; i < 3; i++) spawn(s, 'puppet', ev, Math.max(0, e.d - i * 300), true);
+    if (e.burnT > 0 && s.disciples.some((q) => q.combo === 'wildfire_flute')) {
+      const near = s.enemies.filter((o) => o.hp > 0 && within(e.x, e.y, o.x, o.y, 1500)).slice(0, 2);
+      for (const o of near) { o.burnT = FX.fireBurnTicks; o.burnDps = Math.max(o.burnDps, e.burnDps); }
+    }
     if (fireExplodes && e.burnT > 0)
       for (const o of s.enemies) if (within(e.x, e.y, o.x, o.y, TILE)) o.hp -= FX.fireExplodeDmg;
   }
@@ -393,7 +441,8 @@ function waveFlow(s: DefendState, ev: SimEvent[]) {
       break;
     case 'clearing':
       if (s.enemies.length === 0) {
-        const interest = Math.min(ECONOMY.interestCap, Math.floor((s.silver * ECONOMY.interestPct) / 100));
+        const pct = ECONOMY.interestPct + (hasLevel(s, 'yinyang', 3) ? 1 : 0);
+        const interest = Math.min(ECONOMY.interestCap, Math.floor((s.silver * pct) / 100));
         s.silver += interest;
         ev.push({ e: 'interest', amount: interest });
         if (s.wave >= s.totalWaves) finish(s, true, ev);

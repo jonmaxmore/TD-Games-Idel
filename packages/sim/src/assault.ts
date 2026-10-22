@@ -2,6 +2,7 @@ import { SECTS, STAGES, TICK_HZ, TILE, type Element } from './data';
 import { LAYOUTS, type AssaultLayout, type Pt } from './layouts';
 import { pathLength, pointAt, toMilli, within } from './path';
 import { rollPct } from './rng';
+import { validCommand } from './commands';
 import type { AssaultState, Command, Member, SimEvent } from './types';
 
 const PARTY: Element[] = ['metal', 'metal', 'metal'];
@@ -48,7 +49,7 @@ export function createAssault(stageId: string, seed: number): AssaultState {
     members,
     outposts: l.outposts.map((o, i) => {
       const [x, y] = centre(o.at);
-      return { id: i, x, y, hp: o.hp, maxHp: o.hp, dmg: o.dmg, cd: 0, route: o.route };
+      return { id: i, x, y, hp: o.hp, maxHp: o.hp, dmg: o.dmg, cd: 0, route: o.route, down: false };
     }),
     pills: l.pills.map(centre),
     phase: 'moving',
@@ -72,6 +73,7 @@ function nearestOutpost(s: AssaultState, x: number, y: number, r: number) {
 }
 
 function applyCommand(s: AssaultState, c: Command, ev: SimEvent[]) {
+  if (!validCommand(c)) { ev.push({ e: 'error', msg: 'invalid command' }); return; }
   if (c.t === 'route') {
     if (s.route !== null) return;
     const l = layoutOf(s.stageId);
@@ -157,7 +159,7 @@ export function stepAssault(s: AssaultState, commands: Command[]): SimEvent[] {
     if (target.hp <= 0) { s.membersLost++; ev.push({ e: 'memberDown', member: target.id }); }
   }
 
-  for (const o of s.outposts) if (o.hp <= 0 && o.maxHp > 0) { ev.push({ e: 'outpostDown', outpost: o.id }); o.maxHp = 0; }
+  for (const o of s.outposts) if (o.hp <= 0 && !o.down) { o.down = true; ev.push({ e: 'outpostDown', outpost: o.id }); }
 
   s.tick++;
   if (alive(s).length === 0) finish(s, false, ev);
