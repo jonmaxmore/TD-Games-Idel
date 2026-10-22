@@ -6,7 +6,7 @@ import type { Command, GameState, SimEvent } from './types';
 export * from './data';
 export * from './types';
 export { GRID_W, GRID_H, LAYOUTS } from './layouts';
-export { canBuild, findCombo, placeCost, sellValue, unlockedSects, upgradeCost } from './defend';
+export { canBuild, findCombo, placeCost, previewWave, sellValue, unlockedSects, upgradeCost, waveTypes } from './defend';
 
 export function createGame(stageId: string, seed: number): GameState {
   const stage = STAGES[stageId];

@@ -1,4 +1,4 @@
-import { ARTS, CARD_AUTO_PICK, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, ENEMIES, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPGRADE, waveHp, type CardDef, type Element } from './data';
+import { ARTS, CARD_AUTO_PICK, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, ENEMIES, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPGRADE, waveHp, type CardDef, type Element, ELITES } from './data';
 import { GRID_H, GRID_W, LAYOUTS, tilesOnPath } from './layouts';
 import { pathLength, pointAt, toMilli, within } from './path';
 import { nextRandom, rollPct } from './rng';
@@ -93,6 +93,7 @@ export function unlockedSects(stageId: string): Element[] {
     if (s.chapter > (stage?.chapter ?? 0)) continue;
     if (s.unlocksSect && compareStage(s.id, stageId) <= 0) out.push(s.unlocksSect as Element);
   }
+  for (const g of stage?.guestSects ?? []) if (!out.includes(g as Element)) out.push(g as Element);
   return out;
 }
 
@@ -145,7 +146,7 @@ function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
       const id = s.nextId++;
       s.disciples.push({
         id, els: [c.sect], combo: null, level: 1, tx: c.tx, ty: c.ty,
-        x: c.tx * TILE + TILE / 2, y: c.ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost, rootT: 0, pushT: 0, bellT: 0,
+        x: c.tx * TILE + TILE / 2, y: c.ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost, rootT: 0, pushT: 0, bellT: 0, target: 'first',
       });
       s.peakDisciples = Math.max(s.peakDisciples, s.disciples.length);
       ev.push({ e: 'placed', id });
@@ -193,6 +194,12 @@ function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
       return;
     }
     case 'cast': return castArt(s, c.art, ev, err);
+    case 'target': {
+      const d = s.disciples.find((x) => x.id === c.id);
+      if (!d) return err('no such disciple');
+      d.target = c.mode;
+      return;
+    }
     case 'pick': {
       if (s.phase !== 'picking' || !s.offer?.includes(c.card)) return err('no such card on offer');
       pickCard(s, c.card, ev);
@@ -251,15 +258,30 @@ function pickCard(s: DefendState, id: string, ev: SimEvent[]) {
   ev.push({ e: 'picked', card: id });
 }
 
+// Enemy types spawned in a wave, in order. New types are introduced every 2 waves.
+export function waveTypes(stageId: string, wave: number): string[] {
+  const types = STAGES[stageId]!.enemies.filter((t) => ENEMIES[t] && !t.startsWith('boss'));
+  if (types.length === 0) throw new Error(`stage ${stageId} has no regular enemies`);
+  const available = types.slice(0, Math.min(types.length, 1 + Math.floor((wave - 1) / 2)));
+  const out: string[] = [];
+  for (let i = 0; i < 4 + wave; i++) out.push(available[(i + wave) % available.length]!);
+  return out;
+}
+
+// Next wave summary for the HUD: [type, count] in first-seen order.
+export function previewWave(s: DefendState): [string, number][] {
+  if (s.wave >= s.totalWaves) return [];
+  const counts: [string, number][] = [];
+  for (const t of waveTypes(s.stageId, s.wave + 1)) {
+    const row = counts.find((c) => c[0] === t);
+    if (row) row[1]++; else counts.push([t, 1]);
+  }
+  return counts;
+}
+
 function startWave(s: DefendState, ev: SimEvent[]) {
   s.wave++;
-  const stage = STAGES[s.stageId]!;
-  const types = stage.enemies.filter((t) => ENEMIES[t] && !t.startsWith('boss'));
-  if (types.length === 0) throw new Error(`stage ${s.stageId} has no regular enemies`);
-  const available = types.slice(0, Math.min(types.length, 1 + Math.floor((s.wave - 1) / 2)));
-  const count = 4 + s.wave;
-  s.spawnQueue = [];
-  for (let i = 0; i < count; i++) s.spawnQueue.push(available[(i + s.wave) % available.length]!);
+  s.spawnQueue = waveTypes(s.stageId, s.wave);
   s.spawnT = 0;
   s.phase = 'spawning';
   ev.push({ e: 'wave', wave: s.wave });
@@ -267,12 +289,22 @@ function startWave(s: DefendState, ev: SimEvent[]) {
 
 function spawn(s: DefendState, type: string, ev: SimEvent[], at = 0, small = false): Enemy {
   const def = ENEMIES[type]!;
-  const hp = small ? Math.max(1, Math.floor(waveHp(def.hp, s.wave) / 4)) : waveHp(def.hp, s.wave);
+  let hp = small ? Math.max(1, Math.floor(waveHp(def.hp, s.wave) / 4)) : waveHp(def.hp, s.wave);
+  let speed = def.speed;
+  let bounty = small ? 1 : Math.floor((def.bounty * (100 + ECONOMY.bountyGrowthPct * (s.wave - 1))) / 100);
+  let elite: (typeof ELITES.affixes)[number] | null = null;
+  if (!small && s.wave >= ELITES.fromWave && rollPct(s) < ELITES.chancePct) {
+    elite = ELITES.affixes[Math.floor(nextRandom(s) * ELITES.affixes.length)]!;
+    hp = Math.floor((hp * elite.hpPct) / 100);
+    speed = Math.floor((speed * elite.speedPct) / 100);
+    bounty *= ELITES.bountyMult;
+  }
   const [x, y] = pointAt(s.path, at);
   const e: Enemy = {
-    id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, speed: def.speed,
-    bounty: small ? 1 : Math.floor((def.bounty * (100 + ECONOMY.bountyGrowthPct * (s.wave - 1))) / 100), x, y, slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, poison: 0, poisonT: 0,
+    id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, speed,
+    bounty, x, y, slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, poison: 0, poisonT: 0,
     poisonDps: 0, stunT: 0, revealed: false, lastEl: null, lastElT: 0, small, age: 0,
+    elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0,
   };
   s.enemies.push(e);
   ev.push({ e: 'spawn', id: e.id });
@@ -328,6 +360,18 @@ function hasLevel(s: DefendState, el: Element, level: number) {
   return s.disciples.some((d) => d.els.includes(el) && d.level >= level);
 }
 
+const dist2 = (d: Disciple, e: Enemy) => (d.x - e.x) ** 2 + (d.y - e.y) ** 2;
+
+// Target priority chosen per disciple; ties keep the earlier enemy (deterministic).
+function better(d: Disciple, e: Enemy, cur: Enemy): boolean {
+  switch (d.target) {
+    case 'strong': return e.hp > cur.hp;
+    case 'weak': return e.hp < cur.hp;
+    case 'close': return dist2(d, e) < dist2(d, cur);
+    default: return e.d > cur.d;
+  }
+}
+
 function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
   d.rootT++; d.pushT++; d.bellT++;
   const st = discipleStats(s, d);
@@ -351,7 +395,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
   let target: Enemy | null = null;
   for (const e of s.enemies) {
     if (!canTarget(e, st.hitsAir, st.hitsGround) || !within(d.x, d.y, e.x, e.y, st.range)) continue;
-    if (!target || e.d > target.d) target = e;
+    if (!target || better(d, e, target)) target = e;
   }
   if (!target) return;
   d.cd = st.cooldown - 1;
@@ -457,6 +501,7 @@ function moveEnemies(s: DefendState, ev: SimEvent[]) {
     }
     if (e.burnT > 0) e.burnT--;
     if (e.poisonT > 0) e.poisonT--; else e.poison = 0;
+    if (e.regenPct > 0 && e.age % TICK_HZ === 0) e.hp = Math.min(e.maxHp, e.hp + Math.floor((e.maxHp * e.regenPct) / 100));
     if (e.type === 'healer' && e.age % FX.healEvery === 0)
       for (const o of s.enemies)
         if (o !== e && o.hp > 0 && within(e.x, e.y, o.x, o.y, FX.healRange))

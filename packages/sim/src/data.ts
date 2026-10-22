@@ -53,6 +53,7 @@ export interface StageDef {
   stars: string[];
   unlocksSect?: string;
   unlockAll?: boolean;
+  guestSects?: string[];
 }
 
 const ticks = (sec: number) => Math.round(sec * TICK_HZ);
@@ -192,3 +193,17 @@ export const CARDS: CardDef[] = [...m.damage, ...m.economy, ...m.ruleBender]
 
 export const CARD_EVERY_WAVES = 5;
 export const CARD_AUTO_PICK = ticks(15);
+
+export interface EliteAffix { id: string; nameTh: string; traitTh: string; hpPct: number; speedPct: number; regenPct: number; outline: string }
+const el = enemiesJson.elites;
+export const ELITES = {
+  fromWave: el.eliteFromWave,
+  chancePct: el.eliteChancePct,
+  bountyMult: el.bountyMult,
+  affixes: el.affixes.map((a) => ({
+    id: a.id, nameTh: a.nameTh, traitTh: a.traitTh, hpPct: a.hpPct, speedPct: a.speedPct, regenPct: a.regenPctPerSec, outline: a.outline,
+  })) as EliteAffix[],
+};
+
+export const TARGET_MODES = ['first', 'strong', 'weak', 'close'] as const;
+export type TargetMode = (typeof TARGET_MODES)[number];

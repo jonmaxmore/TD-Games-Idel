@@ -207,5 +207,40 @@
         "effect": "units heal 30% and gain 3s immunity to control"
       }
     ]
+  },
+  "elites": {
+    "_notes": "From eliteFromWave, each spawn has eliteChancePct to roll one affix (seeded RNG). Elites give x2 bounty.",
+    "eliteFromWave": 5,
+    "eliteChancePct": 15,
+    "bountyMult": 2,
+    "affixes": [
+      {
+        "id": "golden",
+        "nameTh": "เกราะทอง",
+        "traitTh": "เลือด +60%",
+        "hpPct": 160,
+        "speedPct": 100,
+        "regenPctPerSec": 0,
+        "outline": "#E3B04B"
+      },
+      {
+        "id": "swift",
+        "nameTh": "ก้าวลม",
+        "traitTh": "เร็วขึ้น 40%",
+        "hpPct": 100,
+        "speedPct": 140,
+        "regenPctPerSec": 0,
+        "outline": "#9BE07A"
+      },
+      {
+        "id": "undying",
+        "nameTh": "ฟื้นคืน",
+        "traitTh": "ฟื้นเลือด 3% ต่อวิ",
+        "hpPct": 120,
+        "speedPct": 100,
+        "regenPctPerSec": 3,
+        "outline": "#D2412F"
+      }
+    ]
   }
 }

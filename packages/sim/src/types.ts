@@ -1,4 +1,4 @@
-import type { Element } from './data';
+import type { Element, TargetMode } from './data';
 import type { Pt } from './layouts';
 
 export type Command =
@@ -10,7 +10,8 @@ export type Command =
   | { t: 'route'; choice: 'left' | 'right' }
   | { t: 'skill'; member: number }
   | { t: 'cast'; art: string }
-  | { t: 'pick'; card: string };
+  | { t: 'pick'; card: string }
+  | { t: 'target'; id: number; mode: TargetMode };
 
 export type SimEvent =
   | { e: 'hit'; from: number; to: number; dmg: number; pct: number; crit: boolean; el: Element }
@@ -49,6 +50,7 @@ export interface Disciple {
   rootT: number;
   pushT: number;
   bellT: number;
+  target: TargetMode;
 }
 
 export interface Enemy {
@@ -76,6 +78,8 @@ export interface Enemy {
   lastElT: number;
   small: boolean;
   age: number;
+  elite: string | null;
+  regenPct: number;
 }
 
 export interface DefendState {

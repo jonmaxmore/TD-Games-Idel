@@ -1,4 +1,4 @@
-import { ARTS, CARDS, SECT_ORDER } from './data';
+import { ARTS, CARDS, SECT_ORDER, TARGET_MODES } from './data';
 import type { Command } from './types';
 
 const int = (v: unknown) => Number.isInteger(v);
@@ -17,6 +17,7 @@ export function validCommand(c: Command): boolean {
     case 'skill': return int(c.member);
     case 'cast': return ARTS.some((a) => a.id === c.art);
     case 'pick': return CARDS.some((k) => k.id === c.card);
+    case 'target': return int(c.id) && TARGET_MODES.includes(c.mode);
     default: return false;
   }
 }

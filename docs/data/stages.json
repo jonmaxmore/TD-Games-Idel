@@ -1,5 +1,5 @@
 {
-  "_notes": "60 story stages (5 chapters x 12). Chapter 1 fully specified; chapters 2-5 are outlines (status=outline). Star conditions are keys interpreted by the game.",
+  "_notes": "60 story stages (5 chapters x 12). Chapter 1 fully specified; chapters 2-5 are outlines (status=outline). Star conditions are keys interpreted by the game. guestSects = sects lent to this stage only (a taste of later chapters).",
   "stageTypes": {
     "defend": "classic TD",
     "assault": "reverse TD: lead a party along a chosen route",
@@ -89,7 +89,8 @@
       "unlocksSect": "metal",
       "layout": "village-a",
       "waves": 6,
-      "startSilver": 120
+      "startSilver": 120,
+      "guestSects": []
     },
     {
       "id": "1-2",
@@ -98,7 +99,8 @@
       "title": "Tutorial: upgrades + interest",
       "enemies": [
         "cultist",
-        "runner"
+        "runner",
+        "leaper"
       ],
       "stars": [
         "clear",
@@ -107,7 +109,10 @@
       ],
       "layout": "village-a",
       "waves": 8,
-      "startSilver": 130
+      "startSilver": 130,
+      "guestSects": [
+        "water"
+      ]
     },
     {
       "id": "1-3",
@@ -132,7 +137,9 @@
       "enemies": [
         "cultist",
         "runner",
-        "brute"
+        "brute",
+        "leaper",
+        "healer"
       ],
       "stars": [
         "clear",
@@ -142,7 +149,10 @@
       "unlocksSect": "earth",
       "layout": "village-b",
       "waves": 12,
-      "startSilver": 180
+      "startSilver": 180,
+      "guestSects": [
+        "fire"
+      ]
     },
     {
       "id": "1-5",

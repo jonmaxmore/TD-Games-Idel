@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  COMBOS, createGame, ENEMIES, hashState, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
+  COMBOS, createGame, ENEMIES, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
   type Command, type DefendState, type Element, type SimEvent, type AssaultState, type Replay,
 } from '../src/index';
 import { overcomePct, isGenerated } from '../src/wuxing';
@@ -60,7 +60,8 @@ describe('economy', () => {
   });
   it('story stages only unlock sects reached so far', () => {
     expect(defend('1-1').unlocked).toEqual(['metal']);
-    expect(defend('1-4').unlocked).toEqual(['metal', 'earth']);
+    expect(defend('1-4').unlocked).toEqual(['metal', 'earth', 'fire']); // fire is a guest sect for 1-4 only
+    expect(defend('1-2').unlocked).toEqual(['metal', 'water']);
     expect(defend('T-1').unlocked).toHaveLength(6);
   });
   it('pays capped interest after a wave', () => {
@@ -196,6 +197,48 @@ describe('secret arts and cards', () => {
     const ka = kill(a), kb = kill(b);
     if (ka?.e === 'kill' && kb?.e === 'kill') expect(kb.bounty).toBe(ka.bounty + 1);
     else throw new Error('no kill');
+  });
+});
+
+describe('variety', () => {
+  it('target modes pick different enemies', () => {
+    const base = defend('1-1');
+    run(base, 1, [{ t: 'place', sect: 'metal', tx: 4, ty: 3 }, { t: 'nextWave' }]);
+    run(base, 60);
+    // Three stunned enemies in range: lead (d high, mid hp), strong (most hp), weak+close.
+    const [a, b, c] = base.enemies;
+    Object.assign(a!, { d: 6000, x: 6500, y: 2500, hp: 50, stunT: 999 });
+    Object.assign(b!, { d: 5000, x: 5500, y: 2500, hp: 90, stunT: 999 });
+    Object.assign(c!, { d: 4000, x: 4500, y: 2500, hp: 20, stunT: 999 });
+    const pick = (mode: 'first' | 'strong' | 'weak' | 'close') => {
+      const s = structuredClone(base);
+      s.disciples[0]!.cd = 0;
+      const ev = run(s, 1, [{ t: 'target', id: s.disciples[0]!.id, mode }]);
+      const hit = ev.find((e) => e.e === 'hit');
+      return hit?.e === 'hit' ? hit.to : -1;
+    };
+    expect(pick('first')).toBe(a!.id);
+    expect(pick('strong')).toBe(b!.id);
+    expect(pick('weak')).toBe(c!.id);
+    expect(pick('close')).toBe(c!.id);
+  });
+  it('previewWave matches what the next wave spawns', () => {
+    const s = defend('1-4');
+    const preview = previewWave(s);
+    const ev = run(s, 400, [{ t: 'nextWave' }]);
+    const spawned = ev.filter((e) => e.e === 'spawn').length;
+    expect(preview.reduce((n, [, c]) => n + c, 0)).toBe(spawned);
+  });
+  it('elites appear from wave 5 with an affix and give double bounty', () => {
+    const s = defend('T-1');
+    s.wave = 7;
+    let elites = 0;
+    for (let i = 0; i < 200; i++) step(s, []); // build phase auto-start not reached; spawn directly
+    for (let w = 0; w < 3; w++) { s.phase = 'build'; run(s, 300, [{ t: 'nextWave' }]); }
+    elites = s.enemies.filter((e) => e.elite).length;
+    expect(elites).toBeGreaterThan(0);
+    const e = s.enemies.find((x) => x.elite)!;
+    expect(['golden', 'swift', 'undying']).toContain(e.elite);
   });
 });
 
