@@ -15,6 +15,7 @@
 | [design/economy.md](design/economy.md) | F2P หาเงินอย่างไร, gacha แบบไม่ pay-to-win, สกุลเงิน, ราคา, KPI, กฎหมาย |
 | [design/competitors.md](design/competitors.md) | คู่แข่ง (CoC, Clash Royale, Arknights, Summoners War: Rush), จุดยืน และการปรับแผน |
 | [design/esports.md](design/esports.md) | ปลายทาง esports: โหมดเรือธง, Bo3/ban-pick/ทีมแบบ KOF, ฟีเจอร์ผู้ชม, บันไดสู่ลีกอาชีพ |
+| [design/sect-allegiance.md](design/sect-allegiance.md) | **ร่าง:** เลือกสำนักต้นสังกัดตอนเริ่มเกม สำนัก × บทบาท, 7 สำนัก, ผลต่อธาตุ/gacha/PvP, ต้นทุนงานศิลป์ |
 | [design/maps.md](design/maps.md) | แผนที่: 5 ภูมิภาค, ~42 ผังใน v1.0, ลานสำนัก, map pool ของ PvP |
 | [design/benchmarks.md](design/benchmarks.md) | บทเรียนจาก Mobile Legends, RoV, League of Legends, PUBG Mobile และฟีเจอร์ที่นำมาใช้ |
 | [design/architecture.md](design/architecture.md) | สถาปัตยกรรม: หน้าบ้าน, หลังบ้าน (Workers/Durable Objects), ฐานข้อมูล (D1/KV/R2), auth, กันโกง, deploy |
