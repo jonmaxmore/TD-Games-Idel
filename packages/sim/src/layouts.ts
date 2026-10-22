@@ -1,11 +1,25 @@
-// Map layouts in tile coordinates (grid 11 x 18). Paths are axis-aligned polylines through tile centres.
-// Moves to Tiled JSON files once real maps exist (docs/design/maps.md).
-export const GRID_W = 11;
-export const GRID_H = 18;
+// Map layouts in tile coordinates, loaded from docs/data/maps.json (docs/art/map-design.md).
+// Paths are axis-aligned polylines through tile centres, from the spawn gate on the board edge to the goal gate inside it.
+import mapsJson from '../../../docs/data/maps.json';
+
+export const GRID_W = mapsJson.grid[0]!;
+export const GRID_H = mapsJson.grid[1]!;
 
 export type Pt = [number, number];
 
-export interface DefendLayout {
+export interface Prop {
+  type: string;
+  at: Pt;
+}
+
+interface Common {
+  biome: string;
+  nameTh: string;
+  props: Prop[];
+  goalGate?: string;
+}
+
+export interface DefendLayout extends Common {
   kind: 'defend';
   path: Pt[];
 }
@@ -17,7 +31,7 @@ export interface Outpost {
   dmg: number;
 }
 
-export interface AssaultLayout {
+export interface AssaultLayout extends Common {
   kind: 'assault';
   start: Pt[];
   left: Pt[];
@@ -27,25 +41,42 @@ export interface AssaultLayout {
   pills: Pt[];
 }
 
-export const LAYOUTS: Record<string, DefendLayout | AssaultLayout> = {
-  'village-a': { kind: 'defend', path: [[0, 2], [8, 2], [8, 7], [2, 7], [2, 12], [9, 12], [9, 17]] },
-  'village-b': { kind: 'defend', path: [[5, 0], [5, 4], [1, 4], [1, 9], [9, 9], [9, 14], [4, 14], [4, 17]] },
-  'assault-a': {
-    kind: 'assault',
-    start: [[5, 17], [5, 12]],
-    left: [[1, 12], [1, 6], [5, 6]],
-    right: [[9, 12], [9, 6], [5, 6]],
-    end: [[5, 0]],
-    outposts: [
-      { at: [3, 15], route: 'any', hp: 500, dmg: 12 },
-      { at: [3, 10], route: 'left', hp: 450, dmg: 10 },
-      { at: [3, 7], route: 'left', hp: 450, dmg: 10 },
-      { at: [7, 9], route: 'right', hp: 1100, dmg: 20 },
-      { at: [6, 2], route: 'any', hp: 1400, dmg: 18 },
-    ],
-    pills: [[1, 9]],
-  },
-};
+export type Layout = DefendLayout | AssaultLayout;
+
+export interface Biome {
+  nameTh: string;
+  chapter: number;
+  time: string;
+  palette: string;
+  moodTh: string;
+  mechanicTh: string;
+  spawnGate: string;
+  goalGate: string;
+}
+
+export const LAYOUTS = mapsJson.layouts as unknown as Record<string, Layout>;
+export const BIOMES = mapsJson.biomes as Record<string, Biome>;
+export const PROP_TYPES = mapsJson.propTypes as Record<string, { block: boolean; nameTh: string }>;
+
+// Layout as played: 'mirror' flips x so one hand-made layout gives two maps.
+export function resolveLayout(name: string, variant?: string): Layout | undefined {
+  const l = LAYOUTS[name];
+  if (!l || variant !== 'mirror') return l;
+  const f = ([x, y]: Pt): Pt => [GRID_W - 1 - x, y];
+  const props = l.props.map((p) => ({ ...p, at: f(p.at) }));
+  if (l.kind === 'defend') return { ...l, props, path: l.path.map(f) };
+  return {
+    ...l, props, start: l.start.map(f), end: l.end.map(f), pills: l.pills.map(f),
+    // mirrored left branch is now on the right
+    left: l.right.map(f), right: l.left.map(f),
+    outposts: l.outposts.map((o) => ({ ...o, at: f(o.at), route: o.route === 'left' ? 'right' : o.route === 'right' ? 'left' : 'any' })),
+  };
+}
+
+// Tiles where disciples cannot stand because a blocking prop (house, tree, rock...) is there. Sorted for determinism.
+export function blockedTiles(l: Layout): string[] {
+  return l.props.filter((p) => PROP_TYPES[p.type]?.block).map((p) => `${p.at[0]},${p.at[1]}`).sort();
+}
 
 export function tilesOnPath(path: Pt[]): Set<string> {
   const out = new Set<string>();

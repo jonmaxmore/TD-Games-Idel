@@ -1,5 +1,5 @@
 import { SECTS, STAGES, TICK_HZ, TILE, type Element } from './data';
-import { LAYOUTS, type AssaultLayout, type Pt } from './layouts';
+import { resolveLayout, type AssaultLayout, type Pt } from './layouts';
 import { pathLength, pointAt, toMilli, within } from './path';
 import { rollPct } from './rng';
 import { validCommand } from './commands';
@@ -20,8 +20,8 @@ const PILL_HEAL_PCT = 30;
 const CRIT_PCT = 15;
 
 const layoutOf = (stageId: string): AssaultLayout => {
-  const name = STAGES[stageId]?.layout;
-  const l = name ? LAYOUTS[name] : undefined;
+  const st = STAGES[stageId];
+  const l = st?.layout ? resolveLayout(st.layout, st.variant) : undefined;
   if (!l || l.kind !== 'assault') throw new Error(`stage ${stageId} has no assault layout`);
   return l;
 };

@@ -53,9 +53,9 @@
       "chapter": 0,
       "type": "training",
       "title": "Training ground: all six sects, test Wu Xing and combos",
-      "layout": "village-a",
+      "layout": "village-terraces",
       "waves": 20,
-      "startSilver": 800,
+      "startSilver": 900,
       "enemies": [
         "cultist",
         "runner",
@@ -87,7 +87,7 @@
         "under_3min"
       ],
       "unlocksSect": "metal",
-      "layout": "village-a",
+      "layout": "village-terraces",
       "waves": 6,
       "startSilver": 120,
       "guestSects": []
@@ -107,7 +107,8 @@
         "no_life_lost",
         "hold_200_silver"
       ],
-      "layout": "village-a",
+      "layout": "village-terraces",
+      "variant": "mirror",
       "waves": 8,
       "startSilver": 130,
       "guestSects": [
@@ -127,7 +128,7 @@
         "no_disciple_down",
         "under_3min"
       ],
-      "layout": "assault-a"
+      "layout": "village-camp"
     },
     {
       "id": "1-4",
@@ -147,7 +148,7 @@
         "max_6_disciples"
       ],
       "unlocksSect": "earth",
-      "layout": "village-b",
+      "layout": "village-shrine",
       "waves": 12,
       "startSilver": 180,
       "guestSects": [
@@ -182,7 +183,10 @@
         "clear",
         "no_life_lost",
         "max_2_sects"
-      ]
+      ],
+      "layout": "village-rooftops",
+      "waves": 10,
+      "startSilver": 150
     },
     {
       "id": "1-7",
@@ -197,7 +201,9 @@
         "clear",
         "no_life_lost",
         "no_upgrades"
-      ]
+      ],
+      "layout": "village-shrine",
+      "variant": "mirror"
     },
     {
       "id": "1-8",
@@ -212,7 +218,8 @@
         "clear",
         "no_disciple_down",
         "choose_roof_route"
-      ]
+      ],
+      "layout": "village-checkpoint"
     },
     {
       "id": "1-9",
@@ -242,7 +249,8 @@
         "clear",
         "no_disciple_down",
         "under_2min"
-      ]
+      ],
+      "layout": "village-spiral"
     },
     {
       "id": "1-11",
@@ -257,7 +265,9 @@
         "clear",
         "no_disciple_down",
         "collect_3_pills"
-      ]
+      ],
+      "layout": "village-camp",
+      "variant": "mirror"
     },
     {
       "id": "1-12",
@@ -275,7 +285,10 @@
         "clear",
         "no_life_lost",
         "use_combo"
-      ]
+      ],
+      "layout": "village-spiral",
+      "waves": 20,
+      "startSilver": 300
     },
     {
       "id": "2-1",

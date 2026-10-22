@@ -94,17 +94,66 @@ namespace FiveSects.Sim
         }
     }
 
+    public class Prop { public string Type; public Pt At; }
+
+    public class MapLayout
+    {
+        public string Kind, Biome, NameTh, GoalGate;
+        public Pt[] Path = new Pt[0];   // defend layouts only (assault is not ported)
+        public List<Prop> Props = new List<Prop>();
+    }
+
+    public class BiomeDef { public string NameTh, Time, Palette, MoodTh, MechanicTh, SpawnGate, GoalGate; }
+
+    // Mirrors layouts.ts: map data from docs/data/maps.json, 'mirror' variant flips x.
     public static class Layouts
     {
-        public const int GridW = 11;
-        public const int GridH = 18;
+        public static int GridW = 11, GridH = 18;
+        public static readonly Dictionary<string, MapLayout> All = new Dictionary<string, MapLayout>();
+        public static readonly Dictionary<string, BiomeDef> Biomes = new Dictionary<string, BiomeDef>();
+        public static readonly Dictionary<string, bool> PropBlocks = new Dictionary<string, bool>();
 
-        // Mirrors layouts.ts (defend layouts only).
-        public static readonly Dictionary<string, Pt[]> Defend = new Dictionary<string, Pt[]>
+        static Pt P(Newtonsoft.Json.Linq.JToken t) => new Pt((int)t[0], (int)t[1]);
+
+        public static void Load(Newtonsoft.Json.Linq.JObject maps)
         {
-            ["village-a"] = new[] { new Pt(0, 2), new Pt(8, 2), new Pt(8, 7), new Pt(2, 7), new Pt(2, 12), new Pt(9, 12), new Pt(9, 17) },
-            ["village-b"] = new[] { new Pt(5, 0), new Pt(5, 4), new Pt(1, 4), new Pt(1, 9), new Pt(9, 9), new Pt(9, 14), new Pt(4, 14), new Pt(4, 17) },
-        };
+            All.Clear(); Biomes.Clear(); PropBlocks.Clear();
+            GridW = (int)maps["grid"][0]; GridH = (int)maps["grid"][1];
+            foreach (var p in (Newtonsoft.Json.Linq.JObject)maps["propTypes"]) PropBlocks[p.Key] = (bool)p.Value["block"];
+            foreach (var b in (Newtonsoft.Json.Linq.JObject)maps["biomes"])
+                Biomes[b.Key] = new BiomeDef
+                {
+                    NameTh = (string)b.Value["nameTh"], Time = (string)b.Value["time"], Palette = (string)b.Value["palette"],
+                    MoodTh = (string)b.Value["moodTh"], MechanicTh = (string)b.Value["mechanicTh"],
+                    SpawnGate = (string)b.Value["spawnGate"], GoalGate = (string)b.Value["goalGate"],
+                };
+            foreach (var l in (Newtonsoft.Json.Linq.JObject)maps["layouts"])
+            {
+                var v = l.Value;
+                var m = new MapLayout { Kind = (string)v["kind"], Biome = (string)v["biome"], NameTh = (string)v["nameTh"], GoalGate = (string)v["goalGate"] };
+                if (v["path"] != null) { var path = new List<Pt>(); foreach (var t in v["path"]) path.Add(P(t)); m.Path = path.ToArray(); }
+                foreach (var pr in v["props"]) m.Props.Add(new Prop { Type = (string)pr["type"], At = P(pr["at"]) });
+                All[l.Key] = m;
+            }
+        }
+
+        public static MapLayout Get(string name, string variant)
+        {
+            var l = All[name];
+            if (variant != "mirror") return l;
+            Pt F(Pt p) => new Pt(GridW - 1 - p.X, p.Y);
+            var m = new MapLayout { Kind = l.Kind, Biome = l.Biome, NameTh = l.NameTh, GoalGate = l.GoalGate, Path = new Pt[l.Path.Length] };
+            for (int i = 0; i < l.Path.Length; i++) m.Path[i] = F(l.Path[i]);
+            foreach (var p in l.Props) m.Props.Add(new Prop { Type = p.Type, At = F(p.At) });
+            return m;
+        }
+
+        public static HashSet<string> Blocked(MapLayout l)
+        {
+            var o = new HashSet<string>();
+            foreach (var p in l.Props) if (PropBlocks.TryGetValue(p.Type, out var b) && b) o.Add(p.At.X + "," + p.At.Y);
+            return o;
+        }
     }
 
     public static class Wuxing

@@ -102,6 +102,7 @@ export interface DefendState {
   path: Pt[];
   pathLen: number;
   pathTiles: string[];
+  blockedTiles: string[];
   livesLost: number;
   combosMade: number;
   peakDisciples: number;

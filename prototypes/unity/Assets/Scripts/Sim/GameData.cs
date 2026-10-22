@@ -12,7 +12,7 @@ namespace FiveSects.Sim
     public class ComboDef { public string Id, NameTh, A, B; }
     public class StageDef
     {
-        public string Id, Type, Layout, UnlocksSect; public int Chapter; public int? Waves, StartSilver; public bool UnlockAll;
+        public string Id, Type, Layout, Variant, UnlocksSect; public int Chapter; public int? Waves, StartSilver; public bool UnlockAll;
         public List<string> Enemies = new List<string>(), Stars = new List<string>(), GuestSects = new List<string>();
     }
     public class ArtDef { public string Id, NameTh, Glyph, Type; public int Cooldown, Dmg, Radius, Pct, Duration; }
@@ -98,7 +98,7 @@ namespace FiveSects.Sim
             {
                 var st = new StageDef
                 {
-                    Id = (string)s["id"], Type = (string)s["type"], Layout = (string)s["layout"], UnlocksSect = (string)s["unlocksSect"],
+                    Id = (string)s["id"], Type = (string)s["type"], Layout = (string)s["layout"], Variant = (string)s["variant"], UnlocksSect = (string)s["unlocksSect"],
                     Chapter = (int)s["chapter"], Waves = (int?)s["waves"], StartSilver = (int?)s["startSilver"], UnlockAll = (bool?)s["unlockAll"] ?? false,
                 };
                 if (s["enemies"] != null) st.Enemies = s["enemies"].Select(x => (string)x).ToList();
@@ -107,6 +107,8 @@ namespace FiveSects.Sim
                 StageList.Add(st);
                 Stages[st.Id] = st;
             }
+
+            Layouts.Load(JObject.Parse(read("maps")));
 
             var inRun = JObject.Parse(read("economy"))["inRun"];
             StartLives = (int)inRun["startLives"]; InterestPct = (int)inRun["interestPct"]; InterestCap = (int)inRun["interestCap"];

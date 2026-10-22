@@ -17,7 +17,11 @@
       "earth": ["#DEC191", "#C99A4A", "#A97D33", "#836127", "#5F471C", "#402F13"],
       "yinyang": ["#F2F2F2", "#C8C4CC", "#8F8A96", "#5A5266", "#3A3442", "#FFFFFF"],
       "enemy": ["#8A2A1A", "#5A1820", "#2A0A10", "#3E5A2A", "#6E6A78", "#120A10"],
-      "env": ["#16201A", "#1E2B22", "#24352A", "#3B2C2A", "#4A3833", "#5E4A42", "#7A8C7E", "#C9D3D8"]
+      "env": ["#16201A", "#1E2B22", "#24352A", "#3B2C2A", "#4A3833", "#5E4A42", "#7A8C7E", "#C9D3D8"],
+      "env-bamboo": ["#0F2420", "#16352B", "#2A5A3E", "#4E8A5A", "#3A4A3E", "#5E7368", "#9FC7B4", "#D8EEE4"],
+      "env-ice": ["#0C1428", "#162447", "#24407A", "#4A78B8", "#8EC3E8", "#C9E6F7", "#2A3A4E", "#7FE0D0"],
+      "env-fire": ["#1A0C10", "#2E1418", "#4A1E1E", "#7A2A1E", "#C8462A", "#F2A23A", "#3A2A24", "#FFE08A"],
+      "env-bloodmoon": ["#140A12", "#24101A", "#3A1622", "#5A1E28", "#8A2A2A", "#D2412F", "#4A4048", "#F2C9A0"]
     },
     "paletteNote": "shared + one sect group (6 shades each) per sprite; enemies use shared+enemy; terrain uses env. Blender pipeline: docs/tools/blender.md",
     "outline": "1px dark outline #1A1423 on all characters for readability",

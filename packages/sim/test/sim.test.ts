@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  canonicalString, COMBOS, createGame, ENEMIES, fnv1a, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
-  type Command, type DefendState, type Element, type SimEvent, type AssaultState, type Replay,
+  BIOMES, canonicalString, GRID_H, GRID_W, LAYOUTS, PROP_TYPES, resolveLayout, tilesOnPath, COMBOS, createGame, ENEMIES, fnv1a, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
+  type Command, type DefendState, type Element, type SimEvent, type AssaultState, type Replay, type Layout,
 } from '../src/index';
 import { overcomePct, isGenerated } from '../src/wuxing';
 import { playBot } from './bot';
@@ -54,7 +54,7 @@ describe('economy', () => {
   });
   it('cannot build on the path or on another disciple', () => {
     const s = defend();
-    const ev = run(s, 1, [{ t: 'place', sect: 'metal', tx: 0, ty: 2 }, { t: 'place', sect: 'metal', tx: 4, ty: 4 }, { t: 'place', sect: 'earth', tx: 4, ty: 4 }]);
+    const ev = run(s, 1, [{ t: 'place', sect: 'metal', tx: 0, ty: 1 }, { t: 'place', sect: 'metal', tx: 4, ty: 4 }, { t: 'place', sect: 'earth', tx: 4, ty: 4 }]);
     expect(s.disciples).toHaveLength(1);
     expect(ev.filter((e) => e.e === 'error')).toHaveLength(2);
   });
@@ -345,6 +345,43 @@ describe('canonical hash (engine-port parity)', () => {
     const s = defend('1-1');
     expect(canonicalString(s)).toBe('0|120|20|0|build|1|||');
     expect(fnv1a('abc')).toBe('1a47e90b');
+  });
+});
+
+describe('maps', () => {
+  const edge = ([x, y]: [number, number]) => x === 0 || y === 0 || x === GRID_W - 1 || y === GRID_H - 1;
+  const routes = (l: Layout) => (l.kind === 'defend' ? [l.path] : [[...l.start, ...l.left, ...l.end], [...l.start, ...l.right, ...l.end]]);
+  it.each(Object.keys(LAYOUTS))('%s: starts on the edge, ends at a gate inside the board, props off the path', (name) => {
+    for (const variant of [undefined, 'mirror']) {
+      const l = resolveLayout(name, variant)!;
+      const path = new Set<string>();
+      for (const r of routes(l)) {
+        for (let i = 1; i < r.length; i++) expect(r[i]![0] === r[i - 1]![0] || r[i]![1] === r[i - 1]![1], `${name} segment ${i}`).toBe(true);
+        expect(edge(r[0]!), `${name} spawn`).toBe(true);
+        expect(edge(r[r.length - 1]!), `${name} goal`).toBe(false);
+        for (const t of tilesOnPath(r)) path.add(t);
+      }
+      for (const p of l.props) {
+        expect(PROP_TYPES[p.type], p.type).toBeTruthy();
+        expect(path.has(`${p.at[0]},${p.at[1]}`), `${name} prop ${p.type}@${p.at}`).toBe(false);
+      }
+      expect(BIOMES[l.biome], l.biome).toBeTruthy();
+    }
+  });
+  it('mirror twice is the original layout', () => {
+    for (const name of Object.keys(LAYOUTS)) {
+      const m = resolveLayout(name, 'mirror')!;
+      const back = m.kind === 'defend' ? m.path.map(([x, y]) => [GRID_W - 1 - x, y]) : null;
+      if (back && LAYOUTS[name]!.kind === 'defend') expect(back).toEqual((LAYOUTS[name] as { path: unknown }).path);
+    }
+  });
+  it('every stage layout exists and blocked tiles stop building', () => {
+    for (const st of Object.values(STAGES)) if (st.layout) expect(LAYOUTS[st.layout], st.id).toBeTruthy();
+    const s = defend('1-1');
+    const [bx, by] = s.blockedTiles[0]!.split(',').map(Number);
+    const ev = run(s, 1, [{ t: 'place', sect: 'metal', tx: bx!, ty: by! }]);
+    expect(s.disciples).toHaveLength(0);
+    expect(ev.some((e) => e.e === 'error')).toBe(true);
   });
 });
 

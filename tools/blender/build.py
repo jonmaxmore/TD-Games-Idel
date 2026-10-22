@@ -88,7 +88,9 @@ def empty(name, loc=(0, 0, 0), parent=None):
 # ---------- proxies (stand-ins until an artist .blend exists) ----------
 
 def figure(look, at=(0, 0, 0), turn=-35):
-    """Chibi wuxia figure from primitives, ~1.6 units tall. Returns pose(action, t)."""
+    """Chibi wuxia figure from primitives, ~1.6 units tall. Returns pose(action, t).
+    Optional look keys (absent = the plain figure): weapon sword|flute|palm|fan|staff|taiji, scale [x, y, z],
+    hat, hood, mask, headband (colours), arms (extra arm pairs), halo (colour of a disc behind the head)."""
     root = empty('root', at)
     root.rotation_euler[2] = math.radians(turn)
     body = empty('body', parent=root)
@@ -99,17 +101,53 @@ def figure(look, at=(0, 0, 0), turn=-35):
     part('cyl', body, accent, (0, 0, 0.62), vertices=12, radius=0.27, depth=0.08)
     part('cyl', body, robe, (0, 0, 0.82), vertices=12, radius=0.25, depth=0.32)
     part('ball', body, skin, (0, 0, 1.2), segments=16, ring_count=10, radius=0.3)
-    part('ball', body, hair, (0, 0.09, 1.3), (1.04, 1, 0.7), segments=16, ring_count=10, radius=0.31)
-    part('ball', body, hair, (0, 0.12, 1.58), segments=10, ring_count=8, radius=0.1)
+    if look.get('hair', '') is not None:  # hair: None = bald (monk)
+        part('ball', body, hair, (0, 0.09, 1.3), (1.04, 1, 0.7), segments=16, ring_count=10, radius=0.31)
+        part('ball', body, hair, (0, 0.12, 1.58), segments=10, ring_count=8, radius=0.1)
     for x in (-0.11, 0.11):
         part('box', body, OUTLINE, (x, -0.29, 1.17), (0.05, 0.02, 0.07), size=1)
     arm = empty('arm', (0.27, 0, 0.9), body)
     part('cyl', arm, robe, (0, 0, -0.16), vertices=8, radius=0.08, depth=0.34)
     part('ball', arm, skin, (0, 0, -0.36), segments=8, ring_count=6, radius=0.07)
     part('cyl', body, robe, (-0.27, 0, 0.74), vertices=8, radius=0.08, depth=0.34)
-    if look.get('weapon') == 'sword':
+    weapon = look.get('weapon')
+    if weapon == 'sword':
         part('box', arm, '#EEF3F8', (0, -0.05, 0.04), (0.035, 0.035, 0.78), size=1)
         part('box', arm, '#E3B04B', (0, -0.05, -0.36), (0.16, 0.05, 0.04), size=1)
+    elif weapon == 'flute':
+        part('box', arm, '#9BD17A', (-0.18, -0.12, -0.36), (0.56, 0.045, 0.045), size=1)
+    elif weapon == 'palm':
+        part('ball', arm, '#BFE6FF', (0, -0.14, -0.4), segments=10, ring_count=8, radius=0.11)
+        part('ball', body, '#BFE6FF', (-0.27, -0.14, 0.52), segments=10, ring_count=8, radius=0.11)
+    elif weapon == 'fan':
+        part('cyl', arm, '#FFB347', (0, -0.12, -0.3), (1, 1, 1), (90, 0, 0), vertices=12, radius=0.26, depth=0.03)
+    elif weapon == 'staff':
+        part('cyl', arm, '#8A5A2B', (0, -0.08, -0.1), vertices=8, radius=0.035, depth=1.7)
+        for z in (0.72, -0.92):
+            part('cyl', arm, '#E3B04B', (0, -0.08, z), vertices=8, radius=0.05, depth=0.08)
+    elif weapon == 'taiji':
+        part('box', arm, '#8A5A2B', (0, -0.08, -0.2), (0.03, 0.03, 0.42), size=1)
+        part('ball', arm, '#F2F2F2', (0, -0.08, -0.48), (1, 1, 1.6), segments=8, ring_count=6, radius=0.07)
+        part('cyl', body, '#F2F2F2', (0.12, 0.25, 1.78), (1, 1, 1), (70, 0, 0), vertices=16, radius=0.17, depth=0.03)
+        part('ball', body, '#1A1423', (0.04, 0.22, 1.79), segments=8, ring_count=6, radius=0.07)
+    if look.get('hat'):
+        part('cone', body, look['hat'], (0, 0.02, 1.48), vertices=16, radius1=0.5, radius2=0.03, depth=0.26)
+    if look.get('hood'):
+        part('ball', body, look['hood'], (0, 0.06, 1.26), (1.08, 1.05, 1.0), segments=16, ring_count=10, radius=0.33)
+    if look.get('mask'):
+        part('box', body, look['mask'], (0, -0.27, 1.08), (0.5, 0.08, 0.14), size=1)
+    if look.get('headband'):
+        part('cyl', body, look['headband'], (0, 0, 1.27), vertices=16, radius=0.31, depth=0.06)
+    for i in range(look.get('arms', 0)):
+        side = 1 if i % 2 == 0 else -1
+        a = empty('xarm', (0.3 * side, 0.05, 0.8 - 0.1 * (i // 2)), body)
+        a.rotation_euler[1] = math.radians(40 * side)
+        part('cyl', a, robe, (0, 0, -0.16), vertices=8, radius=0.07, depth=0.32)
+        part('box', a, '#9FB3CA', (0, -0.05, -0.38), (0.04, 0.04, 0.16), size=1)
+    if look.get('halo'):
+        part('cyl', body, look['halo'], (0, 0.45, 1.3), (1, 1, 1), (70, 0, 0), vertices=24, radius=0.55, depth=0.02)
+    if look.get('scale'):
+        body.scale = look['scale']
 
     def pose(action, t):
         wave = math.sin(2 * math.pi * t)
@@ -307,4 +345,5 @@ def main():
             build_sprite(asset, render, os.path.join(ROOT, manifest['out']))
 
 
-main()
+if __name__ == '__main__':
+    main()

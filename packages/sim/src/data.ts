@@ -47,6 +47,7 @@ export interface StageDef {
   type: string;
   title?: string;
   layout?: string;
+  variant?: string;
   waves?: number;
   startSilver?: number;
   enemies: string[];

@@ -1,5 +1,5 @@
 import { ARTS, CARD_AUTO_PICK, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, ENEMIES, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPGRADE, waveHp, type CardDef, type Element, ELITES } from './data';
-import { GRID_H, GRID_W, LAYOUTS, tilesOnPath } from './layouts';
+import { blockedTiles, GRID_H, GRID_W, resolveLayout, tilesOnPath } from './layouts';
 import { pathLength, pointAt, toMilli, within } from './path';
 import { nextRandom, rollPct } from './rng';
 import { validCommand } from './commands';
@@ -47,7 +47,7 @@ const FX = {
 export function createDefend(stageId: string, seed: number): DefendState {
   const stage = STAGES[stageId];
   if (!stage || !stage.layout) throw new Error(`unknown defend stage ${stageId}`);
-  const layout = LAYOUTS[stage.layout];
+  const layout = resolveLayout(stage.layout, stage.variant);
   if (!layout || layout.kind !== 'defend') throw new Error(`layout ${stage.layout} is not a defend layout`);
   const path = toMilli(layout.path);
   return {
@@ -70,6 +70,7 @@ export function createDefend(stageId: string, seed: number): DefendState {
     path,
     pathLen: pathLength(path),
     pathTiles: [...tilesOnPath(layout.path)].sort(),
+    blockedTiles: blockedTiles(layout),
     livesLost: 0,
     combosMade: 0,
     peakDisciples: 0,
@@ -123,7 +124,7 @@ export function sellValue(d: Disciple, s?: DefendState): number {
 
 export function canBuild(s: DefendState, tx: number, ty: number): boolean {
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return false;
-  if (s.pathTiles.includes(`${tx},${ty}`)) return false;
+  if (s.pathTiles.includes(`${tx},${ty}`) || s.blockedTiles.includes(`${tx},${ty}`)) return false;
   return !s.disciples.some((d) => d.tx === tx && d.ty === ty);
 }
 

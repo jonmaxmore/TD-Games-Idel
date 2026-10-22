@@ -49,6 +49,8 @@ namespace FiveSects.Sim
         public List<string> Unlocked = new List<string>();
         public List<Pt> Path = new List<Pt>();
         public HashSet<string> PathTiles = new HashSet<string>();
+        public HashSet<string> Blocked = new HashSet<string>();
+        public MapLayout Layout;
         public int[] ArtCd;
         public List<string> Cards = new List<string>();
         public List<string> Offer;
@@ -77,13 +79,13 @@ namespace FiveSects.Sim
         public static DefendState Create(string stageId, uint seed)
         {
             var stage = GameData.Stages[stageId];
-            var layout = Layouts.Defend[stage.Layout];
-            var path = PathMath.ToMilli(layout);
+            var layout = Layouts.Get(stage.Layout, stage.Variant);
+            var path = PathMath.ToMilli(layout.Path);
             return new DefendState
             {
                 StageId = stageId, Rng = seed, Silver = stage.StartSilver ?? 100, Lives = GameData.StartLives,
                 TotalWaves = stage.Waves ?? 10, Unlocked = UnlockedSects(stageId), Path = path, PathLen = PathMath.Length(path),
-                PathTiles = PathMath.TilesOnPath(layout), ArtCd = new int[GameData.Arts.Count],
+                PathTiles = PathMath.TilesOnPath(layout.Path), Blocked = Layouts.Blocked(layout), Layout = layout, ArtCd = new int[GameData.Arts.Count],
             };
         }
 
@@ -132,7 +134,7 @@ namespace FiveSects.Sim
         public static bool CanBuild(DefendState s, int tx, int ty)
         {
             if (tx < 0 || ty < 0 || tx >= Layouts.GridW || ty >= Layouts.GridH) return false;
-            if (s.PathTiles.Contains(tx + "," + ty)) return false;
+            if (s.PathTiles.Contains(tx + "," + ty) || s.Blocked.Contains(tx + "," + ty)) return false;
             return !s.Disciples.Any(d => d.Tx == tx && d.Ty == ty);
         }
 
