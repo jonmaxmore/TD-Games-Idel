@@ -213,18 +213,40 @@ namespace FiveSects.Game
             return Cache["vignette"] = Sprite.Create(t, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f), 1f);
         }
 
-        // Build pad: dotted ring (12 dots, radius 6) on a 16x16 tile, tinted and pulsed by DefendView.
-        public static Sprite Slot()
+        // Attack range: a 1px circle with a faint fill, radius in game pixels, white so DefendView tints it.
+        public static Sprite Ring(int r)
         {
-            if (Cache.TryGetValue("slot", out var cached)) return cached;
-            var c = new PixelCanvas(16, 16);
-            for (int i = 0; i < 12; i++)
+            string key = "ring" + r;
+            if (Cache.TryGetValue(key, out var cached)) return cached;
+            int n = r * 2 + 3;
+            var t = NewTex(n, n);
+            var px = new Color32[n * n];
+            float c = (n - 1) / 2f;
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c));
+                    byte a = d > r + 0.5f ? (byte)0 : d > r - 0.5f ? (byte)230 : (byte)36;
+                    px[y * n + x] = new Color32(255, 255, 255, a);
+                }
+            t.SetPixels32(px); t.Apply();
+            return Cache[key] = Sprite.Create(t, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 1f);
+        }
+
+        // Tapped build tile: corner brackets around one tile.
+        public static Sprite TileMark(int size)
+        {
+            string key = "mark" + size;
+            if (Cache.TryGetValue(key, out var cached)) return cached;
+            var c = new PixelCanvas(size, size);
+            int e = size - 1, k = size / 4;
+            for (int i = 0; i < k; i++)
             {
-                float a = i / 12f * Mathf.PI * 2;
-                c.Set(Mathf.RoundToInt(7.5f + 6 * Mathf.Cos(a)), Mathf.RoundToInt(7.5f + 6 * Mathf.Sin(a)), "#FFFFFF");
+                c.Set(i, 0, "#FFE7A0"); c.Set(0, i, "#FFE7A0"); c.Set(e - i, 0, "#FFE7A0"); c.Set(e, i, "#FFE7A0");
+                c.Set(i, e, "#FFE7A0"); c.Set(0, e - i, "#FFE7A0"); c.Set(e - i, e, "#FFE7A0"); c.Set(e, e - i, "#FFE7A0");
             }
-            var t = NewTex(16, 16); t.SetPixels32(c.Px); t.Apply();
-            return Cache["slot"] = Sprite.Create(t, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 1f);
+            var t = NewTex(size, size); t.SetPixels32(c.Px); t.Apply();
+            return Cache[key] = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 1f);
         }
 
         // Spawn gates are dark openings on the board edge; goal gates are the sect's paifang arch the enemies must not pass.

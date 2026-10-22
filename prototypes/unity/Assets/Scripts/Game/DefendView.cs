@@ -30,13 +30,13 @@ namespace FiveSects.Game
         int speed = 1;
         readonly Dictionary<int, Vector2> prev = new Dictionary<int, Vector2>();
         readonly Dictionary<int, (SpriteRenderer body, SpriteRenderer hpBg, SpriteRenderer hp)> enemyViews = new Dictionary<int, (SpriteRenderer, SpriteRenderer, SpriteRenderer)>();
-        Transform world, discipleRoot, hintRoot;
+        Transform world, discipleRoot;
         SpriteRenderer goalGate;
         float goalFlashUntil;
-        readonly List<SpriteRenderer> hints = new List<SpriteRenderer>();
-        bool placedOnce;
+        SpriteRenderer rangeRing, tileMark;
+        float ringUntil;
         RectTransform hudRoot, resultPanel;
-        string discipleSig = null; // null so the first SyncDisciples also draws the build-slot hints
+        string discipleSig = null;
 
         class Shot { public SpriteRenderer R; public Vector2 From, To; public float T; public string El; public bool Crit; }
         Fx fx;
@@ -79,8 +79,8 @@ namespace FiveSects.Game
             BuildMap(biome);
             discipleRoot = new GameObject("Disciples").transform;
             discipleRoot.SetParent(world);
-            hintRoot = new GameObject("BuildHints").transform;
-            hintRoot.SetParent(world);
+            rangeRing = MakeOverlay("range-ring", 24);
+            tileMark = MakeOverlay("tile-mark", 23);
             BuildHud();
             fx = new Fx(world, font);
             fx.Atmosphere(biome.Time, Layouts.GridW * T, Layouts.GridH * T, new Vector2(OX, OY));
@@ -92,6 +92,7 @@ namespace FiveSects.Game
             fx.Light(goalAt, "#E3B04B", 40, 0.35f);
             fx.Light(new Vector2(TileCx(start.X), TileBottom(start.Y) - 8), "#8A2A5A", 30, 0.4f);
             Toast(thai ? s.Layout.NameTh : StageId, 2f);
+            if (StageId == "T-0" || StageId == "1-1") Toast(L("แตะพื้นข้างถนนเพื่อวางศิษย์", "Tap the ground beside the road to place a disciple"), 5f);
             if (Flow != null) Flow.BattleReady();
         }
 
@@ -230,7 +231,6 @@ namespace FiveSects.Game
                     case "disable": fx.Shake(2); Toast(L("อาวุธลับ! ศิษย์ถูกสกัด", "Hidden weapon! A disciple is disabled"), 1.5f); break;
                     case "end":
                         ClosePanel();
-                        RefreshHints();
                         ShowResult(ev.Won, ev.Stars);
                         break;
                 }
@@ -289,30 +289,40 @@ namespace FiveSects.Game
             goalGate = MakeSprite("goal-gate", Art.Gate(s.Layout.GoalGate ?? biome.GoalGate, true), TileCx(end.X), TileBottom(end.Y) + 2, 25);
         }
 
-        // Faint frames on every tile a disciple can be placed on; they pulse while you can afford one.
-        void RefreshHints()
+        // Placement feedback instead of markers on every tile: the tapped tile is framed, and a disciple's
+        // attack range shows as a ring in its sect colour while its panel is open and briefly after placing.
+        SpriteRenderer MakeOverlay(string name, int order)
         {
-            foreach (var h in hints) Destroy(h.gameObject);
-            hints.Clear();
-            if (s.IsOver) return;
-            for (int ty = 0; ty < Layouts.GridH; ty++)
-                for (int tx = 0; tx < Layouts.GridW; tx++)
-                    if (Defend.CanBuild(s, tx, ty))
-                    {
-                        var r = new GameObject("slot").AddComponent<SpriteRenderer>();
-                        r.sprite = Art.Slot(); r.sortingOrder = -3;
-                        r.transform.SetParent(hintRoot);
-                        r.transform.position = World(OX + tx * T + T / 2f, OY + ty * T + T / 2f);
-                        hints.Add(r);
-                    }
+            var r = new GameObject(name).AddComponent<SpriteRenderer>();
+            r.sortingOrder = order;
+            r.transform.SetParent(world);
+            r.enabled = false;
+            return r;
         }
+
+        Vector3 TileCentre(int tx, int ty) => World(OX + tx * T + T / 2f, OY + ty * T + T / 2f);
+
+        void ShowRing(int tx, int ty, int rangeMilli, string color, float seconds)
+        {
+            rangeRing.sprite = Art.Ring(Mathf.RoundToInt(rangeMilli * T / 1000f));
+            rangeRing.color = Art.Hex(color);
+            rangeRing.transform.position = TileCentre(tx, ty);
+            rangeRing.enabled = true;
+            ringUntil = seconds > 0 ? Time.time + seconds : float.MaxValue;
+        }
+
+        void ShowTileMark(int tx, int ty)
+        {
+            tileMark.sprite = Art.TileMark(T);
+            tileMark.transform.position = TileCentre(tx, ty);
+            tileMark.enabled = true;
+        }
+
+        void HideMarks() { rangeRing.enabled = false; tileMark.enabled = false; }
 
         void UpdateHints()
         {
-            int cheapest = s.Unlocked.Min(Defend.PlaceCost);
-            bool afford = s.Silver >= cheapest && !s.IsOver;
-            float a = afford ? (placedOnce ? 0.35f : 0.45f + 0.35f * Mathf.Sin(Time.time * 5f)) : 0.12f;
-            foreach (var h in hints) h.color = new Color(1f, 0.9f, 0.55f, a);
+            if (rangeRing.enabled && panel == null && Time.time > ringUntil) rangeRing.enabled = false;
             if (goalGate != null) goalGate.color = Time.time < goalFlashUntil ? new Color(1f, 0.4f, 0.4f) : Color.white;
         }
 
@@ -323,8 +333,6 @@ namespace FiveSects.Game
             string sig = string.Join("|", s.Disciples.Select(d => d.Id + ":" + d.Level + ":" + string.Join("", d.Els)));
             if (sig == discipleSig) return;
             discipleSig = sig;
-            if (s.Disciples.Count > 0) placedOnce = true;
-            RefreshHints();
             foreach (Transform c in discipleRoot) Destroy(c.gameObject);
             foreach (var d in s.Disciples)
             {
@@ -481,7 +489,7 @@ namespace FiveSects.Game
             return b;
         }
 
-        void ClosePanel() { if (panel != null) Destroy(panel.gameObject); panel = null; }
+        void ClosePanel() { if (panel != null) Destroy(panel.gameObject); panel = null; HideMarks(); }
 
         // The panel opens on the half of the screen away from the tapped tile so it never hides it.
         RectTransform OpenPanel(int ty)
@@ -496,6 +504,7 @@ namespace FiveSects.Game
         void OpenBuildPanel(int tx, int ty)
         {
             var p = OpenPanel(ty);
+            ShowTileMark(tx, ty);
             int n = s.Unlocked.Count;
             for (int i = 0; i < n; i++)
             {
@@ -503,13 +512,19 @@ namespace FiveSects.Game
                 int cost = Defend.PlaceCost(el);
                 string name = thai ? GameData.Sects[el].NameTh : el;
                 MakeButton(p, name + "  " + cost, new Vector2((float)i / n + 0.01f, 0.1f), new Vector2((float)(i + 1) / n - 0.01f, 0.9f),
-                    () => { pending.Add(new Command { T = "place", Sect = el, Tx = tx, Ty = ty }); ClosePanel(); if (Flow != null) Flow.FirstPlace(); }, s.Silver >= cost);
+                    () =>
+                    {
+                        pending.Add(new Command { T = "place", Sect = el, Tx = tx, Ty = ty }); ClosePanel();
+                        ShowRing(tx, ty, GameData.Sects[el].Range, GameData.Sects[el].Color, 1.5f);
+                        if (Flow != null) Flow.FirstPlace();
+                    }, s.Silver >= cost);
             }
         }
 
         void OpenDisciplePanel(Disciple d)
         {
             var p = OpenPanel(d.Ty);
+            ShowRing(d.Tx, d.Ty, d.Els.Max(el => GameData.Sects[el].Range), GameData.Sects[d.Els[0]].Color, 0);
             int up = Defend.UpgradeCost(d);
             bool canUp = d.Combo == null && d.Level < GameData.UpgradeLevels;
             MakeButton(p, canUp ? L("อัปเกรด ", "Upgrade ") + up : L("เต็มแล้ว", "Max level"), new Vector2(0.02f, 0.1f), new Vector2(0.49f, 0.9f),
