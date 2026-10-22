@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  COMBOS, createGame, ENEMIES, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
+  canonicalString, COMBOS, createGame, ENEMIES, fnv1a, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
   type Command, type DefendState, type Element, type SimEvent, type AssaultState, type Replay,
 } from '../src/index';
 import { overcomePct, isGenerated } from '../src/wuxing';
@@ -314,6 +314,21 @@ describe('determinism', () => {
   });
   it('a different seed diverges', () => {
     expect(trace({ ...replay, seed: 43 }).end).not.toBe(trace(replay).end);
+  });
+});
+
+describe('canonical hash (engine-port parity)', () => {
+  it('is stable across identical runs and matches the golden generator', async () => {
+    const { golden } = await import('../scripts/golden');
+    const a = golden('1-1', 42), b = golden('1-1', 42);
+    expect(a.trace.length).toBeGreaterThan(10);
+    expect(b).toEqual(a);
+    expect(a.final.phase).toBe('won');
+  });
+  it('uses a fixed layout other engines can reproduce', () => {
+    const s = defend('1-1');
+    expect(canonicalString(s)).toBe('0|120|20|0|build|1|||');
+    expect(fnv1a('abc')).toBe('1a47e90b');
   });
 });
 

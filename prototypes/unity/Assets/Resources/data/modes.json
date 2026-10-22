@@ -1,0 +1,161 @@
+{
+  "_notes": "See docs/design/modes.md. release: v1.0 | S1 | S2 | rotating.",
+  "modes": [
+    {
+      "id": "story",
+      "nameTh": "เนื้อเรื่อง",
+      "players": "1",
+      "release": "v1.0",
+      "net": "offline + server verify",
+      "statsNormalized": false,
+      "minutes": "3-6",
+      "rewards": [
+        "qi",
+        "jade",
+        "treasure",
+        "sect_unlock"
+      ]
+    },
+    {
+      "id": "async_raid",
+      "nameTh": "ตีสำนัก",
+      "players": "1 vs snapshot",
+      "release": "v1.0",
+      "net": "http + server re-sim",
+      "statsNormalized": "per league",
+      "minutes": "2-3",
+      "shieldHours": 8,
+      "maxLootPct": 20,
+      "revenge": 1,
+      "rewards": [
+        "trophies",
+        "silver",
+        "war_seals"
+      ]
+    },
+    {
+      "id": "coop_boss",
+      "nameTh": "ล่าบอสชุมนุม",
+      "players": "2-4",
+      "release": "v1.0",
+      "net": "lockstep via game server MatchRoom",
+      "statsNormalized": false,
+      "minutes": "6-10",
+      "giftSilverMaxPct": 30,
+      "rewards": [
+        "jade",
+        "boss_tokens"
+      ]
+    },
+    {
+      "id": "tower",
+      "nameTh": "หอคอยพันชั้น",
+      "players": "1",
+      "release": "S1",
+      "net": "offline + server verify (weekly seed)",
+      "statsNormalized": true,
+      "minutes": "endless",
+      "rewards": [
+        "weekly_rank_rewards"
+      ]
+    },
+    {
+      "id": "guild_basic",
+      "nameTh": "ชุมนุมพื้นฐาน",
+      "players": "20-30",
+      "release": "v1.0",
+      "features": [
+        "chat_filtered",
+        "lend_disciple_for_courtyard_defence",
+        "coop_boss",
+        "guild_quests"
+      ]
+    },
+    {
+      "id": "duel_1v1",
+      "nameTh": "ศึกชิงยุทธภพ 1v1",
+      "players": "2",
+      "release": "S1",
+      "net": "lockstep + server authoritative sim",
+      "statsNormalized": true,
+      "minutes": "6-8",
+      "waves": 12,
+      "deck": {
+        "sects": 5,
+        "arts": 2
+      },
+      "ranked": true
+    },
+    {
+      "id": "siege_1v1",
+      "nameTh": "บุก–ตั้งรับ 1v1",
+      "players": "2",
+      "release": "v1.0",
+      "net": "lockstep + server authoritative sim",
+      "statsNormalized": true,
+      "minutes": "6",
+      "rounds": 2,
+      "roundMinutes": 3,
+      "fog": true,
+      "ranked": true,
+      "flagshipEsports": true,
+      "competitiveFormat": {
+        "match": "Bo3",
+        "final": "Bo5",
+        "ban": 1,
+        "mapPool": 3,
+        "team": "KOF 3-player"
+      }
+    },
+    {
+      "id": "duel_2v2",
+      "nameTh": "ศึกชิงยุทธภพ 2v2",
+      "players": "4",
+      "release": "S2",
+      "net": "lockstep + server authoritative sim",
+      "statsNormalized": true,
+      "ranked": true
+    },
+    {
+      "id": "guild_war",
+      "nameTh": "ศึกสำนัก",
+      "players": "guild vs guild",
+      "release": "S2",
+      "net": "aggregated async raids",
+      "territories": 30,
+      "cycleDays": 7
+    },
+    {
+      "id": "events",
+      "nameTh": "อีเวนต์จำกัดเวลา",
+      "players": "1-4",
+      "release": "rotating",
+      "cycleDays": 14,
+      "examples": [
+        "fire_overcomes_all",
+        "double_speed",
+        "no_combos",
+        "lantern_festival"
+      ]
+    }
+  ],
+  "leagues": [
+    "ศิลา",
+    "สำริด",
+    "เงิน",
+    "ทอง",
+    "หยก",
+    "ยอดฝีมือ",
+    "เทพยุทธ์"
+  ],
+  "mmr": {
+    "system": "glicko2",
+    "seasonWeeks": [
+      8,
+      10
+    ],
+    "softReset": 0.5,
+    "botAfterSeconds": 45,
+    "botLabelled": true
+  }
+}

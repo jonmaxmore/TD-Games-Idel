@@ -18,6 +18,7 @@
 | [design/maps.md](design/maps.md) | แผนที่: 5 ภูมิภาค, ~42 ผังใน v1.0, ลานสำนัก, map pool ของ PvP |
 | [design/benchmarks.md](design/benchmarks.md) | บทเรียนจาก Mobile Legends, RoV, League of Legends, PUBG Mobile และฟีเจอร์ที่นำมาใช้ |
 | [design/architecture.md](design/architecture.md) | สถาปัตยกรรม: หน้าบ้าน, หลังบ้าน (Workers/Durable Objects), ฐานข้อมูล (D1/KV/R2), auth, กันโกง, deploy |
+| [design/engine-comparison.md](design/engine-comparison.md) | เทียบ Phaser กับ Unity (ต้นแบบใน `prototypes/unity`) |
 | [design/release-systems.md](design/release-systems.md) | ระบบที่เกมขายจริงต้องมี: บัญชี, anti-cheat, โซเชียล, ranked, FTUE, live ops, analytics, store, infra, CI/CD |
 
 ---

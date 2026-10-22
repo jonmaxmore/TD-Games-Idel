@@ -1,0 +1,99 @@
+{
+  "_notes": "Towers = disciples (ศิษย์) of a sect placed on the map. dmg per hit, rate = hits/s, range in tiles, cost in silver (ตำลึง). Values are prototype balance targets. All sect names are original (no Jin Yong / Gu Long IP).",
+  "wuxing": {
+    "elements": ["metal", "wood", "water", "fire", "earth"],
+    "generates": { "metal": "water", "water": "wood", "wood": "fire", "fire": "earth", "earth": "metal" },
+    "overcomes": { "metal": "wood", "wood": "earth", "earth": "water", "water": "fire", "fire": "metal" },
+    "rules": {
+      "generateAdjacency": "a disciple adjacent to a disciple of the element that generates it gains +15% dmg (สร้างเสริม / 相生)",
+      "overcomeVsEnemy": "damage vs enemy of the element it overcomes x1.5; vs the element that overcomes it x0.7 (ข่มกัน / 相克)"
+    }
+  },
+  "sects": [
+    {
+      "id": "cloud_sword", "name": "Cloud Sword Pavilion", "nameTh": "สำนักกระบี่เมฆา", "element": "metal", "color": "#D9E1EA",
+      "role": "single-target DPS, crit", "weapon": "jian (straight sword)", "silhouette": "tall, sword raised",
+      "cost": 60, "dmg": 30, "rate": 1.2, "range": 2.6, "target": "ground+air",
+      "skills": [
+        { "lvl": 1, "name": "Sword Qi", "nameTh": "ปราณกระบี่", "effect": "ranged crescent slash" },
+        { "lvl": 2, "name": "Thousand Blades", "nameTh": "พันกระบี่ร่วง", "effect": "every 6th hit rains 5 swords, crit x2" },
+        { "lvl": 3, "name": "Heart of the Sword", "nameTh": "กระบี่ในใจ", "effect": "crits pierce through all enemies in a line" }
+      ]
+    },
+    {
+      "id": "jade_bamboo", "name": "Jade Bamboo Valley", "nameTh": "หุบไผ่หยก", "element": "wood", "color": "#5BC46A",
+      "role": "poison DoT, root", "weapon": "flute + poison needles", "silhouette": "slim, flute held sideways",
+      "cost": 50, "dmg": 8, "rate": 1.5, "range": 3.0, "target": "ground+air",
+      "skills": [
+        { "lvl": 1, "name": "Verdant Venom", "nameTh": "พิษมรกต", "effect": "poison 8 dps, stacks x3" },
+        { "lvl": 2, "name": "Binding Vines", "nameTh": "เถาวัลย์รัด", "effect": "root 1s every 8s" },
+        { "lvl": 3, "name": "Song of Withering", "nameTh": "เพลงขลุ่ยร่วงโรย", "effect": "aura: poisoned enemies take +25% dmg" }
+      ]
+    },
+    {
+      "id": "frost_tide", "name": "Frost Tide Palace", "nameTh": "วังธาราเหมันต์", "element": "water", "color": "#4FB3FF",
+      "role": "slow, freeze, control", "weapon": "palm technique + ribbon", "silhouette": "flowing robes, palms forward",
+      "cost": 50, "dmg": 12, "rate": 1.4, "range": 2.8, "target": "ground+air",
+      "skills": [
+        { "lvl": 1, "name": "Cold Palm", "nameTh": "ฝ่ามือเหมันต์", "effect": "slow 30% for 2s" },
+        { "lvl": 2, "name": "Ice Lotus", "nameTh": "บัวน้ำแข็ง", "effect": "freeze 1.2s every 5th hit" },
+        { "lvl": 3, "name": "Endless Tide", "nameTh": "คลื่นไม่สิ้นสุด", "effect": "wave pushes enemies back 1 tile every 12s" }
+      ]
+    },
+    {
+      "id": "crimson_phoenix", "name": "Crimson Phoenix Sect", "nameTh": "สำนักหงส์เพลิง", "element": "fire", "color": "#FF5A1F",
+      "role": "AoE burn", "weapon": "fan", "silhouette": "wide stance, open fan",
+      "cost": 65, "dmg": 20, "rate": 1.0, "range": 2.4, "target": "ground+air",
+      "skills": [
+        { "lvl": 1, "name": "Flame Fan", "nameTh": "พัดเพลิง", "effect": "cone of fire, burn 6 dps 3s" },
+        { "lvl": 2, "name": "Phoenix Feathers", "nameTh": "ขนหงส์กระจาย", "effect": "burning enemies explode on death (30 dmg r=1)" },
+        { "lvl": 3, "name": "Rebirth Blaze", "nameTh": "เพลิงคืนชีพ", "effect": "every 20s a phoenix sweeps the path" }
+      ]
+    },
+    {
+      "id": "vajra_stone", "name": "Vajra Stone Monastery", "nameTh": "วัดวัชระศิลา", "element": "earth", "color": "#C99A4A",
+      "role": "splash, stun, blocker", "weapon": "staff (gun) / iron body", "silhouette": "broad, bald monk with staff",
+      "cost": 70, "dmg": 45, "rate": 0.6, "range": 1.8, "target": "ground",
+      "skills": [
+        { "lvl": 1, "name": "Mountain Strike", "nameTh": "ไม้พลองสะเทือนขุนเขา", "effect": "splash r=1" },
+        { "lvl": 2, "name": "Golden Bell", "nameTh": "ระฆังทอง", "effect": "can be placed ON the path to block 3 enemies, immune 4s" },
+        { "lvl": 3, "name": "Earthquake Stance", "nameTh": "ท่วงท่าธรณีไหว", "effect": "stun all ground enemies in r=2 for 1s every 10s" }
+      ]
+    },
+    {
+      "id": "taiji_mirror", "name": "Taiji Mirror Hall", "nameTh": "หอกระจกไท่จี๋", "element": "yinyang", "color": "#F2F2F2",
+      "role": "support: buffs, economy, reveal", "weapon": "whisk + talismans", "silhouette": "seated meditation, floating taiji",
+      "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.2, "target": "ground+air",
+      "skills": [
+        { "lvl": 1, "name": "Mirror Insight", "nameTh": "ญาณกระจก", "effect": "reveals stealth (shadow assassins) in r=3" },
+        { "lvl": 2, "name": "Balance of Qi", "nameTh": "สมดุลปราณ", "effect": "adjacent disciples +20% rate" },
+        { "lvl": 3, "name": "Fortune Talisman", "nameTh": "ยันต์โชคลาภ", "effect": "+1 silver per kill in r=3, +1% interest" }
+      ]
+    }
+  ],
+  "comboTechniques": {
+    "_notes": "ยุทธ์ผสาน: merge two max-level disciples of different Wu Xing sects -> a duo master. 10 pairs (C(5,2)). Generating pairs lean support, overcoming pairs lean damage.",
+    "items": [
+      { "id": "frozen_blade",   "name": "Frozen Blade",       "nameTh": "กระบี่เหมันต์",     "from": ["metal", "water"], "relation": "generates", "effect": "sword qi freezes 0.8s; frozen enemies take x2 crit" },
+      { "id": "thorn_sword",    "name": "Thorn Sword",        "nameTh": "กระบี่หนามพิษ",     "from": ["metal", "wood"],  "relation": "overcomes", "effect": "every crit applies 3 poison stacks" },
+      { "id": "molten_edge",    "name": "Molten Edge",        "nameTh": "คมดาบหลอมเหลว",    "from": ["metal", "fire"],  "relation": "overcomes", "effect": "pierce + burn, ignores armor" },
+      { "id": "iron_mountain",  "name": "Iron Mountain",      "nameTh": "ภูผาเหล็กกล้า",     "from": ["metal", "earth"], "relation": "generates", "effect": "blocker that reflects 30% damage" },
+      { "id": "spring_rain",    "name": "Spring Rain",        "nameTh": "ฝนวสันต์",          "from": ["water", "wood"],  "relation": "generates", "effect": "rain field: slow 30% + poison, heals nothing (enemies)" },
+      { "id": "steam_palm",     "name": "Steam Palm",         "nameTh": "ฝ่ามือไอระอุ",      "from": ["water", "fire"],  "relation": "overcomes", "effect": "steam cloud: slow + burn, blinds flyers" },
+      { "id": "quicksand",      "name": "Quicksand Mire",     "nameTh": "บึงทรายดูด",        "from": ["water", "earth"], "relation": "overcomes", "effect": "swamp tiles root 1s on entry" },
+      { "id": "wildfire_flute", "name": "Wildfire Flute",     "nameTh": "ขลุ่ยไฟป่า",        "from": ["wood", "fire"],   "relation": "generates", "effect": "burn spreads to 2 nearby enemies" },
+      { "id": "root_quake",     "name": "Root Quake",         "nameTh": "รากแผ่นดินไหว",     "from": ["wood", "earth"],  "relation": "overcomes", "effect": "roots erupt along path, stun 0.6s" },
+      { "id": "volcano_fist",   "name": "Volcano Fist",       "nameTh": "หมัดภูเขาไฟ",       "from": ["fire", "earth"],  "relation": "generates", "effect": "huge splash, leaves lava 4s" }
+    ]
+  },
+  "grandmasters": {
+    "_notes": "ปรมาจารย์: unlocked by combining 3 sects; one per map at a time. Tribute to Flash Element TD's 'all three elements -> Rocket' unlock.",
+    "items": [
+      { "id": "sword_saint",  "name": "Sword Saint of Five Peaks", "nameTh": "เซียนกระบี่ห้ายอดเขา", "from": ["metal", "water", "wood"], "effect": "every 15s a giant sword falls on the strongest enemy (8% max HP)" },
+      { "id": "fire_sage",    "name": "Phoenix Sage",              "nameTh": "ปราชญ์หงส์อมตะ",       "from": ["fire", "wood", "earth"], "effect": "permanent phoenix circles the map" },
+      { "id": "iron_abbot",   "name": "Iron Abbot",                "nameTh": "เจ้าอาวาสกายเหล็ก",    "from": ["earth", "metal", "fire"], "effect": "Golden Bell over the whole path for 3s every 20s" },
+      { "id": "taiji_master", "name": "Taiji Grandmaster",         "nameTh": "ปรมาจารย์ไท่จี๋",      "from": ["yinyang", "water", "fire"], "effect": "reverses time: enemies walk backwards 3s, every 25s" }
+    ]
+  },
+  "upgrade": { "levels": 3, "names": ["ศิษย์", "ศิษย์เอก", "ผู้อาวุโส"], "costMultiplier": [1.0, 1.5, 2.25], "statMultiplier": [1.0, 1.6, 2.5] }
+}

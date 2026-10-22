@@ -16,7 +16,7 @@ export function bestTiles(s: DefendState, range = 2500): [number, number][] {
   return scored.map((x) => x.t);
 }
 
-export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: Element[] } = {}): DefendState {
+export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: Element[]; record?: Record<number, Command[]> } = {}): DefendState {
   const sects = opts.sects ?? s.unlocked;
   const max = opts.maxDisciples ?? 8;
   let placed = 0;
@@ -29,6 +29,7 @@ export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: E
       const spot = bestTiles(s, SECTS[sect].range)[0];
       if (spot && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spot[0], ty: spot[1] }); placed++; }
     } else if (lowest && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
+    if (opts.record && cmds.length) opts.record[s.tick] = cmds;
     step(s, cmds);
   }
   return s;
