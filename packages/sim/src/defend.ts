@@ -1,4 +1,4 @@
-import { ARTS, CARD_AUTO_PICK, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, ENEMIES, MERGE_FEE, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPGRADE, WAVE_RECIPES, waveHp, type CardDef, type Element, ELITES } from './data';
+import { ARTS, CARD_AUTO_PICK, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, COMBO_DMG_PCT, ENEMIES, MERGE_FEE, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UPGRADE, WAVE_RECIPES, waveHp, type CardDef, type Element, ELITES } from './data';
 import { blockedTiles, GRID_H, GRID_W, resolveLayout, tilesOnPath } from './layouts';
 import { pathLength, pointAt, toMilli, within } from './path';
 import { nextRandom, rollPct } from './rng';
@@ -391,7 +391,8 @@ const dotDps = (d: Disciple, e: Enemy, base: number, lvl: number) =>
 
 function discipleStats(s: DefendState, d: Disciple) {
   const defs = d.els.map((el) => SECTS[el]);
-  let dmg = d.combo ? defs.reduce((sum, x) => sum + x.dmg, 0) : defs[0]!.dmg;
+  // Merged form: summed damage x comboDmgPct, attacking at the average cooldown (sects.json comboTechniques).
+  let dmg = d.combo ? Math.floor((defs.reduce((sum, x) => sum + x.dmg, 0) * COMBO_DMG_PCT) / 100) : defs[0]!.dmg;
   dmg = Math.floor((dmg * statPct(d.level)) / 100);
   const neighbours = s.disciples.filter((o) => adjacent(d, o));
   if (isGenerated(d.els, neighbours.map((n) => n.els)))
@@ -400,7 +401,7 @@ function discipleStats(s: DefendState, d: Disciple) {
   if (el?.element && d.els.includes(el.element)) dmg = Math.floor((dmg * (100 + el.pct)) / 100);
   const mono = card(s, 'monoSectPct');
   if (mono && s.disciples.every((o) => o.els[0] === s.disciples[0]!.els[0])) dmg = Math.floor((dmg * (100 + mono.pct)) / 100);
-  let cooldown = Math.min(...defs.map((x) => x.cooldown));
+  let cooldown = d.combo ? Math.floor(defs.reduce((sum, x) => sum + x.cooldown, 0) / defs.length) : defs[0]!.cooldown;
   if (neighbours.some((n) => n.els.includes('yinyang') && n.level >= 2)) cooldown = Math.floor((cooldown * 100) / FX.yyRatePct);
   return {
     dmg,

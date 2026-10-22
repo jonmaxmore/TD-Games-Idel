@@ -34,7 +34,7 @@
       "nameTh": "ยักษ์เสื้อเหล็ก",
       "element": "metal",
       "layer": "ground",
-      "hp": 300,
+      "hp": 240,
       "speed": 0.6,
       "bounty": 10,
       "trait": "armor 5 (Iron Shirt)",

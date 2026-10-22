@@ -46,7 +46,7 @@ namespace FiveSects.Sim
         public static int EliteFromWave, EliteChancePct, EliteBountyMult;
         public static readonly List<EliteAffix> Elites = new List<EliteAffix>();
         public static readonly List<WaveRecipe> WaveRecipes = new List<WaveRecipe>();
-        public static int MergeFee, InterestCapPerWave, EarlyCallPct;
+        public static int MergeFee, ComboDmgPct, InterestCapPerWave, EarlyCallPct;
         public static readonly Dictionary<string, List<string>> Palette = new Dictionary<string, List<string>>();
         public const int CardEveryWaves = 5;
         public static int CardAutoPick => Ticks(15);
@@ -78,6 +78,7 @@ namespace FiveSects.Sim
                 Combos.Add(new ComboDef { Id = (string)c["id"], NameTh = (string)c["nameTh"], A = (string)c["from"][0], B = (string)c["from"][1] });
             var up = sects["upgrade"];
             MergeFee = (int)sects["comboTechniques"]["mergeFee"];
+            ComboDmgPct = (int)sects["comboTechniques"]["comboDmgPct"];
             UpgradeLevels = (int)up["levels"];
             UpgradeNames = up["names"].Select(x => (string)x).ToList();
             CostPct = up["costMultiplier"].Select(x => JsMath.Round((double)x * 100)).ToList();

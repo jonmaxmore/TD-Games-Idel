@@ -73,6 +73,8 @@
   ],
   "comboTechniques": {
     "mergeFee": 50,
+    "comboDmgPct": 115,
+    "_comboRule": "merged form: (dmg A + dmg B) x comboDmgPct, cooldown = average of both, range = longer; keeps merged/separate DPS within 1.1-1.3 for every pair (design-review B4)",
     "_notes": "ยุทธ์ผสาน: merge two max-level disciples of different Wu Xing sects -> a duo master. 10 pairs (C(5,2)). Generating pairs lean support, overcoming pairs lean damage.",
     "items": [
       { "id": "frozen_blade",   "name": "Frozen Blade",       "nameTh": "กระบี่เหมันต์",     "from": ["metal", "water"], "relation": "generates", "effect": "sword qi freezes 0.8s; frozen enemies take x2 crit" },

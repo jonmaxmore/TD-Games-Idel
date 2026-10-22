@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  BIOMES, canonicalString, ECONOMY, GRID_H, GRID_W, LAYOUTS, PROP_TYPES, resolveLayout, tilesOnPath, COMBOS, createGame, ENEMIES, fnv1a, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
+  BIOMES, canonicalString, COMBO_DMG_PCT, ECONOMY, UPGRADE, GRID_H, GRID_W, LAYOUTS, PROP_TYPES, resolveLayout, tilesOnPath, COMBOS, createGame, ENEMIES, fnv1a, hashState, previewWave, isOver, runReplay, SECTS, STAGES, step, upgradeCost, waveHp,
   type Command, type DefendState, type Element, type SimEvent, type AssaultState, type Replay, type Layout,
 } from '../src/index';
 import { overcomePct, isGenerated } from '../src/wuxing';
@@ -155,7 +155,8 @@ describe('combos and timers', () => {
     const e = s.enemies[0]!;
     Object.assign(e, { id: 999, type: 'brute', el: 'earth', hp: 100000, maxHp: 100000, d: 3000, x: 3500, y: 2500, stunT: 1000 });
     const hits = run(s, 60).filter((x) => x.e === 'hit' && x.to === 999 && !x.crit);
-    const expected = Math.floor((Math.floor((SECTS.metal.dmg + SECTS.fire.dmg) * 2.5) * 100) / 100);
+    // merged damage (sum x comboDmgPct) at level 3, armour not subtracted; earth target is neutral to metal+fire
+    const expected = Math.floor((Math.floor(((SECTS.metal.dmg + SECTS.fire.dmg) * COMBO_DMG_PCT) / 100) * UPGRADE.statPct[2]!) / 100);
     expect(hits[0]).toMatchObject({ dmg: expected });
   });
   it('yin-yang level 3 adds +1% interest', () => {

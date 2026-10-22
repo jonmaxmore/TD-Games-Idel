@@ -409,7 +409,8 @@ namespace FiveSects.Sim
         static Stats DiscipleStats(DefendState s, Disciple d)
         {
             var defs = d.Els.Select(el => GameData.Sects[el]).ToList();
-            int dmg = d.Combo != null ? defs.Sum(x => x.Dmg) : defs[0].Dmg;
+            // Merged form: summed damage x comboDmgPct, attacking at the average cooldown.
+            int dmg = d.Combo != null ? JsMath.FloorDiv((long)defs.Sum(x => x.Dmg) * GameData.ComboDmgPct, 100) : defs[0].Dmg;
             dmg = JsMath.FloorDiv((long)dmg * StatPct(d.Level), 100);
             var neighbours = s.Disciples.Where(o => Adjacent(d, o)).ToList();
             if (Wuxing.IsGenerated(d.Els, neighbours.Select(n => (IList<string>)n.Els)))
@@ -421,7 +422,7 @@ namespace FiveSects.Sim
             if (el != null && el.Element != null && d.Els.Contains(el.Element)) dmg = JsMath.FloorDiv((long)dmg * (100 + el.Pct), 100);
             var mono = Card(s, "monoSectPct");
             if (mono != null && s.Disciples.All(o => o.Els[0] == s.Disciples[0].Els[0])) dmg = JsMath.FloorDiv((long)dmg * (100 + mono.Pct), 100);
-            int cooldown = defs.Min(x => x.Cooldown);
+            int cooldown = d.Combo != null ? JsMath.FloorDiv(defs.Sum(x => x.Cooldown), defs.Count) : defs[0].Cooldown;
             if (neighbours.Any(n => n.Els.Contains("yinyang") && n.Level >= 2)) cooldown = JsMath.FloorDiv((long)cooldown * 100, YyRatePct);
             return new Stats
             {

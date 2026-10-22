@@ -110,7 +110,7 @@
       "layout": "village-terraces",
       "variant": "mirror",
       "waves": 8,
-      "startSilver": 130,
+      "startSilver": 90,
       "guestSects": [
         "water"
       ]
@@ -139,7 +139,6 @@
         "cultist",
         "runner",
         "brute",
-        "leaper",
         "healer"
       ],
       "stars": [
@@ -186,7 +185,7 @@
       ],
       "layout": "village-rooftops",
       "waves": 10,
-      "startSilver": 150
+      "startSilver": 110
     },
     {
       "id": "1-7",
@@ -289,10 +288,11 @@
         "no_life_lost",
         "use_combo"
       ],
-      "layout": "village-spiral",
+      "layout": "village-rooftops",
+      "variant": "mirror",
       "scriptedWaves": { "10": "boss_ch1", "20": "boss_ch1b" },
       "waves": 20,
-      "startSilver": 300
+      "startSilver": 450
     },
     {
       "id": "2-1",

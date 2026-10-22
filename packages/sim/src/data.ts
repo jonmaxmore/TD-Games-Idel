@@ -101,6 +101,7 @@ export const COMBOS: ComboDef[] = sectsJson.comboTechniques.items.map((c) => ({
 }));
 
 export const MERGE_FEE: number = sectsJson.comboTechniques.mergeFee;
+export const COMBO_DMG_PCT: number = sectsJson.comboTechniques.comboDmgPct;
 
 export const UPGRADE = {
   levels: sectsJson.upgrade.levels,

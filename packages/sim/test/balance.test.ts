@@ -1,7 +1,7 @@
 // Balance gates from docs/research/design-review.md §6 (B1, B2, B5, B7 + boss mechanics), measured with the
 // deterministic sim and the greedy bot on fixed seeds. `npm run sim:measure` prints the full report.
 import { describe, expect, it } from 'vitest';
-import { createGame, SECTS, step, type DefendState, type Element, type SimEvent } from '../src/index';
+import { COMBO_DMG_PCT, COMBOS, createGame, SECTS, step, type Command, type DefendState, type Element, type SimEvent } from '../src/index';
 import { playBot } from './bot';
 
 const play = (stageId: string, seed: number, opts: Parameters<typeof playBot>[1]) => playBot(createGame(stageId, seed) as DefendState, opts);
@@ -30,13 +30,35 @@ describe('B2 no single sect solves the chapter finale', () => {
 });
 
 describe('B5 pace', () => {
-  it('T-1 (20 waves) takes at most 10 minutes for a player who calls waves early', () => {
+  it.each(['T-1', '1-12'])('%s (20 waves) takes at most 10 minutes for a player who calls waves early', (id) => {
     for (const seed of SEEDS.slice(0, 2)) {
-      const s = play('T-1', seed, { maxDisciples: 8, earlyCall: true });
+      const s = play(id, seed, { maxDisciples: 8, earlyCall: true });
       expect(s.phase, `seed ${seed}`).toBe('won');
       expect(s.tick / 20 / 60, `seed ${seed}`).toBeLessThanOrEqual(10);
     }
   });
+});
+
+describe('B4 merging is worth it but not mandatory', () => {
+  // DPS of the merged form (summed damage x comboDmgPct at the average cooldown) over the two disciples kept apart.
+  it.each(COMBOS.map((c) => [c.id, c.from[0], c.from[1]] as const))('%s: merged/separate DPS in 1.1-1.3', (_id, a, b) => {
+    const A = SECTS[a], B = SECTS[b];
+    const separate = A.dmg / A.cooldown + B.dmg / B.cooldown;
+    const merged = Math.floor(((A.dmg + B.dmg) * COMBO_DMG_PCT) / 100) / Math.floor((A.cooldown + B.cooldown) / 2);
+    expect(merged / separate).toBeGreaterThanOrEqual(1.1);
+    expect(merged / separate).toBeLessThanOrEqual(1.3);
+  });
+});
+
+describe('B6 decision density', () => {
+  it('a player who calls waves early makes at least 3 commands a minute', () => {
+    for (const id of ['1-2', '1-12']) {
+      const rec: Record<number, Command[]> = {};
+      const s = play(id, 1, { maxDisciples: 8, earlyCall: true, record: rec });
+      const perMin = Object.values(rec).flat().length / (s.tick / 20 / 60);
+      expect(perMin, id).toBeGreaterThanOrEqual(3);
+    }
+  }, 60_000);
 });
 
 describe('B7 run-to-run variety', () => {
