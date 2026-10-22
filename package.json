@@ -1,0 +1,24 @@
+{
+  "name": "td-games-idel",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @five-sects/client",
+    "build": "npm run build -w @five-sects/client",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/sim && tsc -p packages/client",
+    "sim:replay": "vite-node packages/sim/scripts/replay.ts --",
+    "smoke": "node packages/client/scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "playwright": "1.56.1",
+    "typescript": "5.9.2",
+    "vite": "6.3.5",
+    "vite-node": "3.2.4",
+    "vitest": "3.2.4"
+  }
+}

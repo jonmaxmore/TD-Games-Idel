@@ -7,7 +7,8 @@
     "siege": "defend 2-3 lanes at once",
     "boss": "3 disciples vs boss phases",
     "puzzle": "fixed disciples/silver",
-    "secret": "unlocked by stars"
+    "secret": "unlocked by stars",
+    "training": "sandbox with all sects unlocked"
   },
   "secretStages": [
     {
@@ -48,6 +49,31 @@
   ],
   "stages": [
     {
+      "id": "T-1",
+      "chapter": 0,
+      "type": "training",
+      "title": "Training ground: all six sects, test Wu Xing and combos",
+      "layout": "village-a",
+      "waves": 20,
+      "startSilver": 800,
+      "enemies": [
+        "cultist",
+        "runner",
+        "brute",
+        "leaper",
+        "puppet",
+        "assassin",
+        "healer",
+        "mimic"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "use_combo"
+      ],
+      "unlockAll": true
+    },
+    {
       "id": "1-1",
       "chapter": 1,
       "type": "defend",
@@ -60,7 +86,10 @@
         "no_life_lost",
         "under_3min"
       ],
-      "unlocksSect": "metal"
+      "unlocksSect": "metal",
+      "layout": "village-a",
+      "waves": 6,
+      "startSilver": 120
     },
     {
       "id": "1-2",
@@ -75,7 +104,10 @@
         "clear",
         "no_life_lost",
         "hold_200_silver"
-      ]
+      ],
+      "layout": "village-a",
+      "waves": 8,
+      "startSilver": 130
     },
     {
       "id": "1-3",
@@ -89,7 +121,8 @@
         "clear",
         "no_disciple_down",
         "under_3min"
-      ]
+      ],
+      "layout": "assault-a"
     },
     {
       "id": "1-4",
@@ -104,9 +137,12 @@
       "stars": [
         "clear",
         "no_life_lost",
-        "max_4_disciples_lost"
+        "max_6_disciples"
       ],
-      "unlocksSect": "earth"
+      "unlocksSect": "earth",
+      "layout": "village-b",
+      "waves": 12,
+      "startSilver": 180
     },
     {
       "id": "1-5",

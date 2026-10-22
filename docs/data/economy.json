@@ -169,5 +169,15 @@
       0.15
     ],
     "top1pctRevenueShareMax": 0.5
+  },
+  "inRun": {
+    "startLives": 20,
+    "interestPct": 5,
+    "interestCap": 25,
+    "sellRefundPct": 75,
+    "waveBreakSec": 5,
+    "spawnIntervalSec": 0.8,
+    "earlyCallBonusSilver": 5,
+    "bountyGrowthPctPerWave": 10
   }
 }
