@@ -70,13 +70,13 @@
     ],
     "pity": {
       "legendaryAt": 60,
-      "carriesOver": "per banner type"
+      "carriesOver": "to the next banner of the same group (pve.json gacha.banners[].group)"
     },
     "spark": {
       "every": 120,
       "reward": "pick any banner item"
     },
-    "duplicates": "convert to skin_shard; never adds power",
+    "duplicates": "star-up the hero (PvE power only); past 10 stars each copy becomes hero_emblem (pve.json)",
     "disabledRegions": [
       "BE"
     ]

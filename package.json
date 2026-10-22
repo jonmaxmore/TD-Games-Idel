@@ -12,6 +12,8 @@
     "typecheck": "tsc -p packages/sim && tsc -p packages/client",
     "sim:replay": "vite-node packages/sim/scripts/replay.ts --",
     "smoke": "node packages/client/scripts/smoke.mjs",
+    "economy:check": "node tools/economy/check.mjs",
+    "progression:check": "node tools/progression/check.mjs",
     "sim:measure": "vite-node packages/sim/scripts/measure.ts --",
     "sim:golden": "vite-node packages/sim/scripts/write-golden.ts",
     "unity:sync": "node prototypes/unity/sync-data.mjs",

@@ -29,6 +29,7 @@ Unity brings native mobile builds, mobile SDKs (ads, IAP, analytics), and an edi
 - **Platforms (owner decision, 22 Oct, after docs/research/market-players.md):**
   - Develop and playtest on **PC first**: a Unity Windows standalone build.
   - Ship **cross-platform PC + mobile** from one Unity project, with Android Thailand as the first mobile market.
+  - **Amended 23 Oct (owner approved, [pitch-decks §6–8](../research/pitch-decks.md)):** Android Thailand hosts the soft launch, but the **full launch ships Android and iOS together**. In Thai RPG data iOS is 18% of downloads with about 5x the ARPU, so it likely earns about half the revenue.
   - The web is no longer first. A WebGL build is optional, as a demo, a co-op invite link or a direct shop, and only if it meets the size budget (Poki < 8 MB first download).
 - **Backend:** unchanged (Node.js 22, PostgreSQL 16, Redis 7, ADR 0003).
 

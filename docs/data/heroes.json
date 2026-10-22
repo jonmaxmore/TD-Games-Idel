@@ -1,5 +1,6 @@
 {
   "_notes": "วีรชน: gacha sidegrades, 4 per sect at launch (24). Same total power budget as the base disciple of the sect (balance sim must keep win-rate within ±2%). Base disciples of every sect are always free.",
+  "pvePower": "Heroes are stronger than free disciples in PvE: rarity and star multipliers in pve.json > power (epic x1.35, legendary x1.60, +10% per star up to 10). In PvP every hero uses normalized stats and the rule below.",
   "powerBudgetRule": "heroWinRate - baseWinRate within +/-0.02 in headless sim, else rebalance",
   "heroes": [
     {
