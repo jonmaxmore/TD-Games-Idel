@@ -176,6 +176,43 @@ namespace FiveSects.Game
             return c.ToSprite("p-" + type);
         }
 
+        // Soft light: 32x32 radial falloff in 6 hard steps (keeps the pixel look), white so it can be tinted.
+        public static Sprite Glow()
+        {
+            if (Cache.TryGetValue("glow", out var cached)) return cached;
+            var t = NewTex(32, 32);
+            var px = new Color32[32 * 32];
+            for (int y = 0; y < 32; y++)
+                for (int x = 0; x < 32; x++)
+                {
+                    float d = Mathf.Sqrt((x - 15.5f) * (x - 15.5f) + (y - 15.5f) * (y - 15.5f)) / 16f;
+                    float a = Mathf.Clamp01(1 - d);
+                    a = Mathf.Floor(a * a * 6) / 6f;
+                    px[y * 32 + x] = new Color32(255, 255, 255, (byte)(a * 255));
+                }
+            t.SetPixels32(px); t.Apply();
+            return Cache["glow"] = Sprite.Create(t, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 1f);
+        }
+
+        // Vignette: transparent centre, darker edges, 64x64 stretched over the board.
+        public static Sprite Vignette()
+        {
+            if (Cache.TryGetValue("vignette", out var cached)) return cached;
+            var t = NewTex(64, 64);
+            var px = new Color32[64 * 64];
+            for (int y = 0; y < 64; y++)
+                for (int x = 0; x < 64; x++)
+                {
+                    float dx = (x - 31.5f) / 32f, dy = (y - 31.5f) / 32f;
+                    float d = Mathf.Sqrt(dx * dx + dy * dy);
+                    float a = Mathf.Clamp01((d - 0.55f) / 0.6f);
+                    px[y * 64 + x] = new Color32(10, 6, 16, (byte)(a * a * 200));
+                }
+            t.SetPixels32(px); t.Apply();
+            t.filterMode = FilterMode.Bilinear;
+            return Cache["vignette"] = Sprite.Create(t, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f), 1f);
+        }
+
         // Build pad: dotted ring (12 dots, radius 6) on a 16x16 tile, tinted and pulsed by DefendView.
         public static Sprite Slot()
         {

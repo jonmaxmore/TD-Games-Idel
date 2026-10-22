@@ -37,7 +37,14 @@ namespace FiveSects.Game
         RectTransform hudRoot, resultPanel;
         string discipleSig = null; // null so the first SyncDisciples also draws the build-slot hints
 
-        class Shot { public SpriteRenderer R; public Vector2 From, To; public float T; }
+        class Shot { public SpriteRenderer R; public Vector2 From, To; public float T; public string El; public bool Crit; }
+        Fx fx;
+        float hitStopUntil;
+        Vector3 camBase;
+        bool camBaseSet;
+        readonly Dictionary<int, float> popUntil = new Dictionary<int, float>();
+        readonly Dictionary<int, string> typeOf = new Dictionary<int, string>();
+        Vector2 goalAt;
         readonly List<Shot> shots = new List<Shot>();
 
         // HUD
@@ -74,6 +81,15 @@ namespace FiveSects.Game
             hintRoot = new GameObject("BuildHints").transform;
             hintRoot.SetParent(world);
             BuildHud();
+            fx = new Fx(world, font);
+            fx.Atmosphere(biome.Time, Layouts.GridW * T, Layouts.GridH * T, new Vector2(OX, OY));
+            foreach (var p in s.Layout.Props)
+                if (p.Type == "lantern") fx.Light(new Vector2(TileCx(p.At.X), TileBottom(p.At.Y) - 10), "#FFB347", 26, 0.45f);
+            var end = s.Layout.Path[s.Layout.Path.Length - 1];
+            var start = s.Layout.Path[0];
+            goalAt = new Vector2(TileCx(end.X), TileBottom(end.Y) - 10);
+            fx.Light(goalAt, "#E3B04B", 40, 0.35f);
+            fx.Light(new Vector2(TileCx(start.X), TileBottom(start.Y) - 8), "#8A2A5A", 30, 0.4f);
             Toast(thai ? s.Layout.NameTh : StageId, 2f);
         }
 
@@ -87,7 +103,8 @@ namespace FiveSects.Game
 
             if (!s.IsOver)
             {
-                acc += Mathf.Min(Time.deltaTime, 0.25f) * speed;
+                // Hit-stop: a crit freezes the sim for a few frames so big hits land with weight.
+                if (Time.unscaledTime >= hitStopUntil) acc += Mathf.Min(Time.deltaTime, 0.25f) * speed;
                 int steps = 0;
                 while (acc >= TickSec && steps < 8 && !s.IsOver)
                 {
@@ -106,6 +123,7 @@ namespace FiveSects.Game
             UpdateHints();
             RenderEnemies(Mathf.Clamp01(acc / TickSec));
             UpdateShots();
+            fx.Update(Time.deltaTime);
             UpdateHud();
         }
 
@@ -114,6 +132,8 @@ namespace FiveSects.Game
             var cam = Camera.main;
             float aspect = (float)Screen.width / Mathf.Max(1, Screen.height);
             cam.orthographicSize = Mathf.Max(Bootstrap.H / 2f, Bootstrap.W / 2f / aspect);
+            if (!camBaseSet) { camBase = cam.transform.position; camBaseSet = true; }
+            cam.transform.position = camBase + (fx != null ? fx.ShakeOffset : Vector3.zero);
         }
 
         // ---------- input ----------
@@ -176,15 +196,36 @@ namespace FiveSects.Game
                         else if (!prev.TryGetValue(ev.To, out to)) break;
                         if (d == null) break;
                         Shoot(new Vector2(Gx(d.X), Gy(d.Y) - 4), new Vector2(Gx((int)to.x), Gy((int)to.y) - 4), ev.El, ev.Crit);
+                        popUntil[d.Id] = Time.time + 0.08f;
+                        if (ev.Crit)
+                        {
+                            hitStopUntil = Time.unscaledTime + 0.04f;
+                            fx.Number(new Vector2(Gx((int)to.x), Gy((int)to.y) - 12), ev.Dmg + "!", "#FFD34A");
+                        }
                         break;
                     }
                     case "wave": Toast("Wave " + ev.Wave, 1.2f); break;
                     case "newEnemy": Toast(L("ศัตรูใหม่: ", "New enemy: ") + (thai ? GameData.Enemies[ev.Type].NameTh : ev.Type), 2f); break;
                     case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
                     case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
-                    case "leak": goalFlashUntil = Time.time + 0.25f; break;
-                    case "seal": Toast(L("บอสผนึก ", "Boss sealed ") + (thai ? GameData.Sects[ev.El].NameTh : ev.El) + L(" ชั่วคราว!", " for a while!"), 2.5f); break;
-                    case "disable": Toast(L("อาวุธลับ! ศิษย์ถูกสกัด", "Hidden weapon! A disciple is disabled"), 1.5f); break;
+                    case "leak": goalFlashUntil = Time.time + 0.25f; fx.Shake(2.5f); fx.Burst(goalAt, "#D2412F", 0.6f); break;
+                    case "kill":
+                    {
+                        var at = new Vector2(Gx(ev.X), Gy(ev.Y) - 4);
+                        bool boss = typeOf.TryGetValue(ev.Id, out var t) && GameData.Enemies[t].Boss != null;
+                        fx.Death(at, boss);
+                        fx.Coin(at, ev.Amount);
+                        break;
+                    }
+                    case "combo":
+                    {
+                        var d = s.Disciples.FirstOrDefault(q => q.Id == ev.Id);
+                        if (d != null) fx.Burst(new Vector2(Gx(d.X), Gy(d.Y) - 4), "#E3B04B", 1.2f);
+                        Toast(ev.Name, 1.5f);
+                        break;
+                    }
+                    case "seal": fx.Shake(3); fx.Burst(new Vector2(Bootstrap.W / 2f, Bootstrap.H / 2f), "#8A1A1A", 1.5f); Toast(L("บอสผนึก ", "Boss sealed ") + (thai ? GameData.Sects[ev.El].NameTh : ev.El) + L(" ชั่วคราว!", " for a while!"), 2.5f); break;
+                    case "disable": fx.Shake(2); Toast(L("อาวุธลับ! ศิษย์ถูกสกัด", "Hidden weapon! A disciple is disabled"), 1.5f); break;
                     case "end":
                         ClosePanel();
                         RefreshHints();
@@ -198,11 +239,14 @@ namespace FiveSects.Game
         {
             var r = new GameObject("shot").AddComponent<SpriteRenderer>();
             r.transform.SetParent(world);
-            r.sprite = Art.Pixel();
-            r.color = Art.Hex(GameData.Sects[el].Color);
-            r.transform.localScale = new Vector3(crit ? 3 : 2, crit ? 3 : 2, 1);
+            // Glowing bolt: a soft halo in the sect colour; UpdateShots leaves a trail and bursts on arrival.
+            r.sprite = Art.Glow();
+            var c = Art.Hex(GameData.Sects[el].Color);
+            r.color = c;
+            float sc = crit ? 0.45f : 0.3f;
+            r.transform.localScale = new Vector3(sc, sc, 1);
             r.sortingOrder = 30;
-            shots.Add(new Shot { R = r, From = from, To = to, T = 0 });
+            shots.Add(new Shot { R = r, From = from, To = to, T = 0, El = el, Crit = crit });
         }
 
         void UpdateShots()
@@ -213,7 +257,8 @@ namespace FiveSects.Game
                 sh.T += Time.deltaTime / 0.12f;
                 var p = Vector2.Lerp(sh.From, sh.To, sh.T);
                 sh.R.transform.position = World(p.x, p.y);
-                if (sh.T >= 1) { Destroy(sh.R.gameObject); shots.RemoveAt(i); }
+                fx.Trail(sh.El, p, sh.Crit);
+                if (sh.T >= 1) { fx.Impact(sh.El, sh.To, sh.Crit); Destroy(sh.R.gameObject); shots.RemoveAt(i); }
             }
         }
 
@@ -306,6 +351,8 @@ namespace FiveSects.Game
                 if (t == null) continue;
                 bool off = d.OffT > 0 || (s.SealT > 0 && s.SealEl != null && d.Els.Contains(s.SealEl));
                 t.GetComponent<SpriteRenderer>().color = off ? new Color(0.45f, 0.45f, 0.55f) : Color.white;
+                float pop = popUntil.TryGetValue(d.Id, out var until) && Time.time < until ? 1.2f : 1f; // attack squash
+                t.localScale = new Vector3(pop, 2f - pop, 1);
             }
         }
 
@@ -320,6 +367,7 @@ namespace FiveSects.Game
                     var body = new GameObject("e" + e.Id).AddComponent<SpriteRenderer>();
                     body.transform.SetParent(world);
                     body.sprite = Art.Enemy(e.Type); body.sortingOrder = 20;
+                    typeOf[e.Id] = e.Type;
                     if (GameData.Enemies[e.Type].Boss != null) { body.transform.localScale = new Vector3(2, 2, 1); body.color = Art.Hex("#FF9E7B"); }
                     SpriteRenderer Bar(string col, int order)
                     {
