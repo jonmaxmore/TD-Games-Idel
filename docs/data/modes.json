@@ -78,14 +78,22 @@
       "id": "siege_1v1",
       "nameTh": "บุก–ตั้งรับ 1v1",
       "players": "2",
-      "release": "S1",
+      "release": "v1.0",
       "net": "lockstep + DO authoritative sim",
       "statsNormalized": true,
       "minutes": "6",
       "rounds": 2,
       "roundMinutes": 3,
       "fog": true,
-      "ranked": true
+      "ranked": true,
+      "flagshipEsports": true,
+      "competitiveFormat": {
+        "match": "Bo3",
+        "final": "Bo5",
+        "ban": 1,
+        "mapPool": 3,
+        "team": "KOF 3-player"
+      }
     },
     {
       "id": "duel_2v2",

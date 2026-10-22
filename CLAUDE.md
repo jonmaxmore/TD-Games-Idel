@@ -1,6 +1,6 @@
 # ศึกห้าสำนัก (TD-Games-Idel)
 
-Idle wuxia tower defense, pixel art, web first, then mobile (Capacitor). Design lives in `docs/`; read `docs/GDD.md` before any game work. Game data (`docs/data/*.json`) is the source of truth for numbers and names; code reads it, never hard-codes it.
+Wuxia tower defense, pixel art, web first, then mobile (Capacitor). End goal is a full esports title; flagship competitive mode is attack/defend 1v1 (`docs/design/esports.md`). PvE/idle onboards and funds it. Design lives in `docs/`; read `docs/GDD.md` before any game work. Game data (`docs/data/*.json`) is the source of truth for numbers and names; code reads it, never hard-codes it.
 
 Planned stack (GDD §10): TypeScript monorepo — `packages/sim` (deterministic rules, no rendering), `packages/client` (Vite + Phaser 3), `packages/server` (Cloudflare Workers + Durable Objects, D1/KV/R2).
 
