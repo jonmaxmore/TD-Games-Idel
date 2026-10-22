@@ -98,5 +98,19 @@
       { "id": "taiji_master", "name": "Taiji Grandmaster",         "nameTh": "ปรมาจารย์ไท่จี๋",      "from": ["yinyang", "water", "fire"], "effect": "reverses time: enemies walk backwards 3s, every 25s" }
     ]
   },
-  "upgrade": { "levels": 3, "names": ["ศิษย์", "ศิษย์เอก", "ผู้อาวุโส"], "costMultiplier": [1.0, 1.5, 2.25], "statMultiplier": [1.0, 1.6, 2.5] }
+  "upgrade": { "levels": 3, "names": ["ศิษย์", "ศิษย์เอก", "ผู้อาวุโส"], "costMultiplier": [1.0, 1.5, 2.25], "statMultiplier": [1.0, 1.6, 2.5] },
+  "allegiance": {
+    "_notes": "Sect the player picks after the tutorial (docs/design/sect-allegiance.md). Read by the Unity front flow only; the sim roster per sect x role comes later. ruleTh is the one-line sect rule shown on the pick card. Changing sect later needs the sect-change token (SPEC-front-flow §5).",
+    "launch": [
+      { "element": "metal", "ruleTh": "ทุกการโจมตีครั้งที่ 4 คริติคอลแน่นอน", "difficulty": 1 },
+      { "element": "wood", "ruleTh": "พิษลามไปศัตรูข้างเคียงเมื่อเป้าตาย", "difficulty": 2 },
+      { "element": "water", "ruleTh": "ศัตรูที่ช้าอยู่รับดาเมจเพิ่ม", "difficulty": 2 },
+      { "element": "fire", "ruleTh": "ไฟเผาต่อเนื่อง ยิ่งโดนนานยิ่งแรง", "difficulty": 1 },
+      { "element": "earth", "ruleTh": "ศิษย์ขวางทางได้ ศัตรูต้องหยุดตี", "difficulty": 3 }
+    ],
+    "upcoming": [
+      { "id": "beggar", "nameTh": "พรรคไม้เท้าหมื่นลี้", "opensMonth": 2 },
+      { "id": "blood_moon", "nameTh": "นิกายจันทร์โลหิต", "opensMonth": 4 }
+    ]
+  }
 }

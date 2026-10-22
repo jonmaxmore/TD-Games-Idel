@@ -16,9 +16,10 @@ namespace FiveSects.Game
     public class DefendView : MonoBehaviour
     {
         public string StageId = "1-1";
+        public Flow Flow; // null when the view runs alone (editor tests); set by the front flow
 
         // Playable in this prototype (defend stages with a layout), in story order. Results screen walks this list.
-        static readonly string[] Playlist = { "1-1", "1-2", "1-4", "1-6", "1-12", "T-1" };
+        public static readonly string[] Playlist = { "1-1", "1-2", "1-4", "1-6", "1-12", "T-1" };
 
         const int T = 16, OX = 2, OY = 16;
         const float TickSec = 0.05f;
@@ -91,6 +92,7 @@ namespace FiveSects.Game
             fx.Light(goalAt, "#E3B04B", 40, 0.35f);
             fx.Light(new Vector2(TileCx(start.X), TileBottom(start.Y) - 8), "#8A2A5A", 30, 0.4f);
             Toast(thai ? s.Layout.NameTh : StageId, 2f);
+            if (Flow != null) Flow.BattleReady();
         }
 
         // ---------- loop ----------
@@ -501,7 +503,7 @@ namespace FiveSects.Game
                 int cost = Defend.PlaceCost(el);
                 string name = thai ? GameData.Sects[el].NameTh : el;
                 MakeButton(p, name + "  " + cost, new Vector2((float)i / n + 0.01f, 0.1f), new Vector2((float)(i + 1) / n - 0.01f, 0.9f),
-                    () => { pending.Add(new Command { T = "place", Sect = el, Tx = tx, Ty = ty }); ClosePanel(); }, s.Silver >= cost);
+                    () => { pending.Add(new Command { T = "place", Sect = el, Tx = tx, Ty = ty }); ClosePanel(); if (Flow != null) Flow.FirstPlace(); }, s.Silver >= cost);
             }
         }
 
@@ -530,6 +532,14 @@ namespace FiveSects.Game
             }
             int idx = System.Array.IndexOf(Playlist, StageId);
             string next = idx >= 0 && idx + 1 < Playlist.Length ? Playlist[idx + 1] : null;
+            if (Flow != null)
+            {
+                Flow.StageEnded(StageId, won, stars);
+                bool tutorial = StageId == Flow.TutorialStage;
+                MakeButton(resultPanel, L("เล่นอีกครั้ง", "Retry"), new Vector2(0.03f, 0.05f), new Vector2(0.48f, 0.22f), () => Load(StageId));
+                MakeButton(resultPanel, tutorial ? L("เลือกสำนัก", "Choose a sect") : L("ลานสำนัก", "Lobby"), new Vector2(0.52f, 0.05f), new Vector2(0.97f, 0.22f), Flow.LeaveBattle);
+                return;
+            }
             MakeButton(resultPanel, L("เล่นอีกครั้ง", "Retry"), new Vector2(0.05f, 0.05f), new Vector2(0.48f, 0.22f), () => Load(StageId));
             if (won && next != null)
                 MakeButton(resultPanel, L("ด่านถัดไป ", "Next: ") + next, new Vector2(0.52f, 0.05f), new Vector2(0.95f, 0.22f), () => Load(next));
@@ -554,9 +564,15 @@ namespace FiveSects.Game
         // Swap to another stage without reloading the scene: drop this view's world + HUD and start a fresh view.
         void Load(string stageId)
         {
+            Close();
+            if (Flow != null) { Flow.StartStage(stageId); return; }
+            new GameObject("Five Sects").AddComponent<DefendView>().StageId = stageId;
+        }
+
+        public void Close()
+        {
             Destroy(world.gameObject);
             Destroy(hudRoot.gameObject);
-            new GameObject("Five Sects").AddComponent<DefendView>().StageId = stageId;
             Destroy(gameObject);
         }
 

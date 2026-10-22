@@ -49,6 +49,18 @@
   ],
   "stages": [
     {
+      "id": "T-0",
+      "chapter": 0,
+      "type": "training",
+      "title": "First-run tutorial: one disciple of every sect, played before picking a sect (SPEC-front-flow step 4)",
+      "layout": "village-terraces",
+      "waves": 5,
+      "startSilver": 300,
+      "enemies": ["cultist", "runner", "brute"],
+      "stars": ["clear"],
+      "unlockAll": true
+    },
+    {
       "id": "T-1",
       "chapter": 0,
       "type": "training",

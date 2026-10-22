@@ -11,7 +11,7 @@ namespace FiveSects.Game
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Start()
         {
-            if (Object.FindFirstObjectByType<DefendView>() != null) return;
+            if (Object.FindFirstObjectByType<DefendView>() != null || Object.FindFirstObjectByType<Flow>() != null) return;
             LoadData();
             Application.targetFrameRate = 60;
 
@@ -23,7 +23,7 @@ namespace FiveSects.Game
             cam.backgroundColor = Art.Hex("#0B0910");
             cam.clearFlags = CameraClearFlags.SolidColor;
 
-            new GameObject("Five Sects").AddComponent<DefendView>().StageId = "1-1";
+            new GameObject("Flow").AddComponent<Flow>();
         }
 
         public static void LoadData()
