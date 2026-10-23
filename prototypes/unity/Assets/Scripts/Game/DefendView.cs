@@ -47,6 +47,9 @@ namespace FiveSects.Game
         readonly Dictionary<int, string> typeOf = new Dictionary<int, string>();
         Vector2 goalAt;
         Board3D board; // null when the profile asks for the classic 2D battle
+        readonly Dictionary<int, int> levelSeen = new Dictionary<int, int>();
+        RectTransform nextStrip;
+        string nextStripKey;
         readonly List<Shot> shots = new List<Shot>();
 
         // HUD
@@ -131,6 +134,7 @@ namespace FiveSects.Game
                 acc = Mathf.Min(acc, 8 * TickSec);
             }
             UpdateHints();
+            WatchUpgrades();
             if (board != null)
             {
                 board.SyncDisciples(s);
@@ -147,6 +151,27 @@ namespace FiveSects.Game
             }
             fx.Update(Time.deltaTime);
             UpdateHud();
+        }
+
+        // A disciple that went up a tier announces the technique it just learned (name over its head, gold burst, toast).
+        void WatchUpgrades()
+        {
+            foreach (var d in s.Disciples)
+            {
+                bool known = levelSeen.TryGetValue(d.Id, out var was);
+                levelSeen[d.Id] = d.Level;
+                if (!known || d.Level <= was) continue;
+                var sk = Ui.Skill(d.Els[0], d.Level);
+                if (sk == null) continue;
+                Toast(L("ได้ท่าใหม่: ", "New technique: ") + Ui.Name(sk) + " — " + Ui.Effect(sk), 3f);
+                if (board != null)
+                {
+                    var at = board.DiscipleAt(d.Id);
+                    board.Number(at + new Vector3(0, 0.8f, 0), Ui.Name(sk), "#FFD34A", 2.2f);
+                    board.Burst(at, "#E3B04B", 16);
+                }
+                else fx.Burst(new Vector2(Gx(d.X), Gy(d.Y) - 4), "#E3B04B", 1.2f);
+            }
         }
 
         void FitCamera()
@@ -223,7 +248,7 @@ namespace FiveSects.Game
                         if (d == null) break;
                         if (board != null)
                         {
-                            board.Shot(d.Id, to, ev.El, ev.Crit);
+                            board.Shot(d.Id, to, ev.Crit);
                             if (ev.Crit) { hitStopUntil = Time.unscaledTime + 0.04f; board.Number(board.EnemyAt((int)to.x, (int)to.y), ev.Dmg + "!", "#FFD34A"); }
                             break;
                         }
@@ -477,27 +502,33 @@ namespace FiveSects.Game
             var root = (RectTransform)canvasGo.transform;
             hudRoot = root;
 
-            var top = Box(root, "Top", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -64), Vector2.zero, "#0E0B14");
-            silverText = Label(top, "", 28, new Vector2(0, 0), new Vector2(0.35f, 1), "#E3B04B");
-            livesText = Label(top, "", 28, new Vector2(0.35f, 0), new Vector2(0.55f, 1), "#D2412F");
-            waveText = Label(top, "", 28, new Vector2(0.8f, 0), new Vector2(1, 1), "#ECE3CF");
-            var speedBtn = MakeButton(top, "x1", new Vector2(0.56f, 0.1f), new Vector2(0.78f, 0.9f), null);
+            // Top bar: silver, lives and wave as framed chips with a colour mark; speed at the right.
+            var top = Frame(root, "Top", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -70), Vector2.zero);
+            silverText = Chip(top, 0.01f, 0.33f, "#E3B04B");
+            livesText = Chip(top, 0.34f, 0.56f, "#D2412F");
+            waveText = Chip(top, 0.57f, 0.8f, "#ECE3CF");
+            var speedBtn = MakeButton(top, "x1", new Vector2(0.82f, 0.12f), new Vector2(0.99f, 0.88f), null);
             speedBtn.onClick.AddListener(() => { speed = speed % 3 + 1; speedBtn.GetComponentInChildren<Text>().text = "x" + speed; });
 
-            var bottom = Box(root, "Bottom", new Vector2(0, 0), new Vector2(1, 0), Vector2.zero, new Vector2(0, 64), "#0E0B14");
-            waveButton = MakeButton(bottom, L("เริ่มบุก", "Start wave"), new Vector2(0.02f, 0.1f), new Vector2(0.6f, 0.9f), () => pending.Add(new Command { T = "nextWave" }));
+            // Bottom: what the next wave brings (name, enemy pictures, roles it needs), then a big start button.
+            var bottom = Frame(root, "Bottom", new Vector2(0, 0), new Vector2(1, 0), Vector2.zero, new Vector2(0, 134));
+            nextText = Label(bottom, "", 19, new Vector2(0, 0.56f), new Vector2(0.6f, 1), "#C9BFA8");
+            nextText.resizeTextForBestFit = true; nextText.resizeTextMinSize = 13; nextText.resizeTextMaxSize = 19;
+            nextStrip = (RectTransform)new GameObject("NextEnemies", typeof(RectTransform)).transform;
+            nextStrip.SetParent(bottom, false);
+            nextStrip.anchorMin = new Vector2(0.6f, 0.54f); nextStrip.anchorMax = new Vector2(0.99f, 1f); nextStrip.offsetMin = nextStrip.offsetMax = Vector2.zero;
+            waveButton = MakeButton(bottom, L("เริ่มบุก", "Start wave"), new Vector2(0.02f, 0.06f), new Vector2(0.66f, 0.52f), () => pending.Add(new Command { T = "nextWave" }), true, true);
             waveButtonText = waveButton.GetComponentInChildren<Text>();
-            fpsText = Label(bottom, "", 20, new Vector2(0.62f, 0), new Vector2(0.98f, 1), "#9A92AE");
+            waveButtonText.font = Ui.Bold; waveButtonText.fontSize = 28;
+            fpsText = Label(bottom, "", 16, new Vector2(0.68f, 0.06f), new Vector2(0.99f, 0.52f), "#6E6680");
 
             if (s.Sect != null)
             {
-                // The player's sect colours the HUD: a band under the top bar with the sect name.
-                var band = Box(root, "SectBand", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -68), new Vector2(0, -64), GameData.Sects[s.Sect].Color);
+                // The player's sect colours the HUD: a band under the top bar.
+                var band = Box(root, "SectBand", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -74), new Vector2(0, -70), GameData.Sects[s.Sect].Color);
                 band.GetComponent<Image>().raycastTarget = false;
             }
-            nextText = Label(root, "", 20, new Vector2(0, 1), new Vector2(1, 1), "#9A92AE");
-            nextText.rectTransform.offsetMin = new Vector2(12, -92); nextText.rectTransform.offsetMax = new Vector2(-12, -64);
-            bossBar = Box(root, "BossBar", new Vector2(0.1f, 1), new Vector2(0.9f, 1), new Vector2(0, -124), new Vector2(0, -96), "#1A1423");
+            bossBar = Frame(root, "BossBar", new Vector2(0.1f, 1), new Vector2(0.9f, 1), new Vector2(0, -116), new Vector2(0, -86), "#1A1423");
             bossFill = Box(bossBar, "Fill", Vector2.zero, Vector2.one, new Vector2(2, 2), new Vector2(-2, -2), "#D2412F");
             bossName = Label(bossBar, "", 20, Vector2.zero, Vector2.one, "#ECE3CF");
             bossName.alignment = TextAnchor.MiddleCenter;
@@ -516,6 +547,26 @@ namespace FiveSects.Game
             return rt;
         }
 
+        // Wuxia panel: black-red lacquer with a thin gold edge.
+        RectTransform Frame(RectTransform parent, string name, Vector2 aMin, Vector2 aMax, Vector2 offMin, Vector2 offMax, string color = "#1A0E10")
+        {
+            var rt = Box(parent, name, aMin, aMax, offMin, offMax, color);
+            var o = rt.gameObject.AddComponent<Outline>();
+            o.effectColor = Art.Hex("#C9A040"); o.effectDistance = new Vector2(2, -2);
+            return rt;
+        }
+
+        // A stat chip in the top bar: a small colour mark and a big number.
+        Text Chip(RectTransform bar, float x0, float x1, string color)
+        {
+            var c = Box(bar, "Chip", new Vector2(x0, 0.14f), new Vector2(x1, 0.86f), Vector2.zero, Vector2.zero, "#0E0709");
+            var mark = Box(c, "Mark", new Vector2(0, 0.2f), new Vector2(0, 0.8f), new Vector2(8, 0), new Vector2(24, 0), color);
+            mark.GetComponent<Image>().raycastTarget = false;
+            var t = Label(c, "", 26, Vector2.zero, Vector2.one, color);
+            t.font = Ui.Bold; t.rectTransform.offsetMin = new Vector2(32, 0);
+            return t;
+        }
+
         Text Label(RectTransform parent, string text, int size, Vector2 aMin, Vector2 aMax, string color)
         {
             var go = new GameObject("Text", typeof(RectTransform), typeof(Text));
@@ -528,9 +579,9 @@ namespace FiveSects.Game
             return t;
         }
 
-        Button MakeButton(RectTransform parent, string text, Vector2 aMin, Vector2 aMax, UnityEngine.Events.UnityAction onClick, bool enabled = true)
+        Button MakeButton(RectTransform parent, string text, Vector2 aMin, Vector2 aMax, UnityEngine.Events.UnityAction onClick, bool enabled = true, bool primary = false)
         {
-            var rt = Box(parent, "Button", aMin, aMax, Vector2.zero, Vector2.zero, enabled ? "#3A2A14" : "#221C2A");
+            var rt = enabled ? Frame(parent, "Button", aMin, aMax, Vector2.zero, Vector2.zero, primary ? "#8A1A12" : "#2A1414") : Box(parent, "Button", aMin, aMax, Vector2.zero, Vector2.zero, "#221C2A");
             var b = rt.gameObject.AddComponent<Button>();
             b.interactable = enabled;
             if (onClick != null) b.onClick.AddListener(onClick);
@@ -539,15 +590,15 @@ namespace FiveSects.Game
             return b;
         }
 
-        void ClosePanel() { if (panel != null) Destroy(panel.gameObject); panel = null; HideMarks(); }
+        void ClosePanel() { if (panel != null) Destroy(panel.gameObject); panel = null; HideMarks(); board?.Unfocus(); }
 
         // The panel opens on the half of the screen away from the tapped tile so it never hides it.
         RectTransform OpenPanel(int ty, float height = 160)
         {
             ClosePanel();
             panel = ty < Layouts.GridH / 2
-                ? Box(hudRoot, "Panel", new Vector2(0.02f, 0), new Vector2(0.98f, 0), new Vector2(0, 72), new Vector2(0, 72 + height), "#17121F")
-                : Box(hudRoot, "Panel", new Vector2(0.02f, 1), new Vector2(0.98f, 1), new Vector2(0, -72 - height), new Vector2(0, -72), "#17121F");
+                ? Frame(hudRoot, "Panel", new Vector2(0.02f, 0), new Vector2(0.98f, 0), new Vector2(0, 140), new Vector2(0, 140 + height))
+                : Frame(hudRoot, "Panel", new Vector2(0.02f, 1), new Vector2(0.98f, 1), new Vector2(0, -78 - height), new Vector2(0, -78));
             return panel;
         }
 
@@ -558,15 +609,16 @@ namespace FiveSects.Game
             // Open on a card already picked (the first one the player can afford) so its picture, description and range show at once.
             if (choice == null) choice = s.Unlocked.FirstOrDefault(k => s.Silver >= Defend.PlaceCost(k)) ?? s.Unlocked.FirstOrDefault();
             if (choice == null) return;
-            var p = OpenPanel(ty, 430);
+            var p = OpenPanel(ty, 520);
             ShowTileMark(tx, ty);
+            board?.Focus(tx, ty);
             int n = s.Unlocked.Count;
             for (int i = 0; i < n; i++)
             {
                 string key = s.Unlocked[i];
                 Card(p, key, i, n, key == choice, () => OpenBuildPanel(tx, ty, key));
             }
-            var detail = Box(p, "Detail", new Vector2(0.01f, 0.02f), new Vector2(0.99f, 0.47f), Vector2.zero, Vector2.zero, "#0E0B14");
+            var detail = Box(p, "Detail", new Vector2(0.01f, 0.02f), new Vector2(0.99f, 0.52f), Vector2.zero, Vector2.zero, "#0E0709");
             var def = GameData.DefOf(choice);
             int cost = Defend.PlaceCost(choice);
             ShowRing(tx, ty, def.Range, def.Color, 0);
@@ -579,18 +631,17 @@ namespace FiveSects.Game
                 ghost.enabled = true;
             }
             Detail(detail, choice);
-            MakeButton(detail, L("ยืนยันวาง\n", "Place\n") + cost + L(" ตำลึง", " silver"), new Vector2(0.72f, 0.38f), new Vector2(0.99f, 0.97f),
+            MakeButton(detail, L("ยืนยันวาง\n", "Place\n") + cost + L(" ตำลึง", " silver"), new Vector2(0.72f, 0.62f), new Vector2(0.99f, 0.99f),
                 () =>
                 {
                     pending.Add(new Command { T = "place", Sect = choice, Tx = tx, Ty = ty }); ClosePanel();
                     ShowRing(tx, ty, def.Range, def.Color, 1.5f);
                     if (Flow != null) Flow.FirstPlace();
                 }, s.Silver >= cost);
-            MakeButton(detail, L("ยกเลิก", "Cancel"), new Vector2(0.72f, 0.04f), new Vector2(0.99f, 0.33f), ClosePanel);
+            MakeButton(detail, L("ยกเลิก", "Cancel"), new Vector2(0.72f, 0.42f), new Vector2(0.99f, 0.6f), ClosePanel);
         }
 
-        static readonly Dictionary<string, string> RoleColor = new Dictionary<string, string>
-        { ["striker"] = "#E3B04B", ["burst"] = "#FF7A3D", ["control"] = "#4FB3FF", ["stacker"] = "#5BC46A", ["support"] = "#C9A0FF" };
+        static Dictionary<string, string> RoleColor => Ui.RoleColor;
 
         // One card: sect-coloured frame (gold when selected), pixel portrait, role chip, name and cost.
         void Card(RectTransform parent, string key, int i, int n, bool selected, UnityEngine.Events.UnityAction onClick)
@@ -599,7 +650,7 @@ namespace FiveSects.Game
             int cost = Defend.PlaceCost(key);
             bool afford = s.Silver >= cost;
             float x0 = (float)i / n + 0.006f, x1 = (float)(i + 1) / n - 0.006f;
-            var frame = Box(parent, "Card", new Vector2(x0, selected ? 0.52f : 0.5f), new Vector2(x1, selected ? 1f : 0.97f), Vector2.zero, Vector2.zero, selected ? "#E3B04B" : def.Color);
+            var frame = Box(parent, "Card", new Vector2(x0, selected ? 0.56f : 0.54f), new Vector2(x1, selected ? 1f : 0.97f), Vector2.zero, Vector2.zero, selected ? "#E3B04B" : def.Color);
             var face = Box(frame, "Face", Vector2.zero, Vector2.one, new Vector2(3, 3), new Vector2(-3, -3), selected ? "#2A2033" : "#1A1423");
             var btn = frame.gameObject.AddComponent<Button>();
             btn.onClick.AddListener(onClick);
@@ -654,11 +705,11 @@ namespace FiveSects.Game
             var def = GameData.DefOf(key);
             string role = RoleOf(key);
             var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
-            var title = Label(box, Ui.Name(def) + (rd != null ? "  ·  " + Ui.Name(rd) : ""), 28, new Vector2(0, 0.8f), new Vector2(0.71f, 0.99f), def.Color);
+            var title = Label(box, Ui.Name(def) + (rd != null ? "  ·  " + Ui.Name(rd) : ""), 28, new Vector2(0, 0.86f), new Vector2(0.71f, 1f), def.Color);
             title.font = Ui.Bold;
             var u = GameData.Units.TryGetValue(key, out var ud) ? ud : null;
             string desc = u != null ? L(u.DescTh, u.DescEn) : (rd != null ? rd.DoesTh : "");
-            var dl = Label(box, desc, 19, new Vector2(0, 0.56f), new Vector2(0.71f, 0.8f), "#ECE3CF");
+            var dl = Label(box, desc, 19, new Vector2(0, 0.7f), new Vector2(0.71f, 0.87f), "#ECE3CF");
             dl.alignment = TextAnchor.UpperLeft;
             dl.resizeTextForBestFit = true; dl.resizeTextMinSize = 14; dl.resizeTextMaxSize = 19;
             var all = GameData.UnitList.Cast<SectDef>().Concat(GameData.Sects.Values).ToList();
@@ -667,42 +718,71 @@ namespace FiveSects.Game
             Bar(box, 0, L("ดาเมจ", "Damage"), Dps(def) / all.Max(Dps), Dps(def).ToString("0") + L("/วิ", "/s"), "#D2412F");
             Bar(box, 1, L("ระยะ", "Range"), def.Range / (float)all.Max(d => d.Range), (def.Range / 1000f).ToString("0.0"), "#4FB3FF");
             Bar(box, 2, L("ความเร็ว", "Speed"), Speed(def) / all.Max(Speed), Speed(def).ToString("0.0") + L(" ครั้ง/วิ", "/s"), "#E3B04B");
+            // Technique ladder: tier 1 comes with the disciple, tiers 2 and 3 are what upgrading buys.
+            var skills = Ui.Skills(Ui.KitOf(key));
+            for (int i = 0; i < skills.Count && i < 3; i++)
+            {
+                var sk = skills[i];
+                float y1 = 0.39f - i * 0.095f;
+                var line = Label(box, L("ขั้น ", "Tier ") + sk.Lvl + "  " + Ui.Name(sk) + " — " + Ui.Effect(sk) + (sk.Lvl > 1 ? L("  (อัปเกรด)", "  (upgrade)") : ""),
+                    15, new Vector2(0, y1 - 0.09f), new Vector2(0.99f, y1), sk.Lvl == 1 ? "#FFD34A" : "#8A8296");
+                line.resizeTextForBestFit = true; line.resizeTextMinSize = 11; line.resizeTextMaxSize = 15;
+            }
             string tags = (def.HitsAir ? L("ตีอากาศได้", "Hits air") : L("ตีได้เฉพาะพื้น", "Ground only"));
             if (rd != null && rd.Counters.Count > 0) tags += L("  ·  เก่งกับ: ", "  ·  Good vs: ") + string.Join(", ", rd.Counters.Select(Ui.Enemy));
-            var tl = Label(box, tags, 16, new Vector2(0, 0), new Vector2(0.71f, 0.14f), "#9BD17A");
+            var tl = Label(box, tags, 16, new Vector2(0, 0), new Vector2(0.99f, 0.1f), "#9BD17A");
             tl.alignment = TextAnchor.MiddleLeft;
         }
 
         void Bar(RectTransform box, int row, string label, float frac, string value, string color)
         {
-            float y1 = 0.54f - row * 0.13f, y0 = y1 - 0.11f;
+            float y1 = 0.69f - row * 0.1f, y0 = y1 - 0.085f;
             Label(box, label, 15, new Vector2(0, y0), new Vector2(0.17f, y1), "#9A92AE");
-            var bg = Box(box, "Bar", new Vector2(0.17f, y0 + 0.02f), new Vector2(0.55f, y1 - 0.02f), Vector2.zero, Vector2.zero, "#2A2033");
+            var bg = Box(box, "Bar", new Vector2(0.17f, y0 + 0.015f), new Vector2(0.55f, y1 - 0.015f), Vector2.zero, Vector2.zero, "#2A2033");
             var fill = Box(bg, "Fill", Vector2.zero, new Vector2(Mathf.Clamp01(frac), 1), Vector2.zero, Vector2.zero, color);
             fill.GetComponent<Image>().raycastTarget = false;
             Label(box, value, 15, new Vector2(0.56f, y0), new Vector2(0.71f, y1), "#ECE3CF");
         }
 
-        // Legacy element disciples map onto the five roles by their mechanic.
-        static readonly Dictionary<string, string> KitRole = new Dictionary<string, string>
-        { ["metal"] = "striker", ["fire"] = "burst", ["water"] = "control", ["earth"] = "control", ["wood"] = "stacker", ["yinyang"] = "support" };
-
-        static string RoleOf(string key) => GameData.Units.TryGetValue(key, out var u) ? u.RoleId : KitRole.TryGetValue(key, out var r) ? r : null;
+        static string RoleOf(string key) => Ui.RoleOf(key);
 
         // A roster unit wears its sect's colours with its kit's weapon; legacy disciples use their element look.
         static Sprite DiscipleSprite(string key) => GameData.Units.TryGetValue(key, out var u) ? Art.Unit(u.Sect, u.Element) : Art.Disciple(new List<string> { key });
 
         static Sprite DiscipleSprite(Disciple d) => d.Unit != null ? Art.Unit(d.El, d.Els[0]) : Art.Disciple(d.Els);
 
+        // A placed disciple: who it is, the technique it fights with now, and what the next upgrade teaches.
         void OpenDisciplePanel(Disciple d)
         {
-            var p = OpenPanel(d.Ty);
+            var p = OpenPanel(d.Ty, 300);
+            board?.Focus(d.Tx, d.Ty);
             ShowRing(d.Tx, d.Ty, d.Els.Max(el => GameData.Sects[el].Range), GameData.Sects[d.Els[0]].Color, 0);
+            string key = d.Unit ?? d.Els[0];
+            var pic = new GameObject("Portrait", typeof(RectTransform), board != null ? typeof(RawImage) : typeof(Image));
+            var prt = (RectTransform)pic.transform;
+            prt.SetParent(p, false);
+            prt.anchorMin = new Vector2(0.01f, 0.04f); prt.anchorMax = new Vector2(0.2f, 0.96f); prt.offsetMin = prt.offsetMax = Vector2.zero;
+            if (board != null) pic.GetComponent<RawImage>().texture = board.Portrait(key);
+            else { var im = pic.GetComponent<Image>(); im.sprite = DiscipleSprite(d); im.preserveAspect = true; }
+            pic.GetComponent<Graphic>().raycastTarget = false;
+
+            string role = Ui.RoleOf(d);
+            var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
+            string name = d.Combo != null && GameData.Combos.FirstOrDefault(c => c.Id == d.Combo) is ComboDef cd ? cd.NameTh : Ui.Unit(key);
+            var title = Label(p, name + (rd != null ? "  ·  " + Ui.Name(rd) : "") + L("  ขั้น ", "  tier ") + d.Level, 26, new Vector2(0.21f, 0.8f), new Vector2(0.99f, 0.98f), GameData.Sects[d.El ?? d.Els[0]].Color);
+            title.font = Ui.Bold;
+            var now = Ui.Skill(d.Els[0], d.Level);
+            var nowLine = Label(p, L("ท่าที่ใช้: ", "Fighting with: ") + Ui.Name(now) + " — " + Ui.Effect(now), 17, new Vector2(0.21f, 0.58f), new Vector2(0.99f, 0.8f), "#FFD34A");
+            nowLine.resizeTextForBestFit = true; nowLine.resizeTextMinSize = 12; nowLine.resizeTextMaxSize = 17;
             int up = Defend.UpgradeCost(d);
             bool canUp = d.Combo == null && d.Level < GameData.UpgradeLevels;
-            MakeButton(p, canUp ? L("อัปเกรด ", "Upgrade ") + up : L("เต็มแล้ว", "Max level"), new Vector2(0.02f, 0.1f), new Vector2(0.49f, 0.9f),
-                () => { pending.Add(new Command { T = "upgrade", Id = d.Id }); ClosePanel(); }, canUp && s.Silver >= up);
-            MakeButton(p, L("ขาย +", "Sell +") + Defend.SellValue(d, s), new Vector2(0.51f, 0.1f), new Vector2(0.98f, 0.9f),
+            var next = canUp ? Ui.Skill(d.Els[0], d.Level + 1) : null;
+            var nextLine = Label(p, next != null ? L("อัปเกรดแล้วได้: ", "Upgrade teaches: ") + Ui.Name(next) + " — " + Ui.Effect(next) : L("ขั้นสูงสุดแล้ว", "Highest tier"),
+                17, new Vector2(0.21f, 0.36f), new Vector2(0.99f, 0.58f), next != null ? "#ECE3CF" : "#8A8296");
+            nextLine.resizeTextForBestFit = true; nextLine.resizeTextMinSize = 12; nextLine.resizeTextMaxSize = 17;
+            MakeButton(p, canUp ? L("อัปเกรด ", "Upgrade ") + up + L(" ตำลึง", " silver") : L("เต็มแล้ว", "Max level"), new Vector2(0.21f, 0.05f), new Vector2(0.62f, 0.33f),
+                () => { pending.Add(new Command { T = "upgrade", Id = d.Id }); ClosePanel(); }, canUp && s.Silver >= up, true);
+            MakeButton(p, L("ขาย +", "Sell +") + Defend.SellValue(d, s), new Vector2(0.64f, 0.05f), new Vector2(0.99f, 0.33f),
                 () => { pending.Add(new Command { T = "sell", Id = d.Id }); ClosePanel(); });
         }
 
@@ -786,6 +866,34 @@ namespace FiveSects.Game
 
         bool NextIsBoss() => GameData.Stages[StageId].ScriptedWaves.ContainsKey((s.Wave + 1).ToString());
 
+        // Pictures of the enemy kinds the next wave brings (3D portraits, or sprites in 2D), rebuilt only when it changes.
+        void UpdateNextStrip()
+        {
+            var types = new List<string>();
+            if (s.Wave < s.TotalWaves)
+            {
+                var rec = GameData.WaveRecipes.FirstOrDefault(r => r.Id == s.NextRecipe);
+                var stageEnemies = GameData.Stages[StageId].Enemies;
+                if (rec != null) types.AddRange(rec.Types.Where(t => GameData.Enemies.ContainsKey(t) && (stageEnemies.Count == 0 || stageEnemies.Contains(t))));
+                if (NextIsBoss() && GameData.Stages[StageId].ScriptedWaves.TryGetValue((s.Wave + 1).ToString(), out var boss) && GameData.Enemies.ContainsKey(boss)) types.Add(boss);
+            }
+            string key = string.Join(",", types.Distinct().Take(5));
+            if (key == nextStripKey) return;
+            nextStripKey = key;
+            foreach (Transform c in nextStrip) Destroy(c.gameObject);
+            var list = key.Length == 0 ? new string[0] : key.Split(',');
+            for (int i = 0; i < list.Length; i++)
+            {
+                var go = new GameObject("Foe", typeof(RectTransform), board != null ? typeof(RawImage) : typeof(Image));
+                var rt = (RectTransform)go.transform;
+                rt.SetParent(nextStrip, false);
+                rt.anchorMin = new Vector2(1 - (i + 1) * 0.2f, 0); rt.anchorMax = new Vector2(1 - i * 0.2f, 1); rt.offsetMin = rt.offsetMax = Vector2.zero;
+                if (board != null) go.GetComponent<RawImage>().texture = board.FoePortrait(list[i]);
+                else { var im = go.GetComponent<Image>(); im.sprite = Art.Enemy(list[i]); im.preserveAspect = true; }
+                go.GetComponent<Graphic>().raycastTarget = false;
+            }
+        }
+
         void UpdateBossBar()
         {
             var boss = s.Enemies.FirstOrDefault(e => GameData.Enemies[e.Type].Boss != null);
@@ -825,9 +933,13 @@ namespace FiveSects.Game
         {
             silverText.text = L("ตำลึง ", "Silver ") + s.Silver;
             livesText.text = L("ชีวิต ", "Lives ") + s.Lives;
-            waveText.text = s.Wave + "/" + s.TotalWaves;
+            waveText.text = L("ระลอก ", "Wave ") + s.Wave + "/" + s.TotalWaves;
             waveButtonText.text = WaveButtonLabel();
-            nextText.text = s.Wave < s.TotalWaves ? L("ถัดไป: ", "Next: ") + RecipeName(s.NextRecipe) + (NextIsBoss() ? L(" + บอส!", " + BOSS!") : "") + Needs() : "";
+            // The start button breathes while the player is still setting up, so the next action is obvious.
+            float beat = s.Phase == "build" ? 1 + Mathf.Sin(Time.time * 4) * 0.03f : 1;
+            waveButton.transform.localScale = new Vector3(beat, beat, 1);
+            nextText.text = s.Wave < s.TotalWaves ? L("ระลอกถัดไป: ", "Next: ") + RecipeName(s.NextRecipe) + (NextIsBoss() ? L(" + บอส!", " + BOSS!") : "") + Needs() : "";
+            UpdateNextStrip();
             UpdateBossBar();
             if (Time.time > toastUntil) toastText.text = "";
             fpsSmoothed = Mathf.Lerp(fpsSmoothed, 1f / Mathf.Max(0.0001f, Time.unscaledDeltaTime), 0.05f);
