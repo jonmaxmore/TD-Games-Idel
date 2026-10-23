@@ -20,6 +20,7 @@ namespace FiveSects.Game
         public List<string> Cleared = new List<string>();
         public int SectChangeTokens; // ป้ายย้ายสังกัด (SPEC-front-flow §5)
         public long FirstPlaceMs = -1; // app start to first disciple placed, first run only
+        public bool Classic2D;         // battle drawn as the old flat 2D sprites instead of the 3D board
     }
 
     public class RemoteConfig

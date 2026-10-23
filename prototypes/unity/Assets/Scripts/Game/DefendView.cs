@@ -46,6 +46,7 @@ namespace FiveSects.Game
         readonly Dictionary<int, float> popUntil = new Dictionary<int, float>();
         readonly Dictionary<int, string> typeOf = new Dictionary<int, string>();
         Vector2 goalAt;
+        Board3D board; // null when the profile asks for the classic 2D battle
         readonly List<Shot> shots = new List<Shot>();
 
         // HUD
@@ -71,12 +72,7 @@ namespace FiveSects.Game
             s = Defend.Create(StageId, (uint)Random.Range(1, int.MaxValue), Flow != null ? Flow.Profile.Sect : null);
             world = new GameObject("World").transform;
             var biome = Layouts.Biomes[s.Layout.Biome];
-            var ground = new GameObject("Ground").AddComponent<SpriteRenderer>();
-            ground.sprite = Art.Ground(Layouts.GridW, Layouts.GridH, s.PathTiles, GameData.Palette[biome.Palette]);
-            ground.transform.SetParent(world);
-            ground.transform.position = World(OX, OY);
-            ground.sortingOrder = -10;
-            BuildMap(biome);
+            bool use3D = Flow == null || !Flow.Profile.Classic2D;
             discipleRoot = new GameObject("Disciples").transform;
             discipleRoot.SetParent(world);
             rangeRing = MakeOverlay("range-ring", 24);
@@ -84,6 +80,21 @@ namespace FiveSects.Game
             ghost = MakeOverlay("ghost", 11);
             BuildHud();
             fx = new Fx(world, font);
+            if (use3D) board = new Board3D(s.Layout, hudRoot);
+            else Build2D(biome);
+            Toast(thai ? s.Layout.NameTh : StageId, 2f);
+            if (StageId == "T-0" || StageId == "1-1") Toast(L("แตะพื้นข้างถนนเพื่อวางศิษย์", "Tap the ground beside the road to place a disciple"), 5f);
+            if (Flow != null) Flow.BattleReady();
+        }
+
+        void Build2D(BiomeDef biome)
+        {
+            var ground = new GameObject("Ground").AddComponent<SpriteRenderer>();
+            ground.sprite = Art.Ground(Layouts.GridW, Layouts.GridH, s.PathTiles, GameData.Palette[biome.Palette]);
+            ground.transform.SetParent(world);
+            ground.transform.position = World(OX, OY);
+            ground.sortingOrder = -10;
+            BuildMap(biome);
             fx.Atmosphere(biome.Time, Layouts.GridW * T, Layouts.GridH * T, new Vector2(OX, OY));
             foreach (var p in s.Layout.Props)
                 if (p.Type == "lantern") fx.Light(new Vector2(TileCx(p.At.X), TileBottom(p.At.Y) - 10), "#FFB347", 26, 0.45f);
@@ -92,9 +103,6 @@ namespace FiveSects.Game
             goalAt = new Vector2(TileCx(end.X), TileBottom(end.Y) - 10);
             fx.Light(goalAt, "#E3B04B", 40, 0.35f);
             fx.Light(new Vector2(TileCx(start.X), TileBottom(start.Y) - 8), "#8A2A5A", 30, 0.4f);
-            Toast(thai ? s.Layout.NameTh : StageId, 2f);
-            if (StageId == "T-0" || StageId == "1-1") Toast(L("แตะพื้นข้างถนนเพื่อวางศิษย์", "Tap the ground beside the road to place a disciple"), 5f);
-            if (Flow != null) Flow.BattleReady();
         }
 
         // ---------- loop ----------
@@ -113,7 +121,7 @@ namespace FiveSects.Game
                 while (acc >= TickSec && steps < 8 && !s.IsOver)
                 {
                     prev.Clear();
-                    foreach (var e in s.Enemies) prev[e.Id] = new Vector2(e.X, e.Y);
+                    foreach (var e in s.Enemies) { prev[e.Id] = new Vector2(e.X, e.Y); typeOf[e.Id] = e.Type; }
                     var events = Defend.Step(s, pending.Count > 0 ? pending.ToArray() : System.Array.Empty<Command>());
                     pending.Clear();
                     Handle(events);
@@ -122,11 +130,21 @@ namespace FiveSects.Game
                 }
                 acc = Mathf.Min(acc, 8 * TickSec);
             }
-            SyncDisciples();
-            TintDisciples();
             UpdateHints();
-            RenderEnemies(Mathf.Clamp01(acc / TickSec));
-            UpdateShots();
+            if (board != null)
+            {
+                board.SyncDisciples(s);
+                board.UpdateDisciples(s, Time.deltaTime);
+                board.RenderEnemies(s, prev, Mathf.Clamp01(acc / TickSec));
+                board.Update(Time.deltaTime, fx.ShakeOffset * 0.04f);
+            }
+            else
+            {
+                SyncDisciples();
+                TintDisciples();
+                RenderEnemies(Mathf.Clamp01(acc / TickSec));
+                UpdateShots();
+            }
             fx.Update(Time.deltaTime);
             UpdateHud();
         }
@@ -172,9 +190,13 @@ namespace FiveSects.Game
         {
             if (!PointerDown(out var screen)) return;
             if (OverUi()) return;
-            var w = Camera.main.ScreenToWorldPoint(new Vector3(screen.x, screen.y, 10));
-            float gx = w.x, gy = -w.y;
-            int tx = Mathf.FloorToInt((gx - OX) / T), ty = Mathf.FloorToInt((gy - OY) / T);
+            int tx, ty;
+            if (board != null) board.TileAt(screen, out tx, out ty);
+            else
+            {
+                var w = Camera.main.ScreenToWorldPoint(new Vector3(screen.x, screen.y, 10));
+                tx = Mathf.FloorToInt((w.x - OX) / T); ty = Mathf.FloorToInt((-w.y - OY) / T);
+            }
             ClosePanel();
             if (tx < 0 || ty < 0 || tx >= Layouts.GridW || ty >= Layouts.GridH) return;
             if (pending.Any(c => c.T == "place" && c.Tx == tx && c.Ty == ty)) return;
@@ -199,6 +221,12 @@ namespace FiveSects.Game
                         if (en != null) to = new Vector2(en.X, en.Y);
                         else if (!prev.TryGetValue(ev.To, out to)) break;
                         if (d == null) break;
+                        if (board != null)
+                        {
+                            board.Shot(d.Id, to, ev.El, ev.Crit);
+                            if (ev.Crit) { hitStopUntil = Time.unscaledTime + 0.04f; board.Number(board.EnemyAt((int)to.x, (int)to.y), ev.Dmg + "!", "#FFD34A"); }
+                            break;
+                        }
                         Shoot(new Vector2(Gx(d.X), Gy(d.Y) - 4), new Vector2(Gx((int)to.x), Gy((int)to.y) - 4), ev.El, ev.Crit);
                         popUntil[d.Id] = Time.time + 0.08f;
                         if (ev.Crit)
@@ -212,11 +240,23 @@ namespace FiveSects.Game
                     case "newEnemy": Toast(L("ศัตรูใหม่: ", "New enemy: ") + Ui.Enemy(ev.Type), 2f); break;
                     case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
                     case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
-                    case "leak": LeakToast(ev.Id); goalFlashUntil = Time.time + 0.25f; fx.Shake(2.5f); fx.Burst(goalAt, "#D2412F", 0.6f); break;
+                    case "leak":
+                        LeakToast(ev.Id); goalFlashUntil = Time.time + 0.25f; fx.Shake(2.5f);
+                        if (board != null) board.Burst(board.GoalAt + Vector3.up, "#D2412F", 14); else fx.Burst(goalAt, "#D2412F", 0.6f);
+                        break;
                     case "kill":
                     {
                         var at = new Vector2(Gx(ev.X), Gy(ev.Y) - 4);
                         bool boss = typeOf.TryGetValue(ev.Id, out var t) && GameData.Enemies[t].Boss != null;
+                        if (board != null)
+                        {
+                            var p3 = board.EnemyAt(ev.X, ev.Y);
+                            board.Burst(p3, "#8A0A0A", boss ? 30 : 10, boss ? 0.18f : 0.12f);
+                            board.Burst(p3, "#E3B04B", 3, 0.08f);
+                            board.Number(p3, "+" + ev.Amount, "#E3B04B");
+                            if (boss) fx.Shake(4);
+                            break;
+                        }
                         fx.Death(at, boss);
                         fx.Coin(at, ev.Amount);
                         break;
@@ -224,11 +264,12 @@ namespace FiveSects.Game
                     case "combo":
                     {
                         var d = s.Disciples.FirstOrDefault(q => q.Id == ev.Id);
-                        if (d != null) fx.Burst(new Vector2(Gx(d.X), Gy(d.Y) - 4), "#E3B04B", 1.2f);
+                        if (d != null && board != null) board.Burst(board.DiscipleAt(d.Id), "#E3B04B", 20);
+                        else if (d != null) fx.Burst(new Vector2(Gx(d.X), Gy(d.Y) - 4), "#E3B04B", 1.2f);
                         Toast(ev.Name, 1.5f);
                         break;
                     }
-                    case "seal": fx.Shake(3); fx.Burst(new Vector2(Bootstrap.W / 2f, Bootstrap.H / 2f), "#8A1A1A", 1.5f); Toast(L("บอสผนึก ", "Boss sealed ") + Ui.Unit(ev.El) + L(" ชั่วคราว!", " for a while!"), 2.5f); break;
+                    case "seal": fx.Shake(3); if (board == null) fx.Burst(new Vector2(Bootstrap.W / 2f, Bootstrap.H / 2f), "#8A1A1A", 1.5f); Toast(L("บอสผนึก ", "Boss sealed ") + Ui.Unit(ev.El) + L(" ชั่วคราว!", " for a while!"), 2.5f); break;
                     case "disable": fx.Shake(2); Toast(L("อาวุธลับ! ศิษย์ถูกสกัด", "Hidden weapon! A disciple is disabled"), 1.5f); break;
                     case "end":
                         ClosePanel();
@@ -305,25 +346,28 @@ namespace FiveSects.Game
 
         void ShowRing(int tx, int ty, int rangeMilli, string color, float seconds)
         {
+            ringUntil = seconds > 0 ? Time.time + seconds : float.MaxValue;
+            if (board != null) { board.ShowRing(tx, ty, rangeMilli, color); return; }
             rangeRing.sprite = Art.Ring(Mathf.RoundToInt(rangeMilli * T / 1000f));
             rangeRing.color = Art.Hex(color);
             rangeRing.transform.position = TileCentre(tx, ty);
             rangeRing.enabled = true;
-            ringUntil = seconds > 0 ? Time.time + seconds : float.MaxValue;
         }
 
         void ShowTileMark(int tx, int ty)
         {
+            if (board != null) { board.ShowTileMark(tx, ty); return; }
             tileMark.sprite = Art.TileMark(T);
             tileMark.transform.position = TileCentre(tx, ty);
             tileMark.enabled = true;
         }
 
-        void HideMarks() { rangeRing.enabled = false; tileMark.enabled = false; ghost.enabled = false; }
+        void HideMarks() { rangeRing.enabled = false; tileMark.enabled = false; ghost.enabled = false; board?.HideMarks(); }
 
         void UpdateHints()
         {
             if (rangeRing.enabled && panel == null && Time.time > ringUntil) rangeRing.enabled = false;
+            if (board != null && board.RingShown && panel == null && Time.time > ringUntil) board.HideRing();
             if (goalGate != null) goalGate.color = Time.time < goalFlashUntil ? new Color(1f, 0.4f, 0.4f) : Color.white;
         }
 
@@ -529,10 +573,14 @@ namespace FiveSects.Game
             var def = GameData.DefOf(choice);
             int cost = Defend.PlaceCost(choice);
             ShowRing(tx, ty, def.Range, def.Color, 0);
-            ghost.sprite = DiscipleSprite(choice);
-            ghost.transform.position = World(OX + tx * T + T / 2f, OY + ty * T + T / 2f - 1);
-            ghost.color = new Color(1, 1, 1, 0.6f);
-            ghost.enabled = true;
+            if (board != null) board.ShowGhost(choice, tx, ty);
+            else
+            {
+                ghost.sprite = DiscipleSprite(choice);
+                ghost.transform.position = World(OX + tx * T + T / 2f, OY + ty * T + T / 2f - 1);
+                ghost.color = new Color(1, 1, 1, 0.6f);
+                ghost.enabled = true;
+            }
             Detail(detail, choice);
             MakeButton(detail, L("ยืนยันวาง\n", "Place\n") + cost + L(" ตำลึง", " silver"), new Vector2(0.72f, 0.38f), new Vector2(0.99f, 0.97f),
                 () =>
@@ -690,6 +738,7 @@ namespace FiveSects.Game
 
         public void Close()
         {
+            board?.Dispose();
             Destroy(world.gameObject);
             Destroy(hudRoot.gameObject);
             Destroy(gameObject);
