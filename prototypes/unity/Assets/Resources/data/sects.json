@@ -15,9 +15,9 @@
       "role": "single-target DPS, crit", "weapon": "jian (straight sword)", "silhouette": "tall, sword raised",
       "cost": 60, "dmg": 22, "rate": 1.2, "range": 2.6, "target": "ground+air",
       "skills": [
-        { "lvl": 1, "name": "Sword Qi", "nameTh": "ปราณกระบี่", "effect": "ranged crescent slash" },
-        { "lvl": 2, "name": "Thousand Blades", "nameTh": "พันกระบี่ร่วง", "effect": "every 6th hit rains 5 swords, crit x2" },
-        { "lvl": 3, "name": "Heart of the Sword", "nameTh": "กระบี่ในใจ", "effect": "crits pierce through all enemies in a line" }
+        { "lvl": 1, "name": "Sword Qi", "nameTh": "ปราณกระบี่", "effect": "ranged crescent slash", "effectTh": "ฟันปราณระยะไกล โอกาสคริติคอล 15% แรงสองเท่า" },
+        { "lvl": 2, "name": "Thousand Blades", "nameTh": "พันกระบี่ร่วง", "effect": "every 6th hit rains 5 swords, crit x2", "effectTh": "ทุกการโจมตีครั้งที่ 6 คริติคอลแน่นอน" },
+        { "lvl": 3, "name": "Heart of the Sword", "nameTh": "กระบี่ในใจ", "effect": "crits pierce through all enemies in a line", "effectTh": "คริติคอลแล้วฟันทะลุไปโดนศัตรูอีกตัวในระยะ แรงเท่ากัน" }
       ]
     },
     {
@@ -25,9 +25,9 @@
       "role": "poison DoT, root", "weapon": "flute + poison needles", "silhouette": "slim, flute held sideways",
       "cost": 50, "dmg": 11, "rate": 1.5, "range": 3.0, "target": "ground+air",
       "skills": [
-        { "lvl": 1, "name": "Verdant Venom", "nameTh": "พิษมรกต", "effect": "poison 8 dps, stacks x3" },
-        { "lvl": 2, "name": "Binding Vines", "nameTh": "เถาวัลย์รัด", "effect": "root 1s every 8s" },
-        { "lvl": 3, "name": "Song of Withering", "nameTh": "เพลงขลุ่ยร่วงโรย", "effect": "aura: poisoned enemies take +25% dmg" }
+        { "lvl": 1, "name": "Verdant Venom", "nameTh": "พิษมรกต", "effect": "poison 8 dps, stacks x3", "effectTh": "ติดพิษซ้อนได้ 3 ชั้น เสียเลือดต่อเนื่อง 3 วินาที" },
+        { "lvl": 2, "name": "Binding Vines", "nameTh": "เถาวัลย์รัด", "effect": "root 1s every 8s", "effectTh": "ทุก 8 วินาที เถาวัลย์รัดเป้าหมายอยู่กับที่ 1 วินาที" },
+        { "lvl": 3, "name": "Song of Withering", "nameTh": "เพลงขลุ่ยร่วงโรย", "effect": "aura: poisoned enemies take +25% dmg", "effectTh": "ศัตรูที่ติดพิษโดนดาเมจจากทุกคนแรงขึ้น 25%" }
       ]
     },
     {
@@ -35,9 +35,9 @@
       "role": "slow, freeze, control", "weapon": "palm technique + ribbon", "silhouette": "flowing robes, palms forward",
       "cost": 50, "dmg": 17, "rate": 1.4, "range": 2.8, "target": "ground+air",
       "skills": [
-        { "lvl": 1, "name": "Cold Palm", "nameTh": "ฝ่ามือเหมันต์", "effect": "slow 30% for 2s" },
-        { "lvl": 2, "name": "Ice Lotus", "nameTh": "บัวน้ำแข็ง", "effect": "freeze 1.2s every 5th hit" },
-        { "lvl": 3, "name": "Endless Tide", "nameTh": "คลื่นไม่สิ้นสุด", "effect": "wave pushes enemies back 1 tile every 12s" }
+        { "lvl": 1, "name": "Cold Palm", "nameTh": "ฝ่ามือเหมันต์", "effect": "slow 30% for 2s", "effectTh": "ทำให้ช้าลง 30% นาน 2 วินาที" },
+        { "lvl": 2, "name": "Ice Lotus", "nameTh": "บัวน้ำแข็ง", "effect": "freeze 1.2s every 5th hit", "effectTh": "ทุกการโจมตีครั้งที่ 5 แช่แข็งเป้าหมาย 1.2 วินาที" },
+        { "lvl": 3, "name": "Endless Tide", "nameTh": "คลื่นไม่สิ้นสุด", "effect": "wave pushes enemies back 1 tile every 12s", "effectTh": "ทุก 12 วินาที คลื่นซัดเป้าหมายถอยหลัง 1 ช่อง" }
       ]
     },
     {
@@ -45,9 +45,9 @@
       "role": "AoE burn", "weapon": "fan", "silhouette": "wide stance, open fan",
       "cost": 65, "dmg": 26, "rate": 1.0, "range": 2.4, "target": "ground+air",
       "skills": [
-        { "lvl": 1, "name": "Flame Fan", "nameTh": "พัดเพลิง", "effect": "cone of fire, burn 6 dps 3s" },
-        { "lvl": 2, "name": "Phoenix Feathers", "nameTh": "ขนหงส์กระจาย", "effect": "burning enemies explode on death (30 dmg r=1)" },
-        { "lvl": 3, "name": "Rebirth Blaze", "nameTh": "เพลิงคืนชีพ", "effect": "every 20s a phoenix sweeps the path" }
+        { "lvl": 1, "name": "Flame Fan", "nameTh": "พัดเพลิง", "effect": "cone of fire, burn 6 dps 3s", "effectTh": "ไฟกระจายรอบเป้า (รัศมี 0.8 ช่อง) เผาต่อเนื่อง 3 วินาที" },
+        { "lvl": 2, "name": "Phoenix Feathers", "nameTh": "ขนหงส์กระจาย", "effect": "burning enemies explode on death (30 dmg r=1)", "effectTh": "ศัตรูที่ไหม้อยู่ตอนตาย ระเบิดใส่ตัวรอบข้าง 30 ดาเมจ (รัศมี 1 ช่อง)" },
+        { "lvl": 3, "name": "Rebirth Blaze", "nameTh": "เพลิงคืนชีพ", "effect": "every 20s a phoenix sweeps the path", "effectTh": "พลังขั้นสูงสุด ไฟแรงขึ้นมาก (ท่าหงส์กวาดทาง: ยังไม่เปิดในรุ่นทดสอบ)" }
       ]
     },
     {
@@ -55,9 +55,9 @@
       "role": "splash, stun, blocker", "weapon": "staff (gun) / iron body", "silhouette": "broad, bald monk with staff",
       "cost": 70, "dmg": 45, "rate": 0.6, "range": 2.0, "target": "ground",
       "skills": [
-        { "lvl": 1, "name": "Mountain Strike", "nameTh": "ไม้พลองสะเทือนขุนเขา", "effect": "splash r=1" },
-        { "lvl": 2, "name": "Golden Bell", "nameTh": "ระฆังทอง", "effect": "can be placed ON the path to block 3 enemies, immune 4s" },
-        { "lvl": 3, "name": "Earthquake Stance", "nameTh": "ท่วงท่าธรณีไหว", "effect": "stun all ground enemies in r=2 for 1s every 10s" }
+        { "lvl": 1, "name": "Mountain Strike", "nameTh": "ไม้พลองสะเทือนขุนเขา", "effect": "splash r=1", "effectTh": "ฟาดพื้นกระเทือน ศัตรูบนพื้นรอบเป้า (รัศมี 1 ช่อง) โดนครึ่งหนึ่ง" },
+        { "lvl": 2, "name": "Golden Bell", "nameTh": "ระฆังทอง", "effect": "can be placed ON the path to block 3 enemies, immune 4s", "effectTh": "ทุก 10 วินาที ระฆังทองสะกดศัตรูบนพื้นรอบตัว 1 ช่อง ให้มึน 2 วินาที" },
+        { "lvl": 3, "name": "Earthquake Stance", "nameTh": "ท่วงท่าธรณีไหว", "effect": "stun all ground enemies in r=2 for 1s every 10s", "effectTh": "ระฆังขยายเป็นธรณีไหว: รัศมี 2 ช่อง มึน 1 วินาที" }
       ]
     },
     {
@@ -65,9 +65,9 @@
       "role": "support: buffs, economy, reveal", "weapon": "whisk + talismans", "silhouette": "seated meditation, floating taiji",
       "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.2, "target": "ground+air",
       "skills": [
-        { "lvl": 1, "name": "Mirror Insight", "nameTh": "ญาณกระจก", "effect": "reveals stealth (shadow assassins) in r=3" },
-        { "lvl": 2, "name": "Balance of Qi", "nameTh": "สมดุลปราณ", "effect": "adjacent disciples +20% rate" },
-        { "lvl": 3, "name": "Fortune Talisman", "nameTh": "ยันต์โชคลาภ", "effect": "+1 silver per kill in r=3, +1% interest" }
+        { "lvl": 1, "name": "Mirror Insight", "nameTh": "ญาณกระจก", "effect": "reveals stealth (shadow assassins) in r=3", "effectTh": "มองเห็นศัตรูล่องหนในรัศมี 3 ช่อง" },
+        { "lvl": 2, "name": "Balance of Qi", "nameTh": "สมดุลปราณ", "effect": "adjacent disciples +20% rate", "effectTh": "ศิษย์ที่ยืนติดกันโจมตีเร็วขึ้น 20%" },
+        { "lvl": 3, "name": "Fortune Talisman", "nameTh": "ยันต์โชคลาภ", "effect": "+1 silver per kill in r=3, +1% interest", "effectTh": "ฆ่าศัตรูในรัศมี 3 ช่องได้ตำลึง +1 และดอกเบี้ยตำลึง +1%" }
       ]
     }
   ],

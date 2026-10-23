@@ -24,6 +24,7 @@ namespace FiveSects.Sim
     public class CardDef { public string Id, NameTh, EffectTh, Kind, Element, Needs; public int Pct, Value; }
     // Sect the player joins after the tutorial (sects.json > allegiance); front flow only, no rules use it yet.
     // Sect x role disciple (sects.json > roster): fights with its kit's mechanic (Element), counts as its Sect for Wu Xing.
+    public class SkillDef { public int Lvl; public string Name, NameTh, Effect, EffectTh; } // view only: the sim's level rules live in Defend
     public class UnitDef : SectDef { public string Id, Sect, RoleId, Dot, DescTh, DescEn; }
     public class AllegianceDef { public string Element, RuleTh; public int Difficulty; }
     public class UpcomingSectDef { public string Id, NameTh, NameEn; public int OpensMonth; }
@@ -36,6 +37,7 @@ namespace FiveSects.Sim
         public static int Ticks(double sec) => JsMath.Round(sec * TickHz);
 
         public static readonly Dictionary<string, SectDef> Sects = new Dictionary<string, SectDef>();
+        public static readonly Dictionary<string, List<SkillDef>> Skills = new Dictionary<string, List<SkillDef>>(); // per element (kit), tiers 1..3
         public static readonly List<string> SectOrder = new List<string>();
         public static readonly List<AllegianceDef> Allegiance = new List<AllegianceDef>();
         public static readonly Dictionary<string, UnitDef> Units = new Dictionary<string, UnitDef>();
@@ -73,7 +75,7 @@ namespace FiveSects.Sim
         {
             if (Loaded) return;
             // Start clean so a failed earlier attempt can't leave duplicates behind.
-            Sects.Clear(); SectOrder.Clear(); Allegiance.Clear(); UpcomingSects.Clear(); Units.Clear(); UnitList.Clear(); Roles.Clear(); RoleDefs.Clear(); RoleUnlocks.Clear(); RosterSects.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
+            Sects.Clear(); Skills.Clear(); SectOrder.Clear(); Allegiance.Clear(); UpcomingSects.Clear(); Units.Clear(); UnitList.Clear(); Roles.Clear(); RoleDefs.Clear(); RoleUnlocks.Clear(); RosterSects.Clear(); Generates.Clear(); Overcomes.Clear(); Combos.Clear(); Enemies.Clear();
             StageList.Clear(); Stages.Clear(); Arts.Clear(); Cards.Clear(); Elites.Clear(); Palette.Clear(); WaveRecipes.Clear();
             var sects = JObject.Parse(read("sects"));
             foreach (var s in sects["sects"])
@@ -87,6 +89,7 @@ namespace FiveSects.Sim
                     HitsAir = target.Contains("air"), HitsGround = target.Contains("ground"),
                 };
                 SectOrder.Add(el);
+                Skills[el] = s["skills"]?.Select(k => new SkillDef { Lvl = (int)k["lvl"], Name = (string)k["name"], NameTh = (string)k["nameTh"], Effect = (string)k["effect"], EffectTh = (string)k["effectTh"] }).ToList() ?? new List<SkillDef>();
             }
             if (sects["roster"] != null)
             {

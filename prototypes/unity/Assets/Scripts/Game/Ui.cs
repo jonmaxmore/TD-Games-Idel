@@ -1,5 +1,6 @@
 // uGUI building blocks for the front-flow screens (boot, consent, sect pick, lobby, loading), made from code
 // like the battle HUD. Layout is in anchors on a 720x1280 reference canvas.
+using System.Collections.Generic;
 using FiveSects.Sim;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -46,6 +47,21 @@ namespace FiveSects.Game
         public static string Name(RoleDef d) => d == null ? "" : L(d.NameTh, d.NameEn ?? d.NameTh);
         public static string Unit(string key) => Name(GameData.DefOf(key));
         public static string Enemy(string id) => GameData.Enemies.TryGetValue(id, out var e) ? Name(e) : id.StartsWith("boss") ? L("บอส", "Boss") : id;
+
+        // Roles: a roster unit has one; legacy element disciples map onto the five roles by their mechanic.
+        public static readonly Dictionary<string, string> RoleColor = new Dictionary<string, string>
+        { ["striker"] = "#E3B04B", ["burst"] = "#FF7A3D", ["control"] = "#4FB3FF", ["stacker"] = "#5BC46A", ["support"] = "#C9A0FF" };
+        static readonly Dictionary<string, string> KitRole = new Dictionary<string, string>
+        { ["metal"] = "striker", ["fire"] = "burst", ["water"] = "control", ["earth"] = "control", ["wood"] = "stacker", ["yinyang"] = "support" };
+        public static string RoleOf(string key) => GameData.Units.TryGetValue(key, out var u) ? u.RoleId : KitRole.TryGetValue(key, out var r) ? r : null;
+        public static string RoleOf(Disciple d) => RoleOf(d.Unit ?? d.Els[0]);
+
+        // Techniques per tier come from the kit's element (the sim runs the kit's mechanic at each level).
+        public static string KitOf(string key) => GameData.Units.TryGetValue(key, out var u) ? u.Element : key;
+        public static List<SkillDef> Skills(string kit) => GameData.Skills.TryGetValue(kit, out var l) ? l : new List<SkillDef>();
+        public static SkillDef Skill(string kit, int tier) => Skills(kit).Find(k => k.Lvl == tier);
+        public static string Name(SkillDef k) => k == null ? "" : L(k.NameTh, k.Name ?? k.NameTh);
+        public static string Effect(SkillDef k) => k == null ? "" : L(k.EffectTh ?? k.Effect, k.Effect ?? "");
 
         public static RectTransform NewScreen(string name, string bg = "#0B0910")
         {
