@@ -89,6 +89,7 @@ namespace FiveSects.Game
             Object.Destroy(root.gameObject);
             if (view != null) Object.Destroy(view.gameObject);
             foreach (var m in mats.Values) Object.Destroy(m);
+            foreach (var p in portraits.Values) p.Release();
         }
 
         // ---------- materials, primitives, coordinates ----------
@@ -504,6 +505,36 @@ namespace FiveSects.Game
         }
 
         // ---------- placement marks ----------
+
+        // Card portrait: the same figure as on the board, built in a studio off to the side and rendered once
+        // into a small point-filtered texture with a clear background, so the card shows the character itself.
+        readonly Dictionary<string, RenderTexture> portraits = new Dictionary<string, RenderTexture>();
+
+        public Texture Portrait(string key)
+        {
+            if (portraits.TryGetValue(key, out var tex)) return tex;
+            var (robe, kit) = LookOf(key);
+            var fig = BuildFigure(robe, kit, 0, false);
+            fig.localPosition = new Vector3(200, 0, 0);
+            fig.localRotation = Quaternion.Euler(0, 20, 0);
+            tex = new RenderTexture(96, 120, 16) { filterMode = FilterMode.Point };
+            var pc = new GameObject("PortraitCamera").AddComponent<Camera>();
+            pc.enabled = false;
+            pc.transform.SetParent(root, false);
+            pc.orthographic = true;
+            pc.orthographicSize = 0.78f;
+            pc.transform.localRotation = Quaternion.Euler(14, 180, 0);
+            pc.transform.localPosition = fig.localPosition + new Vector3(0, 0.66f, 0) - pc.transform.forward * 5f;
+            pc.clearFlags = CameraClearFlags.SolidColor;
+            pc.backgroundColor = new Color(0, 0, 0, 0);
+            pc.targetTexture = tex;
+            pc.Render();
+            pc.targetTexture = null;
+            Object.Destroy(pc.gameObject);
+            Object.Destroy(fig.gameObject);
+            portraits[key] = tex;
+            return tex;
+        }
 
         public void ShowGhost(string key, int tx, int ty)
         {

@@ -236,7 +236,7 @@ namespace FiveSects.Game
                         }
                         break;
                     }
-                    case "wave": Toast("Wave " + ev.Wave, 1.2f); break;
+                    case "wave": Toast(L("ระลอกที่ ", "Wave ") + ev.Wave, 1.2f); break;
                     case "newEnemy": Toast(L("ศัตรูใหม่: ", "New enemy: ") + Ui.Enemy(ev.Type), 2f); break;
                     case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
                     case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
@@ -555,6 +555,9 @@ namespace FiveSects.Game
         // shows its details, a ghost and its attack range on the tile; only Confirm places it.
         void OpenBuildPanel(int tx, int ty, string choice = null)
         {
+            // Open on a card already picked (the first one the player can afford) so its picture, description and range show at once.
+            if (choice == null) choice = s.Unlocked.FirstOrDefault(k => s.Silver >= Defend.PlaceCost(k)) ?? s.Unlocked.FirstOrDefault();
+            if (choice == null) return;
             var p = OpenPanel(ty, 430);
             ShowTileMark(tx, ty);
             int n = s.Unlocked.Count;
@@ -564,12 +567,6 @@ namespace FiveSects.Game
                 Card(p, key, i, n, key == choice, () => OpenBuildPanel(tx, ty, key));
             }
             var detail = Box(p, "Detail", new Vector2(0.01f, 0.02f), new Vector2(0.99f, 0.47f), Vector2.zero, Vector2.zero, "#0E0B14");
-            if (choice == null)
-            {
-                var hint = Label(detail, L("แตะการ์ดเพื่อดูรายละเอียดและระยะโจมตีก่อนวาง", "Tap a card to see the disciple and its range before placing"), 22, Vector2.zero, Vector2.one, "#9A92AE");
-                hint.alignment = TextAnchor.MiddleCenter;
-                return;
-            }
             var def = GameData.DefOf(choice);
             int cost = Defend.PlaceCost(choice);
             ShowRing(tx, ty, def.Range, def.Color, 0);
@@ -606,15 +603,35 @@ namespace FiveSects.Game
             var face = Box(frame, "Face", Vector2.zero, Vector2.one, new Vector2(3, 3), new Vector2(-3, -3), selected ? "#2A2033" : "#1A1423");
             var btn = frame.gameObject.AddComponent<Button>();
             btn.onClick.AddListener(onClick);
-            var glow = Box(face, "Glow", new Vector2(0.1f, 0.36f), new Vector2(0.9f, 0.9f), Vector2.zero, Vector2.zero, def.Color);
-            glow.GetComponent<Image>().color = Art.Hex(def.Color) * new Color(1, 1, 1, 0.18f);
-            var portrait = new GameObject("Portrait", typeof(RectTransform), typeof(Image));
+            var glow = Box(face, "Glow", new Vector2(0.04f, 0.3f), new Vector2(0.96f, 0.86f), Vector2.zero, Vector2.zero, def.Color);
+            glow.GetComponent<Image>().color = Art.Hex(def.Color) * new Color(1, 1, 1, 0.22f);
+            glow.GetComponent<Image>().raycastTarget = false;
+            // The character itself: in 3D the board's own figure, in 2D the pixel sprite.
+            var holder = (RectTransform)new GameObject("PortraitArea", typeof(RectTransform)).transform;
+            holder.SetParent(face, false);
+            holder.anchorMin = new Vector2(0.04f, 0.3f); holder.anchorMax = new Vector2(0.96f, 0.86f); holder.offsetMin = holder.offsetMax = Vector2.zero;
+            var portrait = new GameObject("Portrait", typeof(RectTransform), board != null ? typeof(RawImage) : typeof(Image));
             var prt = (RectTransform)portrait.transform;
-            prt.SetParent(face, false);
-            prt.anchorMin = new Vector2(0.12f, 0.34f); prt.anchorMax = new Vector2(0.88f, 0.92f); prt.offsetMin = prt.offsetMax = Vector2.zero;
-            var img = portrait.GetComponent<Image>();
-            img.sprite = DiscipleSprite(key); img.preserveAspect = true; img.raycastTarget = false;
-            if (!afford) img.color = new Color(0.5f, 0.5f, 0.5f, 1);
+            prt.SetParent(holder, false);
+            prt.anchorMin = Vector2.zero; prt.anchorMax = Vector2.one; prt.offsetMin = prt.offsetMax = Vector2.zero;
+            Graphic pic;
+            if (board != null)
+            {
+                var raw = portrait.GetComponent<RawImage>();
+                raw.texture = board.Portrait(key);
+                var fit = portrait.AddComponent<AspectRatioFitter>();
+                fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+                fit.aspectRatio = 96f / 120f;
+                pic = raw;
+            }
+            else
+            {
+                var img = portrait.GetComponent<Image>();
+                img.sprite = DiscipleSprite(key); img.preserveAspect = true;
+                pic = img;
+            }
+            pic.raycastTarget = false;
+            if (!afford) pic.color = new Color(0.5f, 0.5f, 0.5f, 1);
             string role = RoleOf(key);
             if (role != null && GameData.RoleDefs.TryGetValue(role, out var rd))
             {
@@ -623,8 +640,10 @@ namespace FiveSects.Game
                 var rl = Label(chip, Ui.Name(rd), n > 4 ? 14 : 17, Vector2.zero, Vector2.one, "#1A1423");
                 rl.alignment = TextAnchor.MiddleCenter;
             }
-            var name = Label(face, Ui.Name(def), n > 4 ? 14 : 17, new Vector2(0, 0.15f), new Vector2(1, 0.34f), "#ECE3CF");
-            name.alignment = TextAnchor.MiddleCenter;
+            var name = Label(face, Ui.Name(def), n > 4 ? 18 : 22, new Vector2(0, 0.14f), new Vector2(1, 0.31f), "#FFF4DC");
+            name.font = Ui.Bold; name.alignment = TextAnchor.MiddleCenter;
+            name.rectTransform.offsetMin = new Vector2(2, 0); name.rectTransform.offsetMax = new Vector2(-2, 0);
+            name.resizeTextForBestFit = true; name.resizeTextMinSize = 12; name.resizeTextMaxSize = name.fontSize;
             var price = Label(face, cost + L(" ตำลึง", " silver"), n > 4 ? 14 : 17, new Vector2(0, 0), new Vector2(1, 0.16f), afford ? "#E3B04B" : "#6E6680");
             price.alignment = TextAnchor.MiddleCenter;
         }
@@ -635,11 +654,13 @@ namespace FiveSects.Game
             var def = GameData.DefOf(key);
             string role = RoleOf(key);
             var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
-            var title = Label(box, Ui.Name(def) + (rd != null ? "  ·  " + Ui.Name(rd) : ""), 26, new Vector2(0, 0.8f), new Vector2(0.71f, 0.98f), def.Color);
+            var title = Label(box, Ui.Name(def) + (rd != null ? "  ·  " + Ui.Name(rd) : ""), 28, new Vector2(0, 0.8f), new Vector2(0.71f, 0.99f), def.Color);
+            title.font = Ui.Bold;
             var u = GameData.Units.TryGetValue(key, out var ud) ? ud : null;
             string desc = u != null ? L(u.DescTh, u.DescEn) : (rd != null ? rd.DoesTh : "");
-            var dl = Label(box, desc, 17, new Vector2(0, 0.56f), new Vector2(0.71f, 0.8f), "#ECE3CF");
+            var dl = Label(box, desc, 19, new Vector2(0, 0.56f), new Vector2(0.71f, 0.8f), "#ECE3CF");
             dl.alignment = TextAnchor.UpperLeft;
+            dl.resizeTextForBestFit = true; dl.resizeTextMinSize = 14; dl.resizeTextMaxSize = 19;
             var all = GameData.UnitList.Cast<SectDef>().Concat(GameData.Sects.Values).ToList();
             float Dps(SectDef d) => d.Dmg * 20f / Mathf.Max(1, d.Cooldown);
             float Speed(SectDef d) => 20f / Mathf.Max(1, d.Cooldown);

@@ -34,6 +34,9 @@ namespace FiveSects.Game
             }
         }
 
+        static Font bold;
+        public static Font Bold => bold != null ? bold : (bold = Resources.Load<Font>("Fonts/Sarabun-Bold") ?? Font);
+
         // Thai when a Thai font was found (bundled or system); English otherwise. Never show raw ids to players.
         public static string L(string th, string en) { var _ = Font; return Thai ? th : en; }
 
