@@ -1,6 +1,6 @@
 # ADR 0003: Node.js + PostgreSQL backend (supersedes ADR 0002)
 
-- Status: accepted
+- Status: superseded by [ADR 0006](0006-csharp-everywhere.md) (C# everywhere) on 2026-10-23; the data, money-safety and auth parts carry over
 - Date: 2026-10-22
 - Supersedes: [ADR 0002](0002-platform-architecture.md) (Cloudflare Workers / Durable Objects / D1)
 - Details: [docs/design/architecture.md](../design/architecture.md)

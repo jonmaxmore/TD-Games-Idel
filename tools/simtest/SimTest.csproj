@@ -1,0 +1,29 @@
+<!-- Tests for the game rules (prototypes/unity/Assets/Scripts/Sim, the single source of truth, ADR 0006) on plain
+     .NET: no Unity install or licence, so CI can run it. No test framework dependency either (NuGet may be offline).
+       npm test              run every test, exit code = failures
+       npm run sim:golden    rewrite the golden replays in prototypes/unity/Assets/Editor/Tests
+     Offline: set NEWTONSOFT_DLL=/path/Newtonsoft.Json.dll instead of restoring from NuGet. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../prototypes/unity/Assets/Scripts/Sim/*.cs" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(NEWTONSOFT_DLL)' == ''">
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <!-- Offline: nothing to restore, so point restore at this folder instead of nuget.org. -->
+  <PropertyGroup Condition="'$(NEWTONSOFT_DLL)' != ''">
+    <RestoreSources>$(MSBuildThisFileDirectory)</RestoreSources>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(NEWTONSOFT_DLL)' != ''">
+    <Reference Include="Newtonsoft.Json"><HintPath>$(NEWTONSOFT_DLL)</HintPath></Reference>
+  </ItemGroup>
+</Project>

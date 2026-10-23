@@ -219,15 +219,16 @@
 
 ## 10. Tech Stack & สถาปัตยกรรม
 
-**ตัวเลือก:** Phaser 3 แทน three.js — เกมเป็น pixel art 2D, Phaser มี sprite sheet, tilemap, pixel-perfect scaling, particle และ WebGL post-FX (bloom) ในตัว ขณะที่ three.js ออกแบบมาสำหรับ 3D และต้องเขียนเองมากกว่า
+**ทิศทาง (ADR 0006):** C# ทั้งระบบ กฎเกมเป็น library C# ชุดเดียว (`FiveSects.Sim`) ใช้ทั้งเกม Unity และเซิร์ฟเวอร์ .NET เซิร์ฟเวอร์จึงตรวจผลด้วยโค้ดเดียวกับเครื่องผู้เล่นทุกบรรทัด (พื้นฐานของ ranked, กันโกง และ esports)
 
-สถาปัตยกรรมเต็มอยู่ที่ [design/architecture.md](design/architecture.md) ([ADR 0003](adr/0003-node-postgres-backend.md))
+สถาปัตยกรรมเต็มอยู่ที่ [design/architecture.md](design/architecture.md) ([ADR 0006](adr/0006-csharp-everywhere.md), [ADR 0004](adr/0004-unity-client.md))
 
-- **หน้าบ้าน:** Phaser 3 + Vite (มีแล้ว) → เว็บ และห่อเป็นแอปด้วย Capacitor
-- **หลังบ้าน:** Node.js 22 + TypeScript แยก 3 service: `api` (Fastify REST), `game` (WebSocket ห้องแข่ง + จับคู่), `worker` (BullMQ ตรวจรีเพลย์ด้วย sim)
+- **กฎเกม:** `FiveSects.Sim` (C#, deterministic, เลขจำนวนเต็ม, ไม่พึ่ง UnityEngine) ทดสอบด้วย `npm test` (`tools/simtest`) และ golden replay
+- **หน้าบ้าน:** Unity 6 (iOS / Android; เว็บใช้ Unity WebGL ถ้าต้องการ) ด่านเป็น 3D pixel (`Board3D`)
+- **หลังบ้าน:** ASP.NET Core บน .NET LTS แยก 3 service: `api` (REST), `game` (WebSocket ห้องแข่ง + จับคู่), `worker` (ตรวจรีเพลย์ด้วย `FiveSects.Sim`, จดหมาย, analytics)
 - **ข้อมูล:** PostgreSQL 16 (ข้อมูลหลัก) + Redis 7 (คิว, อันดับ, จับคู่, cache) + object storage แบบ S3 (รีเพลย์)
-- **Multiplayer:** lockstep ผ่านห้องแข่งบน `game` server ซึ่งรัน sim เดียวกับ client เป็นผู้ตัดสินผล
-- **รันบนเครื่อง:** `npm run dev` (client) · `docker compose up` (postgres, redis, minio) สำหรับหลังบ้านตั้งแต่ M1
+- **Multiplayer:** lockstep ผ่านห้องแข่งบน `game` server ซึ่งรัน `FiveSects.Sim` ตัวเดียวกับ client เป็นผู้ตัดสินผล
+- **ของเดิมที่แช่แข็ง:** `packages/sim` (TypeScript) และ `packages/client` (Phaser 3) เก็บไว้อ้างอิง ไม่พัฒนาต่อ
 
 **Save:** M0 เก็บดาวใน localStorage · ตั้งแต่ M1 เซฟอยู่ใน PostgreSQL ผูกกับบัญชี
 
@@ -236,7 +237,7 @@
 | Milestone | เนื้อหา | เกณฑ์ผ่าน |
 |---|---|---|
 | **M0 Vertical slice** | `sim` deterministic + client Phaser, บท 1 ด่าน 1-1 ถึง 1-4 (ตั้งรับ + บุกค่าย), 6 สำนัก, ยุทธ์ผสาน, art placeholder | เล่นบนเครื่องได้ ผู้ทดสอบภายในอยากเล่นต่อ |
-| **M1 Online core** | Node services + PostgreSQL/Redis, บัญชี guest/cloud save, co-op lockstep, ยืนยันผลด้วย sim ฝั่งเซิร์ฟเวอร์ | 2–4 แท็บเล่นด้วยกัน 20 waves ไม่ desync |
+| **M1 Online core** | .NET services + PostgreSQL/Redis, บัญชี guest/cloud save, co-op lockstep, ยืนยันผลด้วย sim ฝั่งเซิร์ฟเวอร์ | 2–4 แท็บเล่นด้วยกัน 20 waves ไม่ desync |
 | **M2 Competitive core** | บุก–ตั้งรับ 1v1 real-time, ranked/MMR, รีเพลย์, ห้องส่วนตัว, balance sim ใน CI | 1v1 ไม่ desync, เซิร์ฟเวอร์ตัดสินผลได้, playtest ภายในอยากเล่นซ้ำ |
 | **M2b Meta & Async PvP** | สำนักใหญ่, บำเพ็ญ, prestige, คัมภีร์, ตีสำนัก, หอคอย | วงจรรายวันครบ: idle → ด่าน → raid → ranked |
 | **M3 Content & Art** | pixel art จริง, บท 1–5 ครบ 60 ด่าน, เสียง/ดนตรี, FTUE, ภาษาไทย/อังกฤษ | playtest ภายนอก 20 คนเล่นจบบท 1 |

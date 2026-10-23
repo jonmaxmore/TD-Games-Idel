@@ -1,15 +1,15 @@
 # ต้นแบบ Unity: ศึกห้าสำนัก ด่าน 1-1
 
-ต้นแบบนี้มีไว้**เปรียบเทียบเอนจิน**กับเวอร์ชัน Phaser (`packages/client`) ในงานเดียวกัน ไม่ใช่ตัวเกมหลัก ผลการเทียบจะบันทึกใน [`docs/design/engine-comparison.md`](../../docs/design/engine-comparison.md)
+นี่คือ**ตัวเกมหลัก** (Unity 6, ADR 0004) และเป็นที่อยู่ของกฎเกมต้นฉบับชุดเดียว (ADR 0006: C# ทั้งระบบ) จะย้ายเป็น `unity/` ใน M1 · เวอร์ชัน Phaser (`packages/client`) แช่แข็งแล้ว
 
 ## ในโปรเจกต์มีอะไร
 
 | ส่วน | ไฟล์ | คืออะไร |
 |---|---|---|
-| กฎเกม (C#) | `Assets/Scripts/Sim/` | พอร์ตของ `packages/sim` (ตั้งรับ) ไม่พึ่ง UnityEngine (`noEngineReferences`) |
+| กฎเกม (C#) | `Assets/Scripts/Sim/` | `FiveSects.Sim` ต้นฉบับเดียวของกฎ ไม่พึ่ง UnityEngine (`noEngineReferences`) ใช้ร่วมกับเซิร์ฟเวอร์ ทดสอบด้วย `npm test` (`tools/simtest`) |
 | ข้อมูลเกม | `Assets/Resources/data/*.json` | สำเนาจาก `docs/data` (อัปเดตด้วย `npm run unity:sync` ที่ root ของ repo) |
 | หน้าเกม | `Assets/Scripts/Game/` | สร้างกล้อง พื้น ตัวละคร pixel และ HUD จากโค้ดทั้งหมด ไม่มี prefab |
-| ทดสอบความตรงกัน | `Assets/Editor/Tests/ParityTests.cs` + `golden-*.json` | เล่นรีเพลย์ที่สร้างจาก TypeScript แล้วเทียบ hash ทุก 100 tick |
+| ทดสอบใน Unity | `Assets/Editor/Tests/ParityTests.cs` + `golden-*.json` | เล่นรีเพลย์ golden ใน editor แล้วเทียบ hash ทุก 100 tick (ยืนยันว่า Unity คำนวณเหมือน .NET) |
 | เมนูช่วย | `Assets/Editor/FiveSectsMenu.cs` | สร้าง scene, Build WebGL, Build Android |
 
 **เส้นทางผู้เล่น (SPEC-front-flow):**
@@ -38,7 +38,7 @@
    - ถ้าขึ้นถามเรื่อง Input System / restart ให้กด **Yes**
    - ตอนเปิดใน Unity Hub ให้เลือก 6000.6.7f1 และ platform **Windows**
 3. **ทดสอบความตรงกันของกฎเกม:** Window → General → **Test Runner** → EditMode → Run All
-   - ต้องผ่าน 3 เทสต์: `MatchesTypeScriptGolden(1-1)`, `MatchesTypeScriptGolden(T-1)`, `HashLayoutMatchesTypeScript`
+   - ต้องผ่านทุกเทสต์: `MatchesGolden(...)` ทุก golden และ `HashLayoutIsFixed`
    - ถ้าไม่ผ่าน ให้คัดลอกข้อความ error ทั้งหมดส่งกลับมา (บอกว่าเริ่มต่างกันที่ tick ไหน)
 4. **เล่น:** เปิด `Assets/Scenes/Main.unity` (สร้างให้อัตโนมัติ หรือเมนู **Five Sects → Create Main Scene**) แล้วกด **Play**
    - แตะช่องหญ้าข้างทาง → เลือกสำนักเพื่อวาง

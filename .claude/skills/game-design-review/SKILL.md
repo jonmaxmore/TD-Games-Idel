@@ -9,7 +9,7 @@ Skill text is English. Quote Thai doc text verbatim, never translate names, and 
 
 ## 0. Load
 - `CLAUDE.md` rules, `docs/GDD.md` §1 (positioning, pillars) and §5 (core loop), the target doc or diff, and every `docs/data/*.json` it names. ADRs touching the area (`docs/adr/`).
-- Rules as built: `packages/sim/src/*.ts` (source of truth; the Unity C# port must match via `npm run sim:parity`).
+- Rules as built: `prototypes/unity/Assets/Scripts/Sim/*.cs` (`FiveSects.Sim`, the single source of truth, ADR 0006).
 - Mode:
   - **focused**: one doc or one data diff.
   - **holistic**: the whole design or several docs. Also read `references/holism.md` and `references/scenarios.md`.
@@ -17,13 +17,13 @@ Skill text is English. Quote Thai doc text verbatim, never translate names, and 
 ## 1. Hard gates (any failure = BLOCKING; give evidence for each)
 | Gate | Source of truth |
 |---|---|
-| Expressible in fixed 20 Hz ticks, seeded RNG, integer milli-tile units; no wall clock, no unordered-map iteration | `CLAUDE.md`, `packages/sim` |
+| Expressible in fixed 20 Hz ticks, seeded RNG, integer milli-tile units; no wall clock, no unordered-map iteration | `CLAUDE.md`, `FiveSects.Sim` |
 | Numbers live in `docs/data/*.json`; prose cites keys and never restates a different number; JSON valid; cross-refs intact | `CLAUDE.md` |
 | Ranked PvP uses normalized stats; nothing purchasable changes PvP power | `docs/design/economy.md`, `docs/design/modes.md` |
 | Hero is a sidegrade: `heroWinRate - baseWinRate` within ±0.02 | `heroes.json > powerBudgetRule` |
 | "ไม่มีสำนักใดชนะเกิน 53% ในลีกสูง"; PvP map side gap "ไม่เกิน 1%" | `docs/design/esports.md`, `docs/design/maps.md` |
 | Gacha: shown odds = implemented odds; pity and spark as in data; disabled regions respected | `economy.json > gacha` |
-| Rules change lands in TS and C# with a golden (`npm run sim:golden`, `npm run sim:parity`) | ADR 0004 |
+| Rules change lands in C# with a test or golden (`npm test`, `npm run sim:golden`) | ADR 0006 |
 | Original names (no Jin Yong / Gu Long) | `CLAUDE.md` |
 
 ## 2. Lenses (ask each; skip the ones the change cannot touch)
@@ -57,7 +57,7 @@ Skill text is English. Quote Thai doc text verbatim, never translate names, and 
   - Spectator readability: clear sides, telegraphs, a cap on simultaneous VFX.
 - **G. Pacing and maps (TD).**
   - Wave interest curve: spike, breather, spike.
-  - Enemy HP growth (`enemies.json`, `waveHp` in `packages/sim/src/data.ts`) vs income growth.
+  - Enemy HP growth (`enemies.json`, `GameData.WaveHp` in `Assets/Scripts/Sim/GameData.cs`) vs income growth.
   - Lane-hold check: covering DPS × time in range ≥ HP.
   - Telegraph special enemies one wave ahead.
   - Map rules in `docs/art/map-design.md` §1.
@@ -72,7 +72,7 @@ Skill text is English. Quote Thai doc text verbatim, never translate names, and 
   `references/scenarios.md` covers multi-system walkthroughs.
 
 ## 3. Evidence from the sim
-- **Tools:** the headless `packages/sim` with `packages/sim/test/bot.ts`. Run scripts with `npx vite-node` from the repo root; put scratch scripts outside `packages/`.
+- **Tools:** the headless C# rules with `tools/simtest/Bot.cs` (`Bot.Play`). Add a measurement as a `[Test]` in `tools/simtest` or a scratch console project outside the repo that compiles `Assets/Scripts/Sim/*.cs`.
 - **Bot policies:** the greedy bot's meta is not the human meta. Use at least two policies (greedy, eco/interest, rush) and name which one produced each number.
 - **Single rate at 95%:** N ≥ 1.96² · p(1−p) / δ². ±2% needs about 2,400 games.
 - **Difference of two rates on independent games:** about 4,800 per arm.
@@ -107,7 +107,7 @@ Label every claim as evidence (file:line, JSON key, sim run with seeds/N/policy)
 - Never fudge displayed odds.
 - Never conclude balance from one bot policy, or from fewer games than §3 allows.
 - Don't add a currency to add depth; check each existing currency's job first.
-- A shared data change hits PvE, PvP and the Unity client. Run `npm run unity:sync`, `npm run sim:golden` and `npm run sim:parity`.
+- A shared data change hits PvE, PvP and the Unity client. Run `npm run unity:sync`, `npm test` and, if outcomes changed on purpose, `npm run sim:golden`.
 - Numbers belong in JSON; review fixes cite keys, not prose numbers.
 
 ## Sources (summarised in our own words)

@@ -5,6 +5,8 @@
 - Amends: [ADR 0003](0003-node-postgres-backend.md) (backend unchanged; only the client engine changes)
 - Evidence: [docs/design/engine-comparison.md](../design/engine-comparison.md), `prototypes/unity`
 
+- Amended by [ADR 0006](0006-csharp-everywhere.md): the C# rules in `Assets/Scripts/Sim` are now the single source of truth (no longer a port of `packages/sim`), and the server runs them too.
+
 ## Context
 The product owner built and played the Unity prototype (stage 1-1 and the defend stages with real maps).
 - It compiled, ran at 61 fps in the editor and passed all parity tests.

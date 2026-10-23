@@ -2,7 +2,7 @@
 
 Wuxia tower defense, pixel art, web first, then mobile (Capacitor). End goal is a full esports title; flagship competitive mode is attack/defend 1v1 (`docs/design/esports.md`). Launch v1.0 + Season 1 as a mass-market game first; the esports program starts once the game is mass. Build the foundations (deterministic sim, replays, fair ranked) from day one. Design lives in `docs/`; read `docs/GDD.md` before any game work. Game data (`docs/data/*.json`) is the source of truth for numbers and names; code reads it, never hard-codes it.
 
-Architecture: `docs/design/architecture.md` (ADR 0003) and ADR 0004: the client is **Unity 6** (`prototypes/unity`, C#; moves to `unity/` in M1). Planned stack (GDD §10): TypeScript monorepo — `packages/sim` (deterministic rules, source of truth, run by the server), `packages/client` (Vite + Phaser 3: reference/test harness only, no new features), `packages/protocol` (shared API types + zod), `packages/db` (PostgreSQL schema, Drizzle), `packages/api` (Fastify), `packages/game` (WebSocket rooms), `packages/worker` (BullMQ); Node.js 22, PostgreSQL 16, Redis 7. No SQLite. The server never trusts client outcomes: it re-runs replays with `sim`.
+Architecture: `docs/design/architecture.md` and ADR 0006 (C# everywhere) + ADR 0004 (Unity client). **One language, one rules implementation:** the rules are the C# library `FiveSects.Sim` in `prototypes/unity/Assets/Scripts/Sim` (moves to `unity/` in M1): deterministic, integer-only, no UnityEngine references. The client is **Unity 6** (iOS/Android; WebGL if a web build is needed). The server (from M1) is ASP.NET Core on the current .NET LTS under `server/` (`FiveSects.Api` REST, `FiveSects.Game` WebSocket rooms, `FiveSects.Worker` jobs, `FiveSects.Db` EF Core/Npgsql, `FiveSects.Protocol` shared types) and references the same `FiveSects.Sim`; PostgreSQL 16, Redis 7. No SQLite. The server never trusts client outcomes: it re-runs replays with `FiveSects.Sim`. `packages/sim` (TypeScript) and `packages/client` (Phaser) are **frozen reference code**: do not change or extend them.
 
 ## Skills and agents to use, by phase
 
@@ -31,17 +31,19 @@ Do not use `caveman` for design docs or user-facing explanations; it is fine for
 
 ## Rules
 
-- Rules exist twice: `packages/sim` (TS) and `prototypes/unity/Assets/Scripts/Sim` (C# port). Change both in the same PR, add a scripted golden for new rules (`packages/sim/scripts/golden.ts`), run `npm run sim:golden` then `npm run sim:parity` (plain .NET, no Unity needed). After data edits run `npm run unity:sync`.
+- Rules exist once, in C# (`prototypes/unity/Assets/Scripts/Sim`). Every rule change comes with a test in `tools/simtest` or a scripted golden (`tools/simtest/Goldens.cs`); run `npm test`, and `npm run sim:golden` when an outcome changes on purpose (the golden test fails until you do). After data edits run `npm run unity:sync`. Offline (no NuGet): `NEWTONSOFT_DLL=/usr/lib/cli/Newtonsoft.Json-5.0/Newtonsoft.Json.dll`.
 
-- `packages/sim` must stay deterministic: fixed 20Hz tick, seeded RNG, no `Math.random`, no `Date.now`, no iteration over unordered maps for game logic. Every change runs the double-run hash test. PvP, replays and anti-cheat depend on it.
+- `FiveSects.Sim` must stay deterministic: fixed 20Hz tick, seeded RNG, no `System.Random`, no clocks (`DateTime`, `Stopwatch`), no `float`, no `GetHashCode`, no iteration over unordered collections (`Dictionary`/`HashSet`) for game logic. `npm test` runs the double-run hash test and a ban scan. PvP, replays and anti-cheat depend on it; ranked must also pass the goldens on an IL2CPP device build.
 - PvP ranked uses normalized stats. Nothing purchasable may change PvP power (`docs/design/economy.md`).
 - Heroes (gacha) are sidegrades: balance sim win-rate within ±2% of the base disciple.
 - Sect, character and technique names are original. No Jin Yong / Gu Long names.
 - Design docs are written in Thai; code, identifiers and commit messages in English.
 - Keep `docs/data/*.json` valid (`python3 -m json.tool`) and cross-references intact (stage enemies exist in `enemies.json`, sects in `sects.json`).
 
-## Running (once code exists)
+## Running
 
-- Single player: `npm run dev` → http://localhost:5173
-- Backend locally (from M1): `docker compose -f infra/docker-compose.yml up` then `npm run dev:server`
-- Smoke test: `npm run build && npm run smoke`
+- Game: open `prototypes/unity` in Unity 6000.6 (Game view portrait 1080x1920), play `Assets/Scenes/Main`.
+- Rules tests + balance + goldens: `npm test` (plain .NET 8, no Unity). One area: `npm test -- balance`.
+- Rewrite goldens after an intended outcome change: `npm run sim:golden`.
+- Backend locally (from M1): `docker compose -f infra/docker-compose.yml up`, then `dotnet run` per service in `server/`.
+- Frozen TypeScript reference (not maintained, may drift from data): `npm run legacy:test`, `npm run legacy:dev`.

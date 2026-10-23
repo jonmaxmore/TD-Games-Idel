@@ -1,12 +1,13 @@
 # สถาปัตยกรรมระบบ
 
-> ส่วนหนึ่งของ [GDD](../GDD.md) · การตัดสินใจหลักบันทึกใน [ADR 0003](../adr/0003-node-postgres-backend.md) (แทน ADR 0002)
-> สถานะ: ออกแบบแล้ว · ที่สร้างจริงแล้วคือ `packages/sim` และ `packages/client` (M0) · ฝั่งเซิร์ฟเวอร์เริ่มใน M1
+> ส่วนหนึ่งของ [GDD](../GDD.md) · การตัดสินใจหลักบันทึกใน [ADR 0006](../adr/0006-csharp-everywhere.md) (C# ทั้งระบบ แทน ADR 0003) และ [ADR 0004](../adr/0004-unity-client.md) (client Unity 6)
+> สถานะ: ออกแบบแล้ว · ที่สร้างจริงแล้วคือกฎเกม C# (`prototypes/unity/Assets/Scripts/Sim`) + ชุดทดสอบ `tools/simtest` + client Unity (M0) · ฝั่งเซิร์ฟเวอร์เริ่มใน M1
+> `packages/sim` (TypeScript) และ `packages/client` (Phaser) ถูกแช่แข็งไว้อ้างอิง ไม่ใช่ต้นฉบับอีกต่อไป
 > ระดับเป้าหมาย: **ระดับกลาง** รองรับผู้เล่นออนไลน์พร้อมกันหลักหมื่นในภูมิภาคเดียว (SEA) ขยายต่อได้โดยไม่ต้องรื้อ
 
 ## 1. หลักการ
 
-1. **กฎเกมมีต้นฉบับที่เดียว:** `packages/sim` (TypeScript, deterministic) เซิร์ฟเวอร์รันเกมซ้ำด้วยตัวนี้ client Unity ใช้พอร์ต C# ที่ต้องผ่าน `npm run sim:parity` ทุก commit ([ADR 0004](../adr/0004-unity-client.md))
+1. **กฎเกมมีต้นฉบับที่เดียว:** library C# `FiveSects.Sim` (deterministic, ไม่พึ่ง UnityEngine, เลขจำนวนเต็ม) client Unity และเซิร์ฟเวอร์ .NET ใช้ตัวเดียวกัน ทุกการแก้กฎต้องผ่าน `npm test` (`tools/simtest`) และ golden replay ([ADR 0006](../adr/0006-csharp-everywhere.md))
 2. **เซิร์ฟเวอร์ตัดสินเรื่องที่มีมูลค่า:** เงิน ของ ถ้วย อันดับ การซื้อ client ส่งได้แค่ seed + คำสั่ง ไม่ส่งผลลัพธ์
 3. **Stateless API + stateful game server แยกกัน:** API ขยายได้ง่ายแค่เพิ่ม instance ส่วนห้องแข่งอยู่ในหน่วยความจำของ game server
 4. **ทุกอย่างเป็น container:** รันบนเครื่องตัวเองด้วย Docker Compose เหมือน production ย้ายผู้ให้บริการ cloud ได้
@@ -17,17 +18,17 @@
 ```mermaid
 flowchart LR
   subgraph Clients
-    WEB[Web / PWA<br/>Phaser + sim]
-    APP[iOS / Android<br/>Capacitor + Phaser + sim]
+    APP[iOS / Android<br/>Unity 6 + FiveSects.Sim]
+    WEB[Web (ถ้าต้องการ)<br/>Unity WebGL]
   end
 
   CDN[CDN<br/>เกม + asset]
 
-  subgraph Backend[Backend · Node.js 22 + TypeScript]
+  subgraph Backend[Backend · ASP.NET Core / .NET LTS + FiveSects.Sim]
     LB[Load balancer<br/>TLS, sticky ตาม room]
-    API[api<br/>Fastify REST<br/>stateless × N]
+    API[api<br/>ASP.NET Core REST<br/>stateless × N]
     GAME[game<br/>WebSocket rooms<br/>MatchRoom / GuildRoom × N]
-    WORKER[worker<br/>BullMQ jobs<br/>verify / mail / analytics]
+    WORKER[worker<br/>hosted services / Hangfire<br/>verify / mail / analytics]
   end
 
   subgraph Data
@@ -60,19 +61,23 @@ flowchart LR
 ## 3. โครงสร้าง repo
 
 ```
-packages/
-  sim/        กฎเกม deterministic (มีแล้ว) ── ใช้ทั้ง client, game, worker
-  client/     Phaser 3 + Vite: ต้นแบบอ้างอิง/ชุดทดสอบ (client จริงคือ Unity 6 ตาม ADR 0004: prototypes/unity → unity/)
-  protocol/   type ของ API / ข้อความ WebSocket + zod schema ตรวจ input (ใช้ร่วม client/server)
-  db/         schema + migrations (Drizzle ORM) และ query ที่ใช้ร่วม
-  api/        Fastify REST service
-  game/       WebSocket game server (rooms, lockstep, matchmaking worker loop)
-  worker/     BullMQ job processors (ตรวจรีเพลย์ด้วย sim, ส่งจดหมาย/push, analytics)
-  admin/      เว็บเครื่องมือแอดมิน (M4)
+prototypes/unity/          client Unity 6 (ย้ายเป็น unity/ ใน M1)
+  Assets/Scripts/Sim/      FiveSects.Sim: กฎเกม deterministic ต้นฉบับเดียว ── ใช้ทั้ง client, game, worker
+  Assets/Scripts/Game/     หน้าจอ, ด่าน 3D, HUD
+  Assets/Editor/Tests/     golden replay + ParityTests (Unity Test Runner)
+tools/simtest/             ชุดทดสอบกฎเกมบน .NET ธรรมดา (npm test, npm run sim:golden)
+server/ (M1)
+  FiveSects.Protocol/      type ของ API / ข้อความ WebSocket + validation (ใช้ร่วม client/server)
+  FiveSects.Api/           ASP.NET Core REST service
+  FiveSects.Game/          WebSocket game server (rooms, lockstep, matchmaking loop)
+  FiveSects.Worker/        งานเบื้องหลัง (ตรวจรีเพลย์ด้วย FiveSects.Sim, จดหมาย/push, analytics)
+  FiveSects.Db/            schema + migrations (EF Core หรือ Dapper + migration tool)
+  FiveSects.Admin/         เครื่องมือแอดมิน (M4)
 infra/
-  docker-compose.yml   postgres, redis, minio (S3 จำลอง), api, game, worker
-  docker/              Dockerfile ต่อ service (multi-stage, node:22-slim)
-docs/data/             ข้อมูลเกม → bundle เข้า client และ publish เป็น remote config
+  docker-compose.yml       postgres, redis, minio (S3 จำลอง), api, game, worker
+  docker/                  Dockerfile ต่อ service (multi-stage, mcr.microsoft.com/dotnet/aspnet)
+packages/                  (แช่แข็ง) sim TypeScript + client Phaser เดิม ไว้อ้างอิงเท่านั้น
+docs/data/                 ข้อมูลเกม → bundle เข้า client และ publish เป็น remote config
 ```
 
 เหตุผลที่แยก `api` / `game` / `worker` เป็นสาม process: ภาระงานต่างกันมาก (request สั้น / การเชื่อมต่อค้างนาน / CPU หนักจากการรัน sim) ขยายแยกกันได้ และถ้า worker ทำงานหนัก จะไม่ทำให้ห้องแข่งกระตุก
@@ -81,20 +86,20 @@ docs/data/             ข้อมูลเกม → bundle เข้า clien
 
 | ชั้น | หน้าที่ | เทคโนโลยี |
 |---|---|---|
-| Scenes | เมนู, ด่าน, บุกค่าย, ลานสำนัก, ร้านค้า, ชุมนุม | Phaser 3 (มีแล้ว 3 scene) |
-| Game loop | รัน `sim` 20Hz, interpolate, บันทึก replay | มีแล้วใน `DefendScene` |
-| Net | REST client (แนบ token, refresh อัตโนมัติ, retry) และ WebSocket (ต่อใหม่อัตโนมัติ) | `fetch` + `WebSocket` + type จาก `protocol` |
-| State | profile, wallet, progress cache ใน IndexedDB; outbox ของผลด่านที่ยังไม่ส่ง | เล่นเนื้อเรื่องออฟไลน์ได้ |
+| หน้าจอ | เมนู, ด่าน, บุกค่าย, ลานสำนัก, ร้านค้า, ชุมนุม | Unity 6 uGUI สร้างจากโค้ด (`Flow`, `DefendView`) |
+| Game loop | รัน `FiveSects.Sim` 20Hz, interpolate, บันทึก replay | มีแล้วใน `DefendView` + `Board3D` (ด่าน 3D pixel) |
+| Net | REST client (แนบ token, refresh อัตโนมัติ, retry) และ WebSocket (ต่อใหม่อัตโนมัติ) | `UnityWebRequest` / `ClientWebSocket` + type จาก `FiveSects.Protocol` |
+| State | profile, wallet, progress cache ในไฟล์บนเครื่อง; outbox ของผลด่านที่ยังไม่ส่ง | เล่นเนื้อเรื่องออฟไลน์ได้ |
 | Config | ข้อมูลเกมที่ bundle มา + เวอร์ชันใหม่จาก `/config` | ตรวจ hash ก่อนใช้ |
-| Native | IAP, push, haptics, secure storage | Capacitor plugins |
+| Native | IAP, push, haptics, secure storage | Unity IAP, mobile notifications, Keychain/Keystore |
 
 client ไม่เก็บค่าเงินที่เชื่อถือได้ ค่าที่แท้จริงอยู่ที่เซิร์ฟเวอร์เสมอ
 
-## 5. หลังบ้าน (Node.js 22 + TypeScript)
+## 5. หลังบ้าน (ASP.NET Core บน .NET LTS + C#)
 
 ### 5.1 `api` (stateless REST)
-- **Framework:** [Fastify](https://fastify.dev) เพราะเร็ว มีระบบ plugin และ schema validation ในตัว ใช้คู่กับ zod schema จาก `protocol`
-- **DB access:** [Drizzle ORM](https://orm.drizzle.team) ได้ SQL ที่ type-safe และมี migration
+- **Framework:** ASP.NET Core (minimal API หรือ controller) ตรวจ input ด้วย validation ของ type ใน `FiveSects.Protocol`
+- **DB access:** Npgsql + EF Core (หรือ Dapper สำหรับ query ที่ต้องคุมเอง) มี migration ใน CI
 - **ขยาย:** เพิ่ม instance หลัง load balancer ไม่มีสถานะในหน่วยความจำ
 
 | กลุ่ม | Endpoint ตัวอย่าง |
@@ -112,21 +117,21 @@ client ไม่เก็บค่าเงินที่เชื่อถื�
 **กัน race ของเงิน:** การเปลี่ยนเงิน/ของทุกครั้งทำใน transaction ของ PostgreSQL บนตาราง `wallets` ด้วย `SELECT … FOR UPDATE` และมี `idempotency_key` ต่อคำขอ กดซื้อซ้ำสองครั้งพร้อมกันจึงไม่ได้ของสองครั้ง
 
 ### 5.2 `game` (stateful WebSocket)
-- **WebSocket:** `ws` (หรือ `uWebSockets.js` ถ้าต้องการรีดประสิทธิภาพ) บน Node
-- **MatchRoom:** ห้องอยู่ในหน่วยความจำของ instance เดียว รับคำสั่ง ประกาศคำสั่งทุก tick (20Hz) รัน `sim` คู่ขนานใน ranked และเก็บ replay ลง object storage
+- **WebSocket:** ASP.NET Core WebSockets (หรือ SignalR ถ้าเข้ากับโปรโตคอล lockstep)
+- **MatchRoom:** ห้องอยู่ในหน่วยความจำของ instance เดียว รับคำสั่ง ประกาศคำสั่งทุก tick (20Hz) รัน `FiveSects.Sim` คู่ขนานใน ranked และเก็บ replay ลง object storage
 - **การหาห้อง:** registry ใน Redis (`room:{id} → instance`) load balancer ส่ง WebSocket ไปถูกเครื่องด้วย sticky routing ตาม room id
 - **Matchmaker:** loop ใน `game` อ่านคิวจาก Redis sorted set (คะแนน = MMR) ขยายช่วง MMR ตามเวลารอ ใส่ bot หลัง 45 วิ ใช้ Redis lock ให้มีตัวจับคู่ทำงานทีละตัวต่อโหมด
 - **GuildRoom:** แชทชุมนุม ใช้ Redis pub/sub กระจายข้อความข้าม instance
 
 ### 5.3 `worker` (งานเบื้องหลัง)
-- **คิว:** [BullMQ](https://docs.bullmq.io) บน Redis (retry, delay, priority, dashboard)
+- **คิว:** .NET hosted services อ่านคิวจาก Redis หรือ PostgreSQL หรือใช้ Hangfire (retry, delay, priority, dashboard)
 - **งาน:**
-  - `verify-run` รัน `sim` ตรวจรีเพลย์ แล้วให้รางวัล
+  - `verify-run` รัน `FiveSects.Sim` ตรวจรีเพลย์ แล้วให้รางวัล
   - `verify-raid` ตรวจผลตีสำนัก
   - `mail` / `push` ส่งจดหมายในเกมและ push notification
   - `analytics` รวม event เป็น batch
   - `season-rollover` ปิด season และแจกรางวัล
-- รัน sim ใน `worker_threads` ใช้ CPU ได้หลาย core
+- รัน sim บน thread pool ของ .NET ใช้ CPU ได้หลาย core
 
 ## 6. ฐานข้อมูล
 
@@ -179,7 +184,7 @@ erDiagram
 ```
 
 - **`wallet_ledger`** บันทึกทุกการเปลี่ยนแปลงเงินพร้อมเหตุผล ใช้ตรวจย้อนหลัง ชดเชย และหาการโกง ค่าใน `wallets` คือยอดรวมที่ต้องตรงกับผลรวมของ ledger
-- **Migrations:** Drizzle Kit (`packages/db/migrations`) รันใน CI ก่อน deploy
+- **Migrations:** EF Core migrations (`server/FiveSects.Db`) รันใน CI ก่อน deploy
 - **Index สำคัญ:** `identities(provider, subject)` unique, `ratings(season_id, mode, mmr)`, `runs(player_id, status)`, `wallet_ledger(player_id, at)`, `raids(defender_id, at)`
 - **ขยายตัว:** read replica สำหรับ leaderboard และ analytics, ใช้ PgBouncer จัดการ connection, แบ่ง `wallet_ledger`/`raids`/`runs` เป็น partition รายเดือน ระดับกลางยังไม่ต้อง shard
 
@@ -205,7 +210,7 @@ erDiagram
 sequenceDiagram
   participant C as Client
   participant A as api
-  participant R as Redis (BullMQ)
+  participant R as Redis (คิวงาน)
   participant W as worker (sim)
   participant P as PostgreSQL
   C->>A: POST /runs/start {stageId}
@@ -267,12 +272,12 @@ sequenceDiagram
 |---|---|
 | แก้ค่าเงินในเครื่อง | เงินจริงอยู่ใน PostgreSQL เท่านั้น |
 | ส่งผลด่านปลอม | ส่งเฉพาะ replay, worker รัน sim ซ้ำ, seed ลงนามโดยเซิร์ฟเวอร์ |
-| คำสั่งผิดรูปแบบ | `validCommand()` ใน sim (มีแล้ว) + zod ที่ขอบ API/WebSocket |
+| คำสั่งผิดรูปแบบ | ตรวจคำสั่งใน `FiveSects.Sim` (มีแล้ว) + validation ที่ขอบ API/WebSocket |
 | PvP desync / โกง | sim บนเซิร์ฟเวอร์ตัดสิน, hash ทุก 5 วิ |
 | ซื้อปลอม / refund | ตรวจที่เซิร์ฟเวอร์ + server notifications + ledger |
 | กดซ้ำ / race | transaction + `FOR UPDATE` + idempotency key |
 | ยิง API ถี่ / บอทสมัคร | rate limit บน Redis + CAPTCHA ตอนสร้าง guest จำนวนมาก |
-| SQL injection | query ผ่าน Drizzle (parameterized) เท่านั้น |
+| SQL injection | query ผ่าน EF Core/Dapper แบบ parameterized เท่านั้น |
 | ขโมย token | access สั้น + refresh rotation + ตรวจใช้ซ้ำ |
 | Secret | เก็บใน secret manager ของผู้ให้บริการ ไม่อยู่ใน repo หรือ client |
 | ข้อมูลส่วนบุคคล | เก็บน้อยที่สุด, ลบได้, PDPA/GDPR |
@@ -281,7 +286,7 @@ sequenceDiagram
 
 | สภาพแวดล้อม | ใช้ทำอะไร | วิธีรัน |
 |---|---|---|
-| local | พัฒนา, ทดสอบหลายคนบนเครื่องเดียว | `docker compose up` (postgres, redis, minio) + `npm run dev:server` |
+| local | พัฒนา, ทดสอบหลายคนบนเครื่องเดียว | `docker compose up` (postgres, redis, minio) + `dotnet run` ต่อ service |
 | staging | playtest, ทดสอบก่อนปล่อย | container เดียวกับ production ขนาดเล็ก |
 | production | ผู้เล่นจริง | ภูมิภาค Singapore (ใกล้ไทย/SEA) |
 
@@ -303,7 +308,7 @@ PostgreSQL แบบ managed ใช้ได้หลายเจ้า (RDS, Cl
 
 ## 11. การมอนิเตอร์
 - **Sentry:** error ทั้ง client และทุก service
-- **Metrics:** OpenTelemetry → Prometheus/Grafana (หรือเครื่องมือของผู้ให้บริการ) เก็บ latency, error rate, จำนวนห้อง, จำนวน connection, ความยาวคิว BullMQ
+- **Metrics:** OpenTelemetry → Prometheus/Grafana (หรือเครื่องมือของผู้ให้บริการ) เก็บ latency, error rate, จำนวนห้อง, จำนวน connection, ความยาวคิวงาน
 - **Dashboard เกม:** DAU, retention, ARPDAU, win-rate ต่อสำนัก, เวลาจับคู่, อัตรา desync
 - **Alert:**
   - desync เกิน 0.5% ของแมตช์
@@ -323,7 +328,7 @@ PostgreSQL แบบ managed ใช้ได้หลายเจ้า (RDS, Cl
 
 | Milestone | สิ่งที่สร้าง |
 |---|---|
-| M1 Online core | `infra/docker-compose.yml`, `packages/{protocol,db,api,game,worker}` โครงพื้นฐาน, guest auth + refresh rotation, `/me`, cloud save, `/runs` + verify-run, ห้อง co-op lockstep, migrations, CI deploy staging |
+| M1 Online core | `infra/docker-compose.yml`, `server/FiveSects.{Protocol,Db,Api,Game,Worker}` โครงพื้นฐาน, guest auth + refresh rotation, `/me`, cloud save, `/runs` + verify-run, ห้อง co-op lockstep, migrations, CI deploy staging |
 | M2 Competitive | Matchmaker, ranked ใน MatchRoom, ratings/seasons, replay ลง S3, ดูเพื่อนเล่นสด |
 | M2b Meta + Raid | wallet + ledger, อาคาร/idle claim, ลานสำนัก + raid + โล่ |
 | M4 Monetization / Live ops | IAP verify + notifications, gacha ฝั่งเซิร์ฟเวอร์, shop, mail/push, remote config, admin, Apple/Google sign-in |

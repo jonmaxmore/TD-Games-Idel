@@ -1,5 +1,6 @@
-// Runs the TypeScript golden replays (npm run sim:golden) through the C# port and requires the same
-// canonical hash every 100 ticks. If this fails, the C# rules drifted from packages/sim.
+// Replays the golden runs (written from these rules by npm run sim:golden, ADR 0006) inside the Unity editor and
+// requires the same canonical hash every 100 ticks. If this fails here but npm test passes, the Unity runtime
+// computes the rules differently from .NET: a determinism bug to fix before anything ships.
 using System.Collections.Generic;
 using System.IO;
 using FiveSects.Sim;
@@ -21,7 +22,7 @@ namespace FiveSects.Tests
         [TestCase("1-12-bosses")]
         [TestCase("fire-1-12")]
         [TestCase("wood-1-12")]
-        public void MatchesTypeScriptGolden(string stage)
+        public void MatchesGolden(string stage)
         {
             var g = JObject.Parse(File.ReadAllText(Path.Combine(Application.dataPath, "Editor", "Tests", "golden-" + stage + ".json")));
             var s = Defend.Create((string)g["stageId"], (uint)(long)g["seed"], (string)g["sect"]);
@@ -47,7 +48,7 @@ namespace FiveSects.Tests
         }
 
         [Test]
-        public void HashLayoutMatchesTypeScript()
+        public void HashLayoutIsFixed()
         {
             Assert.AreEqual("1a47e90b", Canonical.Fnv1a("abc"));
             Assert.AreEqual("0|120|20|0|build|1|||", Canonical.String(Defend.Create("1-1", 1)));
