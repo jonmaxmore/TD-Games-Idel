@@ -102,11 +102,11 @@
   "roster": {
     "_notes": "Sect x role disciples for the sect the player picks (SPEC-core §4, roster.md §5). kit = the proven element mechanic the unit fights with (metal crit, fire splash, water slow, wood damage over time, yinyang support); sect = its element for Wu Xing and colour. dot: which status its damage over time applies (fire-sect units burn, wood-sect units poison). Sects without a roster yet play the legacy element disciples.",
     "roles": [
-      { "id": "striker", "nameTh": "กระบี่หน้า", "doesTh": "ดาเมจเป้าเดี่ยวสูง ล่าตัวหนาและบอส", "counters": ["brute", "boss"] },
-      { "id": "burst", "nameTh": "ปราณวง", "doesTh": "ตีวงกว้าง จัดการฝูง", "counters": ["puppet", "cultist"] },
-      { "id": "control", "nameTh": "ตรึง", "doesTh": "ทำให้ช้าหรือหยุด", "counters": ["runner", "assassin"] },
-      { "id": "stacker", "nameTh": "สะสม", "doesTh": "ดาเมจต่อเนื่อง กดศัตรูที่ฟื้นเลือด", "counters": ["healer", "brute"] },
-      { "id": "support", "nameTh": "ค้ำ", "doesTh": "เสริมเพื่อน เปิดเผยตัวล่องหน", "counters": ["assassin"] }
+      { "id": "striker", "nameEn": "Vanguard", "nameTh": "กระบี่หน้า", "doesTh": "ดาเมจเป้าเดี่ยวสูง ล่าตัวหนาและบอส", "counters": ["brute", "boss"] },
+      { "id": "burst", "nameEn": "Sweeper", "nameTh": "ปราณวง", "doesTh": "ตีวงกว้าง จัดการฝูง", "counters": ["puppet", "cultist"] },
+      { "id": "control", "nameEn": "Binder", "nameTh": "ตรึง", "doesTh": "ทำให้ช้าหรือหยุด", "counters": ["runner", "assassin"] },
+      { "id": "stacker", "nameEn": "Stacker", "nameTh": "สะสม", "doesTh": "ดาเมจต่อเนื่อง กดศัตรูที่ฟื้นเลือด", "counters": ["healer", "brute"] },
+      { "id": "support", "nameEn": "Mentor", "nameTh": "ค้ำ", "doesTh": "เสริมเพื่อน เปิดเผยตัวล่องหน", "counters": ["assassin"] }
     ],
     "roleUnlocks": { "1-1": ["striker", "burst"], "1-2": ["control"], "1-8": ["stacker"], "1-10": ["support"] },
     "rules": {
@@ -114,16 +114,16 @@
       "wood": { "ruleTh": "พิษลามไปศัตรูข้างเคียงเมื่อเป้าตาย", "spreadRange": 1.0, "spreadStacks": 1 }
     },
     "units": [
-      { "id": "crimson_phoenix_striker", "sect": "fire", "role": "striker", "kit": "metal", "nameTh": "ศิษย์ขนหงส์เจาะ", "cost": 60, "dmg": 24, "rate": 1.2, "range": 2.4, "target": "ground+air" },
-      { "id": "crimson_phoenix_burst", "sect": "fire", "role": "burst", "kit": "fire", "nameTh": "ศิษย์พัดเพลิง", "cost": 65, "dmg": 26, "rate": 1.0, "range": 2.4, "target": "ground+air", "dot": "burn" },
-      { "id": "crimson_phoenix_control", "sect": "fire", "role": "control", "kit": "water", "nameTh": "ศิษย์กำแพงเพลิง", "cost": 50, "dmg": 18, "rate": 1.4, "range": 2.6, "target": "ground+air" },
-      { "id": "crimson_phoenix_stacker", "sect": "fire", "role": "stacker", "kit": "wood", "nameTh": "ศิษย์ถ่านเพลิง", "cost": 50, "dmg": 11, "rate": 1.5, "range": 2.8, "target": "ground", "dot": "burn" },
-      { "id": "crimson_phoenix_support", "sect": "fire", "role": "support", "kit": "yinyang", "nameTh": "ศิษย์เตาหลอม", "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.0, "target": "ground+air" },
-      { "id": "jade_bamboo_striker", "sect": "wood", "role": "striker", "kit": "metal", "nameTh": "ศิษย์ลูกดอกเป่า", "cost": 60, "dmg": 20, "rate": 1.2, "range": 3.2, "target": "ground+air" },
-      { "id": "jade_bamboo_burst", "sect": "wood", "role": "burst", "kit": "fire", "nameTh": "ศิษย์ใบไผ่ปลิว", "cost": 65, "dmg": 24, "rate": 1.0, "range": 2.6, "target": "ground+air", "dot": "poison" },
-      { "id": "jade_bamboo_control", "sect": "wood", "role": "control", "kit": "water", "nameTh": "ศิษย์เถาวัลย์", "cost": 50, "dmg": 16, "rate": 1.4, "range": 3.0, "target": "ground" },
-      { "id": "jade_bamboo_stacker", "sect": "wood", "role": "stacker", "kit": "wood", "nameTh": "ศิษย์ขลุ่ยพิษ", "cost": 50, "dmg": 11, "rate": 1.5, "range": 3.2, "target": "ground+air", "dot": "poison" },
-      { "id": "jade_bamboo_support", "sect": "wood", "role": "support", "kit": "yinyang", "nameTh": "ศิษย์หมอยาหุบไผ่", "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.4, "target": "ground+air" }
+      { "id": "crimson_phoenix_striker", "sect": "fire", "role": "striker", "kit": "metal", "nameEn": "Phoenix Quill", "nameTh": "ศิษย์ขนหงส์เจาะ", "cost": 60, "dmg": 24, "rate": 1.2, "range": 2.4, "target": "ground+air", "descTh": "ปาขนหงส์เพลิงพุ่งเป้าเดียว แรงพอเจาะเกราะ มีโอกาสคริติคอลแรงสองเท่า", "descEn": "Throws phoenix quills at one target; strong enough to punch through armour, with a chance to crit for double." },
+      { "id": "crimson_phoenix_burst", "sect": "fire", "role": "burst", "kit": "fire", "nameEn": "Flame Fan", "nameTh": "ศิษย์พัดเพลิง", "cost": 65, "dmg": 26, "rate": 1.0, "range": 2.4, "target": "ground+air", "dot": "burn", "descTh": "สะบัดพัดเป็นกรวยเพลิง เผาทั้งฝูงที่เดินเข้ามา", "descEn": "Sweeps a cone of flame that sets a whole crowd burning." },
+      { "id": "crimson_phoenix_control", "sect": "fire", "role": "control", "kit": "water", "nameEn": "Firewall", "nameTh": "ศิษย์กำแพงเพลิง", "cost": 50, "dmg": 18, "rate": 1.4, "range": 2.6, "target": "ground+air", "descTh": "พ่นไฟใส่หน้า ศัตรูชะงักและช้าลง เหมาะกับตัววิ่งเร็ว", "descEn": "Breathes fire in the face of an enemy so it flinches and slows; the answer to runners." },
+      { "id": "crimson_phoenix_stacker", "sect": "fire", "role": "stacker", "kit": "wood", "nameEn": "Ember Tosser", "nameTh": "ศิษย์ถ่านเพลิง", "cost": 50, "dmg": 11, "rate": 1.5, "range": 2.8, "target": "ground", "dot": "burn", "descTh": "โยนถ่านแดงใส่เป้า ไฟติดนานและแรงขึ้นตามกฎสำนัก ตีได้เฉพาะตัวบนพื้น", "descEn": "Lobs live coals; the burn lasts and grows with the sect rule. Ground targets only." },
+      { "id": "crimson_phoenix_support", "sect": "fire", "role": "support", "kit": "yinyang", "nameEn": "Forge Keeper", "nameTh": "ศิษย์เตาหลอม", "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.0, "target": "ground+air", "descTh": "ขั้น 2 ขึ้นไปเร่งศิษย์ข้างเคียงให้ตีเร็วขึ้น และส่องให้เห็นตัวล่องหนรอบตัว", "descEn": "From tier 2 it makes neighbours attack faster, and it reveals hidden assassins around it." },
+      { "id": "jade_bamboo_striker", "sect": "wood", "role": "striker", "kit": "metal", "nameEn": "Blowdart", "nameTh": "ศิษย์ลูกดอกเป่า", "cost": 60, "dmg": 20, "rate": 1.2, "range": 3.2, "target": "ground+air", "descTh": "เป่าลูกดอกพิษระยะไกลที่สุดในสำนัก ล่าตัวหนาจากหลังแนว", "descEn": "Longest-range dart in the sect; picks off heavy enemies from the back line." },
+      { "id": "jade_bamboo_burst", "sect": "wood", "role": "burst", "kit": "fire", "nameEn": "Leaf Storm", "nameTh": "ศิษย์ใบไผ่ปลิว", "cost": 65, "dmg": 24, "rate": 1.0, "range": 2.6, "target": "ground+air", "dot": "poison", "descTh": "พายุใบไผ่ใส่ฝูง ทุกตัวที่โดนติดพิษ", "descEn": "A storm of bamboo leaves that poisons everything it hits." },
+      { "id": "jade_bamboo_control", "sect": "wood", "role": "control", "kit": "water", "nameEn": "Vine Binder", "nameTh": "ศิษย์เถาวัลย์", "cost": 50, "dmg": 16, "rate": 1.4, "range": 3.0, "target": "ground", "descTh": "เถาวัลย์รัดขาให้ช้าและหยุด ตีได้เฉพาะตัวบนพื้น", "descEn": "Vines bind legs to slow and stop enemies. Ground targets only." },
+      { "id": "jade_bamboo_stacker", "sect": "wood", "role": "stacker", "kit": "wood", "nameEn": "Poison Flute", "nameTh": "ศิษย์ขลุ่ยพิษ", "cost": 50, "dmg": 11, "rate": 1.5, "range": 3.2, "target": "ground+air", "dot": "poison", "descTh": "เป่าขลุ่ยพิษซ้อนชั้น ศัตรูที่ตายพร้อมพิษจะลามให้ตัวข้างเคียง", "descEn": "Stacks poison; enemies that die poisoned pass it on to their neighbours." },
+      { "id": "jade_bamboo_support", "sect": "wood", "role": "support", "kit": "yinyang", "nameEn": "Herbalist", "nameTh": "ศิษย์หมอยาหุบไผ่", "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.4, "target": "ground+air", "descTh": "ขั้น 2 ขึ้นไปเร่งศิษย์ข้างเคียงให้ตีเร็วขึ้น และจุดธูปเปิดเผยตัวล่องหนรอบตัว", "descEn": "From tier 2 it makes neighbours attack faster, and its incense reveals hidden assassins around it." }
     ]
   },
   "allegiance": {
@@ -136,8 +136,8 @@
       { "element": "earth", "ruleTh": "ศิษย์ขวางทางได้ ศัตรูต้องหยุดตี", "difficulty": 3 }
     ],
     "upcoming": [
-      { "id": "beggar", "nameTh": "พรรคไม้เท้าหมื่นลี้", "opensMonth": 2 },
-      { "id": "blood_moon", "nameTh": "นิกายจันทร์โลหิต", "opensMonth": 4 }
+      { "id": "beggar", "nameEn": "Myriad-Li Staff Brotherhood", "nameTh": "พรรคไม้เท้าหมื่นลี้", "opensMonth": 2 },
+      { "id": "blood_moon", "nameEn": "Blood Moon Order", "nameTh": "นิกายจันทร์โลหิต", "opensMonth": 4 }
     ]
   }
 }

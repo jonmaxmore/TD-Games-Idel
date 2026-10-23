@@ -51,7 +51,9 @@
 6. **(เลือกได้) Build Android:** เมนู **Five Sects → Build Android APK** → `Builds/Android/five-sects.apk`
 
 ## ภาษาไทย
-ฟอนต์ที่มากับ Unity ไม่มีอักษรไทย HUD จึงเป็นภาษาอังกฤษโดยปริยาย ถ้าต้องการภาษาไทย ให้วางไฟล์ `Sarabun-Regular.ttf` (Google Fonts, OFL) ไว้ที่ `Assets/Resources/Fonts/` แล้ว HUD จะเปลี่ยนเป็นไทยเอง ขนาดฟอนต์จะถูกนับรวมใน build ด้วย ซึ่งเป็นส่วนหนึ่งของการเทียบ
+ภาษาไทยใช้ได้เองบน Windows โดยไม่ต้องทำอะไร เกมเลือกฟอนต์ไทยของระบบ (Leelawadee UI / Tahoma) อัตโนมัติ
+- **ถ้าอยากให้ทุกเครื่องเหมือนกัน รวมมือถือ:** วาง `Sarabun-Regular.ttf` (Google Fonts, OFL) ไว้ที่ `Assets/Resources/Fonts/` เกมจะใช้ฟอนต์นี้ก่อน
+- **ถ้าหาฟอนต์ไทยไม่ได้เลย:** เกมแสดงเป็นภาษาอังกฤษ
 
 ## ค่าที่ต้องวัดแล้วส่งกลับมา
 

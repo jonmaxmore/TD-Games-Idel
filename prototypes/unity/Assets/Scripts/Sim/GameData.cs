@@ -7,11 +7,11 @@ using Newtonsoft.Json.Linq;
 
 namespace FiveSects.Sim
 {
-    public class SectDef { public string Element, NameTh, Color, Role; public int Cost, Dmg, Cooldown, Range; public bool HitsAir, HitsGround; }
+    public class SectDef { public string Element, NameTh, NameEn, Color, Role; public int Cost, Dmg, Cooldown, Range; public bool HitsAir, HitsGround; }
     public class BossMechanics { public string Effect; public List<int> PhasesPct = new List<int>(); public int Count = 1, Ticks; }
-    public class EnemyDef { public string Id, NameTh, Element, TraitTh; public bool Air; public int Hp, Speed, Bounty, LeakCost = 1; public BossMechanics Boss; }
+    public class EnemyDef { public string Id, NameTh, NameEn, Element, TraitTh, TraitEn; public bool Air; public int Hp, Speed, Bounty, LeakCost = 1; public BossMechanics Boss; }
     public class WaveRecipe { public string Id, NameTh; public List<string> Types = new List<string>(), NeedsRoles = new List<string>(); public int CountPct, HpPct; }
-    public class RoleDef { public string Id, NameTh, DoesTh; public List<string> Counters = new List<string>(); }
+    public class RoleDef { public string Id, NameTh, NameEn, DoesTh; public List<string> Counters = new List<string>(); }
     public class ComboDef { public string Id, NameTh, A, B; }
     public class StageDef
     {
@@ -24,9 +24,9 @@ namespace FiveSects.Sim
     public class CardDef { public string Id, NameTh, EffectTh, Kind, Element, Needs; public int Pct, Value; }
     // Sect the player joins after the tutorial (sects.json > allegiance); front flow only, no rules use it yet.
     // Sect x role disciple (sects.json > roster): fights with its kit's mechanic (Element), counts as its Sect for Wu Xing.
-    public class UnitDef : SectDef { public string Id, Sect, RoleId, Dot; }
+    public class UnitDef : SectDef { public string Id, Sect, RoleId, Dot, DescTh, DescEn; }
     public class AllegianceDef { public string Element, RuleTh; public int Difficulty; }
-    public class UpcomingSectDef { public string Id, NameTh; public int OpensMonth; }
+    public class UpcomingSectDef { public string Id, NameTh, NameEn; public int OpensMonth; }
     public class EliteAffix { public string Id, NameTh; public int HpPct, SpeedPct, RegenPct; }
 
     public static class GameData
@@ -82,7 +82,7 @@ namespace FiveSects.Sim
                 string target = (string)s["target"];
                 Sects[el] = new SectDef
                 {
-                    Element = el, NameTh = (string)s["nameTh"], Color = (string)s["color"], Role = (string)s["role"], Cost = (int)s["cost"], Dmg = (int)s["dmg"],
+                    Element = el, NameTh = (string)s["nameTh"], NameEn = (string)s["name"], Color = (string)s["color"], Role = (string)s["role"], Cost = (int)s["cost"], Dmg = (int)s["dmg"],
                     Cooldown = Ticks(1.0 / (double)s["rate"]), Range = JsMath.Round((double)s["range"] * Tile),
                     HitsAir = target.Contains("air"), HitsGround = target.Contains("ground"),
                 };
@@ -94,7 +94,7 @@ namespace FiveSects.Sim
                 foreach (var r in ro["roles"])
                 {
                     Roles.Add((string)r["id"]);
-                    RoleDefs[(string)r["id"]] = new RoleDef { Id = (string)r["id"], NameTh = (string)r["nameTh"], DoesTh = (string)r["doesTh"], Counters = r["counters"]?.Select(x => (string)x).ToList() ?? new List<string>() };
+                    RoleDefs[(string)r["id"]] = new RoleDef { Id = (string)r["id"], NameTh = (string)r["nameTh"], NameEn = (string)r["nameEn"], DoesTh = (string)r["doesTh"], Counters = r["counters"]?.Select(x => (string)x).ToList() ?? new List<string>() };
                 }
                 foreach (var p in (JObject)ro["roleUnlocks"]) RoleUnlocks.Add(new KeyValuePair<string, List<string>>(p.Key, p.Value.Select(x => (string)x).ToList()));
                 FireRampPctPerSec = (int)ro["rules"]["fire"]["burnRampPctPerSec"];
@@ -107,7 +107,8 @@ namespace FiveSects.Sim
                     var def = new UnitDef
                     {
                         Id = (string)u["id"], Sect = sect, RoleId = (string)u["role"], Dot = (string)u["dot"],
-                        Element = (string)u["kit"], NameTh = (string)u["nameTh"], Color = Sects[sect].Color, Cost = (int)u["cost"], Dmg = (int)u["dmg"],
+                        DescTh = (string)u["descTh"], DescEn = (string)u["descEn"],
+                        Element = (string)u["kit"], NameTh = (string)u["nameTh"], NameEn = (string)u["nameEn"], Color = Sects[sect].Color, Cost = (int)u["cost"], Dmg = (int)u["dmg"],
                         Cooldown = Ticks(1.0 / (double)u["rate"]), Range = JsMath.Round((double)u["range"] * Tile),
                         HitsAir = target.Contains("air"), HitsGround = target.Contains("ground"),
                     };
@@ -120,7 +121,7 @@ namespace FiveSects.Sim
                 foreach (var a in sects["allegiance"]["launch"])
                     Allegiance.Add(new AllegianceDef { Element = (string)a["element"], RuleTh = (string)a["ruleTh"], Difficulty = (int)a["difficulty"] });
                 foreach (var u in sects["allegiance"]["upcoming"])
-                    UpcomingSects.Add(new UpcomingSectDef { Id = (string)u["id"], NameTh = (string)u["nameTh"], OpensMonth = (int)u["opensMonth"] });
+                    UpcomingSects.Add(new UpcomingSectDef { Id = (string)u["id"], NameTh = (string)u["nameTh"], NameEn = (string)u["nameEn"], OpensMonth = (int)u["opensMonth"] });
             }
             foreach (var p in (JObject)sects["wuxing"]["generates"]) Generates[p.Key] = (string)p.Value;
             foreach (var p in (JObject)sects["wuxing"]["overcomes"]) Overcomes[p.Key] = (string)p.Value;
@@ -140,7 +141,7 @@ namespace FiveSects.Sim
                 string id = (string)e["id"];
                 Enemies[id] = new EnemyDef
                 {
-                    Id = id, NameTh = (string)e["nameTh"], Element = (string)e["element"],
+                    Id = id, NameTh = (string)e["nameTh"], NameEn = (string)e["name"], TraitEn = (string)e["trait"], Element = (string)e["element"],
                     Air = (string)e["layer"] == "air", Hp = (int)e["hp"],
                     Speed = JsMath.Round(((double)e["speed"] * Tile) / TickHz),
                     Bounty = e["bounty"] != null ? (int)e["bounty"] : 50,

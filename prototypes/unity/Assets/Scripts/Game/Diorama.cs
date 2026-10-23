@@ -280,7 +280,7 @@ namespace FiveSects.Game
                 var def = GameData.Sects[a.Element];
                 var chip = Ui.Box(bar, "Chip", new Vector2(i / 5f + 0.01f, 0.15f), new Vector2((i + 1) / 5f - 0.01f, 0.85f), "#17121F");
                 Ui.Box(chip, "Mark", new Vector2(0, 0), new Vector2(0.08f, 1), def.Color);
-                Ui.Label(chip, Ui.Thai ? def.NameTh : a.Element, 16, Vector2.zero, Vector2.one);
+                Ui.Label(chip, Ui.Name(def), 16, Vector2.zero, Vector2.one);
                 i++;
             }
             Ui.Label(screen, L("ตัวอย่างภาพ 3D pixel (ทดลอง)", "3D pixel look test"), 26, new Vector2(0, 0.94f), new Vector2(0.7f, 1f), "#E3B04B", TextAnchor.MiddleLeft);

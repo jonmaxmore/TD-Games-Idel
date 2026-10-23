@@ -209,7 +209,7 @@ namespace FiveSects.Game
                         break;
                     }
                     case "wave": Toast("Wave " + ev.Wave, 1.2f); break;
-                    case "newEnemy": Toast(L("ศัตรูใหม่: ", "New enemy: ") + (thai ? GameData.Enemies[ev.Type].NameTh : ev.Type), 2f); break;
+                    case "newEnemy": Toast(L("ศัตรูใหม่: ", "New enemy: ") + Ui.Enemy(ev.Type), 2f); break;
                     case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
                     case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
                     case "leak": LeakToast(ev.Id); goalFlashUntil = Time.time + 0.25f; fx.Shake(2.5f); fx.Burst(goalAt, "#D2412F", 0.6f); break;
@@ -228,7 +228,7 @@ namespace FiveSects.Game
                         Toast(ev.Name, 1.5f);
                         break;
                     }
-                    case "seal": fx.Shake(3); fx.Burst(new Vector2(Bootstrap.W / 2f, Bootstrap.H / 2f), "#8A1A1A", 1.5f); Toast(L("บอสผนึก ", "Boss sealed ") + (thai ? GameData.Sects[ev.El].NameTh : ev.El) + L(" ชั่วคราว!", " for a while!"), 2.5f); break;
+                    case "seal": fx.Shake(3); fx.Burst(new Vector2(Bootstrap.W / 2f, Bootstrap.H / 2f), "#8A1A1A", 1.5f); Toast(L("บอสผนึก ", "Boss sealed ") + Ui.Unit(ev.El) + L(" ชั่วคราว!", " for a while!"), 2.5f); break;
                     case "disable": fx.Shake(2); Toast(L("อาวุธลับ! ศิษย์ถูกสกัด", "Hidden weapon! A disciple is disabled"), 1.5f); break;
                     case "end":
                         ClosePanel();
@@ -411,9 +411,8 @@ namespace FiveSects.Game
 
         void BuildHud()
         {
-            font = Resources.Load<Font>("Fonts/Sarabun-Regular");
-            thai = font != null;
-            if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = Ui.Font;
+            thai = Ui.Thai;
 
             if (EventSystem.current == null)
             {
@@ -561,10 +560,10 @@ namespace FiveSects.Game
             string role = RoleOf(key);
             var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
             float dps = d.Dmg * 20f / Mathf.Max(1, d.Cooldown);
-            string line1 = (rd != null ? (thai ? rd.NameTh : role) + " · " : "") + L("ดาเมจ ", "DPS ") + dps.ToString("0") + L("/วิ · ระยะ ", " · range ") + (d.Range / 1000f).ToString("0.0")
+            string line1 = (rd != null ? Ui.Name(rd) + " · " : "") + L("ดาเมจ ", "DPS ") + dps.ToString("0") + L("/วิ · ระยะ ", " · range ") + (d.Range / 1000f).ToString("0.0")
                 + (d.HitsAir ? L(" · ตีอากาศได้", " · hits air") : L(" · ตีอากาศไม่ได้", " · ground only"));
             if (rd == null || rd.Counters.Count == 0) return line1;
-            var names = rd.Counters.Select(id => id == "boss" ? L("บอส", "bosses") : GameData.Enemies.TryGetValue(id, out var e) ? (thai ? e.NameTh : id) : id);
+            var names = rd.Counters.Select(Ui.Enemy);
             return line1 + "\n" + L("เก่งกับ: ", "Good vs: ") + string.Join(", ", names);
         }
 
@@ -670,7 +669,7 @@ namespace FiveSects.Game
             bossBar.gameObject.SetActive(boss != null);
             if (boss == null) return;
             bossFill.anchorMax = new Vector2(Mathf.Clamp01((float)boss.Hp / boss.MaxHp), 1);
-            bossName.text = (thai ? GameData.Enemies[boss.Type].NameTh : boss.Type) + (s.SealT > 0 ? L("  ผนึก: ", "  sealed: ") + (thai ? GameData.Sects[s.SealEl].NameTh : s.SealEl) : "");
+            bossName.text = Ui.Enemy(boss.Type) + (s.SealT > 0 ? L("  ผนึก: ", "  sealed: ") + Ui.Unit(s.SealEl) : "");
         }
 
         void Toast(string msg, float seconds) { toastText.text = msg; toastUntil = Time.time + seconds; }
@@ -686,7 +685,7 @@ namespace FiveSects.Game
                 bool have = need == "air"
                     ? s.Disciples.Any(d => (d.Unit != null ? GameData.Units[d.Unit].HitsAir : d.Els.Any(e => GameData.Sects[e].HitsAir)))
                     : s.Disciples.Any(d => RoleOf(d.Unit ?? d.Els[0]) == need);
-                string name = need == "air" ? L("ตีอากาศ", "anti-air") : GameData.RoleDefs.TryGetValue(need, out var rd) && thai ? rd.NameTh : need;
+                string name = need == "air" ? L("ตีอากาศ", "anti-air") : GameData.RoleDefs.TryGetValue(need, out var rd) ? Ui.Name(rd) : need;
                 parts.Add(have ? name : "<color=#D2412F>" + name + "</color>");
             }
             return L("  · ต้องการ: ", "  · needs: ") + string.Join(", ", parts);
@@ -696,7 +695,7 @@ namespace FiveSects.Game
         void LeakToast(int id)
         {
             if (!typeOf.TryGetValue(id, out var type) || !GameData.Enemies.TryGetValue(type, out var def)) return;
-            Toast(L("หลุดเข้าประตู: ", "Leaked: ") + (thai ? def.NameTh + " — " + def.TraitTh : type), 2.5f);
+            Toast(L("หลุดเข้าประตู: ", "Leaked: ") + Ui.Name(def) + " — " + L(def.TraitTh, def.TraitEn ?? ""), 2.5f);
         }
 
         void UpdateHud()

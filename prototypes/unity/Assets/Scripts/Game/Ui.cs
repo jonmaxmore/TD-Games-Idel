@@ -1,5 +1,6 @@
 // uGUI building blocks for the front-flow screens (boot, consent, sect pick, lobby, loading), made from code
 // like the battle HUD. Layout is in anchors on a 720x1280 reference canvas.
+using FiveSects.Sim;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -19,15 +20,29 @@ namespace FiveSects.Game
             get
             {
                 if (font != null) return font;
+                // Bundled Sarabun first, then a Thai-capable system font (Windows ships Leelawadee UI and Tahoma),
+                // and only then Unity's built-in font, which has no Thai and makes the UI fall back to English.
                 font = Resources.Load<Font>("Fonts/Sarabun-Regular");
+                if (font == null)
+                {
+                    var os = Font.CreateDynamicFontFromOSFont(new[] { "Leelawadee UI", "Leelawadee", "Tahoma", "Noto Sans Thai", "Sarabun", "Thonburi" }, 32);
+                    if (os != null) { os.RequestCharactersInTexture("กขค"); if (os.HasCharacter('ก')) font = os; }
+                }
                 Thai = font != null;
                 if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 return font;
             }
         }
 
-        // Thai text needs Sarabun in Resources/Fonts (README); without it the built-in font shows English.
+        // Thai when a Thai font was found (bundled or system); English otherwise. Never show raw ids to players.
         public static string L(string th, string en) { var _ = Font; return Thai ? th : en; }
+
+        // Player-facing names. Ids never reach the screen.
+        public static string Name(SectDef d) => d == null ? "" : L(d.NameTh, d.NameEn ?? d.NameTh);
+        public static string Name(EnemyDef d) => d == null ? "" : L(d.NameTh, d.NameEn ?? d.NameTh);
+        public static string Name(RoleDef d) => d == null ? "" : L(d.NameTh, d.NameEn ?? d.NameTh);
+        public static string Unit(string key) => Name(GameData.DefOf(key));
+        public static string Enemy(string id) => GameData.Enemies.TryGetValue(id, out var e) ? Name(e) : id.StartsWith("boss") ? L("บอส", "Boss") : id;
 
         public static RectTransform NewScreen(string name, string bg = "#0B0910")
         {
