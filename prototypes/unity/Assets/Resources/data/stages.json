@@ -50,6 +50,9 @@
   "stages": [
     {
       "id": "T-0",
+      "nameTh": "ลานฝึก",
+      "nameEn": "Training Ground",
+      "startLives": 99,
       "chapter": 0,
       "type": "training",
       "title": "First-run tutorial: one disciple of every sect, played before picking a sect (SPEC-front-flow step 4)",
@@ -62,6 +65,8 @@
     },
     {
       "id": "T-1",
+      "nameTh": "ลานประลอง",
+      "nameEn": "Sparring Ground",
       "chapter": 0,
       "type": "training",
       "title": "Training ground: all six sects, test Wu Xing and combos",
@@ -87,6 +92,8 @@
     },
     {
       "id": "1-1",
+      "nameTh": "ลานนาขั้นบันได",
+      "nameEn": "Terraced Fields",
       "chapter": 1,
       "type": "defend",
       "title": "Tutorial: place Cloud Sword disciples",
@@ -110,6 +117,8 @@
     },
     {
       "id": "1-2",
+      "nameTh": "ทางเกวียนเชิงเขา",
+      "nameEn": "Foothill Cart Road",
       "chapter": 1,
       "type": "defend",
       "title": "Tutorial: upgrades + interest",
@@ -152,6 +161,8 @@
     },
     {
       "id": "1-4",
+      "nameTh": "ศาลเจ้าหมู่บ้าน",
+      "nameEn": "Village Shrine",
       "chapter": 1,
       "type": "defend",
       "title": "Unlock Vajra Stone; Golden Bell blocking",
@@ -197,6 +208,8 @@
     },
     {
       "id": "1-6",
+      "nameTh": "หลังคายามโพล้เพล้",
+      "nameEn": "Rooftops at Dusk",
       "chapter": 1,
       "type": "defend",
       "title": "First flyers: rooftop leapers",
@@ -310,6 +323,8 @@
     },
     {
       "id": "1-12",
+      "nameTh": "ทูตจันทร์โลหิต",
+      "nameEn": "The Blood Moon Envoy",
       "chapter": 1,
       "type": "defend",
       "title": "Blood Moon Envoy, 20 waves",

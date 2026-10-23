@@ -63,6 +63,63 @@ namespace FiveSects.Game
         public static string Name(SkillDef k) => k == null ? "" : L(k.NameTh, k.Name ?? k.NameTh);
         public static string Effect(SkillDef k) => k == null ? "" : L(k.EffectTh ?? k.Effect, k.Effect ?? "");
 
+        // One look across every screen (matches the battle HUD): black-red lacquer panels with a thin gold edge,
+        // crimson for the main action, dark lacquer for the rest, and a faded, edgeless look for what cannot be pressed.
+        public const string Primary = "#8A1A12", Secondary = "#2A1414", PanelColor = "#1A0E10", Gold = "#C9A040";
+
+        public static RectTransform Panel(RectTransform parent, string name, Vector2 aMin, Vector2 aMax, string color = PanelColor)
+        {
+            var rt = Box(parent, name, aMin, aMax, color);
+            var o = rt.gameObject.AddComponent<Outline>();
+            o.effectColor = Art.Hex(Gold); o.effectDistance = new Vector2(2, -2);
+            return rt;
+        }
+
+        // A star is a gold diamond: the bundled font has no star glyph.
+        public static void Star(RectTransform parent, Vector2 centre, float size, bool on)
+        {
+            var d = Box(parent, "Star", centre, centre, on ? "#FFD34A" : "#3A3442");
+            d.offsetMin = new Vector2(-size / 2, -size / 2); d.offsetMax = new Vector2(size / 2, size / 2);
+            d.localRotation = Quaternion.Euler(0, 0, 45);
+            d.GetComponent<Image>().raycastTarget = false;
+        }
+
+        // Children of this rect stay clear of notches and status bars; the screen background still fills the screen.
+        public static RectTransform SafeArea(RectTransform root)
+        {
+            var safe = (RectTransform)new GameObject("Safe", typeof(RectTransform)).transform;
+            safe.SetParent(root, false);
+            var sa = Screen.safeArea;
+            float w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height);
+            safe.anchorMin = new Vector2(sa.xMin / w, sa.yMin / h); safe.anchorMax = new Vector2(sa.xMax / w, sa.yMax / h);
+            safe.offsetMin = safe.offsetMax = Vector2.zero;
+            return safe;
+        }
+
+        // Android Back / Esc.
+        public static bool BackPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var k = UnityEngine.InputSystem.Keyboard.current;
+            return k != null && k.escapeKey.wasPressedThisFrame;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            return Input.GetKeyDown(KeyCode.Escape);
+#else
+            return false;
+#endif
+        }
+
+        // Difficulty in words (the font has no dot or star glyphs).
+        public static string Difficulty(int n) => n <= 1 ? L("ง่าย", "Easy") : n == 2 ? L("ปานกลาง", "Medium") : L("ยาก", "Hard");
+
+        public static string StageName(string id)
+        {
+            var st = GameData.Stages.TryGetValue(id, out var x) ? x : null;
+            string name = st == null ? "" : L(st.NameTh ?? "", st.NameEn ?? st.NameTh ?? "");
+            return st != null && st.Chapter > 0 ? L("บท ", "Ch ") + st.Chapter + L(" ด่าน ", " · ") + id.Substring(id.IndexOf('-') + 1) + (name.Length > 0 ? " — " + name : "") : name;
+        }
+
+        /// <summary>A screen canvas; the returned rect is its safe area (destroy <c>rect.root</c> to drop the screen).</summary>
         public static RectTransform NewScreen(string name, string bg = "#0B0910")
         {
             if (EventSystem.current == null)
@@ -82,7 +139,7 @@ namespace FiveSects.Game
             scaler.matchWidthOrHeight = 1f;
             var root = (RectTransform)go.transform;
             Box(root, "Bg", Vector2.zero, Vector2.one, bg);
-            return root;
+            return SafeArea(root);
         }
 
         public static RectTransform Box(RectTransform parent, string name, Vector2 aMin, Vector2 aMax, string color)
@@ -109,13 +166,18 @@ namespace FiveSects.Game
         }
 
         public static Button Btn(RectTransform parent, string text, Vector2 aMin, Vector2 aMax, UnityEngine.Events.UnityAction onClick,
-            bool enabled = true, string color = "#3A2A14", int size = 28)
+            bool enabled = true, string color = Secondary, int size = 28)
         {
-            var rt = Box(parent, "Button", aMin, aMax, enabled ? color : "#221C2A");
+            var rt = Box(parent, "Button", aMin, aMax, color);
+            var img = rt.GetComponent<Image>();
+            bool visible = img.color.a > 0;
+            if (enabled && visible) { var o = rt.gameObject.AddComponent<Outline>(); o.effectColor = Art.Hex(Gold); o.effectDistance = new Vector2(2, -2); }
+            else if (!enabled) img.color = new Color(img.color.r, img.color.g, img.color.b, img.color.a * 0.45f);
             var b = rt.gameObject.AddComponent<Button>();
             b.interactable = enabled;
             if (onClick != null) b.onClick.AddListener(onClick);
-            Label(rt, text, size, Vector2.zero, Vector2.one, enabled ? "#ECE3CF" : "#9A92AE");
+            var t = Label(rt, text, size, Vector2.zero, Vector2.one, enabled ? "#ECE3CF" : "#6E6680");
+            t.resizeTextForBestFit = true; t.resizeTextMinSize = Mathf.Min(size, 14); t.resizeTextMaxSize = size;
             return b;
         }
 

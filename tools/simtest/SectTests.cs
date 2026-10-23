@@ -175,3 +175,22 @@ static class RosterRuleTests
         Check.Eq(3, s.SectsUsed.Count, "three sects");
     }
 }
+
+static class StageDataTests
+{
+    // The first-run tutorial is a lesson, not a test: it starts with enough lives that it cannot be lost.
+    [Test]
+    public static void TutorialCannotBeLostAndStoryStagesHaveNames()
+    {
+        Check.AtLeast(50, T.Defend("T-0").Lives, "T-0 lives");
+        var undefended = T.Defend("T-0");
+        T.Run(undefended, 20 * 60 * 6, T.NextWave);
+        Check.True(undefended.Phase != "lost", "T-0 lost with nobody placed");
+        foreach (var id in new[] { "T-0", "1-1", "1-2", "1-4", "1-6", "1-12" })
+        {
+            var st = GameData.Stages[id];
+            Check.True(!string.IsNullOrEmpty(st.NameTh) && !string.IsNullOrEmpty(st.NameEn), id + " has Thai and English names");
+        }
+        foreach (var a in GameData.Allegiance) Check.True(!string.IsNullOrEmpty(a.RuleEn), a.Element + " rule in English");
+    }
+}

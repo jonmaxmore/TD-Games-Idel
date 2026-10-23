@@ -90,7 +90,7 @@ namespace FiveSects.Sim
             var path = PathMath.ToMilli(layout.Path);
             return new DefendState
             {
-                StageId = stageId, Rng = seed, Silver = stage.StartSilver ?? 100, Lives = GameData.StartLives,
+                StageId = stageId, Rng = seed, Silver = stage.StartSilver ?? 100, Lives = stage.StartLives ?? GameData.StartLives,
                 TotalWaves = stage.Waves ?? 10, Sect = rosterSect, Unlocked = rosterSect != null ? UnlockedUnits(rosterSect, stageId) : UnlockedSects(stageId), Path = path, PathLen = PathMath.Length(path),
                 PathTiles = PathMath.TilesOnPath(layout.Path), Blocked = Layouts.Blocked(layout), Layout = layout, ArtCd = new int[GameData.Arts.Count],
                 ArtCharges = GameData.Arts.Select(a => a.Charges).ToArray(),

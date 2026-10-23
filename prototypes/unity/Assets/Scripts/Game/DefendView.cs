@@ -36,7 +36,7 @@ namespace FiveSects.Game
         float goalFlashUntil;
         SpriteRenderer rangeRing, tileMark, ghost;
         float ringUntil;
-        RectTransform hudRoot, resultPanel;
+        RectTransform canvasRoot, hudRoot, resultPanel;
         string discipleSig = null;
 
         class Shot { public SpriteRenderer R; public Vector2 From, To; public float T; public string El; public bool Crit; }
@@ -109,9 +109,9 @@ namespace FiveSects.Game
             ghost = MakeOverlay("ghost", 11);
             BuildHud();
             fx = new Fx(world, font);
-            if (use3D) { board = new Board3D(s.Layout, hudRoot); Camera.main.cullingMask = 0; } // the 3D board draws the world
+            if (use3D) { board = new Board3D(s.Layout, canvasRoot); Camera.main.cullingMask = 0; } // the 3D board draws the world
             else Build2D(biome);
-            Toast(thai ? s.Layout.NameTh : StageId, 2f);
+            Toast(Ui.StageName(StageId), 2f);
             if (StageId == "T-0" || StageId == "1-1") Toast(L("แตะพื้นข้างถนนเพื่อวางศิษย์", "Tap the ground beside the road to place a disciple"), 5f);
             if (Flow != null) Flow.BattleReady();
         }
@@ -256,22 +256,9 @@ namespace FiveSects.Game
             return uiHits.Count > 0;
         }
 
-        // Android Back / Esc.
-        static bool BackPressed()
-        {
-#if ENABLE_INPUT_SYSTEM
-            var k = Keyboard.current;
-            return k != null && k.escapeKey.wasPressedThisFrame;
-#elif ENABLE_LEGACY_INPUT_MANAGER
-            return Input.GetKeyDown(KeyCode.Escape);
-#else
-            return false;
-#endif
-        }
-
         void HandleInput()
         {
-            if (BackPressed()) { if (resultPanel == null) { if (panel != null) ClosePanel(); else TogglePause(); } return; }
+            if (Ui.BackPressed()) { if (resultPanel == null) { if (panel != null) ClosePanel(); else TogglePause(); } return; }
             if (!PointerDown(out var screen)) return;
             if (OverUi(screen)) return;
             if (paused || s.IsOver || resultPanel != null || offerPanel != null) return;
@@ -595,7 +582,8 @@ namespace FiveSects.Game
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(720, 1280);
             scaler.matchWidthOrHeight = 1f;
-            var root = (RectTransform)canvasGo.transform;
+            canvasRoot = (RectTransform)canvasGo.transform;
+            var root = Ui.SafeArea(canvasRoot); // HUD clear of notches; the 3D board behind it fills the whole screen
             hudRoot = root;
 
             // Top bar: silver, lives and wave as framed chips with a colour mark; speed at the right.
@@ -1088,7 +1076,8 @@ namespace FiveSects.Game
             var back = Box(hudRoot, "ResultBackdrop", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, "#000000");
             back.GetComponent<Image>().color = new Color(0, 0, 0, 0.6f);
             resultPanel = Frame(back, "Result", new Vector2(0.05f, 0.24f), new Vector2(0.95f, 0.76f), Vector2.zero, Vector2.zero);
-            var title = Label(resultPanel, won ? L("ชนะ!", "Victory!") : L("พ่ายแพ้", "Defeat"), 52, new Vector2(0, 0.82f), new Vector2(1, 0.98f), won ? "#E3B04B" : "#D2412F");
+            bool lesson = Flow != null && StageId == Flow.TutorialStage;
+            var title = Label(resultPanel, won ? L("ชนะ!", "Victory!") : lesson ? L("จบการฝึก", "Training over") : L("พ่ายแพ้", "Defeat"), 52, new Vector2(0, 0.82f), new Vector2(1, 0.98f), won ? "#E3B04B" : "#D2412F");
             title.font = Ui.Bold; title.alignment = TextAnchor.MiddleCenter;
             int secs = s.Tick / 20;
             var stats = Label(resultPanel, L("เวลา ", "Time ") + secs / 60 + ":" + (secs % 60).ToString("00") + "   ·   " + L("เสียชีวิต ", "Lives lost ") + s.LivesLost + "   ·   " + L("ตำลึง ", "Silver ") + s.Silver,
@@ -1175,7 +1164,7 @@ namespace FiveSects.Game
             board?.Dispose();
             if (Camera.main != null) Camera.main.cullingMask = ~0;
             Destroy(world.gameObject);
-            Destroy(hudRoot.gameObject);
+            Destroy(canvasRoot.gameObject);
             Destroy(gameObject);
         }
 

@@ -26,8 +26,10 @@ namespace FiveSects.Game
             new GameObject("Flow").AddComponent<Flow>();
         }
 
+        // Parsed once per app run; every stage after the first reuses it.
         public static void LoadData()
         {
+            if (GameData.Stages.Count > 0) return;
             GameData.Load(name =>
             {
                 var asset = Resources.Load<TextAsset>("data/" + name);

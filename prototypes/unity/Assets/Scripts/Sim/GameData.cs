@@ -15,7 +15,7 @@ namespace FiveSects.Sim
     public class ComboDef { public string Id, NameTh, A, B; }
     public class StageDef
     {
-        public string Id, Type, Layout, Variant, UnlocksSect; public int Chapter, HpPct = 100; public int? Waves, StartSilver; public bool UnlockAll; // HpPct: stage difficulty on regular enemies
+        public string Id, Type, Layout, Variant, UnlocksSect, NameTh, NameEn; public int Chapter, HpPct = 100; public int? Waves, StartSilver, StartLives; public bool UnlockAll; // HpPct: stage difficulty on regular enemies
         public List<string> Enemies = new List<string>(), Stars = new List<string>(), GuestSects = new List<string>();
         public Dictionary<string, string> ScriptedWaves = new Dictionary<string, string>();
         public List<string> WavePool;
@@ -26,7 +26,7 @@ namespace FiveSects.Sim
     // Sect x role disciple (sects.json > roster): fights with its kit's mechanic (Element), counts as its Sect for Wu Xing.
     public class SkillDef { public int Lvl; public string Name, NameTh, Effect, EffectTh; } // view only: the sim's level rules live in Defend
     public class UnitDef : SectDef { public string Id, Sect, RoleId, Dot, DescTh, DescEn; }
-    public class AllegianceDef { public string Element, RuleTh; public int Difficulty; }
+    public class AllegianceDef { public string Element, RuleTh, RuleEn; public int Difficulty; }
     public class UpcomingSectDef { public string Id, NameTh, NameEn; public int OpensMonth; }
     public class EliteAffix { public string Id, NameTh; public int HpPct, SpeedPct, RegenPct; }
 
@@ -123,7 +123,7 @@ namespace FiveSects.Sim
             if (sects["allegiance"] != null)
             {
                 foreach (var a in sects["allegiance"]["launch"])
-                    Allegiance.Add(new AllegianceDef { Element = (string)a["element"], RuleTh = (string)a["ruleTh"], Difficulty = (int)a["difficulty"] });
+                    Allegiance.Add(new AllegianceDef { Element = (string)a["element"], RuleTh = (string)a["ruleTh"], RuleEn = (string)a["ruleEn"], Difficulty = (int)a["difficulty"] });
                 foreach (var u in sects["allegiance"]["upcoming"])
                     UpcomingSects.Add(new UpcomingSectDef { Id = (string)u["id"], NameTh = (string)u["nameTh"], NameEn = (string)u["nameEn"], OpensMonth = (int)u["opensMonth"] });
             }
@@ -182,7 +182,8 @@ namespace FiveSects.Sim
                 var st = new StageDef
                 {
                     Id = (string)s["id"], Type = (string)s["type"], Layout = (string)s["layout"], Variant = (string)s["variant"], UnlocksSect = (string)s["unlocksSect"],
-                    Chapter = (int)s["chapter"], Waves = (int?)s["waves"], StartSilver = (int?)s["startSilver"], UnlockAll = (bool?)s["unlockAll"] ?? false, HpPct = (int?)s["hpPct"] ?? 100,
+                    Chapter = (int)s["chapter"], Waves = (int?)s["waves"], StartSilver = (int?)s["startSilver"], UnlockAll = (bool?)s["unlockAll"] ?? false, HpPct = (int?)s["hpPct"] ?? 100, StartLives = (int?)s["startLives"],
+                    NameTh = (string)s["nameTh"], NameEn = (string)s["nameEn"],
                 };
                 if (s["enemies"] != null) st.Enemies = s["enemies"].Select(x => (string)x).ToList();
                 if (s["stars"] != null) st.Stars = s["stars"].Select(x => (string)x).ToList();

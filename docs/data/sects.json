@@ -131,11 +131,11 @@
   "allegiance": {
     "_notes": "Sect the player picks after the tutorial (docs/design/sect-allegiance.md). Read by the Unity front flow only; the sim roster per sect x role comes later. ruleTh is the one-line sect rule shown on the pick card. Changing sect later needs the sect-change token (SPEC-front-flow §5).",
     "launch": [
-      { "element": "metal", "ruleTh": "ทุกการโจมตีครั้งที่ 4 คริติคอลแน่นอน", "difficulty": 1 },
-      { "element": "wood", "ruleTh": "พิษลามไปศัตรูข้างเคียงเมื่อเป้าตาย", "difficulty": 2 },
-      { "element": "water", "ruleTh": "ศัตรูที่ช้าอยู่รับดาเมจเพิ่ม", "difficulty": 2 },
-      { "element": "fire", "ruleTh": "ไฟเผาต่อเนื่อง ยิ่งโดนนานยิ่งแรง", "difficulty": 1 },
-      { "element": "earth", "ruleTh": "ศิษย์ขวางทางได้ ศัตรูต้องหยุดตี", "difficulty": 3 }
+      { "element": "metal", "ruleTh": "ทุกการโจมตีครั้งที่ 4 คริติคอลแน่นอน", "ruleEn": "Every 4th attack is a sure critical hit", "difficulty": 1 },
+      { "element": "wood", "ruleTh": "พิษลามไปศัตรูข้างเคียงเมื่อเป้าตาย", "ruleEn": "Poison spreads to nearby enemies when its target dies", "difficulty": 2 },
+      { "element": "water", "ruleTh": "ศัตรูที่ช้าอยู่รับดาเมจเพิ่ม", "ruleEn": "Slowed enemies take extra damage", "difficulty": 2 },
+      { "element": "fire", "ruleTh": "ไฟเผาต่อเนื่อง ยิ่งโดนนานยิ่งแรง", "ruleEn": "A burn that keeps going hits harder and harder", "difficulty": 1 },
+      { "element": "earth", "ruleTh": "ศิษย์ขวางทางได้ ศัตรูต้องหยุดตี", "ruleEn": "Disciples can block the road; enemies must stop and fight", "difficulty": 3 }
     ],
     "upcoming": [
       { "id": "beggar", "nameEn": "Myriad-Li Staff Brotherhood", "nameTh": "พรรคไม้เท้าหมื่นลี้", "opensMonth": 2 },
