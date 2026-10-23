@@ -61,6 +61,7 @@ namespace FiveSects.Sim
         public List<string> Offer;
         public List<string> SeenTypes = new List<string>();
         public List<bool> Stars;
+        public List<string> SectsUsed = new List<string>(); // distinct sect elements ever placed (max_2_sects star)
         public bool IsOver => Phase == "won" || Phase == "lost";
     }
 
@@ -73,10 +74,10 @@ namespace FiveSects.Sim
         // Same values as the FX table in defend.ts.
         const int MetalCritPct = 15, MetalEvery = 6, WoodPoisonDps = 10, WoodVulnPct = 25, WaterSlowPct = 30, WaterFreezeEvery = 5;
         const int FireBurnDps = 6, FireSplash = 800, FireExplodeDmg = 30, EarthSplash = Tile, YyReveal = 3 * Tile, YyRatePct = 120;
-        const int DashDist = 2 * Tile, HealRange = 1500, HealPct = 5, BruteArmor = 5, AdjacencyPct = 115;
+        const int DashDist = 2 * Tile, HealRange = 1500, HealPct = 5, HealBossPct = 1, BruteArmor = 5, AdjacencyPct = 115;
         static readonly int WoodPoisonTicks = 3 * Hz, WoodRootEvery = 8 * Hz, WoodRootTicks = 1 * Hz, WaterSlowTicks = 2 * Hz;
         static readonly int WaterFreezeTicks = JsMath.Round(1.2 * Hz), WaterPushEvery = 12 * Hz, FireBurnTicks = 3 * Hz;
-        static readonly int EarthBellEvery = 10 * Hz, EarthBellTicks = 2 * Hz, EarthQuakeTicks = 1 * Hz, DashEvery = 4 * Hz;
+        static readonly int PhoenixEvery = 20 * Hz, EarthBellEvery = 10 * Hz, EarthBellTicks = 2 * Hz, EarthQuakeTicks = 1 * Hz, DashEvery = 4 * Hz;
         static readonly int HealEvery = Hz, MimicTicks = 3 * Hz;
 
         static int MaxLevel => GameData.UpgradeLevels;
@@ -200,6 +201,7 @@ namespace FiveSects.Sim
                     else d.Els.Add(c.Sect);
                     s.Disciples.Add(d);
                     s.PeakDisciples = Math.Max(s.PeakDisciples, s.Disciples.Count);
+                    if (!s.SectsUsed.Contains(Wux(d)[0])) s.SectsUsed.Add(Wux(d)[0]);
                     ev.Add(new SimEvent { E = "placed", Id = id });
                     return;
                 }
@@ -304,7 +306,11 @@ namespace FiveSects.Sim
 
         static void OfferCards(DefendState s, List<SimEvent> ev)
         {
-            var pool = GameData.Cards.Where(c => !s.Cards.Contains(c.Id) && (c.Needs == null || s.Unlocked.Contains(c.Needs))).ToList();
+            // Sect-locked cards follow the player's sect in a roster game (Unlocked then holds unit ids, not elements);
+            // cards built on mixing sects (Roster == false) are never offered there.
+            var pool = GameData.Cards.Where(c => !s.Cards.Contains(c.Id)
+                && (c.Needs == null || (s.Sect != null ? c.Needs == s.Sect : s.Unlocked.Contains(c.Needs)))
+                && (s.Sect == null || c.Roster)).ToList();
             var offer = new List<string>();
             while (offer.Count < 3 && pool.Count > 0)
             {
@@ -348,11 +354,19 @@ namespace FiveSects.Sim
             var pool = (stage.WavePool ?? GameData.WaveRecipes.Select(r => r.Id).ToList()).Where(id =>
             {
                 var r = RecipeById(id);
-                return r.Types.Count == 0 || r.Types.Any(t => avail.Contains(t));
+                return (r.Types.Count == 0 || r.Types.Any(t => avail.Contains(t))) && Answerable(s, r);
             }).ToList();
             var choices = pool.Count > 1 ? pool.Where(id => id != s.Recipe).ToList() : pool;
             if (choices.Count == 0) return "mixed";
             return choices[(int)Math.Floor(Rng.Next(ref s.Rng) * choices.Count)];
+        }
+
+        // A roster player must hold at least one of the roles a wave shape asks for ("air": any unit that hits air).
+        static bool Answerable(DefendState s, WaveRecipe r)
+        {
+            if (s.Sect == null || r.NeedsRoles.Count == 0) return true;
+            var units = s.Unlocked.Where(GameData.Units.ContainsKey).Select(k => GameData.Units[k]).ToList();
+            return r.NeedsRoles.Any(n => n == "air" ? units.Any(u => u.HitsAir) : units.Any(u => u.RoleId == n));
         }
 
         public static List<QueuedEnemy> WaveEntries(string stageId, int wave, string recipeId)
@@ -368,7 +382,8 @@ namespace FiveSects.Sim
 
         public static List<string> WaveTypes(string stageId, int wave) => WaveEntries(stageId, wave, "mixed").Select(q => q.Type).ToList();
 
-        // Interest is paid when a wave is called, capped by how far the run is.
+        // Interest is paid once per wave, when the field is clear, capped by how far the run is. Calling the next wave
+        // before the field is clear skips it: that is the price of the early-call bonus.
         static void PayInterest(DefendState s, List<SimEvent> ev)
         {
             int pct = GameData.InterestPct + (HasLevel(s, "yinyang", 3) ? 1 : 0) + (Card(s, "interestPct")?.Value ?? 0);
@@ -380,7 +395,6 @@ namespace FiveSects.Sim
 
         static void StartWave(DefendState s, List<SimEvent> ev)
         {
-            PayInterest(s, ev);
             s.Wave++;
             s.Recipe = s.NextRecipe;
             s.SpawnQueue.AddRange(WaveEntries(s.StageId, s.Wave, s.Recipe));
@@ -394,7 +408,7 @@ namespace FiveSects.Sim
             string type = q.Type;
             var def = GameData.Enemies[type];
             // Bosses use their data HP as-is; regular enemies scale with the wave curve.
-            int bas = def.Boss != null ? def.Hp : JsMath.FloorDiv((long)GameData.WaveHp(def.Hp, q.Wave) * q.HpPct, 100);
+            int bas = def.Boss != null ? def.Hp : JsMath.FloorDiv((long)GameData.WaveHp(def.Hp, q.Wave) * q.HpPct * GameData.Stages[s.StageId].HpPct, 100 * 100);
             int hp = small ? Math.Max(1, JsMath.FloorDiv(bas, 4)) : Math.Max(1, bas);
             int speed = def.Speed;
             int bounty = small ? 1 : JsMath.FloorDiv((long)def.Bounty * (100 + GameData.BountyGrowthPct * (q.Wave - 1)), 100);
@@ -459,7 +473,7 @@ namespace FiveSects.Sim
         {
             int pct = Wuxing.OvercomePct(Wux(d), e.El);
             int dmg = JsMath.FloorDiv((long)raw * pct, 100);
-            if (e.Poison > 0 && HasLevel(s, "wood", 3)) dmg = JsMath.FloorDiv((long)dmg * (100 + WoodVulnPct), 100);
+            if (HasLevel(s, "wood", 3) && (s.Sect == "fire" ? e.BurnT > 0 : e.Poison > 0)) dmg = JsMath.FloorDiv((long)dmg * (100 + WoodVulnPct), 100); // roster: the sect DoT
             if (e.Type == "mimic" && e.LastElT > 0 && e.LastEl != null && Wux(d).Contains(e.LastEl)) dmg = JsMath.FloorDiv(dmg, 2);
             var freeze = Card(s, "slowedVuln");
             if (freeze != null && e.SlowT > 0) dmg = JsMath.FloorDiv((long)dmg * (100 + freeze.Pct), 100);
@@ -510,6 +524,21 @@ namespace FiveSects.Sim
                     }
             }
 
+            // Fire tier 3 "เพลิงคืนชีพ": every 20 s a phoenix sweeps the path; every enemy on it is hit and set burning.
+            // PushT doubles as its timer (only the water kit uses PushT otherwise).
+            if (d.Combo == null && d.Els.Contains("fire") && lvl >= 3 && d.PushT >= PhoenixEvery)
+            {
+                d.PushT = 0;
+                ev.Add(new SimEvent { E = "phoenix", From = d.Id });
+                foreach (var e in s.Enemies.ToList())
+                    if (e.Hp > 0 && (e.Type != "assassin" || e.Revealed))
+                    {
+                        DealDamage(s, d, e, st.Dmg, false, ev);
+                        e.BurnT = FireBurnTicks;
+                        e.BurnDps = Math.Max(e.BurnDps, DotDps(d, e, FireBurnDps * 2, lvl));
+                    }
+            }
+
             if (d.Cd > 0) { d.Cd--; return; }
             Enemy target = null;
             foreach (var e in s.Enemies)
@@ -533,6 +562,11 @@ namespace FiveSects.Sim
                 switch (el)
                 {
                     case "metal":
+                        // A roster striker's crit feeds its sect's damage over time (fire burn, wood poison), so it plays
+                        // into the sect rule instead of being a generic sword.
+                        if (crit && DotKind(d) == "burn") { target.BurnT = FireBurnTicks; target.BurnDps = Math.Max(target.BurnDps, DotDps(d, target, FireBurnDps, lvl)); }
+                        else if (crit && DotKind(d) == "poison")
+                        { target.Poison = Math.Min(3, target.Poison + 1); target.PoisonT = WoodPoisonTicks; target.PoisonDps = Math.Max(target.PoisonDps, DotDps(d, target, WoodPoisonDps, lvl)); }
                         if (crit && lvl >= 3)
                         {
                             var second = s.Enemies.FirstOrDefault(e => e != target && CanTarget(e, st.HitsAir, st.HitsGround) && PathMath.Within(d.X, d.Y, e.X, e.Y, st.Range));
@@ -644,15 +678,18 @@ namespace FiveSects.Sim
                     // Fire sect rule: a burn that keeps going hits harder, +rampPctPerSec per second up to +rampMaxPct.
                     int ramp = s.Sect == "fire" ? Math.Min(GameData.FireRampMaxPct, e.BurnAge / Hz * GameData.FireRampPctPerSec) : 0;
                     if (e.BurnT > 0) e.Hp -= Math.Max(1, JsMath.FloorDiv((long)e.BurnDps * (100 + ramp), 200 * armour));
-                    if (e.PoisonT > 0 && e.Poison > 0) e.Hp -= Math.Max(1, JsMath.FloorDiv((long)e.Poison * e.PoisonDps, 2 * armour));
+                    // Wood sect rule: its poison seeps through Iron Shirt (brute armour does not halve it).
+                    int poisonArmour = s.Sect == "wood" ? 1 : armour;
+                    if (e.PoisonT > 0 && e.Poison > 0) e.Hp -= Math.Max(1, JsMath.FloorDiv((long)e.Poison * e.PoisonDps, 2 * poisonArmour));
                 }
                 if (e.BurnT > 0) { e.BurnT--; e.BurnAge++; } else e.BurnAge = 0;
                 if (e.PoisonT > 0) e.PoisonT--; else e.Poison = 0;
                 if (e.RegenPct > 0 && e.Age % Hz == 0) e.Hp = Math.Min(e.MaxHp, e.Hp + JsMath.FloorDiv((long)e.MaxHp * e.RegenPct, 100));
-                if (e.Type == "healer" && e.Age % HealEvery == 0)
+                // Healers mend allies nearby; burning or poisoned allies cannot be healed (SPEC-core §3.2), bosses only 1%.
+                if (e.Type == "healer" && e.Age % HealEvery == 0 && e.BurnT == 0 && e.PoisonT == 0)
                     foreach (var o in s.Enemies)
-                        if (o != e && o.Hp > 0 && PathMath.Within(e.X, e.Y, o.X, o.Y, HealRange))
-                            o.Hp = Math.Min(o.MaxHp, o.Hp + JsMath.FloorDiv((long)o.MaxHp * HealPct, 100));
+                        if (o != e && o.Hp > 0 && o.BurnT == 0 && o.PoisonT == 0 && PathMath.Within(e.X, e.Y, o.X, o.Y, HealRange))
+                            o.Hp = Math.Min(o.MaxHp, o.Hp + JsMath.FloorDiv((long)o.MaxHp * (GameData.Enemies[o.Type].Boss != null ? HealBossPct : HealPct), 100));
                 if (e.StunT > 0) { e.StunT--; continue; }
                 int sp = e.Speed;
                 if (e.SlowT > 0) { e.SlowT--; sp = JsMath.FloorDiv((long)sp * (100 - e.SlowPct), 100); } else e.SlowPct = 0;
@@ -737,7 +774,7 @@ namespace FiveSects.Sim
                             o.PoisonT = WoodPoisonTicks;
                             o.PoisonDps = Math.Max(o.PoisonDps, e.PoisonDps);
                         }
-                if (fireExplodes && e.BurnT > 0)
+                if (fireExplodes && (e.BurnT > 0 || (s.Sect == "wood" && e.Poison > 0))) // roster: the sect DoT
                     foreach (var o in s.Enemies) if (PathMath.Within(e.X, e.Y, o.X, o.Y, Tile)) o.Hp -= FireExplodeDmg;
             }
         }
@@ -761,6 +798,7 @@ namespace FiveSects.Sim
                 case "clearing":
                     if (s.Enemies.Count == 0)
                     {
+                        PayInterest(s, ev);
                         if (s.Wave >= s.TotalWaves) Finish(s, true, ev);
                         else if (s.Wave / GameData.CardEveryWaves > s.CardsOffered)
                         {
@@ -791,6 +829,7 @@ namespace FiveSects.Sim
                     case "under_3min": return s.Tick <= 3 * 60 * Hz;
                     case "hold_200_silver": return s.Silver >= 200;
                     case "max_6_disciples": return s.PeakDisciples <= 6;
+                    case "max_2_sects": return s.SectsUsed.Count <= 2;
                     case "use_combo": return s.CombosMade > 0;
                     default: return false;
                 }

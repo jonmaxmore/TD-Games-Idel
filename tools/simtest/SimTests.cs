@@ -25,17 +25,18 @@ static class T
 
 static class WuxingTests
 {
+    // SPEC-core §7: x1.2 against the element it overcomes, x0.85 against the one that overcomes it (from sects.json).
     [Test]
     public static void OvercomingAndOvercomeBy()
     {
-        Check.Eq(150, Wuxing.OvercomePct(new[] { "metal" }, "wood"), "metal vs wood");
-        Check.Eq(70, Wuxing.OvercomePct(new[] { "metal" }, "fire"), "metal vs fire");
+        Check.Eq(120, Wuxing.OvercomePct(new[] { "metal" }, "wood"), "metal vs wood");
+        Check.Eq(85, Wuxing.OvercomePct(new[] { "metal" }, "fire"), "metal vs fire");
         Check.Eq(100, Wuxing.OvercomePct(new[] { "metal" }, "water"), "metal vs water");
         Check.Eq(100, Wuxing.OvercomePct(new[] { "yinyang" }, "fire"), "yinyang vs fire");
     }
 
     [Test]
-    public static void ComboUsesItsBestElement() => Check.Eq(150, Wuxing.OvercomePct(new[] { "metal", "water" }, "fire"), "metal+water vs fire");
+    public static void ComboUsesItsBestElement() => Check.Eq(120, Wuxing.OvercomePct(new[] { "metal", "water" }, "fire"), "metal+water vs fire");
 
     [Test]
     public static void EarthGeneratesMetalNotTheOtherWay()
@@ -63,7 +64,7 @@ static class EconomyTests
         var d = s.Disciples[0];
         Check.Eq(start - GameData.Sects["metal"].Cost, s.Silver, "after place");
         int up = Defend.UpgradeCost(d);
-        Check.Eq(GameData.Sects["metal"].Cost * 150 / 100, up, "upgrade cost");
+        Check.Eq(GameData.Sects["metal"].Cost * GameData.CostPct[1] / 100, up, "upgrade cost");
         T.Run(s, 1, T.Up(d.Id));
         Check.Eq(2, d.Level, "level");
         int before = s.Silver;
@@ -89,14 +90,22 @@ static class EconomyTests
         Check.Eq(6, T.Defend("T-1").Unlocked.Count, "T-1");
     }
 
+    // Interest is paid once per wave when the field is clear; calling a wave pays nothing.
+    public static int InterestAtClear(DefendState s)
+    {
+        s.Enemies.Clear(); s.SpawnQueue.Clear(); s.Phase = "clearing";
+        return T.Run(s, 1).First(e => e.E == "interest").Amount;
+    }
+
     [Test]
-    public static void InterestIsCapped()
+    public static void InterestIsPaidWhenTheFieldIsClearAndCapped()
     {
         var s = T.Defend("1-1");
-        s.Silver = 1000;
-        Check.Eq(GameData.InterestCap, T.Run(s, 1, T.NextWave).First(e => e.E == "interest").Amount, "capped");
-        s.Wave = 5; s.Silver = 100;
-        Check.Eq(100 * GameData.InterestPct / 100, T.Run(s, 1, T.NextWave).First(e => e.E == "interest").Amount, "uncapped");
+        Check.True(!T.Run(s, 1, T.NextWave).Any(e => e.E == "interest"), "calling a wave pays no interest");
+        s.Silver = 1000; s.Wave = 1;
+        Check.Eq(GameData.InterestCap + GameData.InterestCapPerWave, InterestAtClear(s), "capped");
+        s.Phase = "spawning"; s.Wave = 5; s.Silver = 100;
+        Check.Eq(100 * GameData.InterestPct / 100, InterestAtClear(s), "uncapped");
     }
 
     [Test]
@@ -109,9 +118,9 @@ static class EconomyTests
         int atStake = s.Enemies.Sum(e => e.Bounty);
         int before = s.Silver;
         var ev = T.Run(s, 1, T.NextWave);
-        int interest = ev.First(e => e.E == "interest").Amount;
+        Check.True(!ev.Any(e => e.E == "interest"), "no interest on an early call");
         Check.Eq(2, s.Wave, "wave");
-        Check.AtLeast(GameData.EarlyCallBonus + atStake * GameData.EarlyCallPct / 100 + interest, s.Silver - before, "silver gained");
+        Check.AtLeast(GameData.EarlyCallBonus + atStake * GameData.EarlyCallPct / 100, s.Silver - before, "silver gained");
         Check.True(s.SpawnQueue.Count > 0, "next wave queued");
     }
 }
@@ -219,7 +228,7 @@ static class ComboTests
         for (int i = 0; i < 2; i++) T.Run(s, 1, T.Up(s.Disciples[0].Id));
         s.Silver = 400;
         s.Wave = 10; // cap 40, so the +1% is visible: 400 * (4 + 1)% = 20
-        Check.Eq(20, T.Run(s, 1, T.NextWave).First(e => e.E == "interest").Amount, "interest");
+        Check.Eq(20, EconomyTests.InterestAtClear(s), "interest");
     }
 }
 

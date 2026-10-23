@@ -31,10 +31,14 @@ static class Bot
             var cmds = s.Tick == 0 ? new List<Command> { new Command { T = "nextWave" } } : new List<Command>();
             if (earlyCall && s.Phase == "clearing" && s.Enemies.Count <= 3 && s.Wave < s.TotalWaves) cmds.Add(new Command { T = "nextWave" });
             string sect = sects[placed % sects.Count];
+            // Like a player reading the next-wave bar: if the coming shape needs a role nobody holds, place that role first.
+            string need = Needed(s, sects);
+            bool urgent = need != null;
+            if (urgent) sect = need;
             var lowest = s.Disciples.OrderBy(d => d.Level).FirstOrDefault();
             // Past the cap, keep spending: once every disciple is maxed, place more instead of hoarding silver.
             bool allMaxed = lowest != null && lowest.Level >= 3;
-            bool wantPlace = placed < 3 || ((placed < maxDisciples || allMaxed) && (lowest == null || lowest.Level >= 2));
+            bool wantPlace = urgent || placed < 3 || ((placed < maxDisciples || allMaxed) && (lowest == null || lowest.Level >= 2));
             if (wantPlace)
             {
                 var spots = BestTiles(s, GameData.DefOf(sect).Range);
@@ -45,6 +49,22 @@ static class Bot
             Defend.Step(s, cmds);
         }
         return s;
+    }
+
+    // A unit for a role the next wave asks for ("air": anything that hits air) when no placed disciple covers it.
+    static string Needed(DefendState s, List<string> sects)
+    {
+        if (s.Sect == null) return null;
+        var rec = GameData.WaveRecipes.FirstOrDefault(r => r.Id == s.NextRecipe);
+        if (rec == null) return null;
+        foreach (var role in rec.NeedsRoles)
+        {
+            bool covered = s.Disciples.Any(d => d.Unit != null && (role == "air" ? GameData.Units[d.Unit].HitsAir : GameData.Units[d.Unit].RoleId == role));
+            if (covered) continue;
+            var unit = sects.FirstOrDefault(k => GameData.Units.TryGetValue(k, out var u) && (role == "air" ? u.HitsAir : u.RoleId == role));
+            if (unit != null) return unit;
+        }
+        return null;
     }
 
     public static DefendState Play(string stageId, uint seed, string sect = null, int maxDisciples = 8, List<string> sects = null, Dictionary<int, List<Command>> record = null, bool earlyCall = false)

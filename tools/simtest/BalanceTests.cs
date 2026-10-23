@@ -1,5 +1,7 @@
-// Balance gates from docs/research/design-review.md §6 (B1, B2, B4-B7 + boss mechanics) and SPEC-core §4 (S1/S2),
-// measured with the deterministic rules and the greedy bot on fixed seeds.
+// Balance gates from docs/research/design-review.md §6 (B1, B2, B4-B7 + boss mechanics) and SPEC-core §4 (story curve
+// for the roster sects), measured with the deterministic rules and the greedy bot on fixed seeds. The story is played
+// with a roster sect (sect pick offers only those); the element-mixing build lives on the training ground T-1.
+// npm test -- --measure prints the full table these gates were tuned from.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,13 +27,14 @@ static class BalanceTests
         }
     }
 
+    // The training ground (all six element sects): mixing wins, any single element alone does not.
     [Test]
-    public static void B2_NoSingleSectSolvesTheFinale()
+    public static void B2_OnTheTrainingGroundNoSingleElementWins()
     {
-        int mixed = Seeds.Count(seed => Bot.Play("1-12", seed, earlyCall: true).Phase == "won");
-        int mono = Seeds.Count(seed => Bot.Play("1-12", seed, earlyCall: true, sects: new List<string> { "metal" }).Phase == "won");
-        Check.AtLeast(3, mixed, "mixed build wins");
-        Check.AtMost(1, mono, "metal alone wins");
+        int mixed = Seeds.Count(seed => Bot.Play("T-1", seed, earlyCall: true).Phase == "won");
+        Check.AtLeast(4, mixed, "mixed build wins");
+        foreach (var el in new[] { "metal", "water", "earth" })
+            Check.AtMost(1, Seeds.Count(seed => Bot.Play("T-1", seed, earlyCall: true, sects: new List<string> { el }).Phase == "won"), el + " alone wins");
     }
 
     [Test]
@@ -48,14 +51,19 @@ static class BalanceTests
     }
 
     [Test]
-    public static void B5_TwentyWaveStagesTakeAtMost10Minutes()
+    public static void B5_TwentyWaveStagesTakeAtMost10MinutesWhenCallingEarly()
     {
-        foreach (var id in new[] { "T-1", "1-12" })
-            foreach (var seed in Seeds.Take(2))
+        foreach (var seed in Seeds.Take(2))
+        {
+            var s = Bot.Play("T-1", seed, earlyCall: true);
+            Check.Eq("won", s.Phase, $"T-1 seed {seed}");
+            Check.AtMost(10, s.Tick / 20.0 / 60, $"T-1 seed {seed} minutes");
+        }
+        foreach (var sect in new[] { "fire", "wood" })
+            foreach (var seed in Seeds)
             {
-                var s = Bot.Play(id, seed, earlyCall: true);
-                Check.Eq("won", s.Phase, $"{id} seed {seed}");
-                Check.AtMost(10, s.Tick / 20.0 / 60, $"{id} seed {seed} minutes");
+                var s = Bot.Play("1-12", seed, sect, earlyCall: true);
+                if (s.Phase == "won") Check.AtMost(10, s.Tick / 20.0 / 60, $"1-12 {sect} seed {seed} minutes");
             }
     }
 
@@ -87,13 +95,14 @@ static class BalanceTests
         for (int i = 1; i < a.Count; i++) if (a[i] != "mixed") Check.True(a[i] != a[i - 1], $"wave {i + 1} repeats");
     }
 
-    // Jump straight to the boss wave with eight maxed disciples of the first unlocked sect, then play it out.
-    static List<SimEvent> BossWave(string stageId, int bossWave)
+    // Jump straight to the boss wave with eight maxed disciples (rotating through what is unlocked), then play it out.
+    static List<SimEvent> BossWave(string stageId, int bossWave, string sect = null)
     {
-        var s = Defend.Create(stageId, 3);
+        var s = Defend.Create(stageId, 3, sect);
         s.Silver = 100000;
+        s.Lives = 1000; // the test is about the boss mechanic, not about holding the wave
         var tiles = new[] { (4, 3), (6, 4), (3, 7), (5, 9), (7, 7), (3, 12), (7, 12), (5, 13) };
-        Defend.Step(s, tiles.Select(t => T.Place(s.Unlocked[0], t.Item1, t.Item2)).ToArray());
+        Defend.Step(s, tiles.Select((t, i) => T.Place(s.Unlocked[i % s.Unlocked.Count], t.Item1, t.Item2)).ToArray());
         for (int i = 0; i < 2; i++) Defend.Step(s, s.Disciples.Select(d => T.Up(d.Id)).ToArray());
         s.Wave = bossWave - 1;
         var ev = Defend.Step(s, new[] { T.NextWave });
@@ -105,13 +114,33 @@ static class BalanceTests
     public static void Boss_BanditKingDisablesDisciplesAtHpThresholds() => Check.AtLeast(2, BossWave("1-10", 10).Count(e => e.E == "disable"), "disables");
 
     [Test]
-    public static void Boss_EnvoySealsTheMostUsedSect() => Check.True(BossWave("1-12", 20).Any(e => e.E == "seal" && e.El != null), "seal");
+    public static void Boss_EnvoySealsTheMostUsedSect() => Check.True(BossWave("1-12", 20, "fire").Any(e => e.E == "seal" && e.El != null), "seal");
+
+    // Story curve for the player's path (roster sects, a bot that reads the next-wave bar and does not call early):
+    // the tutorial is safe, mid-chapter stages are won almost always, the finale is a real test that costs lives,
+    // and the two sects end within 15 points of each other (SPEC-core §4 S1/S2).
+    static readonly uint[] StorySeeds = Enumerable.Range(1, 24).Select(i => (uint)i).ToArray();
+
+    static (double win, double lost) Rate(string stage, string sect)
+    {
+        var runs = StorySeeds.Select(seed => Bot.Play(stage, seed, sect)).ToList();
+        return (runs.Count(r => r.Phase == "won") / (double)runs.Count, runs.Average(r => r.LivesLost));
+    }
 
     [Test]
-    public static void S1S2_EachRosterSectWinsTheFinaleOnMostSeedsAndTheyAreClose()
+    public static void StoryCurveRisesToARealFinaleForBothSects()
     {
-        var wins = new[] { "fire", "wood" }.Select(sect => Seeds.Count(seed => Bot.Play("1-12", seed, sect, earlyCall: true).Phase == "won")).ToList();
-        foreach (var w in wins) Check.AtLeast(3, w, "wins");
-        Check.AtMost(1, Math.Abs(wins[0] - wins[1]), "fire vs wood");
+        var finale = new Dictionary<string, double>();
+        foreach (var sect in new[] { "fire", "wood" })
+        {
+            Check.AtLeast(1, Rate("1-1", sect).win, sect + " 1-1");
+            foreach (var st in new[] { "1-2", "1-4", "1-6" }) Check.AtLeast(0.85, Rate(st, sect).win, $"{sect} {st}");
+            var (win, lost) = Rate("1-12", sect);
+            Check.AtLeast(0.55, win, sect + " 1-12 win rate");
+            Check.AtMost(0.9, win, sect + " 1-12 win rate");
+            Check.AtLeast(1, lost, sect + " 1-12 lives lost on average");
+            finale[sect] = win;
+        }
+        Check.AtMost(0.15, Math.Abs(finale["fire"] - finale["wood"]), "fire vs wood on 1-12");
     }
 }

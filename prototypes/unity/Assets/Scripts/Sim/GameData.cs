@@ -15,13 +15,13 @@ namespace FiveSects.Sim
     public class ComboDef { public string Id, NameTh, A, B; }
     public class StageDef
     {
-        public string Id, Type, Layout, Variant, UnlocksSect; public int Chapter; public int? Waves, StartSilver; public bool UnlockAll;
+        public string Id, Type, Layout, Variant, UnlocksSect; public int Chapter, HpPct = 100; public int? Waves, StartSilver; public bool UnlockAll; // HpPct: stage difficulty on regular enemies
         public List<string> Enemies = new List<string>(), Stars = new List<string>(), GuestSects = new List<string>();
         public Dictionary<string, string> ScriptedWaves = new Dictionary<string, string>();
         public List<string> WavePool;
     }
     public class ArtDef { public string Id, NameTh, Glyph, Type; public int Cooldown, Dmg, Radius, Pct, Duration, Charges, RechargeSilver; }
-    public class CardDef { public string Id, NameTh, EffectTh, Kind, Element, Needs; public int Pct, Value; }
+    public class CardDef { public string Id, NameTh, EffectTh, Kind, Element, Needs; public int Pct, Value; public bool Roster = true; } // Roster false: never offered to a one-sect roster game
     // Sect the player joins after the tutorial (sects.json > allegiance); front flow only, no rules use it yet.
     // Sect x role disciple (sects.json > roster): fights with its kit's mechanic (Element), counts as its Sect for Wu Xing.
     public class SkillDef { public int Lvl; public string Name, NameTh, Effect, EffectTh; } // view only: the sim's level rules live in Defend
@@ -51,6 +51,7 @@ namespace FiveSects.Sim
         public static readonly List<UpcomingSectDef> UpcomingSects = new List<UpcomingSectDef>();
         public static readonly Dictionary<string, string> Generates = new Dictionary<string, string>();
         public static readonly Dictionary<string, string> Overcomes = new Dictionary<string, string>();
+        public static int OvercomePct, OvercomeByPct; // damage % vs the element it overcomes / that overcomes it (SPEC-core §7)
         public static readonly List<ComboDef> Combos = new List<ComboDef>();
         public static int UpgradeLevels;
         public static List<string> UpgradeNames = new List<string>();
@@ -128,6 +129,7 @@ namespace FiveSects.Sim
             }
             foreach (var p in (JObject)sects["wuxing"]["generates"]) Generates[p.Key] = (string)p.Value;
             foreach (var p in (JObject)sects["wuxing"]["overcomes"]) Overcomes[p.Key] = (string)p.Value;
+            OvercomePct = (int)sects["wuxing"]["overcomePct"]; OvercomeByPct = (int)sects["wuxing"]["overcomeByPct"];
             foreach (var c in sects["comboTechniques"]["items"])
                 Combos.Add(new ComboDef { Id = (string)c["id"], NameTh = (string)c["nameTh"], A = (string)c["from"][0], B = (string)c["from"][1] });
             var up = sects["upgrade"];
@@ -180,7 +182,7 @@ namespace FiveSects.Sim
                 var st = new StageDef
                 {
                     Id = (string)s["id"], Type = (string)s["type"], Layout = (string)s["layout"], Variant = (string)s["variant"], UnlocksSect = (string)s["unlocksSect"],
-                    Chapter = (int)s["chapter"], Waves = (int?)s["waves"], StartSilver = (int?)s["startSilver"], UnlockAll = (bool?)s["unlockAll"] ?? false,
+                    Chapter = (int)s["chapter"], Waves = (int?)s["waves"], StartSilver = (int?)s["startSilver"], UnlockAll = (bool?)s["unlockAll"] ?? false, HpPct = (int?)s["hpPct"] ?? 100,
                 };
                 if (s["enemies"] != null) st.Enemies = s["enemies"].Select(x => (string)x).ToList();
                 if (s["stars"] != null) st.Stars = s["stars"].Select(x => (string)x).ToList();
@@ -219,7 +221,7 @@ namespace FiveSects.Sim
                     Cards.Add(new CardDef
                     {
                         Id = (string)c["id"], NameTh = (string)c["nameTh"], EffectTh = (string)c["effectTh"] ?? (string)c["effect"], Kind = kind,
-                        Element = (string)c["element"], Needs = (string)c["needs"], Pct = (int?)c["pct"] ?? 0, Value = (int?)c["value"] ?? 0,
+                        Element = (string)c["element"], Needs = (string)c["needs"], Pct = (int?)c["pct"] ?? 0, Value = (int?)c["value"] ?? 0, Roster = (bool?)c["roster"] ?? true,
                     });
                 }
             Loaded = true;

@@ -19,11 +19,12 @@ static class Goldens
         ["1-1"] = () => Golden("1-1", 42),
         ["T-1"] = () => Golden("T-1", 7),
         ["T-1-actions"] = () => Actions(11),
-        // Chapter finale: overlapping waves called mid-fight, both boss waves (disable at 10, seal at 20), wave recipes.
-        ["1-12-bosses"] = () => Golden("1-12", 2, earlyCall: true),
-        // Sect games: fire-sect roster with the burn ramp, wood-sect roster with poison spread (SPEC-core §4).
-        ["fire-1-12"] = () => Golden("1-12", 3, earlyCall: true, sect: "fire"),
-        ["wood-1-12"] = () => Golden("1-12", 3, earlyCall: true, sect: "wood"),
+        // Chapter finale won by the fire sect: both boss waves (disable at 10, seal at 20), healers, stealth, wave recipes.
+        ["1-12-bosses"] = () => Golden("1-12", 1, sect: "fire"),
+        // Sect games with waves called mid-fight: fire roster (burn ramp, striker burn, phoenix), wood roster (poison
+        // spread, poison through armour). Seeds chosen so both reach and win wave 20 (SPEC-core §4).
+        ["fire-1-12"] = () => Golden("1-12", 2, earlyCall: true, sect: "fire"),
+        ["wood-1-12"] = () => Golden("1-12", 2, earlyCall: true, sect: "wood"),
     };
 
     public static JObject Golden(string stageId, uint seed, bool earlyCall = false, string sect = null)

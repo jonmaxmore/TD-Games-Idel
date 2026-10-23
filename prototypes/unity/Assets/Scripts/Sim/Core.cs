@@ -166,8 +166,8 @@ namespace FiveSects.Sim
                 int pct = 100;
                 if (a != "yinyang" && target != "yinyang")
                 {
-                    if (GameData.Overcomes[a] == target) pct = 150;
-                    else if (GameData.Overcomes[target] == a) pct = 70;
+                    if (GameData.Overcomes[a] == target) pct = GameData.OvercomePct;
+                    else if (GameData.Overcomes[target] == a) pct = GameData.OvercomeByPct;
                 }
                 if (pct > best) best = pct;
             }

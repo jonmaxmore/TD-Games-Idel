@@ -4,9 +4,11 @@
     "elements": ["metal", "wood", "water", "fire", "earth"],
     "generates": { "metal": "water", "water": "wood", "wood": "fire", "fire": "earth", "earth": "metal" },
     "overcomes": { "metal": "wood", "wood": "earth", "earth": "water", "water": "fire", "fire": "metal" },
+    "overcomePct": 120,
+    "overcomeByPct": 85,
     "rules": {
       "generateAdjacency": "a disciple adjacent to a disciple of the element that generates it gains +15% dmg (สร้างเสริม / 相生)",
-      "overcomeVsEnemy": "damage vs enemy of the element it overcomes x1.5; vs the element that overcomes it x0.7 (ข่มกัน / 相克)"
+      "overcomeVsEnemy": "damage vs enemy of the element it overcomes x1.2 (overcomePct); vs the element that overcomes it x0.85 (overcomeByPct) (ข่มกัน / 相克, SPEC-core §7)"
     }
   },
   "sects": [
@@ -25,7 +27,7 @@
       "role": "poison DoT, root", "weapon": "flute + poison needles", "silhouette": "slim, flute held sideways",
       "cost": 50, "dmg": 11, "rate": 1.5, "range": 3.0, "target": "ground+air",
       "skills": [
-        { "lvl": 1, "name": "Verdant Venom", "nameTh": "พิษมรกต", "effect": "poison 8 dps, stacks x3", "effectTh": "ติดพิษซ้อนได้ 3 ชั้น เสียเลือดต่อเนื่อง 3 วินาที" },
+        { "lvl": 1, "name": "Verdant Venom", "nameTh": "พิษมรกต", "effect": "poison 10 dps, stacks x3", "effectTh": "ติดพิษซ้อนได้ 3 ชั้น เสียเลือดต่อเนื่อง 3 วินาที" },
         { "lvl": 2, "name": "Binding Vines", "nameTh": "เถาวัลย์รัด", "effect": "root 1s every 8s", "effectTh": "ทุก 8 วินาที เถาวัลย์รัดเป้าหมายอยู่กับที่ 1 วินาที" },
         { "lvl": 3, "name": "Song of Withering", "nameTh": "เพลงขลุ่ยร่วงโรย", "effect": "aura: poisoned enemies take +25% dmg", "effectTh": "ศัตรูที่ติดพิษโดนดาเมจจากทุกคนแรงขึ้น 25%" }
       ]
@@ -47,7 +49,7 @@
       "skills": [
         { "lvl": 1, "name": "Flame Fan", "nameTh": "พัดเพลิง", "effect": "cone of fire, burn 6 dps 3s", "effectTh": "ไฟกระจายรอบเป้า (รัศมี 0.8 ช่อง) เผาต่อเนื่อง 3 วินาที" },
         { "lvl": 2, "name": "Phoenix Feathers", "nameTh": "ขนหงส์กระจาย", "effect": "burning enemies explode on death (30 dmg r=1)", "effectTh": "ศัตรูที่ไหม้อยู่ตอนตาย ระเบิดใส่ตัวรอบข้าง 30 ดาเมจ (รัศมี 1 ช่อง)" },
-        { "lvl": 3, "name": "Rebirth Blaze", "nameTh": "เพลิงคืนชีพ", "effect": "every 20s a phoenix sweeps the path", "effectTh": "พลังขั้นสูงสุด ไฟแรงขึ้นมาก (ท่าหงส์กวาดทาง: ยังไม่เปิดในรุ่นทดสอบ)" }
+        { "lvl": 3, "name": "Rebirth Blaze", "nameTh": "เพลิงคืนชีพ", "effect": "every 20s a phoenix sweeps the path: hits every enemy on it and sets it burning", "effectTh": "ทุก 20 วินาที หงส์เพลิงกวาดทั้งเส้นทาง ศัตรูทุกตัวโดนและติดไฟ" }
       ]
     },
     {
@@ -56,7 +58,7 @@
       "cost": 70, "dmg": 45, "rate": 0.6, "range": 2.0, "target": "ground",
       "skills": [
         { "lvl": 1, "name": "Mountain Strike", "nameTh": "ไม้พลองสะเทือนขุนเขา", "effect": "splash r=1", "effectTh": "ฟาดพื้นกระเทือน ศัตรูบนพื้นรอบเป้า (รัศมี 1 ช่อง) โดนครึ่งหนึ่ง" },
-        { "lvl": 2, "name": "Golden Bell", "nameTh": "ระฆังทอง", "effect": "can be placed ON the path to block 3 enemies, immune 4s", "effectTh": "ทุก 10 วินาที ระฆังทองสะกดศัตรูบนพื้นรอบตัว 1 ช่อง ให้มึน 2 วินาที" },
+        { "lvl": 2, "name": "Golden Bell", "nameTh": "ระฆังทอง", "effect": "every 10s the golden bell stuns ground enemies within 1 tile for 2s", "effectTh": "ทุก 10 วินาที ระฆังทองสะกดศัตรูบนพื้นรอบตัว 1 ช่อง ให้มึน 2 วินาที" },
         { "lvl": 3, "name": "Earthquake Stance", "nameTh": "ท่วงท่าธรณีไหว", "effect": "stun all ground enemies in r=2 for 1s every 10s", "effectTh": "ระฆังขยายเป็นธรณีไหว: รัศมี 2 ช่อง มึน 1 วินาที" }
       ]
     },
@@ -98,28 +100,28 @@
       { "id": "taiji_master", "name": "Taiji Grandmaster",         "nameTh": "ปรมาจารย์ไท่จี๋",      "from": ["yinyang", "water", "fire"], "effect": "reverses time: enemies walk backwards 3s, every 25s" }
     ]
   },
-  "upgrade": { "levels": 3, "names": ["ศิษย์", "ศิษย์เอก", "ผู้อาวุโส"], "costMultiplier": [1.0, 1.5, 2.25], "statMultiplier": [1.0, 1.6, 2.5] },
+  "upgrade": { "levels": 3, "names": ["ศิษย์", "ศิษย์เอก", "ผู้อาวุโส"], "costMultiplier": [1.0, 1.2, 1.6], "statMultiplier": [1.0, 1.6, 2.5] },
   "roster": {
     "_notes": "Sect x role disciples for the sect the player picks (SPEC-core §4, roster.md §5). kit = the proven element mechanic the unit fights with (metal crit, fire splash, water slow, wood damage over time, yinyang support); sect = its element for Wu Xing and colour. dot: which status its damage over time applies (fire-sect units burn, wood-sect units poison). Sects without a roster yet play the legacy element disciples.",
     "roles": [
       { "id": "striker", "nameEn": "Vanguard", "nameTh": "กระบี่หน้า", "doesTh": "ดาเมจเป้าเดี่ยวสูง ล่าตัวหนาและบอส", "counters": ["brute", "boss"] },
       { "id": "burst", "nameEn": "Sweeper", "nameTh": "ปราณวง", "doesTh": "ตีวงกว้าง จัดการฝูง", "counters": ["puppet", "cultist"] },
-      { "id": "control", "nameEn": "Binder", "nameTh": "ตรึง", "doesTh": "ทำให้ช้าหรือหยุด", "counters": ["runner", "assassin"] },
-      { "id": "stacker", "nameEn": "Stacker", "nameTh": "สะสม", "doesTh": "ดาเมจต่อเนื่อง กดศัตรูที่ฟื้นเลือด", "counters": ["healer", "brute"] },
+      { "id": "control", "nameEn": "Binder", "nameTh": "ตรึง", "doesTh": "ทำให้ช้าหรือหยุด", "counters": ["runner", "leaper"] },
+      { "id": "stacker", "nameEn": "Stacker", "nameTh": "สะสม", "doesTh": "ดาเมจต่อเนื่อง กดศัตรูที่ฟื้นเลือด", "counters": ["healer", "mimic"] },
       { "id": "support", "nameEn": "Mentor", "nameTh": "ค้ำ", "doesTh": "เสริมเพื่อน เปิดเผยตัวล่องหน", "counters": ["assassin"] }
     ],
-    "roleUnlocks": { "1-1": ["striker", "burst"], "1-2": ["control"], "1-8": ["stacker"], "1-10": ["support"] },
+    "roleUnlocks": { "1-1": ["striker", "burst"], "1-2": ["control"], "1-4": ["stacker"], "1-6": ["support"] },
     "rules": {
       "fire": { "ruleTh": "ไฟเผาต่อเนื่อง ยิ่งโดนนานยิ่งแรง", "burnRampPctPerSec": 10, "burnRampMaxPct": 100 },
       "wood": { "ruleTh": "พิษลามไปศัตรูข้างเคียงเมื่อเป้าตาย", "spreadRange": 1.0, "spreadStacks": 1 }
     },
     "units": [
-      { "id": "crimson_phoenix_striker", "sect": "fire", "role": "striker", "kit": "metal", "nameEn": "Phoenix Quill", "nameTh": "ศิษย์ขนหงส์เจาะ", "cost": 60, "dmg": 24, "rate": 1.2, "range": 2.4, "target": "ground+air", "descTh": "ปาขนหงส์เพลิงพุ่งเป้าเดียว แรงพอเจาะเกราะ มีโอกาสคริติคอลแรงสองเท่า", "descEn": "Throws phoenix quills at one target; strong enough to punch through armour, with a chance to crit for double." },
-      { "id": "crimson_phoenix_burst", "sect": "fire", "role": "burst", "kit": "fire", "nameEn": "Flame Fan", "nameTh": "ศิษย์พัดเพลิง", "cost": 65, "dmg": 26, "rate": 1.0, "range": 2.4, "target": "ground+air", "dot": "burn", "descTh": "สะบัดพัดเป็นกรวยเพลิง เผาทั้งฝูงที่เดินเข้ามา", "descEn": "Sweeps a cone of flame that sets a whole crowd burning." },
-      { "id": "crimson_phoenix_control", "sect": "fire", "role": "control", "kit": "water", "nameEn": "Firewall", "nameTh": "ศิษย์กำแพงเพลิง", "cost": 50, "dmg": 18, "rate": 1.4, "range": 2.6, "target": "ground+air", "descTh": "พ่นไฟใส่หน้า ศัตรูชะงักและช้าลง เหมาะกับตัววิ่งเร็ว", "descEn": "Breathes fire in the face of an enemy so it flinches and slows; the answer to runners." },
-      { "id": "crimson_phoenix_stacker", "sect": "fire", "role": "stacker", "kit": "wood", "nameEn": "Ember Tosser", "nameTh": "ศิษย์ถ่านเพลิง", "cost": 50, "dmg": 11, "rate": 1.5, "range": 2.8, "target": "ground", "dot": "burn", "descTh": "โยนถ่านแดงใส่เป้า ไฟติดนานและแรงขึ้นตามกฎสำนัก ตีได้เฉพาะตัวบนพื้น", "descEn": "Lobs live coals; the burn lasts and grows with the sect rule. Ground targets only." },
-      { "id": "crimson_phoenix_support", "sect": "fire", "role": "support", "kit": "yinyang", "nameEn": "Forge Keeper", "nameTh": "ศิษย์เตาหลอม", "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.0, "target": "ground+air", "descTh": "ขั้น 2 ขึ้นไปเร่งศิษย์ข้างเคียงให้ตีเร็วขึ้น และส่องให้เห็นตัวล่องหนรอบตัว", "descEn": "From tier 2 it makes neighbours attack faster, and it reveals hidden assassins around it." },
-      { "id": "jade_bamboo_striker", "sect": "wood", "role": "striker", "kit": "metal", "nameEn": "Blowdart", "nameTh": "ศิษย์ลูกดอกเป่า", "cost": 60, "dmg": 20, "rate": 1.2, "range": 3.2, "target": "ground+air", "descTh": "เป่าลูกดอกพิษระยะไกลที่สุดในสำนัก ล่าตัวหนาจากหลังแนว", "descEn": "Longest-range dart in the sect; picks off heavy enemies from the back line." },
+      { "id": "crimson_phoenix_striker", "sect": "fire", "role": "striker", "kit": "metal", "nameEn": "Phoenix Quill", "nameTh": "ศิษย์ขนหงส์เจาะ", "cost": 60, "dmg": 24, "rate": 1.2, "range": 2.7, "target": "ground+air", "dot": "burn", "descTh": "ปาขนหงส์เพลิงพุ่งเป้าเดียว คริติคอลแรงสองเท่าและจุดไฟติดตัวเป้า", "descEn": "Throws phoenix quills at one target; a crit hits for double and sets it burning." },
+      { "id": "crimson_phoenix_burst", "sect": "fire", "role": "burst", "kit": "fire", "nameEn": "Flame Fan", "nameTh": "ศิษย์พัดเพลิง", "cost": 65, "dmg": 26, "rate": 1.0, "range": 2.7, "target": "ground+air", "dot": "burn", "descTh": "สะบัดพัดเป็นกรวยเพลิง เผาทั้งฝูงที่เดินเข้ามา", "descEn": "Sweeps a cone of flame that sets a whole crowd burning." },
+      { "id": "crimson_phoenix_control", "sect": "fire", "role": "control", "kit": "water", "nameEn": "Firewall", "nameTh": "ศิษย์กำแพงเพลิง", "cost": 50, "dmg": 18, "rate": 1.4, "range": 2.9, "target": "ground+air", "descTh": "พ่นไฟใส่หน้า ศัตรูชะงักและช้าลง เหมาะกับตัววิ่งเร็ว", "descEn": "Breathes fire in the face of an enemy so it flinches and slows; the answer to runners." },
+      { "id": "crimson_phoenix_stacker", "sect": "fire", "role": "stacker", "kit": "wood", "nameEn": "Ember Tosser", "nameTh": "ศิษย์ถ่านเพลิง", "cost": 50, "dmg": 11, "rate": 1.5, "range": 3.1, "target": "ground", "dot": "burn", "descTh": "โยนถ่านแดงใส่เป้า ไฟติดนานและแรงขึ้นตามกฎสำนัก ตีได้เฉพาะตัวบนพื้น", "descEn": "Lobs live coals; the burn lasts and grows with the sect rule. Ground targets only." },
+      { "id": "crimson_phoenix_support", "sect": "fire", "role": "support", "kit": "yinyang", "nameEn": "Forge Keeper", "nameTh": "ศิษย์เตาหลอม", "cost": 80, "dmg": 6, "rate": 2.0, "range": 3.3, "target": "ground+air", "descTh": "ขั้น 2 ขึ้นไปเร่งศิษย์ข้างเคียงให้ตีเร็วขึ้น และส่องให้เห็นตัวล่องหนรอบตัว", "descEn": "From tier 2 it makes neighbours attack faster, and it reveals hidden assassins around it." },
+      { "id": "jade_bamboo_striker", "sect": "wood", "role": "striker", "kit": "metal", "nameEn": "Blowdart", "nameTh": "ศิษย์ลูกดอกเป่า", "cost": 60, "dmg": 20, "rate": 1.2, "range": 3.2, "target": "ground+air", "dot": "poison", "descTh": "เป่าลูกดอกระยะไกลที่สุดในสำนัก คริติคอลแรงสองเท่าและฝังพิษ 1 ชั้น", "descEn": "Longest-range dart in the sect; a crit hits for double and adds a poison stack." },
       { "id": "jade_bamboo_burst", "sect": "wood", "role": "burst", "kit": "fire", "nameEn": "Leaf Storm", "nameTh": "ศิษย์ใบไผ่ปลิว", "cost": 65, "dmg": 24, "rate": 1.0, "range": 2.6, "target": "ground+air", "dot": "poison", "descTh": "พายุใบไผ่ใส่ฝูง ทุกตัวที่โดนติดพิษ", "descEn": "A storm of bamboo leaves that poisons everything it hits." },
       { "id": "jade_bamboo_control", "sect": "wood", "role": "control", "kit": "water", "nameEn": "Vine Binder", "nameTh": "ศิษย์เถาวัลย์", "cost": 50, "dmg": 16, "rate": 1.4, "range": 3.0, "target": "ground", "descTh": "เถาวัลย์รัดขาให้ช้าและหยุด ตีได้เฉพาะตัวบนพื้น", "descEn": "Vines bind legs to slow and stop enemies. Ground targets only." },
       { "id": "jade_bamboo_stacker", "sect": "wood", "role": "stacker", "kit": "wood", "nameEn": "Poison Flute", "nameTh": "ศิษย์ขลุ่ยพิษ", "cost": 50, "dmg": 11, "rate": 1.5, "range": 3.2, "target": "ground+air", "dot": "poison", "descTh": "เป่าขลุ่ยพิษซ้อนชั้น ศัตรูที่ตายพร้อมพิษจะลามให้ตัวข้างเคียง", "descEn": "Stacks poison; enemies that die poisoned pass it on to their neighbours." },

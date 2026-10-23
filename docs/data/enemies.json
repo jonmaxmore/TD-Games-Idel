@@ -335,6 +335,16 @@
       "countPct": 70,
       "hpPct": 100
     },
+    "stealth": {
+      "needsRoles": ["support"],
+      "nameTh": "ลอบสังหาร",
+      "types": [
+        "assassin",
+        "runner"
+      ],
+      "countPct": 80,
+      "hpPct": 100
+    },
     "swarm": {
       "needsRoles": ["burst"],
       "nameTh": "ฝูงสมุน",

@@ -179,7 +179,7 @@
     "waveBreakSec": 10,
     "spawnIntervalSec": 0.8,
     "earlyCallBonusSilver": 5,
-    "earlyCallPct": 30,
-    "bountyGrowthPctPerWave": 10
+    "earlyCallPct": 15,
+    "bountyGrowthPctPerWave": 6
   }
 }

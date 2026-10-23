@@ -83,7 +83,7 @@
         "id": "heaven_sword",
         "nameTh": "กระบี่สวรรค์ทลายฟ้า",
         "cooldown": 60,
-        "effect": "giant sword drops: 500 dmg r=2",
+        "effect": "giant sword drops: 300 dmg r=2",
         "glyph": "劍",
         "effectType": "strike",
         "dmg": 300,
@@ -140,7 +140,7 @@
       {
         "id": "overheat",
         "nameTh": "คัมภีร์ไฟบรรลัยกัลป์",
-        "effect": "Fire +30% dmg, -10% rate",
+        "effect": "Fire +30% dmg",
         "kind": "elementDmg",
         "element": "fire",
         "pct": 30,
@@ -159,7 +159,7 @@
       {
         "id": "sword_heart",
         "nameTh": "คัมภีร์ใจกระบี่",
-        "effect": "+10% crit, crits splash",
+        "effect": "+10% crit chance",
         "kind": "critChance",
         "element": "metal",
         "pct": 10,
@@ -217,7 +217,8 @@
         "effect": "Wu Xing generate bonus +15% -> +35%",
         "kind": "adjacencyPct",
         "value": 135,
-        "effectTh": "โบนัสธาตุสร้างเสริม 15% → 35%"
+        "effectTh": "โบนัสธาตุสร้างเสริม 15% → 35%",
+        "roster": false
       },
       {
         "id": "single_path",
@@ -225,7 +226,8 @@
         "effect": "if all disciples are one sect: +60% dmg",
         "kind": "monoSectPct",
         "pct": 60,
-        "effectTh": "ถ้าทุกคนเป็นสำนักเดียวกัน ดาเมจ +60%"
+        "effectTh": "ถ้าทุกคนเป็นสำนักเดียวกัน ดาเมจ +60%",
+        "roster": false
       },
       {
         "id": "forbidden",

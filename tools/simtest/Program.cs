@@ -56,6 +56,7 @@ static class Program
         // The rules read the data the Unity client ships (synced from docs/data by npm run unity:sync).
         GameData.Load(n => File.ReadAllText(Path.Combine(Repo.UnityData, n + ".json")));
         if (args.Contains("--write-golden")) { Goldens.WriteAll(); return 0; }
+        if (args.Contains("--measure")) { Measure.Report(); return 0; }
 
         string filter = args.FirstOrDefault(a => !a.StartsWith("--"));
         var tests = typeof(Program).Assembly.GetTypes()

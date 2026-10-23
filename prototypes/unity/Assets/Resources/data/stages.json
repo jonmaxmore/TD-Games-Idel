@@ -93,6 +93,10 @@
       "enemies": [
         "cultist"
       ],
+      "wavePool": [
+        "mixed",
+        "swarm"
+      ],
       "stars": [
         "clear",
         "no_life_lost",
@@ -111,8 +115,12 @@
       "title": "Tutorial: upgrades + interest",
       "enemies": [
         "cultist",
-        "runner",
-        "leaper"
+        "runner"
+      ],
+      "wavePool": [
+        "mixed",
+        "swarm",
+        "rush"
       ],
       "stars": [
         "clear",
@@ -153,6 +161,12 @@
         "brute",
         "healer"
       ],
+      "wavePool": [
+        "mixed",
+        "swarm",
+        "rush",
+        "armored"
+      ],
       "stars": [
         "clear",
         "no_life_lost",
@@ -188,16 +202,27 @@
       "title": "First flyers: rooftop leapers",
       "enemies": [
         "cultist",
-        "leaper"
+        "runner",
+        "leaper",
+        "puppet",
+        "assassin"
+      ],
+      "wavePool": [
+        "mixed",
+        "rush",
+        "air",
+        "split",
+        "stealth"
       ],
       "stars": [
         "clear",
         "no_life_lost",
-        "max_2_sects"
+        "max_6_disciples"
       ],
       "layout": "village-rooftops",
       "waves": 10,
-      "startSilver": 110
+      "startSilver": 130,
+      "hpPct": 95
     },
     {
       "id": "1-7",
@@ -290,21 +315,34 @@
       "title": "Blood Moon Envoy, 20 waves",
       "enemies": [
         "cultist",
+        "runner",
         "brute",
         "leaper",
         "healer",
+        "puppet",
+        "assassin",
         "boss_ch1b"
+      ],
+      "wavePool": [
+        "mixed",
+        "rush",
+        "armored",
+        "air",
+        "split",
+        "swarm",
+        "stealth"
       ],
       "stars": [
         "clear",
         "no_life_lost",
-        "use_combo"
+        "hold_200_silver"
       ],
       "layout": "village-rooftops",
       "variant": "mirror",
       "scriptedWaves": { "10": "boss_ch1", "20": "boss_ch1b" },
       "waves": 20,
-      "startSilver": 450
+      "startSilver": 300,
+      "hpPct": 170
     },
     {
       "id": "2-1",
