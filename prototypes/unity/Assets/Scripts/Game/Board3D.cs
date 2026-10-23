@@ -18,35 +18,48 @@ namespace FiveSects.Game
         class Figure
         {
             public Transform T, Weapon, Orbit; public Renderer[] Parts; public Material[] Own; public bool Off; public float Lunge; public Vector3 Home;
-            public string Kit, WeaponKind; public Quaternion WRot; public Vector3 WPos, WScale;
+            public string Kit, WeaponKind; public Quaternion WRot; public Vector3 WPos, WScale; public int Level, ElCount; public Collider Hit;
         }
         class Foe
         {
-            public Transform T, HpFill, Stars; public Transform[] Bubbles; public GameObject Flame, Ice; public Renderer Skin; public Material SkinMat; public bool Slowed;
+            public Transform T, HpFill, Stars; public Transform[] Bubbles; public GameObject Flame, Ice; public Renderer Skin; public Material SkinMat; public bool Slowed, Hidden;
         }
-        class Bolt { public Transform T; public Vector3 From, To; public float Time, Dur, Arc; public string Kit; public bool Crit; }
+        class Bolt { public Transform T; public Vector3 From, To; public float Time, Dur, Arc; public string Kit; public bool Crit; public (PrimitiveType, string, float) Key; }
         class Flash { public Transform T; public float Life, Max; public Vector3 From, To; }
-        class Spark { public Transform T; public Vector3 V; public float Life, Size; }
-        class Floater { public Transform T; public float Life; }
+        class Spark { public Transform T; public Vector3 V; public float Life, Size; public (PrimitiveType, string, float) Key; }
+        class Floater { public Transform T; public TextMesh Text; public float Life, Max; }
+        class Sweep { public Transform T; public float Time; }
 
         readonly Transform root, marks;
         readonly Camera cam;
-        readonly RenderTexture rt;
+        RenderTexture rt;
         readonly RawImage view;
-        readonly Vector3 camBase;
-        Vector3 camPos, camTarget;
+        Vector3 camBase, camPos, camTarget;
+        int screenW, screenH;
         readonly float[,] height;
         readonly Dictionary<Collider, Vector2Int> tileOf = new Dictionary<Collider, Vector2Int>();
-        readonly Dictionary<string, Material> mats = new Dictionary<string, Material>();
+        readonly Dictionary<(string, float), Material> mats = new Dictionary<(string, float), Material>();
+        // Short-lived effect pieces are reused instead of created and destroyed for every hit.
+        readonly Dictionary<(PrimitiveType, string, float), Stack<Transform>> pool = new Dictionary<(PrimitiveType, string, float), Stack<Transform>>();
+        readonly List<Sweep> sweeps = new List<Sweep>();
+        readonly Vector3[] pathPts;
+        int discipleCheck = int.MinValue;
+        // Global render settings this board changes, put back on Dispose.
+        readonly UnityEngine.Rendering.AmbientMode prevAmbientMode;
+        readonly Color prevAmbient, prevFogColor;
+        readonly bool prevFog;
+        readonly FogMode prevFogMode;
+        readonly float prevFogStart, prevFogEnd, prevShadowDistance;
         readonly Dictionary<int, Figure> disciples = new Dictionary<int, Figure>();
         readonly Dictionary<int, Foe> foes = new Dictionary<int, Foe>();
         readonly List<Bolt> shots = new List<Bolt>();
         readonly List<Spark> sparks = new List<Spark>();
         readonly List<Floater> floaters = new List<Floater>();
         readonly List<Flash> flashes = new List<Flash>();
+        static readonly List<int> scratchIds = new List<int>();
+        static readonly HashSet<int> scratchSeen = new HashSet<int>();
         readonly Shader lit;
         Transform ghost, ring, tileMark;
-        string discipleSig;
         public Vector3 GoalAt { get; }
 
         public Board3D(MapLayout layout, RectTransform screenParent)
@@ -64,10 +77,13 @@ namespace FiveSects.Game
             StaticBatchingUtility.Combine(board.gameObject);
             marks = new GameObject("Marks").transform;
             marks.SetParent(root, false);
+            pathPts = layout.Path.Select(pt => TileTop(pt.X, pt.Y) + new Vector3(0, 1.1f, 0)).ToArray();
 
+            prevAmbientMode = RenderSettings.ambientMode; prevAmbient = RenderSettings.ambientLight; prevFog = RenderSettings.fog;
+            prevFogColor = RenderSettings.fogColor; prevFogMode = RenderSettings.fogMode;
+            prevFogStart = RenderSettings.fogStartDistance; prevFogEnd = RenderSettings.fogEndDistance; prevShadowDistance = QualitySettings.shadowDistance;
             Light(biome.Time);
-            float aspect = (float)Screen.width / Mathf.Max(1, Screen.height);
-            rt = new RenderTexture(Mathf.Max(64, Mathf.RoundToInt(PixelHeight * aspect)), PixelHeight, 16) { filterMode = FilterMode.Point };
+            rt = MakeRt();
             cam = new GameObject("BoardCamera").AddComponent<Camera>();
             cam.transform.SetParent(root, false);
             // A narrow perspective lens tilted 50°: real depth, near rows a little larger, the whole board on screen.
@@ -76,12 +92,7 @@ namespace FiveSects.Game
             cam.aspect = (float)rt.width / rt.height;
             cam.nearClipPlane = 0.3f; cam.farClipPlane = 300f;
             cam.transform.localRotation = Quaternion.Euler(50, 0, 0);
-            camBase = Fit();
-            camPos = camTarget = camBase;
-            cam.transform.localPosition = camBase;
-            RenderSettings.fogStartDistance = fitDist + 4f;
-            RenderSettings.fogEndDistance = fitDist + 26f;
-            QualitySettings.shadowDistance = fitDist + 20f;
+            Refit();
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = Art.Hex(fogHex);
             cam.targetTexture = rt;
@@ -97,21 +108,53 @@ namespace FiveSects.Game
             view.raycastTarget = false;
         }
 
+        RenderTexture MakeRt()
+        {
+            screenW = Screen.width; screenH = Screen.height;
+            float aspect = (float)screenW / Mathf.Max(1, screenH);
+            return new RenderTexture(Mathf.Max(64, Mathf.RoundToInt(PixelHeight * aspect)), PixelHeight, 16) { filterMode = FilterMode.Point };
+        }
+
+        void Refit()
+        {
+            cam.aspect = (float)rt.width / rt.height;
+            camBase = Fit();
+            camPos = camTarget = camBase;
+            cam.transform.localPosition = camBase;
+            RenderSettings.fogStartDistance = fitDist + 4f;
+            RenderSettings.fogEndDistance = fitDist + 26f;
+            QualitySettings.shadowDistance = fitDist + 20f;
+        }
+
+        // Rotation or a resized window: a new render texture at the new aspect, and the camera fitted again.
+        void FollowScreen()
+        {
+            if (Screen.width == screenW && Screen.height == screenH) return;
+            cam.targetTexture = null;
+            rt.Release(); Object.Destroy(rt);
+            rt = MakeRt();
+            cam.targetTexture = rt;
+            view.texture = rt;
+            Refit();
+        }
+
         public void Dispose()
         {
             cam.targetTexture = null;
-            rt.Release();
-            RenderSettings.fog = false;
+            rt.Release(); Object.Destroy(rt);
+            RenderSettings.ambientMode = prevAmbientMode; RenderSettings.ambientLight = prevAmbient; RenderSettings.fog = prevFog;
+            RenderSettings.fogColor = prevFogColor; RenderSettings.fogMode = prevFogMode;
+            RenderSettings.fogStartDistance = prevFogStart; RenderSettings.fogEndDistance = prevFogEnd; QualitySettings.shadowDistance = prevShadowDistance;
             Object.Destroy(root.gameObject);
             if (view != null) Object.Destroy(view.gameObject);
             foreach (var m in mats.Values) Object.Destroy(m);
-            foreach (var p in portraits.Values) p.Release();
+            foreach (var p in portraits.Values) { p.Release(); Object.Destroy(p); }
         }
 
         // ---------- camera ----------
 
-        // Viewport band between the HUD bars (top ~70 px, bottom ~130 px of the 1280 reference).
-        const float BandLo = 0.11f, BandHi = 0.945f;
+        // Viewport band between the HUD bars (top ~70 px; bottom bar + secret arts row ~210 px of the 1280 reference).
+        const float BandLo = 0.165f, BandHi = 0.945f;
         float fitDist;
 
         // Back the camera off until the board (with headroom for figures) fits the band, then centre it in the band.
@@ -159,7 +202,7 @@ namespace FiveSects.Game
 
         Material Mat(string hex, float glow = 0)
         {
-            string key = hex + glow;
+            var key = (hex, glow);
             if (mats.TryGetValue(key, out var m)) return m;
             m = new Material(lit) { color = Art.Hex(hex) };
             m.SetFloat("_Glossiness", 0.12f);
@@ -178,6 +221,25 @@ namespace FiveSects.Game
             t.localPosition = pos;
             t.localScale = scale;
             return t;
+        }
+
+        Transform Take((PrimitiveType type, string hex, float glow) key, Vector3 pos, Vector3 scale)
+        {
+            if (pool.TryGetValue(key, out var st) && st.Count > 0)
+            {
+                var t = st.Pop();
+                t.gameObject.SetActive(true);
+                t.localPosition = pos; t.localScale = scale; t.localRotation = Quaternion.identity;
+                return t;
+            }
+            return Prim(key.type, root, pos, scale, key.hex, key.glow);
+        }
+
+        void Give((PrimitiveType, string, float) key, Transform t)
+        {
+            t.gameObject.SetActive(false);
+            if (!pool.TryGetValue(key, out var st)) pool[key] = st = new Stack<Transform>();
+            st.Push(t);
         }
 
         // Sim position in milli-tiles → board space; tile y grows towards the camera (down the screen, as in 2D).
@@ -349,6 +411,12 @@ namespace FiveSects.Game
             ["brute"] = new[] { "#34303C", "#14121A", "#FF4A1A" },
             ["leaper"] = new[] { "#12261C", "#060E0A", "#7AFF5A" },
             ["healer"] = new[] { "#4A1008", "#1A0604", "#FFC040" },
+            ["puppet"] = new[] { "#2A3446", "#141A24", "#9FD8FF" },
+            ["assassin"] = new[] { "#141018", "#08060A", "#B0A0FF" },
+            ["mimic"] = new[] { "#2A1E4A", "#120A24", "#E0A0FF" },
+            ["boss_ch1"] = new[] { "#5A3A14", "#2A1A08", "#FFB040" },
+            ["boss_ch1b"] = new[] { "#5A0A18", "#24040A", "#FF3A2A" },
+            ["boss_final"] = new[] { "#E8E2D0", "#14111A", "#FFD34A" },
         };
 
         static readonly Dictionary<string, string> KitVfx = new Dictionary<string, string>
@@ -478,24 +546,43 @@ namespace FiveSects.Game
         static (string robe, string kit) LookOf(Disciple d) =>
             d.Unit != null ? (d.El, d.Els[0]) : (d.Els[0], d.Els[d.Els.Count - 1]);
 
+        // Rebuild only the figures that are new or whose tier or form changed; everyone else keeps animating.
         public void SyncDisciples(DefendState s)
         {
-            string sig = string.Join("|", s.Disciples.Select(d => d.Id + ":" + d.Level + ":" + string.Join("", d.Els)));
-            if (sig == discipleSig) return;
-            discipleSig = sig;
-            foreach (var f in disciples.Values) Object.Destroy(f.T.gameObject);
-            disciples.Clear();
+            int check = s.Disciples.Count;
+            foreach (var d in s.Disciples) check = check * 31 + d.Id * 7 + d.Level * 3 + d.Els.Count;
+            if (check == discipleCheck) return;
+            discipleCheck = check;
+            scratchIds.Clear();
+            foreach (var kv in disciples)
+            {
+                var d = s.Disciples.Find(x => x.Id == kv.Key);
+                if (d == null || d.Level != kv.Value.Level || d.Els.Count != kv.Value.ElCount) scratchIds.Add(kv.Key);
+            }
+            foreach (var id in scratchIds)
+            {
+                var f = disciples[id];
+                tileOf.Remove(f.Hit);
+                Object.Destroy(f.T.gameObject);
+                disciples.Remove(id);
+            }
             foreach (var d in s.Disciples)
             {
+                if (disciples.ContainsKey(d.Id)) continue;
                 var (robe, kit) = LookOf(d);
                 var t = BuildFigure(robe, kit, Ui.RoleOf(d), d.Level, false, out var weapon, out var orbit);
                 var home = TileTop(d.Tx, d.Ty);
                 t.localPosition = home;
                 var parts = t.GetComponentsInChildren<Renderer>();
+                // A tap on the figure itself selects its tile (otherwise the ray would pass to the tile behind it).
+                var hit = t.gameObject.AddComponent<BoxCollider>();
+                hit.center = new Vector3(0, 0.75f, 0); hit.size = new Vector3(0.8f, 1.5f, 0.8f);
+                tileOf[hit] = new Vector2Int(d.Tx, d.Ty);
                 disciples[d.Id] = new Figure
                 {
                     T = t, Home = home, Parts = parts, Own = parts.Select(r => r.sharedMaterial).ToArray(), Kit = d.Els[0], Weapon = weapon, Orbit = orbit,
                     WeaponKind = Looks.TryGetValue(kit, out var lk) ? lk[3] : "staff", WRot = weapon.localRotation, WPos = weapon.localPosition, WScale = weapon.localScale,
+                    Level = d.Level, ElCount = d.Els.Count, Hit = hit,
                 };
             }
         }
@@ -539,7 +626,8 @@ namespace FiveSects.Game
 
         public void RenderEnemies(DefendState s, Dictionary<int, Vector2> prev, float alpha)
         {
-            var seen = new HashSet<int>();
+            var seen = scratchSeen;
+            seen.Clear();
             foreach (var e in s.Enemies)
             {
                 seen.Add(e.Id);
@@ -566,11 +654,20 @@ namespace FiveSects.Game
                 }
                 bool slowed = e.SlowT > 0;
                 f.Ice.SetActive(slowed);
-                if (slowed != f.Slowed) { f.Slowed = slowed; f.Skin.sharedMaterial = slowed ? Mat("#5A7AA8") : f.SkinMat; }
+                // An unrevealed assassin is a dark shadow with no health bar: it cannot be hit until a support or an art reveals it.
+                bool hidden = e.Type == "assassin" && !e.Revealed;
+                if (slowed != f.Slowed || hidden != f.Hidden)
+                {
+                    f.Slowed = slowed; f.Hidden = hidden;
+                    f.Skin.sharedMaterial = hidden ? Mat("#06050A") : slowed ? Mat("#5A7AA8") : f.SkinMat;
+                    f.HpFill.parent.gameObject.SetActive(!hidden);
+                }
                 f.Stars.gameObject.SetActive(stunned);
                 if (stunned) f.Stars.localRotation = Quaternion.Euler(0, Time.time * 360, 0);
             }
-            foreach (var id in foes.Keys.Where(id => !seen.Contains(id)).ToList())
+            scratchIds.Clear();
+            foreach (var id in foes.Keys) if (!seen.Contains(id)) scratchIds.Add(id);
+            foreach (var id in scratchIds)
             {
                 Object.Destroy(foes[id].T.gameObject);
                 foes.Remove(id);
@@ -596,6 +693,9 @@ namespace FiveSects.Game
             if (e.Air) Prim(PrimitiveType.Cube, body, new Vector3(0, 0.45f, -0.1f), new Vector3(0.9f, 0.04f, 0.25f), look[1]); // wings
             if (e.Type == "brute") foreach (float sx in new[] { -0.24f, 0.24f }) Prim(PrimitiveType.Cube, body, new Vector3(sx, 0.5f, 0), new Vector3(0.14f, 0.12f, 0.2f), "#5A5664"); // pauldrons
             if (e.Type == "healer") Prim(PrimitiveType.Sphere, body, new Vector3(0.22f, 0.5f, 0.1f), Vector3.one * 0.12f, "#7AFF8A", 2f); // healing orb
+            if (e.Type == "puppet") foreach (float sx in new[] { -0.12f, 0.12f }) Prim(PrimitiveType.Cube, body, new Vector3(sx, 0.95f, 0), new Vector3(0.015f, 0.5f, 0.015f), "#C8D4E8", 1f); // strings
+            if (e.Type == "assassin") Prim(PrimitiveType.Cube, body, new Vector3(0, 0.32f, -0.16f), new Vector3(0.42f, 0.5f, 0.04f), "#08060A"); // cloak
+            if (e.Type == "mimic") Prim(PrimitiveType.Sphere, body, new Vector3(0, 0.42f, 0.17f), Vector3.one * 0.12f, "#E0A0FF", 2.5f); // shifting core
             if (def.Boss != null) Prim(PrimitiveType.Cylinder, body, new Vector3(0, 0.88f, 0), new Vector3(0.36f, 0.06f, 0.36f), "#E3B04B", 1.5f); // crown
             if (e.Elite != null) Prim(PrimitiveType.Cylinder, body, new Vector3(0, 0.02f, 0), new Vector3(0.7f, 0.01f, 0.7f), e.Elite == "golden" ? "#FFE9A8" : e.Elite == "swift" ? "#9BD17A" : "#D2412F", 1.2f);
 
@@ -641,17 +741,18 @@ namespace FiveSects.Game
             var from = f.Home + new Vector3(0, 0.75f * FigScale, 0);
             var to = At(toMilli.x, toMilli.y) + new Vector3(0, 0.5f, 0);
             float c = crit ? 1.4f : 1f;
-            Transform t; float dur, arc;
+            (PrimitiveType, string, float) key; Vector3 size; float dur, arc;
             switch (kit)
             {
-                case "metal": t = Prim(PrimitiveType.Cube, root, from, new Vector3(0.05f, 0.05f, 0.55f) * c, hex, 3f); dur = 0.1f; arc = 0; break;
-                case "wood": t = Prim(PrimitiveType.Cube, root, from, new Vector3(0.035f, 0.035f, 0.32f) * c, hex, 2.5f); dur = 0.14f; arc = 0.1f; break;
-                case "fire": t = Prim(PrimitiveType.Sphere, root, from, Vector3.one * 0.26f * c, hex, 3f); dur = 0.26f; arc = 0.55f; break;
-                case "earth": t = Prim(PrimitiveType.Sphere, root, from, Vector3.one * 0.28f * c, hex, 0.3f); dur = 0.3f; arc = 0.8f; break;
-                default: t = Prim(PrimitiveType.Sphere, root, from, Vector3.one * 0.2f * c, hex, 3f); dur = 0.2f; arc = 0.25f; break;
+                case "metal": key = (PrimitiveType.Cube, hex, 3f); size = new Vector3(0.05f, 0.05f, 0.55f); dur = 0.1f; arc = 0; break;
+                case "wood": key = (PrimitiveType.Cube, hex, 2.5f); size = new Vector3(0.035f, 0.035f, 0.32f); dur = 0.14f; arc = 0.1f; break;
+                case "fire": key = (PrimitiveType.Sphere, hex, 3f); size = Vector3.one * 0.26f; dur = 0.26f; arc = 0.55f; break;
+                case "earth": key = (PrimitiveType.Sphere, hex, 0.3f); size = Vector3.one * 0.28f; dur = 0.3f; arc = 0.8f; break;
+                default: key = (PrimitiveType.Sphere, hex, 3f); size = Vector3.one * 0.2f; dur = 0.2f; arc = 0.25f; break;
             }
+            var t = Take(key, from, size * c);
             if ((to - from).sqrMagnitude > 0.0001f) t.localRotation = Quaternion.LookRotation(to - from);
-            shots.Add(new Bolt { T = t, From = from, To = to, Dur = dur, Arc = arc, Kit = kit, Crit = crit });
+            shots.Add(new Bolt { T = t, From = from, To = to, Dur = dur, Arc = arc, Kit = kit, Crit = crit, Key = key });
             if (kit == "yinyang") GrowRing(f.Home + new Vector3(0, 0.1f, 0), 1.2f, hex, 0.35f);
             f.Lunge = 1;
         }
@@ -701,10 +802,11 @@ namespace FiveSects.Game
 
         public void Burst(Vector3 local, string hex, int count, float size = 0.12f)
         {
+            var key = (PrimitiveType.Cube, hex, 2f);
             for (int k = 0; k < count; k++)
             {
-                var t = Prim(PrimitiveType.Cube, root, local, Vector3.one * size, hex, 2f);
-                sparks.Add(new Spark { T = t, V = new Vector3(Random.Range(-2f, 2f), Random.Range(1.5f, 3.5f), Random.Range(-2f, 2f)), Life = 0.5f, Size = size * 2 });
+                var t = Take(key, local, Vector3.one * size);
+                sparks.Add(new Spark { T = t, V = new Vector3(Random.Range(-2f, 2f), Random.Range(1.5f, 3.5f), Random.Range(-2f, 2f)), Life = 0.5f, Size = size * 2, Key = key });
             }
         }
 
@@ -724,11 +826,14 @@ namespace FiveSects.Game
             tm.font = font; tm.text = text; tm.fontSize = 48; tm.characterSize = 0.06f * scale;
             tm.anchor = TextAnchor.MiddleCenter; tm.color = Art.Hex(hex);
             go.GetComponent<MeshRenderer>().sharedMaterial = font.material;
-            floaters.Add(new Floater { T = go.transform, Life = scale > 1 ? 1.6f : 0.8f });
+            float life = scale > 1 ? 1.6f : 0.8f;
+            floaters.Add(new Floater { T = go.transform, Text = tm, Life = life, Max = life });
         }
 
         public void Update(float dt, Vector3 shake)
         {
+            FollowScreen();
+            UpdateSweeps(dt);
             camPos = Vector3.Lerp(camPos, camTarget, 1 - Mathf.Exp(-dt * 10));
             cam.transform.localPosition = camPos + shake;
             for (int i = shots.Count - 1; i >= 0; i--)
@@ -741,7 +846,7 @@ namespace FiveSects.Game
                 if (step.sqrMagnitude > 0.000001f) s.T.localRotation = Quaternion.LookRotation(step);
                 if (s.Time < 1) continue;
                 Impact(s);
-                Object.Destroy(s.T.gameObject); shots.RemoveAt(i);
+                Give(s.Key, s.T); shots.RemoveAt(i);
             }
             for (int i = flashes.Count - 1; i >= 0; i--)
             {
@@ -757,16 +862,60 @@ namespace FiveSects.Game
                 p.V += new Vector3(0, -6f, 0) * dt;
                 p.T.localPosition += p.V * dt;
                 p.T.localScale = Vector3.one * Mathf.Max(0, p.Life) * p.Size;
-                if (p.Life <= 0) { Object.Destroy(p.T.gameObject); sparks.RemoveAt(i); }
+                if (p.Life <= 0) { Give(p.Key, p.T); sparks.RemoveAt(i); }
             }
             for (int i = floaters.Count - 1; i >= 0; i--)
             {
                 var f = floaters[i];
                 f.Life -= dt;
                 f.T.localPosition += new Vector3(0, dt * 1.2f, 0);
+                var col = f.Text.color; col.a = Mathf.Clamp01(f.Life / f.Max * 2); f.Text.color = col; // fade over the last half
                 if (f.Life <= 0) { Object.Destroy(f.T.gameObject); floaters.RemoveAt(i); }
             }
             if (ghost != null) ghost.localScale = Vector3.one * FigScale * (1 + Mathf.Sin(Time.time * 6) * 0.05f);
+        }
+
+        // Fire tier 3: a burning bird flies the whole road from the spawn gate to the goal, shedding sparks.
+        public void Phoenix()
+        {
+            if (pathPts.Length < 2) return;
+            var bird = new GameObject("Phoenix").transform;
+            bird.SetParent(root, false);
+            Prim(PrimitiveType.Sphere, bird, Vector3.zero, new Vector3(0.35f, 0.3f, 0.6f), "#FF5A1F", 3f);
+            Prim(PrimitiveType.Sphere, bird, new Vector3(0, 0.08f, 0.32f), Vector3.one * 0.18f, "#FFD34A", 3f);
+            foreach (float sx in new[] { -1f, 1f })
+                Prim(PrimitiveType.Cube, bird, new Vector3(sx * 0.45f, 0.05f, 0), new Vector3(0.7f, 0.04f, 0.35f), "#FF8A3A", 3f).localRotation = Quaternion.Euler(0, 0, sx * 20);
+            sweeps.Add(new Sweep { T = bird, Time = 0 });
+        }
+
+        void UpdateSweeps(float dt)
+        {
+            for (int i = sweeps.Count - 1; i >= 0; i--)
+            {
+                var w = sweeps[i];
+                w.Time += dt / 1.6f;
+                if (w.Time >= 1) { Object.Destroy(w.T.gameObject); sweeps.RemoveAt(i); continue; }
+                float f = w.Time * (pathPts.Length - 1);
+                int seg = Mathf.Min(pathPts.Length - 2, (int)f);
+                var a = pathPts[seg]; var b = pathPts[seg + 1];
+                var pos = Vector3.Lerp(a, b, f - seg);
+                if ((b - a).sqrMagnitude > 0.0001f) w.T.localRotation = Quaternion.LookRotation(b - a);
+                w.T.localPosition = pos + new Vector3(0, Mathf.Sin(w.Time * 20) * 0.08f, 0);
+                if (Random.value < 0.6f) Burst(pos, Random.value < 0.5f ? "#FF6A1F" : "#FFD34A", 1, 0.1f);
+            }
+        }
+
+        // Secret arts: a strike lands where it hit; the field-wide arts ring the whole board.
+        public void ArtFx(string type, Vector3 at)
+        {
+            var centre = new Vector3(Layouts.GridW / 2f, 0.4f, -Layouts.GridH / 2f);
+            switch (type)
+            {
+                case "strike": GrowRing(new Vector3(at.x, 0.3f, at.z), 2f, "#E8EEF5", 0.4f); Slash(at, "#FFFFFF", true); Burst(at, "#E8EEF5", 18, 0.14f); break;
+                case "slowAll": GrowRing(centre, 7f, "#6FC8FF", 0.6f); break;
+                case "stunAll": GrowRing(centre, 7f, "#FFD34A", 0.5f); break;
+                case "bountyMult": Burst(GoalAt + new Vector3(0, 1, 0), "#E3B04B", 24, 0.12f); break;
+            }
         }
 
         // ---------- placement marks ----------
@@ -849,16 +998,16 @@ namespace FiveSects.Game
         public void HideRing() { if (ring != null) Object.Destroy(ring.gameObject); ring = null; }
         public bool RingShown => ring != null;
 
-        public void ShowTileMark(int tx, int ty)
+        public void ShowTileMark(int tx, int ty, string hex = "#E3B04B")
         {
             if (tileMark != null) Object.Destroy(tileMark.gameObject);
             tileMark = new GameObject("TileMark").transform;
             tileMark.SetParent(marks, false);
             tileMark.localPosition = TileTop(tx, ty) + new Vector3(0, 0.02f, 0);
-            Prim(PrimitiveType.Cube, tileMark, new Vector3(0, 0, 0.47f), new Vector3(1, 0.04f, 0.06f), "#E3B04B", 1.5f);
-            Prim(PrimitiveType.Cube, tileMark, new Vector3(0, 0, -0.47f), new Vector3(1, 0.04f, 0.06f), "#E3B04B", 1.5f);
-            Prim(PrimitiveType.Cube, tileMark, new Vector3(0.47f, 0, 0), new Vector3(0.06f, 0.04f, 1), "#E3B04B", 1.5f);
-            Prim(PrimitiveType.Cube, tileMark, new Vector3(-0.47f, 0, 0), new Vector3(0.06f, 0.04f, 1), "#E3B04B", 1.5f);
+            Prim(PrimitiveType.Cube, tileMark, new Vector3(0, 0, 0.47f), new Vector3(1, 0.04f, 0.06f), hex, 1.5f);
+            Prim(PrimitiveType.Cube, tileMark, new Vector3(0, 0, -0.47f), new Vector3(1, 0.04f, 0.06f), hex, 1.5f);
+            Prim(PrimitiveType.Cube, tileMark, new Vector3(0.47f, 0, 0), new Vector3(0.06f, 0.04f, 1), hex, 1.5f);
+            Prim(PrimitiveType.Cube, tileMark, new Vector3(-0.47f, 0, 0), new Vector3(0.06f, 0.04f, 1), hex, 1.5f);
         }
 
         public void HideMarks()

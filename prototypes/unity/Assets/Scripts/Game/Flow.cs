@@ -249,7 +249,7 @@ namespace FiveSects.Game
 
         // ---------- ⑧ Lobby (ลานสำนัก) ----------
 
-        string NextStoryStage() => DefendView.Playlist.FirstOrDefault(id => id != "T-1" && !Profile.Cleared.Contains(id)) ?? "T-1";
+        string NextStoryStage() => DefendView.Playlist.FirstOrDefault(id => !Profile.Cleared.Contains(id)) ?? DefendView.Playlist.Last();
 
         void ShowLobby()
         {

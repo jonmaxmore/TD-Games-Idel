@@ -1,5 +1,6 @@
-// Unity view for a defend stage: runs the C# sim at 20 Hz, interpolates enemies, draws sprites and a
-// uGUI HUD built from code. Mirrors packages/client/src/scenes/DefendScene.ts at prototype depth.
+// Unity view for a defend stage: runs the C# rules (FiveSects.Sim) at 20 Hz, draws the world (Board3D, or the
+// classic 2D sprites) and a uGUI HUD built from code: placement cards, disciple panel with technique and target mode,
+// manual offers, secret arts, pause, results with star values and a reason for a loss.
 using System.Collections.Generic;
 using System.Linq;
 using FiveSects.Sim;
@@ -18,8 +19,8 @@ namespace FiveSects.Game
         public string StageId = "1-1";
         public Flow Flow; // null when the view runs alone (editor tests); set by the front flow
 
-        // Playable in this prototype (defend stages with a layout), in story order. Results screen walks this list.
-        public static readonly string[] Playlist = { "1-1", "1-2", "1-4", "1-6", "1-12", "T-1" };
+        // The story path playable in this prototype (chapter 1 defend stages), in order. Results and lobby walk this list.
+        public static readonly string[] Playlist = { "1-1", "1-2", "1-4", "1-6", "1-12" };
 
         const int T = 16, OX = 2, OY = 16;
         const float TickSec = 0.05f;
@@ -50,6 +51,31 @@ namespace FiveSects.Game
         readonly Dictionary<int, int> levelSeen = new Dictionary<int, int>();
         RectTransform nextStrip;
         string nextStripKey;
+        // Panels and HUD state
+        bool paused;
+        RectTransform pauseMenu, offerPanel;
+        Text offerTimer;
+        bool panelTop;                     // the open panel sits on the top half (toasts then move down)
+        System.Action reopen;              // rebuilds the open panel (when affordability changes or a mode is set)
+        int panelAfford = -1;              // how many of the open panel's prices the player can pay right now
+        int[] panelCosts = System.Array.Empty<int>();
+        float reopenAt = -1;
+        int sellArmed = -1;                // disciple whose Sell needs a second tap
+        bool firstPlaceSeen;
+        float markUntil;
+        readonly Dictionary<string, int> leaksByType = new Dictionary<string, int>();
+        readonly Queue<(string msg, float sec)> toasts = new Queue<(string, float)>();
+        string toastNow;
+        readonly List<(Text t, float born)> uiFloaters = new List<(Text, float)>();
+        static readonly List<RaycastResult> uiHits = new List<RaycastResult>();
+        // Secret arts bar
+        Button[] artButtons;
+        RectTransform[] artFills;
+        Text[] artSubs;
+        // HUD caches: rebuild strings only when the value behind them changes
+        int hudSilver = int.MinValue, hudLives = int.MinValue, hudWave = int.MinValue, nextWaveSeen = -1, nextCount = -1;
+        string nextRecipeSeen;
+        float waveLabelAt;
         readonly List<Shot> shots = new List<Shot>();
 
         // HUD
@@ -83,7 +109,7 @@ namespace FiveSects.Game
             ghost = MakeOverlay("ghost", 11);
             BuildHud();
             fx = new Fx(world, font);
-            if (use3D) board = new Board3D(s.Layout, hudRoot);
+            if (use3D) { board = new Board3D(s.Layout, hudRoot); Camera.main.cullingMask = 0; } // the 3D board draws the world
             else Build2D(biome);
             Toast(thai ? s.Layout.NameTh : StageId, 2f);
             if (StageId == "T-0" || StageId == "1-1") Toast(L("แตะพื้นข้างถนนเพื่อวางศิษย์", "Tap the ground beside the road to place a disciple"), 5f);
@@ -116,7 +142,7 @@ namespace FiveSects.Game
             FitCamera();
             HandleInput();
 
-            if (!s.IsOver)
+            if (!s.IsOver && !paused)
             {
                 // Hit-stop: a crit freezes the sim for a few frames so big hits land with weight.
                 if (Time.unscaledTime >= hitStopUntil) acc += Mathf.Min(Time.deltaTime, 0.25f) * speed;
@@ -140,7 +166,7 @@ namespace FiveSects.Game
                 board.SyncDisciples(s);
                 board.UpdateDisciples(s, Time.deltaTime);
                 board.RenderEnemies(s, prev, Mathf.Clamp01(acc / TickSec));
-                board.Update(Time.deltaTime, fx.ShakeOffset * 0.04f);
+                board.Update(paused ? 0 : Time.deltaTime, fx.ShakeOffset * 0.04f);
             }
             else
             {
@@ -150,12 +176,31 @@ namespace FiveSects.Game
                 UpdateShots();
             }
             fx.Update(Time.deltaTime);
+            RefreshPanel();
             UpdateHud();
+        }
+
+        // An open panel follows the run: when silver crosses one of its prices it is rebuilt, so Place/Upgrade light up
+        // by themselves; a mode change asks for a rebuild a moment later, once the sim has applied it.
+        void RefreshPanel()
+        {
+            if (panel == null || reopen == null) return;
+            if (reopenAt > 0 && Time.time >= reopenAt) { reopenAt = -1; reopen(); return; }
+            if (Afford() != panelAfford) reopen();
+        }
+
+        int Afford()
+        {
+            int n = 0;
+            foreach (var c in panelCosts) if (s.Silver >= c) n++;
+            return n;
         }
 
         // A disciple that went up a tier announces the technique it just learned (name over its head, gold burst, toast).
         void WatchUpgrades()
         {
+            if (levelSeen.Count > s.Disciples.Count) // sold or merged: forget ids no longer on the board
+                foreach (var id in levelSeen.Keys.ToList()) if (!s.Disciples.Any(d => d.Id == id)) { levelSeen.Remove(id); popUntil.Remove(id); }
             foreach (var d in s.Disciples)
             {
                 bool known = levelSeen.TryGetValue(d.Id, out var was);
@@ -201,20 +246,35 @@ namespace FiveSects.Game
 #endif
         }
 
-        static bool OverUi()
+        // Explicit hit test at the press position: EventSystem.IsPointerOverGameObject can lag a frame on touch.
+        static bool OverUi(Vector2 screen)
         {
             var es = EventSystem.current;
             if (es == null) return false;
-#if !ENABLE_INPUT_SYSTEM && ENABLE_LEGACY_INPUT_MANAGER
-            if (Input.touchCount > 0) return es.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
+            uiHits.Clear();
+            es.RaycastAll(new PointerEventData(es) { position = screen }, uiHits);
+            return uiHits.Count > 0;
+        }
+
+        // Android Back / Esc.
+        static bool BackPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var k = Keyboard.current;
+            return k != null && k.escapeKey.wasPressedThisFrame;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            return Input.GetKeyDown(KeyCode.Escape);
+#else
+            return false;
 #endif
-            return es.IsPointerOverGameObject();
         }
 
         void HandleInput()
         {
+            if (BackPressed()) { if (resultPanel == null) { if (panel != null) ClosePanel(); else TogglePause(); } return; }
             if (!PointerDown(out var screen)) return;
-            if (OverUi()) return;
+            if (OverUi(screen)) return;
+            if (paused || s.IsOver || resultPanel != null || offerPanel != null) return;
             int tx, ty;
             if (board != null) board.TileAt(screen, out tx, out ty);
             else
@@ -223,11 +283,23 @@ namespace FiveSects.Game
                 tx = Mathf.FloorToInt((w.x - OX) / T); ty = Mathf.FloorToInt((-w.y - OY) / T);
             }
             ClosePanel();
+            sellArmed = -1;
             if (tx < 0 || ty < 0 || tx >= Layouts.GridW || ty >= Layouts.GridH) return;
             if (pending.Any(c => c.T == "place" && c.Tx == tx && c.Ty == ty)) return;
             var d = s.Disciples.FirstOrDefault(q => q.Tx == tx && q.Ty == ty);
-            if (d != null) OpenDisciplePanel(d);
+            if (d != null)
+            {
+                if (pending.Any(c => c.Id == d.Id && (c.T == "upgrade" || c.T == "sell"))) return; // already ordered this tick
+                OpenDisciplePanel(d);
+            }
             else if (Defend.CanBuild(s, tx, ty)) OpenBuildPanel(tx, ty);
+            else
+            {
+                // Say why nothing opened, and frame the tile in red for a moment.
+                Toast(s.PathTiles.Contains(tx + "," + ty) ? L("วางบนทางเดินศัตรูไม่ได้", "Can't place on the road") : L("ช่องนี้มีสิ่งกีดขวาง", "Something is in the way"), 1.2f);
+                ShowTileMark(tx, ty, "#D2412F");
+                markUntil = Time.time + 0.5f;
+            }
         }
 
         // ---------- events ----------
@@ -263,16 +335,38 @@ namespace FiveSects.Game
                     }
                     case "wave": Toast(L("ระลอกที่ ", "Wave ") + ev.Wave, 1.2f); break;
                     case "newEnemy": Toast(L("ศัตรูใหม่: ", "New enemy: ") + Ui.Enemy(ev.Type), 2f); break;
-                    case "picked": Toast(L("คัมภีร์: ", "Manual: ") + ev.Name, 2f); break;
-                    case "error": if (ev.Msg == "not enough silver") Toast(L("ตำลึงไม่พอ", "Not enough silver"), 1f); break;
+                    case "offer": OpenOfferPanel(ev.Cards); break;
+                    case "picked": CloseOffer(); Toast(L("ได้คัมภีร์: ", "Manual: ") + CardName(ev.Name), 2f); break;
+                    case "error": Toast(ErrorText(ev.Msg), 1.2f); break;
+                    case "placed":
+                    {
+                        // Feedback once the rules accepted the placement, not when the button was pressed.
+                        var d = s.Disciples.FirstOrDefault(q => q.Id == ev.Id);
+                        if (d != null && panel == null) { var def = GameData.DefOf(d.Unit ?? d.Els[0]); ShowRing(d.Tx, d.Ty, def.Range, def.Color, 1.5f); }
+                        if (!firstPlaceSeen) { firstPlaceSeen = true; if (Flow != null) Flow.FirstPlace(); }
+                        break;
+                    }
+                    case "interest": if (ev.Amount > 0) FloatUi(silverText, "+" + ev.Amount + L(" ดอกเบี้ย", " interest"), "#E3B04B"); break;
+                    case "art":
+                    {
+                        var art = GameData.Arts.FirstOrDefault(a => a.Id == ev.Name);
+                        if (art != null) Toast(art.NameTh, 1.5f);
+                        fx.Shake(2);
+                        if (board != null) board.ArtFx(art?.Type, board.EnemyAt(ev.X, ev.Y));
+                        break;
+                    }
+                    case "phoenix": board?.Phoenix(); Toast(L("เพลิงคืนชีพ! หงส์เพลิงกวาดทาง", "Rebirth Blaze! The phoenix sweeps the road"), 1.5f); break;
                     case "leak":
+                        if (typeOf.TryGetValue(ev.Id, out var leakType)) leaksByType[leakType] = (leaksByType.TryGetValue(leakType, out var nl) ? nl : 0) + 1;
                         LeakToast(ev.Id); goalFlashUntil = Time.time + 0.25f; fx.Shake(2.5f);
+                        typeOf.Remove(ev.Id);
                         if (board != null) board.Burst(board.GoalAt + Vector3.up, "#D2412F", 14); else fx.Burst(goalAt, "#D2412F", 0.6f);
                         break;
                     case "kill":
                     {
                         var at = new Vector2(Gx(ev.X), Gy(ev.Y) - 4);
                         bool boss = typeOf.TryGetValue(ev.Id, out var t) && GameData.Enemies[t].Boss != null;
+                        typeOf.Remove(ev.Id);
                         if (board != null)
                         {
                             var p3 = board.EnemyAt(ev.X, ev.Y);
@@ -291,13 +385,13 @@ namespace FiveSects.Game
                         var d = s.Disciples.FirstOrDefault(q => q.Id == ev.Id);
                         if (d != null && board != null) board.Burst(board.DiscipleAt(d.Id), "#E3B04B", 20);
                         else if (d != null) fx.Burst(new Vector2(Gx(d.X), Gy(d.Y) - 4), "#E3B04B", 1.2f);
-                        Toast(ev.Name, 1.5f);
+                        Toast(L(ev.Name, ev.Type), 1.5f);
                         break;
                     }
-                    case "seal": fx.Shake(3); if (board == null) fx.Burst(new Vector2(Bootstrap.W / 2f, Bootstrap.H / 2f), "#8A1A1A", 1.5f); Toast(L("บอสผนึก ", "Boss sealed ") + Ui.Unit(ev.El) + L(" ชั่วคราว!", " for a while!"), 2.5f); break;
+                    case "seal": fx.Shake(3); if (board == null) fx.Burst(new Vector2(Bootstrap.W / 2f, Bootstrap.H / 2f), "#8A1A1A", 1.5f); Toast(L("บอสผนึก ", "Boss sealed ") + SealName(ev.El) + L(" ชั่วคราว! (ตัวสีเทาโจมตีไม่ได้)", " for a while! (grey ones cannot attack)"), 2.5f); break;
                     case "disable": fx.Shake(2); Toast(L("อาวุธลับ! ศิษย์ถูกสกัด", "Hidden weapon! A disciple is disabled"), 1.5f); break;
                     case "end":
-                        ClosePanel();
+                        ClosePanel(); CloseOffer(); ClosePause();
                         ShowResult(ev.Won, ev.Stars);
                         break;
                 }
@@ -379,10 +473,11 @@ namespace FiveSects.Game
             rangeRing.enabled = true;
         }
 
-        void ShowTileMark(int tx, int ty)
+        void ShowTileMark(int tx, int ty, string hex = "#E3B04B")
         {
-            if (board != null) { board.ShowTileMark(tx, ty); return; }
+            if (board != null) { board.ShowTileMark(tx, ty, hex); return; }
             tileMark.sprite = Art.TileMark(T);
+            tileMark.color = hex == "#E3B04B" ? Color.white : Art.Hex(hex); // the sprite itself is drawn gold
             tileMark.transform.position = TileCentre(tx, ty);
             tileMark.enabled = true;
         }
@@ -393,6 +488,7 @@ namespace FiveSects.Game
         {
             if (rangeRing.enabled && panel == null && Time.time > ringUntil) rangeRing.enabled = false;
             if (board != null && board.RingShown && panel == null && Time.time > ringUntil) board.HideRing();
+            if (markUntil > 0 && Time.time > markUntil && panel == null) { markUntil = 0; tileMark.enabled = false; board?.HideMarks(); }
             if (goalGate != null) goalGate.color = Time.time < goalFlashUntil ? new Color(1f, 0.4f, 0.4f) : Color.white;
         }
 
@@ -507,8 +603,9 @@ namespace FiveSects.Game
             silverText = Chip(top, 0.01f, 0.33f, "#E3B04B");
             livesText = Chip(top, 0.34f, 0.56f, "#D2412F");
             waveText = Chip(top, 0.57f, 0.8f, "#ECE3CF");
-            var speedBtn = MakeButton(top, "x1", new Vector2(0.82f, 0.12f), new Vector2(0.99f, 0.88f), null);
+            var speedBtn = MakeButton(top, "x1", new Vector2(0.81f, 0.12f), new Vector2(0.9f, 0.88f), null);
             speedBtn.onClick.AddListener(() => { speed = speed % 3 + 1; speedBtn.GetComponentInChildren<Text>().text = "x" + speed; });
+            MakeButton(top, "II", new Vector2(0.91f, 0.12f), new Vector2(0.99f, 0.88f), TogglePause);
 
             // Bottom: what the next wave brings (name, enemy pictures, roles it needs), then a big start button.
             var bottom = Frame(root, "Bottom", new Vector2(0, 0), new Vector2(1, 0), Vector2.zero, new Vector2(0, 134));
@@ -521,6 +618,8 @@ namespace FiveSects.Game
             waveButtonText = waveButton.GetComponentInChildren<Text>();
             waveButtonText.font = Ui.Bold; waveButtonText.fontSize = 28;
             fpsText = Label(bottom, "", 16, new Vector2(0.68f, 0.06f), new Vector2(0.99f, 0.52f), "#6E6680");
+            fpsText.gameObject.SetActive(Debug.isDebugBuild); // dev readout only
+            BuildArtsBar(root);
 
             if (s.Sect != null)
             {
@@ -535,6 +634,8 @@ namespace FiveSects.Game
             bossBar.gameObject.SetActive(false);
             toastText = Label(root, "", 30, new Vector2(0, 0.62f), new Vector2(1, 0.7f), "#ECE3CF");
             toastText.alignment = TextAnchor.MiddleCenter;
+            toastText.resizeTextForBestFit = true; toastText.resizeTextMinSize = 18; toastText.resizeTextMaxSize = 30;
+            toastText.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, 0.85f);
         }
 
         RectTransform Box(RectTransform parent, string name, Vector2 aMin, Vector2 aMax, Vector2 offMin, Vector2 offMax, string color)
@@ -590,14 +691,23 @@ namespace FiveSects.Game
             return b;
         }
 
-        void ClosePanel() { if (panel != null) Destroy(panel.gameObject); panel = null; HideMarks(); board?.Unfocus(); }
+        void ClosePanel()
+        {
+            if (panel != null) Destroy(panel.gameObject);
+            panel = null; reopen = null; panelCosts = System.Array.Empty<int>(); reopenAt = -1;
+            HideMarks(); board?.Unfocus();
+        }
+
+        // Remember how to rebuild the open panel and which prices it shows, for RefreshPanel.
+        void Track(System.Action rebuild, params int[] costs) { reopen = rebuild; panelCosts = costs; panelAfford = Afford(); }
 
         // The panel opens on the half of the screen away from the tapped tile so it never hides it.
         RectTransform OpenPanel(int ty, float height = 160)
         {
             ClosePanel();
-            panel = ty < Layouts.GridH / 2
-                ? Frame(hudRoot, "Panel", new Vector2(0.02f, 0), new Vector2(0.98f, 0), new Vector2(0, 140), new Vector2(0, 140 + height))
+            panelTop = ty >= Layouts.GridH / 2;
+            panel = !panelTop
+                ? Frame(hudRoot, "Panel", new Vector2(0.02f, 0), new Vector2(0.98f, 0), new Vector2(0, 212), new Vector2(0, 212 + height))
                 : Frame(hudRoot, "Panel", new Vector2(0.02f, 1), new Vector2(0.98f, 1), new Vector2(0, -78 - height), new Vector2(0, -78));
             return panel;
         }
@@ -631,14 +741,12 @@ namespace FiveSects.Game
                 ghost.enabled = true;
             }
             Detail(detail, choice);
-            MakeButton(detail, L("ยืนยันวาง\n", "Place\n") + cost + L(" ตำลึง", " silver"), new Vector2(0.72f, 0.62f), new Vector2(0.99f, 0.99f),
-                () =>
-                {
-                    pending.Add(new Command { T = "place", Sect = choice, Tx = tx, Ty = ty }); ClosePanel();
-                    ShowRing(tx, ty, def.Range, def.Color, 1.5f);
-                    if (Flow != null) Flow.FirstPlace();
-                }, s.Silver >= cost);
+            bool afford = s.Silver >= cost;
+            MakeButton(detail, afford ? L("ยืนยันวาง\n", "Place\n") + cost + L(" ตำลึง", " silver") : L("ขาดอีก\n", "Need\n") + (cost - s.Silver) + L(" ตำลึง", " more"),
+                new Vector2(0.72f, 0.62f), new Vector2(0.99f, 0.99f),
+                () => { pending.Add(new Command { T = "place", Sect = choice, Tx = tx, Ty = ty }); ClosePanel(); }, afford, true);
             MakeButton(detail, L("ยกเลิก", "Cancel"), new Vector2(0.72f, 0.42f), new Vector2(0.99f, 0.6f), ClosePanel);
+            Track(() => OpenBuildPanel(tx, ty, choice), s.Unlocked.Select(Defend.PlaceCost).ToArray());
         }
 
         static Dictionary<string, string> RoleColor => Ui.RoleColor;
@@ -706,7 +814,7 @@ namespace FiveSects.Game
             string role = RoleOf(key);
             var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
             var title = Label(box, Ui.Name(def) + (rd != null ? "  ·  " + Ui.Name(rd) : ""), 28, new Vector2(0, 0.86f), new Vector2(0.71f, 1f), def.Color);
-            title.font = Ui.Bold;
+            title.font = Ui.Bold; title.resizeTextForBestFit = true; title.resizeTextMinSize = 16; title.resizeTextMaxSize = 28;
             var u = GameData.Units.TryGetValue(key, out var ud) ? ud : null;
             string desc = u != null ? L(u.DescTh, u.DescEn) : (rd != null ? rd.DoesTh : "");
             var dl = Label(box, desc, 19, new Vector2(0, 0.7f), new Vector2(0.71f, 0.87f), "#ECE3CF");
@@ -751,68 +859,292 @@ namespace FiveSects.Game
 
         static Sprite DiscipleSprite(Disciple d) => d.Unit != null ? Art.Unit(d.El, d.Els[0]) : Art.Disciple(d.Els);
 
-        // A placed disciple: who it is, the technique it fights with now, and what the next upgrade teaches.
+        static readonly string[] TargetModes = { "first", "strong", "weak", "close" };
+
+        string TargetName(string mode)
+        {
+            switch (mode)
+            {
+                case "strong": return L("เลือดมากสุด", "Strongest");
+                case "weak": return L("เลือดน้อยสุด", "Weakest");
+                case "close": return L("ใกล้สุด", "Closest");
+                default: return L("ตัวนำหน้า", "First");
+            }
+        }
+
+        // A placed disciple: who it is, the technique it fights with now, what the next upgrade teaches, whom it targets.
         void OpenDisciplePanel(Disciple d)
         {
-            var p = OpenPanel(d.Ty, 300);
+            var p = OpenPanel(d.Ty, 360);
             board?.Focus(d.Tx, d.Ty);
-            ShowRing(d.Tx, d.Ty, d.Els.Max(el => GameData.Sects[el].Range), GameData.Sects[d.Els[0]].Color, 0);
             string key = d.Unit ?? d.Els[0];
+            var def = GameData.DefOf(key);
+            // A merged disciple reaches as far as its longer-ranged half; everyone else uses its own data.
+            int range = d.Unit != null ? def.Range : d.Els.Max(el => GameData.Sects[el].Range);
+            ShowRing(d.Tx, d.Ty, range, def.Color, 0);
             var pic = new GameObject("Portrait", typeof(RectTransform), board != null ? typeof(RawImage) : typeof(Image));
             var prt = (RectTransform)pic.transform;
             prt.SetParent(p, false);
-            prt.anchorMin = new Vector2(0.01f, 0.04f); prt.anchorMax = new Vector2(0.2f, 0.96f); prt.offsetMin = prt.offsetMax = Vector2.zero;
+            prt.anchorMin = new Vector2(0.01f, 0.36f); prt.anchorMax = new Vector2(0.2f, 0.98f); prt.offsetMin = prt.offsetMax = Vector2.zero;
             if (board != null) pic.GetComponent<RawImage>().texture = board.Portrait(key);
             else { var im = pic.GetComponent<Image>(); im.sprite = DiscipleSprite(d); im.preserveAspect = true; }
             pic.GetComponent<Graphic>().raycastTarget = false;
 
             string role = Ui.RoleOf(d);
             var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
-            string name = d.Combo != null && GameData.Combos.FirstOrDefault(c => c.Id == d.Combo) is ComboDef cd ? cd.NameTh : Ui.Unit(key);
-            var title = Label(p, name + (rd != null ? "  ·  " + Ui.Name(rd) : "") + L("  ขั้น ", "  tier ") + d.Level, 26, new Vector2(0.21f, 0.8f), new Vector2(0.99f, 0.98f), GameData.Sects[d.El ?? d.Els[0]].Color);
-            title.font = Ui.Bold;
+            string name = d.Combo != null && GameData.Combos.FirstOrDefault(c => c.Id == d.Combo) is ComboDef cd ? L(cd.NameTh, cd.Id) : Ui.Unit(key);
+            bool off = d.OffT > 0 || (s.SealT > 0 && s.SealEl != null && d.Els.Contains(s.SealEl));
+            var title = Label(p, name + (rd != null ? "  ·  " + Ui.Name(rd) : "") + L("  ขั้น ", "  tier ") + d.Level + (off ? L("  (ถูกสกัด)", "  (disabled)") : ""), 26,
+                new Vector2(0.21f, 0.84f), new Vector2(0.99f, 0.99f), off ? "#8A8296" : GameData.Sects[d.El ?? d.Els[0]].Color);
+            title.font = Ui.Bold; title.resizeTextForBestFit = true; title.resizeTextMinSize = 16; title.resizeTextMaxSize = 26;
             var now = Ui.Skill(d.Els[0], d.Level);
-            var nowLine = Label(p, L("ท่าที่ใช้: ", "Fighting with: ") + Ui.Name(now) + " — " + Ui.Effect(now), 17, new Vector2(0.21f, 0.58f), new Vector2(0.99f, 0.8f), "#FFD34A");
+            var nowLine = Label(p, L("ท่าที่ใช้: ", "Fighting with: ") + Ui.Name(now) + " — " + Ui.Effect(now), 17, new Vector2(0.21f, 0.68f), new Vector2(0.99f, 0.84f), "#FFD34A");
             nowLine.resizeTextForBestFit = true; nowLine.resizeTextMinSize = 12; nowLine.resizeTextMaxSize = 17;
             int up = Defend.UpgradeCost(d);
             bool canUp = d.Combo == null && d.Level < GameData.UpgradeLevels;
             var next = canUp ? Ui.Skill(d.Els[0], d.Level + 1) : null;
-            var nextLine = Label(p, next != null ? L("อัปเกรดแล้วได้: ", "Upgrade teaches: ") + Ui.Name(next) + " — " + Ui.Effect(next) : L("ขั้นสูงสุดแล้ว", "Highest tier"),
-                17, new Vector2(0.21f, 0.36f), new Vector2(0.99f, 0.58f), next != null ? "#ECE3CF" : "#8A8296");
+            string nextText0 = next != null ? L("อัปเกรดแล้วได้: ", "Upgrade teaches: ") + Ui.Name(next) + " — " + Ui.Effect(next)
+                : d.Combo != null ? L("ร่างผสานอัปเกรดไม่ได้", "A merged form cannot be upgraded") : L("ขั้นสูงสุดแล้ว", "Highest tier");
+            var nextLine = Label(p, nextText0, 17, new Vector2(0.21f, 0.52f), new Vector2(0.99f, 0.68f), next != null ? "#ECE3CF" : "#8A8296");
             nextLine.resizeTextForBestFit = true; nextLine.resizeTextMinSize = 12; nextLine.resizeTextMaxSize = 17;
-            MakeButton(p, canUp ? L("อัปเกรด ", "Upgrade ") + up + L(" ตำลึง", " silver") : L("เต็มแล้ว", "Max level"), new Vector2(0.21f, 0.05f), new Vector2(0.62f, 0.33f),
+            // Target mode: four choices, the current one highlighted.
+            Label(p, L("เป้า:", "Target:"), 16, new Vector2(0.21f, 0.36f), new Vector2(0.31f, 0.5f), "#9A92AE");
+            for (int i = 0; i < TargetModes.Length; i++)
+            {
+                string mode = TargetModes[i];
+                bool on = d.Target == mode;
+                var b = MakeButton(p, TargetName(mode), new Vector2(0.31f + i * 0.17f, 0.37f), new Vector2(0.47f + i * 0.17f, 0.5f),
+                    () => { pending.Add(new Command { T = "target", Id = d.Id, Mode = mode }); reopenAt = Time.time + 0.15f; }, true, on);
+                var bt = b.GetComponentInChildren<Text>(); bt.fontSize = 16; bt.resizeTextForBestFit = true; bt.resizeTextMinSize = 11; bt.resizeTextMaxSize = 16;
+            }
+            string upLabel = canUp ? (s.Silver >= up ? L("อัปเกรด ", "Upgrade ") + up + L(" ตำลึง", " silver") : L("อัปเกรด: ขาดอีก ", "Upgrade: need ") + (up - s.Silver))
+                : d.Combo != null ? L("ร่างผสาน", "Merged") : L("เต็มแล้ว", "Max level");
+            MakeButton(p, upLabel, new Vector2(0.21f, 0.04f), new Vector2(0.62f, 0.32f),
                 () => { pending.Add(new Command { T = "upgrade", Id = d.Id }); ClosePanel(); }, canUp && s.Silver >= up, true);
-            MakeButton(p, L("ขาย +", "Sell +") + Defend.SellValue(d, s), new Vector2(0.64f, 0.05f), new Vector2(0.99f, 0.33f),
-                () => { pending.Add(new Command { T = "sell", Id = d.Id }); ClosePanel(); });
+            // Selling takes two taps, so a stray tap never throws a disciple away.
+            bool armed = sellArmed == d.Id;
+            MakeButton(p, armed ? L("แตะอีกครั้ง\nขาย +", "Tap again\nSell +") + Defend.SellValue(d, s) : L("ขาย +", "Sell +") + Defend.SellValue(d, s),
+                new Vector2(0.64f, 0.04f), new Vector2(0.99f, 0.32f), () =>
+                {
+                    if (sellArmed != d.Id) { sellArmed = d.Id; OpenDisciplePanel(d); return; }
+                    sellArmed = -1;
+                    pending.Add(new Command { T = "sell", Id = d.Id }); ClosePanel();
+                });
+            Track(() => { if (s.Disciples.Contains(d)) OpenDisciplePanel(d); else ClosePanel(); }, canUp ? new[] { up } : System.Array.Empty<int>());
+        }
+
+        // ---------- manual offer, secret arts, pause ----------
+
+        static string CardName(string id) => GameData.Cards.FirstOrDefault(c => c.Id == id)?.NameTh ?? "";
+
+        // Every few waves the rules offer three manuals; the player picks one (or the first is taken when time runs out).
+        void OpenOfferPanel(List<string> ids)
+        {
+            ClosePanel(); CloseOffer();
+            if (ids == null || ids.Count == 0) return;
+            offerPanel = Frame(hudRoot, "Offer", new Vector2(0.03f, 0.28f), new Vector2(0.97f, 0.74f), Vector2.zero, Vector2.zero);
+            var title = Label(offerPanel, L("เลือกคัมภีร์ 1 เล่ม", "Pick one manual"), 32, new Vector2(0, 0.84f), new Vector2(1, 0.98f), "#E3B04B");
+            title.font = Ui.Bold; title.alignment = TextAnchor.MiddleCenter;
+            offerTimer = Label(offerPanel, "", 18, new Vector2(0, 0.74f), new Vector2(1, 0.84f), "#9A92AE");
+            offerTimer.alignment = TextAnchor.MiddleCenter;
+            for (int i = 0; i < ids.Count; i++)
+            {
+                var c = GameData.Cards.FirstOrDefault(x => x.Id == ids[i]);
+                if (c == null) continue;
+                string id = c.Id;
+                float x0 = (float)i / ids.Count + 0.012f, x1 = (float)(i + 1) / ids.Count - 0.012f;
+                var card = Frame(offerPanel, "Card", new Vector2(x0, 0.05f), new Vector2(x1, 0.72f), Vector2.zero, Vector2.zero, "#241418");
+                var b = card.gameObject.AddComponent<Button>();
+                b.onClick.AddListener(() => { pending.Add(new Command { T = "pick", Card = id }); CloseOffer(); });
+                if (c.Needs != null && GameData.Sects.TryGetValue(c.Needs, out var sd))
+                {
+                    var band = Box(card, "Sect", new Vector2(0, 0.88f), new Vector2(1, 1), Vector2.zero, Vector2.zero, sd.Color);
+                    band.GetComponent<Image>().raycastTarget = false;
+                }
+                var n = Label(card, c.NameTh, 22, new Vector2(0, 0.62f), new Vector2(1, 0.86f), "#FFF4DC");
+                n.font = Ui.Bold; n.alignment = TextAnchor.MiddleCenter; n.resizeTextForBestFit = true; n.resizeTextMinSize = 14; n.resizeTextMaxSize = 22;
+                var e = Label(card, c.EffectTh, 18, new Vector2(0, 0.06f), new Vector2(1, 0.6f), "#ECE3CF");
+                e.alignment = TextAnchor.UpperCenter; e.resizeTextForBestFit = true; e.resizeTextMinSize = 12; e.resizeTextMaxSize = 18;
+            }
+        }
+
+        void CloseOffer() { if (offerPanel != null) Destroy(offerPanel.gameObject); offerPanel = null; }
+
+        // Secret arts: a row above the bottom bar. Free charges first, then each cast costs silver; cooldown fills the button.
+        void BuildArtsBar(RectTransform root)
+        {
+            int n = GameData.Arts.Count;
+            artButtons = new Button[n]; artFills = new RectTransform[n]; artSubs = new Text[n];
+            if (n == 0) return;
+            var bar = (RectTransform)new GameObject("Arts", typeof(RectTransform)).transform;
+            bar.SetParent(root, false);
+            bar.anchorMin = new Vector2(0, 0); bar.anchorMax = new Vector2(1, 0); bar.offsetMin = new Vector2(6, 138); bar.offsetMax = new Vector2(-6, 206);
+            for (int i = 0; i < n; i++)
+            {
+                var art = GameData.Arts[i];
+                string id = art.Id;
+                float x0 = (float)i / n + 0.006f, x1 = (float)(i + 1) / n - 0.006f;
+                var b = MakeButton(bar, "", new Vector2(x0, 0), new Vector2(x1, 1), () => pending.Add(new Command { T = "cast", Art = id }), true);
+                var fill = Box((RectTransform)b.transform, "Cooldown", Vector2.zero, new Vector2(1, 0), Vector2.zero, Vector2.zero, "#000000");
+                fill.GetComponent<Image>().color = new Color(0, 0, 0, 0.55f);
+                fill.GetComponent<Image>().raycastTarget = false;
+                var name = Label((RectTransform)b.transform, art.NameTh, 17, new Vector2(0, 0.42f), new Vector2(1, 1), "#FFF4DC");
+                name.font = Ui.Bold; name.alignment = TextAnchor.MiddleCenter; name.resizeTextForBestFit = true; name.resizeTextMinSize = 11; name.resizeTextMaxSize = 17;
+                var sub = Label((RectTransform)b.transform, "", 15, new Vector2(0, 0), new Vector2(1, 0.44f), "#E3B04B");
+                sub.alignment = TextAnchor.MiddleCenter;
+                artButtons[i] = b; artFills[i] = fill; artSubs[i] = sub;
+            }
+        }
+
+        void UpdateArtsBar()
+        {
+            for (int i = 0; i < artButtons.Length; i++)
+            {
+                var art = GameData.Arts[i];
+                int cd = s.ArtCd[i], charges = s.ArtCharges[i];
+                artFills[i].anchorMax = new Vector2(1, art.Cooldown > 0 ? (float)cd / art.Cooldown : 0);
+                artButtons[i].interactable = !paused && !s.IsOver && cd == 0 && s.Enemies.Count > 0 && (charges > 0 || s.Silver >= art.RechargeSilver);
+                artSubs[i].text = cd > 0 ? Mathf.CeilToInt(cd / 20f) + L(" วิ", " s")
+                    : charges > 0 ? L("ฟรีอีก ", "Free x") + charges : art.RechargeSilver + L(" ตำลึง", " silver");
+            }
+        }
+
+        void TogglePause() { if (paused) ClosePause(); else OpenPause(); }
+
+        void OpenPause()
+        {
+            if (s.IsOver || resultPanel != null) return;
+            paused = true;
+            ClosePanel();
+            pauseMenu = Box(hudRoot, "Pause", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, "#000000");
+            pauseMenu.GetComponent<Image>().color = new Color(0, 0, 0, 0.6f); // also blocks taps on the board
+            var box = Frame(pauseMenu, "Menu", new Vector2(0.15f, 0.36f), new Vector2(0.85f, 0.64f), Vector2.zero, Vector2.zero);
+            var t = Label(box, L("พักการต่อสู้", "Paused"), 32, new Vector2(0, 0.76f), new Vector2(1, 0.96f), "#E3B04B");
+            t.font = Ui.Bold; t.alignment = TextAnchor.MiddleCenter;
+            MakeButton(box, L("เล่นต่อ", "Resume"), new Vector2(0.08f, 0.52f), new Vector2(0.92f, 0.72f), ClosePause, true, true);
+            MakeButton(box, L("เริ่มด่านใหม่", "Restart"), new Vector2(0.08f, 0.28f), new Vector2(0.92f, 0.48f), () => { ClosePause(); Load(StageId); });
+            if (Flow != null) MakeButton(box, L("กลับลานสำนัก", "Back to the courtyard"), new Vector2(0.08f, 0.04f), new Vector2(0.92f, 0.24f), Flow.LeaveBattle);
+        }
+
+        void ClosePause() { paused = false; if (pauseMenu != null) Destroy(pauseMenu.gameObject); pauseMenu = null; }
+
+        // Every refusal from the rules becomes a short line the player understands.
+        string ErrorText(string msg)
+        {
+            switch (msg)
+            {
+                case "not enough silver": return L("ตำลึงไม่พอ", "Not enough silver");
+                case "cannot build here": return L("วางตรงนี้ไม่ได้", "Can't place here");
+                case "sect locked": return L("ยังไม่ปลดศิษย์นี้", "This disciple is not unlocked yet");
+                case "cannot upgrade": return L("อัปเกรดไม่ได้แล้ว", "Can't upgrade further");
+                case "no such disciple": return null; // sold or merged in the same tick
+                case "no more waves": return L("ไม่มีระลอกเหลือแล้ว", "No waves left");
+                case "cannot call a wave now": return L("ตอนนี้เรียกระลอกไม่ได้", "Can't call a wave now");
+                case "art on cooldown": return L("วิชายังไม่พร้อม", "That art is not ready");
+                case "no enemies": return L("ยังไม่มีศัตรูให้ใช้วิชา", "No enemies to use it on");
+                case "no such card on offer": return null;
+                case "roster disciples cannot merge yet": return L("ศิษย์สำนักนี้ยังผสานไม่ได้", "These disciples cannot merge yet");
+                case "both must be max level": return L("ต้องขั้นสูงสุดทั้งคู่จึงผสานได้", "Both must be at the highest tier");
+                case "merge needs two adjacent disciples": return L("ต้องยืนติดกันจึงผสานได้", "They must stand next to each other");
+                case "no combo for this pair": return L("คู่นี้ไม่มีท่าผสาน", "This pair has no combo");
+                default: return null;
+            }
+        }
+
+        // The Envoy seals a kit element; in a one-sect game that is one role, so name the role.
+        string SealName(string el)
+        {
+            if (s.Sect != null)
+            {
+                var u = GameData.UnitList.FirstOrDefault(x => x.Sect == s.Sect && x.Element == el);
+                if (u != null && GameData.RoleDefs.TryGetValue(u.RoleId, out var rd)) return L("บทบาท", "the ") + Ui.Name(rd);
+            }
+            return Ui.Unit(el);
+        }
+
+        // A short rising line next to a HUD element (interest next to silver).
+        void FloatUi(Text anchor, string text, string color)
+        {
+            var t = Label((RectTransform)anchor.transform.parent, text, 20, new Vector2(0, -0.9f), new Vector2(1, 0), color);
+            t.font = Ui.Bold;
+            uiFloaters.Add((t, Time.time));
+        }
+
+        void UpdateFloaters()
+        {
+            for (int i = uiFloaters.Count - 1; i >= 0; i--)
+            {
+                var (t, born) = uiFloaters[i];
+                float k = (Time.time - born) / 1.4f;
+                if (k >= 1) { Destroy(t.gameObject); uiFloaters.RemoveAt(i); continue; }
+                t.rectTransform.anchoredPosition = new Vector2(0, -k * 30);
+                var c = t.color; c.a = 1 - k; t.color = c;
+            }
         }
 
         void ShowResult(bool won, List<bool> stars)
         {
-            resultPanel = Box(hudRoot, "Result", new Vector2(0.08f, 0.3f), new Vector2(0.92f, 0.7f), Vector2.zero, Vector2.zero, "#17121F");
-            var title = Label(resultPanel, won ? L("ชนะ!", "Victory!") : L("พ่ายแพ้", "Defeat"), 48, new Vector2(0, 0.72f), new Vector2(1, 0.95f), won ? "#E3B04B" : "#D2412F");
-            title.alignment = TextAnchor.MiddleCenter;
+            // A full-screen backdrop: nothing behind the result can be tapped any more.
+            var back = Box(hudRoot, "ResultBackdrop", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, "#000000");
+            back.GetComponent<Image>().color = new Color(0, 0, 0, 0.6f);
+            resultPanel = Frame(back, "Result", new Vector2(0.05f, 0.24f), new Vector2(0.95f, 0.76f), Vector2.zero, Vector2.zero);
+            var title = Label(resultPanel, won ? L("ชนะ!", "Victory!") : L("พ่ายแพ้", "Defeat"), 52, new Vector2(0, 0.82f), new Vector2(1, 0.98f), won ? "#E3B04B" : "#D2412F");
+            title.font = Ui.Bold; title.alignment = TextAnchor.MiddleCenter;
+            int secs = s.Tick / 20;
+            var stats = Label(resultPanel, L("เวลา ", "Time ") + secs / 60 + ":" + (secs % 60).ToString("00") + "   ·   " + L("เสียชีวิต ", "Lives lost ") + s.LivesLost + "   ·   " + L("ตำลึง ", "Silver ") + s.Silver,
+                20, new Vector2(0, 0.74f), new Vector2(1, 0.82f), "#C9BFA8");
+            stats.alignment = TextAnchor.MiddleCenter;
             var conds = GameData.Stages[StageId].Stars;
             for (int i = 0; i < stars.Count; i++)
             {
-                var line = Label(resultPanel, (stars[i] ? "[*] " : "[ ] ") + (i < conds.Count ? StarName(conds[i]) : ""), 26,
-                    new Vector2(0.1f, 0.6f - i * 0.11f), new Vector2(0.95f, 0.7f - i * 0.11f), stars[i] ? "#E3B04B" : "#9A92AE");
-                line.alignment = TextAnchor.MiddleLeft;
+                float y1 = 0.7f - i * 0.11f;
+                // A star is a gold diamond (the bundled font has no star glyph); grey when missed.
+                var star = Box(resultPanel, "Star", new Vector2(0.08f, y1 - 0.075f), new Vector2(0.08f, y1 - 0.075f), new Vector2(-14, -14), new Vector2(14, 14), stars[i] ? "#FFD34A" : "#3A3442");
+                star.localRotation = Quaternion.Euler(0, 0, 45);
+                star.GetComponent<Image>().raycastTarget = false;
+                string id = i < conds.Count ? conds[i] : "";
+                var line = Label(resultPanel, StarName(id) + StarValue(id), 24, new Vector2(0.13f, y1 - 0.11f), new Vector2(0.98f, y1 - 0.01f), stars[i] ? "#ECE3CF" : "#8A8296");
+                line.resizeTextForBestFit = true; line.resizeTextMinSize = 14; line.resizeTextMaxSize = 24;
+            }
+            if (!won && leaksByType.Count > 0)
+            {
+                // A loss has a reason: what got through most, and which role answers it.
+                var worst = leaksByType.OrderByDescending(kv => kv.Value).First();
+                var answer = GameData.RoleDefs.Values.FirstOrDefault(r => r.Counters.Contains(worst.Key) && s.Unlocked.Any(k => Ui.RoleOf(k) == r.Id));
+                var reason = Label(resultPanel, L("หลุดมากสุด: ", "Most leaked: ") + Ui.Enemy(worst.Key) + " ×" + worst.Value + (answer != null ? L("  ·  ลองวาง ", "  ·  try ") + Ui.Name(answer) : ""),
+                    20, new Vector2(0.04f, 0.27f), new Vector2(0.96f, 0.36f), "#FF8A6A");
+                reason.alignment = TextAnchor.MiddleCenter; reason.resizeTextForBestFit = true; reason.resizeTextMinSize = 13; reason.resizeTextMaxSize = 20;
             }
             int idx = System.Array.IndexOf(Playlist, StageId);
             string next = idx >= 0 && idx + 1 < Playlist.Length ? Playlist[idx + 1] : null;
-            if (Flow != null)
+            bool tutorial = Flow != null && StageId == Flow.TutorialStage;
+            if (Flow != null) Flow.StageEnded(StageId, won, stars);
+            var buttons = new List<(string label, UnityEngine.Events.UnityAction act, bool primary)>
             {
-                Flow.StageEnded(StageId, won, stars);
-                bool tutorial = StageId == Flow.TutorialStage;
-                MakeButton(resultPanel, L("เล่นอีกครั้ง", "Retry"), new Vector2(0.03f, 0.05f), new Vector2(0.48f, 0.22f), () => Load(StageId));
-                MakeButton(resultPanel, tutorial ? L("เลือกสำนัก", "Choose a sect") : L("ลานสำนัก", "Lobby"), new Vector2(0.52f, 0.05f), new Vector2(0.97f, 0.22f), Flow.LeaveBattle);
-                return;
+                (L("เล่นอีกครั้ง", "Retry"), () => Load(StageId), !won),
+            };
+            if (won && next != null && !tutorial) buttons.Add((L("ด่านต่อไป", "Next stage"), () => Load(next), true));
+            if (Flow != null) buttons.Add((tutorial ? L("เลือกสำนัก", "Choose a sect") : L("ลานสำนัก", "Courtyard"), Flow.LeaveBattle, tutorial));
+            for (int i = 0; i < buttons.Count; i++)
+            {
+                float x0 = 0.03f + i * 0.94f / buttons.Count, x1 = 0.03f + (i + 1) * 0.94f / buttons.Count - 0.02f;
+                MakeButton(resultPanel, buttons[i].label, new Vector2(x0, 0.04f), new Vector2(x1, 0.22f), buttons[i].act, true, buttons[i].primary);
             }
-            MakeButton(resultPanel, L("เล่นอีกครั้ง", "Retry"), new Vector2(0.05f, 0.05f), new Vector2(0.48f, 0.22f), () => Load(StageId));
-            if (won && next != null)
-                MakeButton(resultPanel, L("ด่านถัดไป ", "Next: ") + next, new Vector2(0.52f, 0.05f), new Vector2(0.95f, 0.22f), () => Load(next));
-            else if (!won && idx > 0)
-                MakeButton(resultPanel, L("ด่านก่อนหน้า", "Previous"), new Vector2(0.52f, 0.05f), new Vector2(0.95f, 0.22f), () => Load(Playlist[idx - 1]));
+        }
+
+        // The measured value next to each star, so the player sees how close a missed one was.
+        string StarValue(string id)
+        {
+            int secs = s.Tick / 20;
+            switch (id)
+            {
+                case "no_life_lost": return L("  (เสีย ", "  (lost ") + s.LivesLost + ")";
+                case "under_3min": return "  (" + secs / 60 + ":" + (secs % 60).ToString("00") + ")";
+                case "hold_200_silver": return "  (" + s.Silver + ")";
+                case "max_6_disciples": return L("  (สูงสุด ", "  (peak ") + s.PeakDisciples + ")";
+                case "max_2_sects": return "  (" + s.SectsUsed.Count + ")";
+                default: return "";
+            }
         }
 
         string StarName(string id)
@@ -825,6 +1157,7 @@ namespace FiveSects.Game
                 case "hold_200_silver": return L("ถือตำลึง 200 ขึ้นไป", "Hold 200+ silver");
                 case "use_combo": return L("ใช้ยุทธ์ผสาน", "Use a combo");
                 case "max_2_sects": return L("ใช้ไม่เกิน 2 สำนัก", "At most 2 sects");
+                case "max_6_disciples": return L("ใช้ศิษย์ไม่เกิน 6 ตัว", "At most 6 disciples");
                 default: return id;
             }
         }
@@ -840,6 +1173,7 @@ namespace FiveSects.Game
         public void Close()
         {
             board?.Dispose();
+            if (Camera.main != null) Camera.main.cullingMask = ~0;
             Destroy(world.gameObject);
             Destroy(hudRoot.gameObject);
             Destroy(gameObject);
@@ -849,10 +1183,11 @@ namespace FiveSects.Game
         string WaveButtonLabel()
         {
             if (s.IsOver) return "";
-            if (s.Wave >= s.TotalWaves) return L("wave สุดท้าย", "Final wave");
-            if (s.Phase == "build") return L("เริ่มบุก", "Start wave");
+            if (s.Wave >= s.TotalWaves) return L("ระลอกสุดท้าย", "Final wave");
+            // The wave also starts by itself: show the seconds left so the player knows the clock is running.
+            if (s.Phase == "build") return L("เริ่มบุก", "Start wave") + "  (" + Mathf.CeilToInt(Mathf.Max(0, Defend.AutoStartTicks - s.Tick) / 20f) + ")";
             if (s.Phase == "picking") return L("เลือกคัมภีร์...", "Pick a manual...");
-            if (s.Phase == "break") return L("wave ถัดไป +", "Next wave +") + GameData.EarlyCallBonus;
+            if (s.Phase == "break") return L("ระลอกถัดไป +", "Next wave +") + GameData.EarlyCallBonus + "  (" + Mathf.CeilToInt(s.BreakT / 20f) + ")";
             int atStake = 0;
             foreach (var e in s.Enemies) if (e.Hp > 0) atStake += e.Bounty;
             return L("เรียกเพิ่ม +", "Call early +") + (GameData.EarlyCallBonus + atStake * GameData.EarlyCallPct / 100);
@@ -869,15 +1204,9 @@ namespace FiveSects.Game
         // Pictures of the enemy kinds the next wave brings (3D portraits, or sprites in 2D), rebuilt only when it changes.
         void UpdateNextStrip()
         {
-            var types = new List<string>();
-            if (s.Wave < s.TotalWaves)
-            {
-                var rec = GameData.WaveRecipes.FirstOrDefault(r => r.Id == s.NextRecipe);
-                var stageEnemies = GameData.Stages[StageId].Enemies;
-                if (rec != null) types.AddRange(rec.Types.Where(t => GameData.Enemies.ContainsKey(t) && (stageEnemies.Count == 0 || stageEnemies.Contains(t))));
-                if (NextIsBoss() && GameData.Stages[StageId].ScriptedWaves.TryGetValue((s.Wave + 1).ToString(), out var boss) && GameData.Enemies.ContainsKey(boss)) types.Add(boss);
-            }
-            string key = string.Join(",", types.Distinct().Take(5));
+            // Exactly what the rules will spawn next (including the boss), so the pictures never lie.
+            var types = s.Wave < s.TotalWaves ? Defend.WaveEntries(StageId, s.Wave + 1, s.NextRecipe).Select(q => q.Type).ToList() : new List<string>();
+            string key = string.Join(",", types.Distinct().Reverse().Take(5));
             if (key == nextStripKey) return;
             nextStripKey = key;
             foreach (Transform c in nextStrip) Destroy(c.gameObject);
@@ -896,14 +1225,36 @@ namespace FiveSects.Game
 
         void UpdateBossBar()
         {
-            var boss = s.Enemies.FirstOrDefault(e => GameData.Enemies[e.Type].Boss != null);
+            Enemy boss = null;
+            foreach (var e in s.Enemies) if (GameData.Enemies[e.Type].Boss != null) { boss = e; break; }
             bossBar.gameObject.SetActive(boss != null);
             if (boss == null) return;
             bossFill.anchorMax = new Vector2(Mathf.Clamp01((float)boss.Hp / boss.MaxHp), 1);
-            bossName.text = Ui.Enemy(boss.Type) + (s.SealT > 0 ? L("  ผนึก: ", "  sealed: ") + Ui.Unit(s.SealEl) : "");
+            bossName.text = Ui.Enemy(boss.Type) + (s.SealT > 0 ? L("  ผนึก: ", "  sealed: ") + SealName(s.SealEl) : "");
         }
 
-        void Toast(string msg, float seconds) { toastText.text = msg; toastUntil = Time.time + seconds; }
+        void Toast(string msg, float seconds)
+        {
+            if (string.IsNullOrEmpty(msg)) return;
+            if (Time.time >= toastUntil) { ShowToast(msg, seconds); return; }
+            if (msg == toastNow || toasts.Any(t => t.msg == msg) || toasts.Count >= 3) return;
+            toasts.Enqueue((msg, seconds));
+        }
+
+        void ShowToast(string msg, float seconds) { toastNow = msg; toastText.text = msg; toastUntil = Time.time + seconds; }
+
+        void UpdateToast()
+        {
+            if (Time.time >= toastUntil)
+            {
+                if (toasts.Count > 0) { var (m, sec) = toasts.Dequeue(); ShowToast(m, Mathf.Min(sec, 1.6f)); }
+                else if (toastNow != null) { toastNow = null; toastText.text = ""; }
+            }
+            // Keep clear of an open top panel.
+            bool low = panel != null && panelTop;
+            toastText.rectTransform.anchorMin = new Vector2(0, low ? 0.36f : 0.62f);
+            toastText.rectTransform.anchorMax = new Vector2(1, low ? 0.44f : 0.7f);
+        }
 
         // Next-wave bar: which roles answer the coming shape; a missing one shows in red (SPEC-core §2.2).
         string Needs()
@@ -931,17 +1282,34 @@ namespace FiveSects.Game
 
         void UpdateHud()
         {
-            silverText.text = L("ตำลึง ", "Silver ") + s.Silver;
-            livesText.text = L("ชีวิต ", "Lives ") + s.Lives;
-            waveText.text = L("ระลอก ", "Wave ") + s.Wave + "/" + s.TotalWaves;
-            waveButtonText.text = WaveButtonLabel();
+            if (s.Silver != hudSilver) { hudSilver = s.Silver; silverText.text = L("ตำลึง ", "Silver ") + s.Silver; }
+            if (s.Lives != hudLives) { hudLives = s.Lives; livesText.text = L("ชีวิต ", "Lives ") + s.Lives; }
+            if (s.Wave != hudWave) { hudWave = s.Wave; waveText.text = L("ระลอก ", "Wave ") + s.Wave + "/" + s.TotalWaves; }
+            if (Time.unscaledTime >= waveLabelAt)
+            {
+                waveLabelAt = Time.unscaledTime + 0.2f;
+                waveButtonText.text = WaveButtonLabel();
+            }
+            waveButton.interactable = !paused && !s.IsOver && s.Wave < s.TotalWaves && s.Phase != "picking";
             // The start button breathes while the player is still setting up, so the next action is obvious.
             float beat = s.Phase == "build" ? 1 + Mathf.Sin(Time.time * 4) * 0.03f : 1;
             waveButton.transform.localScale = new Vector3(beat, beat, 1);
-            nextText.text = s.Wave < s.TotalWaves ? L("ระลอกถัดไป: ", "Next: ") + RecipeName(s.NextRecipe) + (NextIsBoss() ? L(" + บอส!", " + BOSS!") : "") + Needs() : "";
-            UpdateNextStrip();
+            if (s.Wave != nextWaveSeen || !ReferenceEquals(s.NextRecipe, nextRecipeSeen) || s.Disciples.Count != nextCount)
+            {
+                nextWaveSeen = s.Wave; nextRecipeSeen = s.NextRecipe; nextCount = s.Disciples.Count;
+                nextText.text = s.Wave < s.TotalWaves ? L("ระลอกถัดไป: ", "Next: ") + RecipeName(s.NextRecipe) + (NextIsBoss() ? L(" + บอส!", " + BOSS!") : "") + Needs() : "";
+                UpdateNextStrip();
+            }
+            if (offerPanel != null)
+            {
+                if (s.Phase != "picking") CloseOffer();
+                else offerTimer.text = L("เลือกอัตโนมัติใน ", "Auto-pick in ") + Mathf.CeilToInt(s.OfferT / 20f) + L(" วิ", " s");
+            }
+            UpdateArtsBar();
             UpdateBossBar();
-            if (Time.time > toastUntil) toastText.text = "";
+            UpdateToast();
+            UpdateFloaters();
+            if (!fpsText.gameObject.activeSelf) return;
             fpsSmoothed = Mathf.Lerp(fpsSmoothed, 1f / Mathf.Max(0.0001f, Time.unscaledDeltaTime), 0.05f);
             if (Time.unscaledTime >= nextFpsUpdate)
             {

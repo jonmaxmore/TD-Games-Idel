@@ -68,7 +68,7 @@ namespace FiveSects.Sim
     public static class Defend
     {
         const int Tile = GameData.Tile, Hz = GameData.TickHz;
-        static int AutoStartTicks => 30 * Hz;
+        public static int AutoStartTicks => 30 * Hz; // public: the HUD shows the countdown
         const int DotEvery = GameData.TickHz / 2;
 
         // Same values as the FX table in defend.ts.
