@@ -498,34 +498,31 @@ namespace FiveSects.Game
         void ClosePanel() { if (panel != null) Destroy(panel.gameObject); panel = null; HideMarks(); }
 
         // The panel opens on the half of the screen away from the tapped tile so it never hides it.
-        RectTransform OpenPanel(int ty)
+        RectTransform OpenPanel(int ty, float height = 160)
         {
             ClosePanel();
             panel = ty < Layouts.GridH / 2
-                ? Box(hudRoot, "Panel", new Vector2(0.02f, 0), new Vector2(0.98f, 0), new Vector2(0, 72), new Vector2(0, 232), "#17121F")
-                : Box(hudRoot, "Panel", new Vector2(0.02f, 1), new Vector2(0.98f, 1), new Vector2(0, -232), new Vector2(0, -72), "#17121F");
+                ? Box(hudRoot, "Panel", new Vector2(0.02f, 0), new Vector2(0.98f, 0), new Vector2(0, 72), new Vector2(0, 72 + height), "#17121F")
+                : Box(hudRoot, "Panel", new Vector2(0.02f, 1), new Vector2(0.98f, 1), new Vector2(0, -72 - height), new Vector2(0, -72), "#17121F");
             return panel;
         }
 
-        // Two-step placement: picking a disciple previews it on the tile (ghost + attack range) with the facts the choice
-        // needs (role, damage per second, range, air, which enemies it answers); only Confirm places it (SPEC-core §2.1).
+        // Two-step placement with cards (SPEC-core §2.1): a row of disciple cards (portrait, role, name, cost); picking one
+        // shows its details, a ghost and its attack range on the tile; only Confirm places it.
         void OpenBuildPanel(int tx, int ty, string choice = null)
         {
-            var p = OpenPanel(ty);
+            var p = OpenPanel(ty, 430);
             ShowTileMark(tx, ty);
             int n = s.Unlocked.Count;
             for (int i = 0; i < n; i++)
             {
                 string key = s.Unlocked[i];
-                var kd = GameData.DefOf(key);
-                var b = MakeButton(p, (thai ? kd.NameTh : key) + "  " + Defend.PlaceCost(key), new Vector2((float)i / n + 0.01f, 0.66f), new Vector2((float)(i + 1) / n - 0.01f, 0.96f),
-                    () => OpenBuildPanel(tx, ty, key));
-                var bt = b.GetComponentInChildren<Text>(); bt.fontSize = n > 4 ? 16 : 22;
-                if (key == choice) { var c = Art.Hex(kd.Color); b.GetComponent<Image>().color = new Color(c.r * 0.6f, c.g * 0.6f, c.b * 0.6f, 1); }
+                Card(p, key, i, n, key == choice, () => OpenBuildPanel(tx, ty, key));
             }
+            var detail = Box(p, "Detail", new Vector2(0.01f, 0.02f), new Vector2(0.99f, 0.47f), Vector2.zero, Vector2.zero, "#0E0B14");
             if (choice == null)
             {
-                var hint = Label(p, L("เลือกศิษย์เพื่อดูระยะและข้อมูลก่อนวาง", "Pick a disciple to preview it"), 22, new Vector2(0, 0.06f), new Vector2(1, 0.6f), "#9A92AE");
+                var hint = Label(detail, L("แตะการ์ดเพื่อดูรายละเอียดและระยะโจมตีก่อนวาง", "Tap a card to see the disciple and its range before placing"), 22, Vector2.zero, Vector2.one, "#9A92AE");
                 hint.alignment = TextAnchor.MiddleCenter;
                 return;
             }
@@ -536,16 +533,85 @@ namespace FiveSects.Game
             ghost.transform.position = World(OX + tx * T + T / 2f, OY + ty * T + T / 2f - 1);
             ghost.color = new Color(1, 1, 1, 0.6f);
             ghost.enabled = true;
-            var info = Label(p, Facts(choice), 18, new Vector2(0, 0.36f), new Vector2(1, 0.64f), "#ECE3CF");
-            info.alignment = TextAnchor.MiddleCenter;
-            MakeButton(p, L("ยกเลิก", "Cancel"), new Vector2(0.01f, 0.04f), new Vector2(0.35f, 0.34f), ClosePanel);
-            MakeButton(p, L("ยืนยันวาง ", "Place ") + (thai ? def.NameTh : choice) + "  " + cost, new Vector2(0.37f, 0.04f), new Vector2(0.99f, 0.34f),
+            Detail(detail, choice);
+            MakeButton(detail, L("ยืนยันวาง\n", "Place\n") + cost + L(" ตำลึง", " silver"), new Vector2(0.72f, 0.38f), new Vector2(0.99f, 0.97f),
                 () =>
                 {
                     pending.Add(new Command { T = "place", Sect = choice, Tx = tx, Ty = ty }); ClosePanel();
                     ShowRing(tx, ty, def.Range, def.Color, 1.5f);
                     if (Flow != null) Flow.FirstPlace();
                 }, s.Silver >= cost);
+            MakeButton(detail, L("ยกเลิก", "Cancel"), new Vector2(0.72f, 0.04f), new Vector2(0.99f, 0.33f), ClosePanel);
+        }
+
+        static readonly Dictionary<string, string> RoleColor = new Dictionary<string, string>
+        { ["striker"] = "#E3B04B", ["burst"] = "#FF7A3D", ["control"] = "#4FB3FF", ["stacker"] = "#5BC46A", ["support"] = "#C9A0FF" };
+
+        // One card: sect-coloured frame (gold when selected), pixel portrait, role chip, name and cost.
+        void Card(RectTransform parent, string key, int i, int n, bool selected, UnityEngine.Events.UnityAction onClick)
+        {
+            var def = GameData.DefOf(key);
+            int cost = Defend.PlaceCost(key);
+            bool afford = s.Silver >= cost;
+            float x0 = (float)i / n + 0.006f, x1 = (float)(i + 1) / n - 0.006f;
+            var frame = Box(parent, "Card", new Vector2(x0, selected ? 0.52f : 0.5f), new Vector2(x1, selected ? 1f : 0.97f), Vector2.zero, Vector2.zero, selected ? "#E3B04B" : def.Color);
+            var face = Box(frame, "Face", Vector2.zero, Vector2.one, new Vector2(3, 3), new Vector2(-3, -3), selected ? "#2A2033" : "#1A1423");
+            var btn = frame.gameObject.AddComponent<Button>();
+            btn.onClick.AddListener(onClick);
+            var glow = Box(face, "Glow", new Vector2(0.1f, 0.36f), new Vector2(0.9f, 0.9f), Vector2.zero, Vector2.zero, def.Color);
+            glow.GetComponent<Image>().color = Art.Hex(def.Color) * new Color(1, 1, 1, 0.18f);
+            var portrait = new GameObject("Portrait", typeof(RectTransform), typeof(Image));
+            var prt = (RectTransform)portrait.transform;
+            prt.SetParent(face, false);
+            prt.anchorMin = new Vector2(0.12f, 0.34f); prt.anchorMax = new Vector2(0.88f, 0.92f); prt.offsetMin = prt.offsetMax = Vector2.zero;
+            var img = portrait.GetComponent<Image>();
+            img.sprite = DiscipleSprite(key); img.preserveAspect = true; img.raycastTarget = false;
+            if (!afford) img.color = new Color(0.5f, 0.5f, 0.5f, 1);
+            string role = RoleOf(key);
+            if (role != null && GameData.RoleDefs.TryGetValue(role, out var rd))
+            {
+                var chip = Box(face, "Role", new Vector2(0, 0.86f), new Vector2(1, 1), Vector2.zero, Vector2.zero, RoleColor.TryGetValue(role, out var rc) ? rc : "#9A92AE");
+                chip.GetComponent<Image>().raycastTarget = false;
+                var rl = Label(chip, Ui.Name(rd), n > 4 ? 14 : 17, Vector2.zero, Vector2.one, "#1A1423");
+                rl.alignment = TextAnchor.MiddleCenter;
+            }
+            var name = Label(face, Ui.Name(def), n > 4 ? 14 : 17, new Vector2(0, 0.15f), new Vector2(1, 0.34f), "#ECE3CF");
+            name.alignment = TextAnchor.MiddleCenter;
+            var price = Label(face, cost + L(" ตำลึง", " silver"), n > 4 ? 14 : 17, new Vector2(0, 0), new Vector2(1, 0.16f), afford ? "#E3B04B" : "#6E6680");
+            price.alignment = TextAnchor.MiddleCenter;
+        }
+
+        // Details of the picked card: name and role, what it does, stat bars against the strongest unit, air and good-vs.
+        void Detail(RectTransform box, string key)
+        {
+            var def = GameData.DefOf(key);
+            string role = RoleOf(key);
+            var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
+            var title = Label(box, Ui.Name(def) + (rd != null ? "  ·  " + Ui.Name(rd) : ""), 26, new Vector2(0, 0.8f), new Vector2(0.71f, 0.98f), def.Color);
+            var u = GameData.Units.TryGetValue(key, out var ud) ? ud : null;
+            string desc = u != null ? L(u.DescTh, u.DescEn) : (rd != null ? rd.DoesTh : "");
+            var dl = Label(box, desc, 17, new Vector2(0, 0.56f), new Vector2(0.71f, 0.8f), "#ECE3CF");
+            dl.alignment = TextAnchor.UpperLeft;
+            var all = GameData.UnitList.Cast<SectDef>().Concat(GameData.Sects.Values).ToList();
+            float Dps(SectDef d) => d.Dmg * 20f / Mathf.Max(1, d.Cooldown);
+            float Speed(SectDef d) => 20f / Mathf.Max(1, d.Cooldown);
+            Bar(box, 0, L("ดาเมจ", "Damage"), Dps(def) / all.Max(Dps), Dps(def).ToString("0") + L("/วิ", "/s"), "#D2412F");
+            Bar(box, 1, L("ระยะ", "Range"), def.Range / (float)all.Max(d => d.Range), (def.Range / 1000f).ToString("0.0"), "#4FB3FF");
+            Bar(box, 2, L("ความเร็ว", "Speed"), Speed(def) / all.Max(Speed), Speed(def).ToString("0.0") + L(" ครั้ง/วิ", "/s"), "#E3B04B");
+            string tags = (def.HitsAir ? L("ตีอากาศได้", "Hits air") : L("ตีได้เฉพาะพื้น", "Ground only"));
+            if (rd != null && rd.Counters.Count > 0) tags += L("  ·  เก่งกับ: ", "  ·  Good vs: ") + string.Join(", ", rd.Counters.Select(Ui.Enemy));
+            var tl = Label(box, tags, 16, new Vector2(0, 0), new Vector2(0.71f, 0.14f), "#9BD17A");
+            tl.alignment = TextAnchor.MiddleLeft;
+        }
+
+        void Bar(RectTransform box, int row, string label, float frac, string value, string color)
+        {
+            float y1 = 0.54f - row * 0.13f, y0 = y1 - 0.11f;
+            Label(box, label, 15, new Vector2(0, y0), new Vector2(0.17f, y1), "#9A92AE");
+            var bg = Box(box, "Bar", new Vector2(0.17f, y0 + 0.02f), new Vector2(0.55f, y1 - 0.02f), Vector2.zero, Vector2.zero, "#2A2033");
+            var fill = Box(bg, "Fill", Vector2.zero, new Vector2(Mathf.Clamp01(frac), 1), Vector2.zero, Vector2.zero, color);
+            fill.GetComponent<Image>().raycastTarget = false;
+            Label(box, value, 15, new Vector2(0.56f, y0), new Vector2(0.71f, y1), "#ECE3CF");
         }
 
         // Legacy element disciples map onto the five roles by their mechanic.
@@ -553,19 +619,6 @@ namespace FiveSects.Game
         { ["metal"] = "striker", ["fire"] = "burst", ["water"] = "control", ["earth"] = "control", ["wood"] = "stacker", ["yinyang"] = "support" };
 
         static string RoleOf(string key) => GameData.Units.TryGetValue(key, out var u) ? u.RoleId : KitRole.TryGetValue(key, out var r) ? r : null;
-
-        string Facts(string key)
-        {
-            var d = GameData.DefOf(key);
-            string role = RoleOf(key);
-            var rd = role != null && GameData.RoleDefs.TryGetValue(role, out var x) ? x : null;
-            float dps = d.Dmg * 20f / Mathf.Max(1, d.Cooldown);
-            string line1 = (rd != null ? Ui.Name(rd) + " · " : "") + L("ดาเมจ ", "DPS ") + dps.ToString("0") + L("/วิ · ระยะ ", " · range ") + (d.Range / 1000f).ToString("0.0")
-                + (d.HitsAir ? L(" · ตีอากาศได้", " · hits air") : L(" · ตีอากาศไม่ได้", " · ground only"));
-            if (rd == null || rd.Counters.Count == 0) return line1;
-            var names = rd.Counters.Select(Ui.Enemy);
-            return line1 + "\n" + L("เก่งกับ: ", "Good vs: ") + string.Join(", ", names);
-        }
 
         // A roster unit wears its sect's colours with its kit's weapon; legacy disciples use their element look.
         static Sprite DiscipleSprite(string key) => GameData.Units.TryGetValue(key, out var u) ? Art.Unit(u.Sect, u.Element) : Art.Disciple(new List<string> { key });
