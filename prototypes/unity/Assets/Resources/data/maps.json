@@ -1,0 +1,152 @@
+{
+  "_notes": "Map layouts and biomes (docs/art/map-design.md). Grid 11x18 tiles, x 0..10, y 0..17. Paths are axis-aligned polylines through tile centres: they start on the board edge at the spawn gate and end INSIDE the board (y <= 16) at the goal gate, never at the screen edge. props with a type whose propTypes.block is true cannot hold disciples. variant 'mirror' flips x (x -> 10 - x) and is applied by the sim, so one layout gives two maps.",
+  "grid": [11, 18],
+  "propTypes": {
+    "house": { "block": true, "nameTh": "บ้านไม้" },
+    "tree": { "block": true, "nameTh": "ต้นสน" },
+    "shrine": { "block": true, "nameTh": "ศาลเจ้า" },
+    "rock": { "block": true, "nameTh": "หินผา" },
+    "bamboo": { "block": true, "nameTh": "กอไผ่" },
+    "ice": { "block": true, "nameTh": "ก้อนน้ำแข็ง" },
+    "stall": { "block": true, "nameTh": "แผงตลาด" },
+    "ruin": { "block": true, "nameTh": "ซากวิหาร" },
+    "lantern": { "block": false, "nameTh": "โคมไฟ" },
+    "roof": { "block": false, "nameTh": "หลังคา (วางศิษย์ได้)" },
+    "rice": { "block": false, "nameTh": "นาข้าว" },
+    "flag": { "block": false, "nameTh": "ธงสำนัก" }
+  },
+  "biomes": {
+    "village": {
+      "nameTh": "หมู่บ้านเชิงเขา", "chapter": 1, "time": "dusk", "palette": "env",
+      "moodTh": "พลบค่ำสีส้มม่วง ควันหุงข้าวลอยจากหลังคา นาขั้นบันไดสะท้อนแสงโคม",
+      "mechanicTh": "หลังคา: ศัตรูกระโดดข้ามได้ วางศิษย์บนหลังคาได้", "spawnGate": "mountain-pass", "goalGate": "sect-gate"
+    },
+    "bamboo": {
+      "nameTh": "หุบไผ่ในหมอก", "chapter": 2, "time": "dawn", "palette": "env-bamboo",
+      "moodTh": "รุ่งสางหมอกเขียวอมฟ้า ลำธารใส แสงลอดลำไผ่เป็นริ้ว", "mechanicTh": "หมอก: เห็นศัตรูเฉพาะในระยะ, ศิษย์หุบไผ่มองทะลุ",
+      "spawnGate": "fog-ravine", "goalGate": "sect-gate"
+    },
+    "ice": {
+      "nameTh": "วังน้ำแข็งเหนือ", "chapter": 3, "time": "night", "palette": "env-ice",
+      "moodTh": "คืนแสงเหนือ ทะเลสาบน้ำแข็งสีคราม วังหยกเรืองแสง", "mechanicTh": "น้ำแข็งลื่น: ศัตรูไถลเร็วบนช่องน้ำแข็ง, ไฟละลายเป็นหลุม",
+      "spawnGate": "ice-bridge", "goalGate": "jade-gate"
+    },
+    "fire-city": {
+      "nameTh": "เมืองเพลิงใต้", "chapter": 4, "time": "night", "palette": "env-fire",
+      "moodTh": "ตลาดกลางคืน โคมแดงเรียงคลอง ประทัดและควันธูป", "mechanicTh": "หลายเส้นทาง: ประตูเมืองเปิด/ปิดเปลี่ยนเส้นทางระหว่าง wave",
+      "spawnGate": "canal-gate", "goalGate": "city-gate"
+    },
+    "blood-moon": {
+      "nameTh": "ยอดเขาจันทร์โลหิต", "chapter": 5, "time": "blood-moon", "palette": "env-bloodmoon",
+      "moodTh": "จันทร์แดงเต็มฟ้า หน้าผาบันไดหิน วิหารร้างเงาดำ", "mechanicTh": "จันทร์โลหิต: ทุก 5 wave ธาตุศัตรูเปลี่ยนตามเฟสจันทร์",
+      "spawnGate": "demon-portal", "goalGate": "last-shrine"
+    }
+  },
+  "layouts": {
+    "village-terraces": {
+      "kind": "defend", "biome": "village", "nameTh": "นาขั้นบันได",
+      "path": [[0, 1], [8, 1], [8, 5], [2, 5], [2, 9], [8, 9], [8, 13], [5, 13], [5, 16]],
+      "props": [
+        { "type": "house", "at": [0, 3] }, { "type": "house", "at": [6, 7] }, { "type": "house", "at": [4, 11] },
+        { "type": "tree", "at": [0, 7] }, { "type": "tree", "at": [10, 11] }, { "type": "tree", "at": [0, 15] }, { "type": "tree", "at": [10, 16] },
+        { "type": "rice", "at": [0, 11] }, { "type": "rice", "at": [0, 12] }, { "type": "rice", "at": [10, 3] }, { "type": "rice", "at": [10, 4] },
+        { "type": "lantern", "at": [4, 16] }, { "type": "lantern", "at": [6, 16] }
+      ]
+    },
+    "village-shrine": {
+      "kind": "defend", "biome": "village", "nameTh": "ลานศาลเจ้า",
+      "path": [[5, 0], [5, 3], [1, 3], [1, 8], [9, 8], [9, 12], [3, 12], [3, 15]],
+      "props": [
+        { "type": "shrine", "at": [7, 4] }, { "type": "tree", "at": [9, 1] }, { "type": "tree", "at": [0, 11] }, { "type": "tree", "at": [10, 15] },
+        { "type": "house", "at": [5, 10] }, { "type": "house", "at": [7, 15] },
+        { "type": "lantern", "at": [2, 15] }, { "type": "lantern", "at": [4, 15] }, { "type": "flag", "at": [3, 16] }
+      ]
+    },
+    "village-rooftops": {
+      "kind": "defend", "biome": "village", "nameTh": "หลังคาหมู่บ้าน",
+      "path": [[10, 2], [2, 2], [2, 6], [8, 6], [8, 10], [2, 10], [2, 14], [7, 14], [7, 16]],
+      "props": [
+        { "type": "roof", "at": [4, 4] }, { "type": "roof", "at": [5, 4] }, { "type": "roof", "at": [6, 4] },
+        { "type": "roof", "at": [4, 8] }, { "type": "roof", "at": [5, 8] }, { "type": "roof", "at": [6, 8] },
+        { "type": "roof", "at": [4, 12] }, { "type": "roof", "at": [5, 12] }, { "type": "roof", "at": [6, 12] },
+        { "type": "tree", "at": [0, 0] }, { "type": "tree", "at": [10, 8] }, { "type": "tree", "at": [10, 13] },
+        { "type": "lantern", "at": [6, 16] }, { "type": "lantern", "at": [8, 16] }
+      ]
+    },
+    "village-spiral": {
+      "kind": "defend", "biome": "village", "nameTh": "วงล้อมวิหาร (สนามบอส)",
+      "path": [[0, 2], [9, 2], [9, 15], [1, 15], [1, 5], [6, 5], [6, 11], [4, 11], [4, 8]],
+      "goalGate": "temple",
+      "props": [
+        { "type": "shrine", "at": [3, 8] }, { "type": "tree", "at": [10, 0] }, { "type": "tree", "at": [0, 17] },
+        { "type": "rock", "at": [3, 13] }, { "type": "rock", "at": [7, 13] }, { "type": "lantern", "at": [5, 8] }
+      ]
+    },
+    "village-camp": {
+      "kind": "assault", "biome": "village", "nameTh": "ค่ายโจรเชิงเขา",
+      "start": [[5, 17], [5, 12]],
+      "left": [[1, 12], [1, 6], [5, 6]],
+      "right": [[9, 12], [9, 6], [5, 6]],
+      "end": [[5, 1]],
+      "outposts": [
+        { "at": [3, 15], "route": "any", "hp": 500, "dmg": 12 },
+        { "at": [3, 10], "route": "left", "hp": 450, "dmg": 10 },
+        { "at": [3, 7], "route": "left", "hp": 450, "dmg": 10 },
+        { "at": [7, 9], "route": "right", "hp": 1100, "dmg": 20 },
+        { "at": [6, 2], "route": "any", "hp": 1400, "dmg": 18 }
+      ],
+      "pills": [[1, 9]],
+      "goalGate": "bandit-camp",
+      "props": [{ "type": "tree", "at": [0, 16] }, { "type": "tree", "at": [10, 16] }, { "type": "rock", "at": [5, 9] }, { "type": "flag", "at": [4, 1] }]
+    },
+    "village-checkpoint": {
+      "kind": "assault", "biome": "village", "nameTh": "ด่านตรวจโจร",
+      "start": [[5, 17], [5, 14]],
+      "left": [[2, 14], [2, 10], [4, 10], [4, 5], [5, 5]],
+      "right": [[8, 14], [8, 5], [5, 5]],
+      "end": [[5, 1]],
+      "outposts": [
+        { "at": [6, 16], "route": "any", "hp": 500, "dmg": 12 },
+        { "at": [3, 12], "route": "left", "hp": 450, "dmg": 10 },
+        { "at": [3, 7], "route": "left", "hp": 450, "dmg": 10 },
+        { "at": [9, 9], "route": "right", "hp": 1100, "dmg": 20 },
+        { "at": [6, 3], "route": "any", "hp": 1400, "dmg": 18 }
+      ],
+      "pills": [[2, 12]],
+      "goalGate": "bandit-camp",
+      "props": [{ "type": "house", "at": [6, 8] }, { "type": "tree", "at": [0, 3] }, { "type": "tree", "at": [10, 12] }, { "type": "flag", "at": [4, 1] }]
+    },
+    "bamboo-stream": {
+      "kind": "defend", "biome": "bamboo", "nameTh": "ลำธารไผ่ (ตัวอย่างธีม)",
+      "path": [[0, 3], [4, 3], [4, 7], [9, 7], [9, 11], [3, 11], [3, 15], [6, 15]],
+      "props": [
+        { "type": "bamboo", "at": [7, 2] }, { "type": "bamboo", "at": [8, 3] }, { "type": "bamboo", "at": [1, 8] }, { "type": "bamboo", "at": [2, 9] },
+        { "type": "bamboo", "at": [10, 15] }, { "type": "rock", "at": [6, 9] }, { "type": "lantern", "at": [7, 15] }
+      ]
+    },
+    "ice-lake": {
+      "kind": "defend", "biome": "ice", "nameTh": "ทะเลสาบน้ำแข็ง (ตัวอย่างธีม)",
+      "path": [[5, 0], [5, 4], [9, 4], [9, 9], [1, 9], [1, 14], [5, 14], [5, 16]],
+      "props": [
+        { "type": "ice", "at": [2, 3] }, { "type": "ice", "at": [7, 7] }, { "type": "ice", "at": [3, 12] }, { "type": "ice", "at": [8, 13] },
+        { "type": "lantern", "at": [4, 16] }, { "type": "lantern", "at": [6, 16] }
+      ]
+    },
+    "fire-market": {
+      "kind": "defend", "biome": "fire-city", "nameTh": "ตลาดโคมแดง (ตัวอย่างธีม)",
+      "path": [[10, 1], [1, 1], [1, 5], [9, 5], [9, 9], [1, 9], [1, 13], [8, 13], [8, 16]],
+      "props": [
+        { "type": "stall", "at": [3, 3] }, { "type": "stall", "at": [7, 3] }, { "type": "stall", "at": [3, 7] }, { "type": "stall", "at": [7, 7] },
+        { "type": "lantern", "at": [5, 3] }, { "type": "lantern", "at": [5, 7] }, { "type": "lantern", "at": [5, 11] }, { "type": "house", "at": [4, 15] }
+      ]
+    },
+    "bloodmoon-stairs": {
+      "kind": "defend", "biome": "blood-moon", "nameTh": "บันไดหินจันทร์แดง (ตัวอย่างธีม)",
+      "path": [[0, 16], [3, 16], [3, 12], [7, 12], [7, 8], [3, 8], [3, 4], [8, 4], [8, 1]],
+      "props": [
+        { "type": "ruin", "at": [5, 10] }, { "type": "ruin", "at": [5, 6] }, { "type": "rock", "at": [10, 14] }, { "type": "rock", "at": [0, 2] },
+        { "type": "flag", "at": [7, 1] }, { "type": "flag", "at": [9, 1] }
+      ]
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "_notes": "Blender art pipeline input (docs/tools/blender.md). size = a key of effects.json > render or [w, h]. palette = groups from effects.json > render.palette. source.proxy builds a stand-in model from primitives until an artist .blend exists; source.blend + source.object + per-action Blender action names use the real file instead. Frames face right; engines mirror for left.",
+  "out": "packages/client/public/sprites",
+  "assets": [
+    {
+      "id": "metal", "kind": "character", "size": "characterSprite", "palette": ["shared", "metal"], "outline": true,
+      "source": { "proxy": "figure", "look": { "robe": "#D9E1EA", "dark": "#8C99A8", "hair": "#2A2030", "accent": "#8C99A8", "weapon": "sword" } },
+      "actions": { "idle": 4, "attack": 4 }
+    },
+    {
+      "id": "cultist", "kind": "character", "size": "characterSprite", "palette": ["shared", "enemy"], "outline": true,
+      "source": { "proxy": "figure", "look": { "robe": "#5A1820", "dark": "#2A0A10", "hair": "#120A10", "accent": "#D2412F" } },
+      "actions": { "walk": 4, "die": 4 }
+    },
+    {
+      "id": "fx-slash-metal", "kind": "effect", "size": [32, 32], "palette": ["shared", "metal"], "outline": false,
+      "source": { "proxy": "slash", "look": { "core": "#EEF3F8", "edge": "#9FB3CA" } },
+      "actions": { "play": 6 }
+    },
+    {
+      "id": "tile-grass", "kind": "tile", "size": "tile", "palette": ["env"], "outline": false,
+      "source": { "proxy": "tile", "look": { "base": "#1E2B22", "speck": "#24352A" } },
+      "actions": { "still": 1 }
+    },
+    {
+      "id": "tile-path", "kind": "tile", "size": "tile", "palette": ["env"], "outline": false,
+      "source": { "proxy": "tile", "look": { "base": "#3B2C2A", "speck": "#5E4A42" } },
+      "actions": { "still": 1 }
+    },
+    {
+      "id": "keyart", "kind": "promo", "size": [1024, 1024], "out": "art/promo",
+      "source": { "proxy": "keyart" }
+    }
+  ]
+}

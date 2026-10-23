@@ -1,0 +1,33 @@
+{
+  "name": "td-games-idel",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "legacy:dev": "npm run dev -w @five-sects/client",
+    "legacy:build": "npm run build -w @five-sects/client",
+    "test": "dotnet run --project tools/simtest -c Release --",
+    "legacy:test": "vitest run",
+    "legacy:typecheck": "tsc -p packages/sim && tsc -p packages/client",
+    "legacy:sim-replay": "vite-node packages/sim/scripts/replay.ts --",
+    "legacy:smoke": "node packages/client/scripts/smoke.mjs",
+    "economy:check": "node tools/economy/check.mjs",
+    "progression:check": "node tools/progression/check.mjs",
+    "legacy:sim-measure": "vite-node packages/sim/scripts/measure.ts --",
+    "sim:golden": "dotnet run --project tools/simtest -c Release -- --write-golden",
+    "unity:sync": "node prototypes/unity/sync-data.mjs",
+    "art:build": "node tools/blender/build.mjs",
+    "art:brief": "node tools/art/brief.mjs",
+    "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "playwright": "1.56.1",
+    "typescript": "5.9.2",
+    "vite": "6.3.5",
+    "vite-node": "3.2.4",
+    "vitest": "3.2.4"
+  }
+}

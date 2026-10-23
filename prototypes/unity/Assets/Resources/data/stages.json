@@ -1,0 +1,1244 @@
+{
+  "_notes": "60 story stages (5 chapters x 12). Chapter 1 fully specified; chapters 2-5 are outlines (status=outline). Star conditions are keys interpreted by the game. guestSects = sects lent to this stage only (a taste of later chapters).",
+  "stageTypes": {
+    "defend": "classic TD",
+    "assault": "reverse TD: lead a party along a chosen route",
+    "escort": "protect a moving cart/NPC",
+    "siege": "defend 2-3 lanes at once",
+    "boss": "3 disciples vs boss phases",
+    "puzzle": "fixed disciples/silver",
+    "secret": "unlocked by stars",
+    "training": "sandbox with all sects unlocked"
+  },
+  "secretStages": [
+    {
+      "id": "S1",
+      "chapter": 1,
+      "type": "secret",
+      "requiresStars": 30,
+      "reward": "legendary treasure"
+    },
+    {
+      "id": "S2",
+      "chapter": 2,
+      "type": "secret",
+      "requiresStars": 60,
+      "reward": "legendary treasure"
+    },
+    {
+      "id": "S3",
+      "chapter": 3,
+      "type": "secret",
+      "requiresStars": 90,
+      "reward": "legendary treasure"
+    },
+    {
+      "id": "S4",
+      "chapter": 4,
+      "type": "secret",
+      "requiresStars": 120,
+      "reward": "legendary treasure"
+    },
+    {
+      "id": "S5",
+      "chapter": 5,
+      "type": "secret",
+      "requiresStars": 150,
+      "reward": "legendary treasure"
+    }
+  ],
+  "stages": [
+    {
+      "id": "T-0",
+      "nameTh": "ลานฝึก",
+      "nameEn": "Training Ground",
+      "startLives": 99,
+      "chapter": 0,
+      "type": "training",
+      "title": "First-run tutorial: one disciple of every sect, played before picking a sect (SPEC-front-flow step 4)",
+      "layout": "village-terraces",
+      "waves": 5,
+      "startSilver": 300,
+      "enemies": ["cultist", "runner", "brute"],
+      "stars": ["clear"],
+      "unlockAll": true
+    },
+    {
+      "id": "T-1",
+      "nameTh": "ลานประลอง",
+      "nameEn": "Sparring Ground",
+      "chapter": 0,
+      "type": "training",
+      "title": "Training ground: all six sects, test Wu Xing and combos",
+      "layout": "village-terraces",
+      "waves": 20,
+      "startSilver": 900,
+      "enemies": [
+        "cultist",
+        "runner",
+        "brute",
+        "leaper",
+        "puppet",
+        "assassin",
+        "healer",
+        "mimic"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "use_combo"
+      ],
+      "unlockAll": true
+    },
+    {
+      "id": "1-1",
+      "nameTh": "ลานนาขั้นบันได",
+      "nameEn": "Terraced Fields",
+      "chapter": 1,
+      "type": "defend",
+      "title": "Tutorial: place Cloud Sword disciples",
+      "enemies": [
+        "cultist"
+      ],
+      "wavePool": [
+        "mixed",
+        "swarm"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "under_3min"
+      ],
+      "unlocksSect": "metal",
+      "layout": "village-terraces",
+      "waves": 6,
+      "startSilver": 120,
+      "guestSects": []
+    },
+    {
+      "id": "1-2",
+      "nameTh": "ทางเกวียนเชิงเขา",
+      "nameEn": "Foothill Cart Road",
+      "chapter": 1,
+      "type": "defend",
+      "title": "Tutorial: upgrades + interest",
+      "enemies": [
+        "cultist",
+        "runner"
+      ],
+      "wavePool": [
+        "mixed",
+        "swarm",
+        "rush"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "hold_200_silver"
+      ],
+      "layout": "village-terraces",
+      "variant": "mirror",
+      "waves": 8,
+      "startSilver": 90,
+      "guestSects": [
+        "water"
+      ]
+    },
+    {
+      "id": "1-3",
+      "chapter": 1,
+      "type": "assault",
+      "title": "Tutorial: lead a strike party into a bandit camp",
+      "enemies": [
+        "cultist"
+      ],
+      "stars": [
+        "clear",
+        "no_disciple_down",
+        "under_3min"
+      ],
+      "layout": "village-camp"
+    },
+    {
+      "id": "1-4",
+      "nameTh": "ศาลเจ้าหมู่บ้าน",
+      "nameEn": "Village Shrine",
+      "chapter": 1,
+      "type": "defend",
+      "title": "Unlock Vajra Stone; Golden Bell blocking",
+      "enemies": [
+        "cultist",
+        "runner",
+        "brute",
+        "healer"
+      ],
+      "wavePool": [
+        "mixed",
+        "swarm",
+        "rush",
+        "armored"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "max_6_disciples"
+      ],
+      "unlocksSect": "earth",
+      "layout": "village-shrine",
+      "waves": 12,
+      "startSilver": 180,
+      "guestSects": [
+        "fire"
+      ]
+    },
+    {
+      "id": "1-5",
+      "chapter": 1,
+      "type": "escort",
+      "title": "Escort the villagers' cart",
+      "enemies": [
+        "runner",
+        "cultist"
+      ],
+      "stars": [
+        "clear",
+        "cart_above_80",
+        "under_4min"
+      ]
+    },
+    {
+      "id": "1-6",
+      "nameTh": "หลังคายามโพล้เพล้",
+      "nameEn": "Rooftops at Dusk",
+      "chapter": 1,
+      "type": "defend",
+      "title": "First flyers: rooftop leapers",
+      "enemies": [
+        "cultist",
+        "runner",
+        "leaper",
+        "puppet",
+        "assassin"
+      ],
+      "wavePool": [
+        "mixed",
+        "rush",
+        "air",
+        "split",
+        "stealth"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "max_6_disciples"
+      ],
+      "layout": "village-rooftops",
+      "waves": 10,
+      "startSilver": 130,
+      "hpPct": 95
+    },
+    {
+      "id": "1-7",
+      "chapter": 1,
+      "type": "puzzle",
+      "title": "Two sects, fixed silver: learn overcoming",
+      "enemies": [
+        "brute",
+        "runner"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "no_upgrades"
+      ],
+      "layout": "village-shrine",
+      "variant": "mirror"
+    },
+    {
+      "id": "1-8",
+      "chapter": 1,
+      "type": "assault",
+      "title": "Raid the bandit checkpoint",
+      "enemies": [
+        "cultist",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "no_disciple_down",
+        "choose_roof_route"
+      ],
+      "layout": "village-checkpoint"
+    },
+    {
+      "id": "1-9",
+      "chapter": 1,
+      "type": "siege",
+      "title": "Two lanes, shared silver",
+      "enemies": [
+        "cultist",
+        "runner",
+        "leaper"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "under_5min"
+      ]
+    },
+    {
+      "id": "1-10",
+      "chapter": 1,
+      "type": "boss",
+      "title": "Duel: Hundred-Hand Bandit King",
+      "enemies": [
+        "cultist",
+        "runner",
+        "boss_ch1"
+      ],
+      "stars": [
+        "clear",
+        "no_disciple_down",
+        "under_2min"
+      ],
+      "layout": "village-spiral",
+      "scriptedWaves": { "10": "boss_ch1" }
+    },
+    {
+      "id": "1-11",
+      "chapter": 1,
+      "type": "assault",
+      "title": "Chase to the ruined shrine",
+      "enemies": [
+        "cultist",
+        "puppet"
+      ],
+      "stars": [
+        "clear",
+        "no_disciple_down",
+        "collect_3_pills"
+      ],
+      "layout": "village-camp",
+      "variant": "mirror"
+    },
+    {
+      "id": "1-12",
+      "nameTh": "ทูตจันทร์โลหิต",
+      "nameEn": "The Blood Moon Envoy",
+      "chapter": 1,
+      "type": "defend",
+      "title": "Blood Moon Envoy, 20 waves",
+      "enemies": [
+        "cultist",
+        "runner",
+        "brute",
+        "leaper",
+        "healer",
+        "puppet",
+        "assassin",
+        "boss_ch1b"
+      ],
+      "wavePool": [
+        "mixed",
+        "rush",
+        "armored",
+        "air",
+        "split",
+        "swarm",
+        "stealth"
+      ],
+      "stars": [
+        "clear",
+        "no_life_lost",
+        "hold_200_silver"
+      ],
+      "layout": "village-rooftops",
+      "variant": "mirror",
+      "scriptedWaves": { "10": "boss_ch1", "20": "boss_ch1b" },
+      "waves": 20,
+      "startSilver": 300,
+      "hpPct": 170
+    },
+    {
+      "id": "2-1",
+      "chapter": 2,
+      "type": "defend",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline",
+      "unlocksSect": "wood"
+    },
+    {
+      "id": "2-2",
+      "chapter": 2,
+      "type": "assault",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-3",
+      "chapter": 2,
+      "type": "defend",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-4",
+      "chapter": 2,
+      "type": "puzzle",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-5",
+      "chapter": 2,
+      "type": "escort",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-6",
+      "chapter": 2,
+      "type": "defend",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-7",
+      "chapter": 2,
+      "type": "assault",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-8",
+      "chapter": 2,
+      "type": "siege",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-9",
+      "chapter": 2,
+      "type": "defend",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-10",
+      "chapter": 2,
+      "type": "boss",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-11",
+      "chapter": 2,
+      "type": "assault",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "2-12",
+      "chapter": 2,
+      "type": "defend",
+      "map": "Misty Bamboo Valley",
+      "enemies": [
+        "runner",
+        "puppet",
+        "assassin",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-1",
+      "chapter": 3,
+      "type": "defend",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline",
+      "unlocksSect": "water"
+    },
+    {
+      "id": "3-2",
+      "chapter": 3,
+      "type": "puzzle",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-3",
+      "chapter": 3,
+      "type": "defend",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-4",
+      "chapter": 3,
+      "type": "assault",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-5",
+      "chapter": 3,
+      "type": "puzzle",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-6",
+      "chapter": 3,
+      "type": "siege",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-7",
+      "chapter": 3,
+      "type": "escort",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-8",
+      "chapter": 3,
+      "type": "assault",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-9",
+      "chapter": 3,
+      "type": "assault",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-10",
+      "chapter": 3,
+      "type": "puzzle",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-11",
+      "chapter": 3,
+      "type": "boss",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "3-12",
+      "chapter": 3,
+      "type": "siege",
+      "map": "Northern Ice Palace",
+      "enemies": [
+        "brute",
+        "mimic",
+        "leaper",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-1",
+      "chapter": 4,
+      "type": "assault",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline",
+      "unlocksSect": "fire"
+    },
+    {
+      "id": "4-2",
+      "chapter": 4,
+      "type": "defend",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-3",
+      "chapter": 4,
+      "type": "assault",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-4",
+      "chapter": 4,
+      "type": "siege",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-5",
+      "chapter": 4,
+      "type": "assault",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-6",
+      "chapter": 4,
+      "type": "escort",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-7",
+      "chapter": 4,
+      "type": "defend",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-8",
+      "chapter": 4,
+      "type": "assault",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-9",
+      "chapter": 4,
+      "type": "puzzle",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-10",
+      "chapter": 4,
+      "type": "assault",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-11",
+      "chapter": 4,
+      "type": "boss",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "4-12",
+      "chapter": 4,
+      "type": "defend",
+      "map": "Southern Fire City",
+      "enemies": [
+        "cultist",
+        "assassin",
+        "healer",
+        "brute"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-1",
+      "chapter": 5,
+      "type": "siege",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline",
+      "unlocksSect": "yinyang"
+    },
+    {
+      "id": "5-2",
+      "chapter": 5,
+      "type": "assault",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-3",
+      "chapter": 5,
+      "type": "defend",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-4",
+      "chapter": 5,
+      "type": "escort",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-5",
+      "chapter": 5,
+      "type": "assault",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-6",
+      "chapter": 5,
+      "type": "puzzle",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-7",
+      "chapter": 5,
+      "type": "defend",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-8",
+      "chapter": 5,
+      "type": "assault",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-9",
+      "chapter": 5,
+      "type": "siege",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-10",
+      "chapter": 5,
+      "type": "boss",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-11",
+      "chapter": 5,
+      "type": "assault",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    },
+    {
+      "id": "5-12",
+      "chapter": 5,
+      "type": "boss",
+      "map": "Blood Moon Peak",
+      "enemies": [
+        "mimic",
+        "assassin",
+        "puppet",
+        "brute",
+        "healer",
+        "boss_final"
+      ],
+      "stars": [
+        "clear",
+        "TBD",
+        "TBD"
+      ],
+      "status": "outline"
+    }
+  ]
+}

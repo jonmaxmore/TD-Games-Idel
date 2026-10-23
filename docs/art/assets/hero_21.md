@@ -1,0 +1,16 @@
+# วีรชน: หลวงพี่ต้า พระครัว · `hero_21`
+
+> ชุดงาน 6 · วีรชน epic · การ์ดนี้สร้างจาก `docs/data` ด้วย `npm run art:brief` (อย่าแก้มือ) · สเปกรวมและวิธีส่งงาน: [art-bible](../art-bible.md)
+
+| หัวข้อ | รายละเอียด |
+|---|---|
+| ธาตุ | ดิน 土 |
+| ชื่อ (EN) | Brother Da, Kitchen Monk |
+| ความต่างในเกม | bell heals nearby disciples' cooldown instead of stun |
+| palette | **shared:** `#1A1423` `#F2C9A0` `#C9966E` `#E3B04B` `#D2412F` `#EEF3F8`<br>**earth:** `#DEC191` `#C99A4A` `#A97D33` `#836127` `#5F471C` `#402F13` |
+| ขนาดเฟรม | 48×64 + portrait 64×64 |
+| ท่า | idle 4 · attack 6 · skill 8 · levelUp 6 @ 10 fps |
+
+## การอ่านภาพในเกม
+
+sidegrade ของศิษย์สำนักเดียวกัน: โครงตัวและขนาดเท่ากัน ต่างที่ชุด/อาวุธ/ท่าสกิล ห้ามดูแรงกว่าจนผู้เล่นเข้าใจว่าซื้อพลัง

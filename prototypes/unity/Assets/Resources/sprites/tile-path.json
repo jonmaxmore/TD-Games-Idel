@@ -1,0 +1,36 @@
+{
+ "frames": {
+  "still/0": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   }
+  }
+ },
+ "meta": {
+  "image": "tile-path.png",
+  "size": {
+   "w": 16,
+   "h": 16
+  },
+  "scale": "1",
+  "app": "tools/blender/build.py",
+  "actions": {
+   "still": 1
+  }
+ }
+}
