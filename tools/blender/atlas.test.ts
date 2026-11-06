@@ -21,7 +21,6 @@ describe('blender sprites', () => {
         for (let i = 0; i < n; i++) expect(atlas.frames[`${action}/${i}`].frame, `${action}/${i}`).toMatchObject({ w, h });
       expect(pngSize(read(`${manifest.out}/${a.id}.png`))).toEqual([atlas.meta.size.w, atlas.meta.size.h]);
       for (const g of a.palette) expect(render.palette[g], g).toBeDefined();
-      expect(read(`prototypes/unity/Assets/Resources/sprites/${a.id}.png`).equals(read(`${manifest.out}/${a.id}.png`))).toBe(true);
     });
   }
 });

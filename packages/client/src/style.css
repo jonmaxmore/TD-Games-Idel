@@ -1,0 +1,64 @@
+@font-face { font-family: 'Sarabun'; src: url('/fonts/Sarabun-Regular.ttf'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Sarabun'; src: url('/fonts/Sarabun-Bold.ttf'); font-weight: 700; font-display: swap; }
+/* Black lacquer, cinnabar and gold. Portrait first; the layout is a column: top bar, board, bottom panel. */
+:root {
+  --bg: #0b0910; --panel: #17111a; --line: #3a2a1e; --gold: #e3b04b; --ink: #ece3cf; --dim: #9a92ae; --red: #8a1a12;
+  font-family: 'Sarabun', system-ui, sans-serif; color: var(--ink); background: var(--bg);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); touch-action: manipulation; }
+#app {
+  position: relative; height: 100%; max-width: 600px; margin: 0 auto; display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button {
+  font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--gold); border-radius: 6px;
+  padding: 6px 8px; cursor: pointer; min-height: 40px;
+}
+button:disabled { opacity: 0.45; border-color: transparent; cursor: default; }
+button.primary { background: var(--red); }
+button.icon { min-width: 40px; margin-left: 4px; }
+
+.top { display: flex; align-items: center; gap: 2px; padding: 6px 8px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 15px; white-space: nowrap; }
+.top b { color: var(--gold); margin-right: 6px; }
+.top .next { flex: 1; overflow: hidden; text-overflow: ellipsis; color: var(--dim); font-size: 13px; }
+
+.board { flex: 1; width: 100%; min-height: 0; image-rendering: pixelated; display: block; touch-action: none; }
+.floats { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.float { position: absolute; transform: translate(-50%, -50%); font-weight: 700; font-size: 14px; animation: rise 0.9s ease-out forwards; text-shadow: 0 1px 2px #000; }
+.float.silver { color: #ffd34a; }
+@keyframes rise { to { transform: translate(-50%, -160%); opacity: 0; } }
+
+.bottom { background: var(--panel); border-top: 1px solid var(--line); padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+.arts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.arts button { font-size: 12px; min-height: 34px; padding: 2px; }
+.panel { min-height: 64px; font-size: 13px; }
+.panel b { color: var(--gold); font-size: 15px; }
+.panel p { margin: 2px 0; color: var(--dim); }
+.panel .skill { color: #ffd34a; }
+.panel .row { display: flex; gap: 4px; margin-top: 4px; }
+.panel .row button { flex: 1; font-size: 13px; }
+.cards { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
+.card { display: flex; flex-direction: column; align-items: center; border-width: 2px; padding: 4px 2px; font-size: 12px; line-height: 1.2; }
+.card b { font-size: 12px; }
+.card small { color: var(--dim); }
+.card .cost { color: #ffd34a; font-weight: 700; }
+.card.sel { background: #3a1410; box-shadow: 0 0 0 2px var(--gold); }
+.card.poor .cost { color: #d2412f; }
+.wave { font-size: 17px; font-weight: 700; }
+
+.toasts { position: absolute; top: 56px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+.toast { background: #000c; border: 1px solid var(--gold); border-radius: 6px; padding: 4px 12px; font-size: 14px; }
+
+.modal {
+  position: absolute; inset: 0; background: #000d; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 24px; z-index: 10;
+}
+.modal.hidden { display: none; }
+.modal h2 { margin: 0 0 8px; color: var(--gold); font-size: 30px; }
+.modal h2.lost { color: #d2412f; }
+.modal .offer { width: 100%; max-width: 420px; text-align: left; }
+.modal .offer p { margin: 2px 0 0; color: var(--dim); font-size: 13px; }
+.modal .star { color: var(--dim); margin: 0; font-size: 17px; }
+.modal .star.on { color: #ffd34a; }
+.modal .timer { color: var(--dim); }

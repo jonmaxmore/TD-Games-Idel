@@ -18,27 +18,33 @@ export function bestTiles(s: DefendState, range = 2500): { tx: number; ty: numbe
 export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean }
 
 // earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
-export function play(s: DefendState, o: PlayOpts = {}): DefendState {
+// One decision per tick; `mem.placed` counts placements so the bot rotates through its sects.
+export function botCommands(s: DefendState, o: PlayOpts = {}, mem = { placed: 0 }): Command[] {
   const maxDisciples = o.maxDisciples ?? 8;
   const sects = o.sects ?? s.unlocked;
-  let placed = 0;
+  const cmds: Command[] = s.tick === 0 ? [{ t: 'nextWave' }] : [];
+  if (o.earlyCall && s.phase === 'clearing' && s.enemies.length <= 3 && s.wave < s.totalWaves) cmds.push({ t: 'nextWave' });
+  let sect = sects[mem.placed % sects.length]!;
+  // Like a player reading the next-wave bar: if the coming shape needs a role nobody holds, place that role first.
+  const need = needed(s, sects);
+  const urgent = need != null;
+  if (need != null) sect = need;
+  let lowest = s.disciples[0];
+  for (const d of s.disciples) if (d.level < lowest!.level) lowest = d;
+  // Past the cap, keep spending: once every disciple is maxed, place more instead of hoarding silver.
+  const allMaxed = lowest != null && lowest.level >= 3;
+  const wantPlace = urgent || mem.placed < 3 || ((mem.placed < maxDisciples || allMaxed) && (lowest == null || lowest.level >= 2));
+  if (wantPlace) {
+    const spots = bestTiles(s, defOf(sect).range);
+    if (spots.length > 0 && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); mem.placed++; }
+  } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
+  return cmds;
+}
+
+export function play(s: DefendState, o: PlayOpts = {}): DefendState {
+  const mem = { placed: 0 };
   while (!isOver(s) && s.tick < 20 * 60 * 30) {
-    const cmds: Command[] = s.tick === 0 ? [{ t: 'nextWave' }] : [];
-    if (o.earlyCall && s.phase === 'clearing' && s.enemies.length <= 3 && s.wave < s.totalWaves) cmds.push({ t: 'nextWave' });
-    let sect = sects[placed % sects.length]!;
-    // Like a player reading the next-wave bar: if the coming shape needs a role nobody holds, place that role first.
-    const need = needed(s, sects);
-    const urgent = need != null;
-    if (need != null) sect = need;
-    let lowest = s.disciples[0];
-    for (const d of s.disciples) if (d.level < lowest!.level) lowest = d;
-    // Past the cap, keep spending: once every disciple is maxed, place more instead of hoarding silver.
-    const allMaxed = lowest != null && lowest.level >= 3;
-    const wantPlace = urgent || placed < 3 || ((placed < maxDisciples || allMaxed) && (lowest == null || lowest.level >= 2));
-    if (wantPlace) {
-      const spots = bestTiles(s, defOf(sect).range);
-      if (spots.length > 0 && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); placed++; }
-    } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
+    const cmds = botCommands(s, o, mem);
     if (o.record && cmds.length > 0) o.record[s.tick] = cmds;
     stepDefend(s, cmds);
   }
