@@ -1,7 +1,7 @@
 // Defend mode rules: one tick at a time, integer math, seeded RNG. Every loop runs over arrays in a fixed order;
 // the golden replays (packages/sim/goldens) pin the outcome tick by tick.
 import {
-  arts, biomes, branchB, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid, layouts,
+  arts, biomes, branchA, branchB, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid, layouts,
   mergeFee, roles, roleUnlocks, rosterSects, sectOrder, sectRules, sects, stageList, stages, statPct as statPcts, TICK_HZ, TILE,
   units, unitList, upgradeLevels, costPct, waveHp, waveRecipes, generates, hasBranchB, propOnPath, type BiomeRule, type Branch, type CardDef, type ComboDef, type MapLayout, type Pt, type SectDef, type WaveRecipe,
 } from './data';
@@ -67,7 +67,7 @@ const Hz = TICK_HZ;
 export const AUTO_START_TICKS = 30 * Hz; // the HUD shows the countdown
 const DOT_EVERY = Hz / 2;
 
-const METAL_CRIT_PCT = 15, METAL_EVERY = 6, WOOD_POISON_DPS = 10, WOOD_VULN_PCT = 25, WATER_SLOW_PCT = 30, WATER_FREEZE_EVERY = 5;
+const METAL_CRIT_PCT = 15, METAL_EVERY = 6, WOOD_POISON_DPS = 10, WATER_SLOW_PCT = 30, WATER_FREEZE_EVERY = 5;
 const FIRE_BURN_DPS = 6, FIRE_SPLASH = 800, FIRE_EXPLODE_DMG = 30, EARTH_SPLASH = TILE, YY_REVEAL = 3 * TILE, YY_RATE_PCT = 120;
 const DASH_DIST = 2 * TILE, HEAL_RANGE = 1500, HEAL_PCT = 5, HEAL_BOSS_PCT = 1, BRUTE_ARMOR = 5, ADJACENCY_PCT = 115;
 const WOOD_POISON_TICKS = 3 * Hz, WOOD_ROOT_EVERY = 8 * Hz, WOOD_ROOT_TICKS = 1 * Hz, WATER_SLOW_TICKS = 2 * Hz;
@@ -481,10 +481,13 @@ const hasLevel = (s: DefendState, el: string, level: number) => s.disciples.some
 // Tier-3 branch b of its kit (a disciple at tier 3 with no branch recorded plays branch a).
 const isB = (d: Disciple) => d.level >= MAX_LEVEL && d.branch === 'b';
 
+const inWitheringAura = (s: DefendState, e: Enemy) => s.disciples.some((o) => o.els.includes('wood') && o.level >= MAX_LEVEL && !isB(o)
+  && within(o.x, o.y, e.x, e.y, div(discipleStats(s, o).range * branchA.woodAuraRangePct, 100)));
+
 function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: boolean, ev: SimEvent[]): void {
   const pct = wuxingPct(wux(d), e.el);
   let dmg = div(raw * pct, 100);
-  if (s.disciples.some((o) => o.els.includes('wood') && o.level >= 3 && !isB(o)) && (s.sect === 'fire' ? e.burnT > 0 : e.poison > 0)) dmg = div(dmg * (100 + WOOD_VULN_PCT), 100); // roster: the sect DoT
+  if ((s.sect === 'fire' ? e.burnT > 0 : e.poison > 0) && inWitheringAura(s, e)) dmg = div(dmg * (100 + branchA.woodVulnPct), 100); // roster: the sect DoT
   if (e.rootedT > 0) dmg = div(dmg * (100 + branchB.rootTakenPct), 100);
   if (e.type === 'mimic' && e.lastElT > 0 && e.lastEl != null && wux(d).includes(e.lastEl)) dmg = div(dmg, 2);
   const freeze = card(s, 'slowedVuln');

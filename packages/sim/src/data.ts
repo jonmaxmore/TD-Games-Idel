@@ -79,7 +79,10 @@ for (const s of S.sects) {
 }
 export const hasBranchB = (kit: string) => (skills.get(kit) ?? []).some((k) => k.branch === 'b');
 // Branch b's numbers (the lvl-3 "b" skill's rule), one kit each.
-const ruleB = (kit: string) => S.sects.find((s: any) => s.element === kit).skills.find((k: any) => k.branch === 'b').rule;
+const ruleOf = (kit: string, branch: string) => S.sects.find((s: any) => s.element === kit).skills.find((k: any) => k.branch === branch).rule;
+const ruleB = (kit: string) => ruleOf(kit, 'b');
+// Song of Withering (wood tier 3 a): the vulnerability aura, bounded to the disciple's range x auraRangePct.
+export const branchA = { woodVulnPct: ruleOf('wood', 'a').vulnPct as number, woodAuraRangePct: ruleOf('wood', 'a').auraRangePct as number };
 export const branchB = {
   executeBelowPct: ruleB('metal').belowHpPct as number, executeDmgPct: ruleB('metal').dmgPct as number,
   rootEvery: ticks(ruleB('wood').everySec), rootTicks: ticks(ruleB('wood').rootSec), rootTakenPct: ruleB('wood').takenPct as number,

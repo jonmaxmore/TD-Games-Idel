@@ -1,7 +1,7 @@
 // Tier-3 branches (SPEC-pc-v2 §5): the upgrade to tier 3 picks branch a (the original technique) or b, and the
 // choice travels in the upgrade command so a replay reproduces it.
 import { describe, expect, it } from 'vitest';
-import { branchB, canonicalHash, canonicalString, type Branch, type Command, type Disciple, type Enemy, type SimEvent } from '../src';
+import { branchA, branchB, canonicalHash, canonicalString, discipleStats, TILE, within, type Branch, type Command, type Disciple, type Enemy, type SimEvent } from '../src';
 import { playStage } from './bot';
 import { replay } from './goldens';
 import { defend, NEXT, place, run, up } from './helpers';
@@ -62,17 +62,17 @@ describe('tier-3 branches', () => {
     expect(strike('a', 29)).toBe(strike('a', 31));
   });
 
-  it('wood: a makes poisoned enemies take 25% more; b roots every enemy in range every 8 s and they take more damage while rooted', () => {
+  it('wood: a makes poisoned enemies take vulnPct more; b roots every enemy in range every everySec and they take more damage while rooted', () => {
     const poisoned = (branch: Branch) => {
       const { s, d, foe } = tier3('wood', branch);
       foe(0, 0, { poison: 3, poisonT: 60, poisonDps: 1 });
       return hitsFrom(run(s, 1), d)[0]!.dmg!;
     };
-    expect(poisoned('a')).toBe(Math.floor((poisoned('b') * 125) / 100));
+    expect(poisoned('a')).toBe(Math.floor((poisoned('b') * (100 + branchA.woodVulnPct)) / 100));
     for (const branch of ['a', 'b'] as const) {
       const { s, d, foe } = tier3('wood', branch);
       foe(0, 0); foe(500, 0); foe(0, 500);
-      d.rootT = 8 * 20 - 1;
+      d.rootT = 8 * 20 - 1; // past both timers: the tier-2 vines (a) and the roots (b)
       expect(stunsFrom(run(s, 1), d).length, branch).toBe(branch === 'a' ? 1 : 3);
     }
     // b: an enemy its roots hold takes takenPct more from every hit while held, and only then.
@@ -86,6 +86,25 @@ describe('tier-3 branches', () => {
     };
     expect(branchB.rootTakenPct).toBeGreaterThan(0);
     expect(strike(true)).toBe(Math.floor((strike(false) * (100 + branchB.rootTakenPct)) / 100));
+  });
+
+  it('wood a: the aura reaches poisoned enemies within range x auraRangePct of the wood disciple, not the whole field', () => {
+    // A metal disciple on the same row does the hitting; the wood disciple holds its fire.
+    const strike = (fromWood: number, poisoned: boolean) => {
+      const { s, d, foe } = tier3('wood', 'a');
+      const aura = Math.floor((discipleStats(s, d).range * branchA.woodAuraRangePct) / 100);
+      const mtx = d.tx + Math.round((aura + fromWood) / TILE / 2);
+      expect(run(s, 1, place('metal', mtx, d.ty)).some((e) => e.e === 'error'), `metal at ${mtx}`).toBe(false);
+      const m = s.disciples[1]!;
+      Object.assign(d, { cd: 9999 });
+      Object.assign(m, { cd: 0, hits: 0 });
+      const e = foe(aura + fromWood, 0, poisoned ? { poison: 3, poisonT: 60, poisonDps: 1 } : {});
+      expect(within(m.x, m.y, e.x, e.y, discipleStats(s, m).range), 'metal reaches the enemy').toBe(true);
+      return hitsFrom(run(s, 1), m)[0]!.dmg!;
+    };
+    expect(branchA.woodAuraRangePct).toBeGreaterThan(0);
+    expect(strike(-500, true), 'inside the aura').toBe(Math.floor((strike(-500, false) * (100 + branchA.woodVulnPct)) / 100));
+    expect(strike(500, true), 'outside the aura').toBe(strike(500, false));
   });
 
   it('water: a pushes the target back a tile every 12 s; b freezes more often than every 5th hit', () => {
