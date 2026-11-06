@@ -1,5 +1,5 @@
 {
-  "_notes": "Map layouts and biomes (docs/art/map-design.md). Grid 24x12 tiles, x 0..23 across the screen, y 0..11 into it. Each defend layout has paths: one or more axis-aligned polylines through tile centres. A path starts on the board edge at a spawn gate and ends INSIDE the board at the goal gate, never at the screen edge; two paths share their last stretch into the same goal. Enemies of a wave take the paths in turn. props with a type whose propTypes.block is true cannot hold disciples. variant 'mirror' flips x (x -> 23 - x) and is applied by the sim, so one layout gives two maps.",
+  "_notes": "Map layouts and biomes (docs/art/map-design.md). Grid 24x12 tiles, x 0..23 across the screen, y 0..11 into it. Each defend layout has paths: one or more axis-aligned polylines through tile centres. A path starts on the board edge at a spawn gate and ends INSIDE the board at the goal gate, never at the screen edge; two paths share their last stretch into the same goal. Enemies of a wave take the paths in turn. props with a type whose propTypes.block is true cannot hold disciples. variant 'mirror' flips x (x -> 23 - x) and is applied by the sim, so one layout gives two maps. A prop whose propTypes.onPath is true lies on a path tile instead (ice-floor). biomes.<id>.rule holds the numbers of that biome's rule (SPEC-pc-v2 §3); it applies on every layout of the biome.",
   "grid": [24, 12],
   "propTypes": {
     "house": { "block": true, "nameTh": "บ้านไม้" },
@@ -13,33 +13,39 @@
     "lantern": { "block": false, "nameTh": "โคมไฟ" },
     "roof": { "block": false, "nameTh": "หลังคา (วางศิษย์ได้)" },
     "rice": { "block": false, "nameTh": "นาข้าว" },
-    "flag": { "block": false, "nameTh": "ธงสำนัก" }
+    "flag": { "block": false, "nameTh": "ธงสำนัก" },
+    "ice-floor": { "block": false, "onPath": true, "nameTh": "ทางน้ำแข็งลื่น" }
   },
   "biomes": {
     "village": {
       "nameTh": "หมู่บ้านเชิงเขา", "chapter": 1, "time": "dusk", "palette": "env",
       "moodTh": "พลบค่ำสีส้มม่วง ควันหุงข้าวลอยจากหลังคา นาขั้นบันไดสะท้อนแสงโคม",
-      "mechanicTh": "หลังคา: ศัตรูกระโดดข้ามได้ วางศิษย์บนหลังคาได้", "spawnGate": "mountain-pass", "goalGate": "sect-gate"
+      "mechanicTh": "หลังคา: ศัตรูกระโดดข้ามได้ วางศิษย์บนหลังคาได้", "spawnGate": "mountain-pass", "goalGate": "sect-gate",
+      "rule": { "roofRangePct": 25, "leapTiles": 2 }
     },
     "bamboo": {
       "nameTh": "หุบไผ่ในหมอก", "chapter": 2, "time": "dawn", "palette": "env-bamboo",
       "moodTh": "รุ่งสางหมอกเขียวอมฟ้า ลำธารใส แสงลอดลำไผ่เป็นริ้ว", "mechanicTh": "หมอก: เห็นศัตรูเฉพาะในระยะ, ศิษย์หุบไผ่มองทะลุ",
-      "spawnGate": "fog-ravine", "goalGate": "sect-gate"
+      "spawnGate": "fog-ravine", "goalGate": "sect-gate",
+      "rule": { "fogSightTiles": 2.5 }
     },
     "ice": {
       "nameTh": "วังน้ำแข็งเหนือ", "chapter": 3, "time": "night", "palette": "env-ice",
       "moodTh": "คืนแสงเหนือ ทะเลสาบน้ำแข็งสีคราม วังหยกเรืองแสง", "mechanicTh": "น้ำแข็งลื่น: ศัตรูไถลเร็วบนช่องน้ำแข็ง, ไฟละลายเป็นหลุม",
-      "spawnGate": "ice-bridge", "goalGate": "jade-gate"
+      "spawnGate": "ice-bridge", "goalGate": "jade-gate",
+      "rule": { "iceSpeedPct": 40 }
     },
     "fire-city": {
       "nameTh": "เมืองเพลิงใต้", "chapter": 4, "time": "night", "palette": "env-fire",
       "moodTh": "ตลาดกลางคืน โคมแดงเรียงคลอง ประทัดและควันธูป", "mechanicTh": "หลายเส้นทาง: ประตูเมืองเปิด/ปิดเปลี่ยนเส้นทางระหว่าง wave",
-      "spawnGate": "canal-gate", "goalGate": "city-gate"
+      "spawnGate": "canal-gate", "goalGate": "city-gate",
+      "rule": { "gateEveryWaves": 2 }
     },
     "blood-moon": {
       "nameTh": "ยอดเขาจันทร์โลหิต", "chapter": 5, "time": "blood-moon", "palette": "env-bloodmoon",
       "moodTh": "จันทร์แดงเต็มฟ้า หน้าผาบันไดหิน วิหารร้างเงาดำ", "mechanicTh": "จันทร์โลหิต: ทุก 5 wave ธาตุศัตรูเปลี่ยนตามเฟสจันทร์",
-      "spawnGate": "demon-portal", "goalGate": "last-shrine"
+      "spawnGate": "demon-portal", "goalGate": "last-shrine",
+      "rule": { "moonEveryWaves": 5 }
     }
   },
   "layouts": {
@@ -144,13 +150,18 @@
       ],
       "props": [
         { "type": "ice", "at": [2, 3] }, { "type": "ice", "at": [7, 3] }, { "type": "ice", "at": [11, 8] }, { "type": "ice", "at": [20, 4] }, { "type": "ice", "at": [15, 3] },
-        { "type": "lantern", "at": [18, 8] }, { "type": "lantern", "at": [20, 9] }
+        { "type": "lantern", "at": [18, 8] }, { "type": "lantern", "at": [20, 9] },
+        { "type": "ice-floor", "at": [1, 5] }, { "type": "ice-floor", "at": [2, 5] }, { "type": "ice-floor", "at": [3, 5] }, { "type": "ice-floor", "at": [4, 3] }, { "type": "ice-floor", "at": [4, 2] },
+        { "type": "ice-floor", "at": [6, 1] }, { "type": "ice-floor", "at": [7, 1] }, { "type": "ice-floor", "at": [8, 1] }, { "type": "ice-floor", "at": [7, 7] }, { "type": "ice-floor", "at": [7, 8] },
+        { "type": "ice-floor", "at": [7, 9] }, { "type": "ice-floor", "at": [10, 10] }, { "type": "ice-floor", "at": [11, 10] }, { "type": "ice-floor", "at": [12, 10] }, { "type": "ice-floor", "at": [17, 4] },
+        { "type": "ice-floor", "at": [17, 3] }, { "type": "ice-floor", "at": [19, 1] }, { "type": "ice-floor", "at": [20, 1] }, { "type": "ice-floor", "at": [22, 4] }, { "type": "ice-floor", "at": [22, 5] }
       ]
     },
     "fire-market": {
       "kind": "defend", "biome": "fire-city", "nameTh": "ตลาดโคมแดง (ตัวอย่างธีม)",
       "paths": [
-        [[23, 1], [20, 1], [20, 9], [16, 9], [16, 4], [12, 4], [12, 10], [8, 10], [8, 2], [4, 2], [4, 9], [1, 9], [1, 5]]
+        [[23, 1], [20, 1], [20, 9], [16, 9], [16, 4], [12, 4], [12, 10], [8, 10], [8, 2], [4, 2], [4, 9], [1, 9], [1, 5]],
+        [[23, 11], [18, 11], [18, 9], [16, 9], [16, 4], [12, 4], [12, 10], [8, 10], [8, 2], [4, 2], [4, 9], [1, 9], [1, 5]]
       ],
       "props": [
         { "type": "stall", "at": [6, 4] }, { "type": "stall", "at": [6, 7] }, { "type": "stall", "at": [14, 6] }, { "type": "stall", "at": [18, 4] }, { "type": "lantern", "at": [10, 6] },

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   biomes, canonicalHash, canonicalString, comboDmgPct, combos, costPct, createDefend, economy, fnv1a, grid, isGenerated, isOver, layouts,
-  propBlocks, resolveLayout, sects, stageList, stages, statPct, stepDefend, tilesOnPath, upgradeCost, waveEntries, waveHp, wuxingPct,
+  propBlocks, propOnPath, resolveLayout, sects, stageList, stages, statPct, stepDefend, tilesOnPath, upgradeCost, waveEntries, waveHp, wuxingPct,
   enemies as enemyDefs, type Command, type DefendState, type SimEvent,
 } from '../src';
 import { play } from './bot';
@@ -326,11 +326,11 @@ describe('maps', () => {
           expect(edge(r[0]!), `${name} spawn on the edge`).toBe(true);
           expect(edge(r.at(-1)!), `${name} goal inside`).toBe(false);
           expect(r.at(-1), `${name} paths share one goal`).toEqual(l.paths[0]!.at(-1));
-          const path = tilesOnPath(r);
-          for (const p of l.props) {
-            expect(propBlocks.has(p.type), `${name} prop type ${p.type}`).toBe(true);
-            expect(path.has(`${p.at.x},${p.at.y}`), `${name} prop ${p.type} on the path`).toBe(false);
-          }
+        }
+        const path = new Set(l.paths.flatMap((r) => [...tilesOnPath(r)]));
+        for (const p of l.props) {
+          expect(propBlocks.has(p.type), `${name} prop type ${p.type}`).toBe(true);
+          expect(path.has(`${p.at.x},${p.at.y}`), `${name} prop ${p.type} at ${p.at.x},${p.at.y} on the path`).toBe(!!propOnPath.get(p.type));
         }
         expect(biomes.has(l.biome), `${name} biome`).toBe(true);
       }

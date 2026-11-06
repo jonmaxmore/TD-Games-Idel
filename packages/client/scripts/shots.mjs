@@ -83,6 +83,36 @@ async function page(url, video) {
   if (vid) renameSync(out + vid, out + '1-12-bot.webm');
 }
 
+// 2b) Biome rules (SPEC-pc-v2 §3), one stage each, bot at x4: the roof ring on 1-6, fog on 2-1, ice melting on 3-1,
+//     city gates on 4-2 (one road barred), the blood moon on 5-3 (phase in the top bar).
+{
+  const { ctx, p } = await page('?stage=1-6&sect=fire&seed=1');
+  await sleep(500);
+  await p.locator('.card').first().click();
+  const box = await p.locator('canvas').boundingBox();
+  for (const [tx, ty, name] of [[7, 4, 'roof'], [5, 5, 'ground']]) {
+    const pt = await p.evaluate(([x, y]) => window.__toScreen(x, y), [tx, ty]);
+    await p.mouse.move(box.x + pt.x, box.y + pt.y);
+    await sleep(250);
+    await p.screenshot({ path: out + `biome-1-6-${name}-ring.png` });
+  }
+  await ctx.close();
+  const fps = [];
+  for (const [stage, sect, wait] of [
+    ['2-1', 'fire', '() => window.__game.s.wave >= 2 && window.__game.s.enemies.length > 3'],
+    ['3-1', 'fire', '() => window.__game.s.ice.size < 20 && window.__game.s.enemies.length > 2'],
+    ['4-2', 'wood', '() => window.__game.s.wave >= 2 && window.__game.s.phase === "break"'],
+    ['5-3', 'wood', '() => window.__game.s.wave >= 6 && window.__game.s.enemies.length > 3'],
+  ]) {
+    const { ctx, p } = await page(`?stage=${stage}&sect=${sect}&seed=1&bot=1&speed=4`);
+    await p.waitForFunction(`(${wait})()`, null, { timeout: 120000 });
+    await p.screenshot({ path: out + `biome-${stage}.png` });
+    for (let i = 0; i < 3; i++) { await sleep(1100); fps.push(`${stage}:${await p.evaluate(() => window.__game.fps)}`); }
+    await ctx.close();
+  }
+  console.log('biome fps samples:', fps.join(','));
+}
+
 // 3) First run on a fresh save, recorded: every screen from consent to the lobby, two stages, then a reload.
 {
   const dir = out + 'flow-video/';

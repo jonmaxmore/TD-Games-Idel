@@ -47,7 +47,9 @@ export type Pt = { x: number; y: number };
 export interface Prop { type: string; at: Pt }
 // paths: every spawn gate's route to the one goal gate; enemies of a wave take them in turn.
 export interface MapLayout { kind: string; biome: string; nameTh: string; goalGate: string | null; paths: Pt[][]; props: Prop[] }
-export interface BiomeDef { nameTh: string; time: string; palette: string; moodTh: string; mechanicTh: string; spawnGate: string; goalGate: string }
+// A biome's rule (maps.json > biomes.<id>.rule, SPEC-pc-v2 §3); 0 turns that part off. Distances in milli-tiles.
+export interface BiomeRule { roofRangePct: number; leap: number; fogSight: number; iceSpeedPct: number; gateEveryWaves: number; moonEveryWaves: number }
+export interface BiomeDef { nameTh: string; time: string; palette: string; moodTh: string; mechanicTh: string; spawnGate: string; goalGate: string; rule: BiomeRule }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const J = (x: unknown) => x as any;
@@ -146,9 +148,15 @@ export const stages = new Map<string, StageDef>(stageList.map((s) => [s.id, s]))
 const P = (t: [number, number]): Pt => ({ x: t[0], y: t[1] });
 export const grid = { w: M.grid[0] as number, h: M.grid[1] as number };
 export const propBlocks = new Map<string, boolean>(Object.keys(M.propTypes).map((k) => [k, !!M.propTypes[k].block]));
+export const propOnPath = new Map<string, boolean>(Object.keys(M.propTypes).map((k) => [k, !!M.propTypes[k].onPath]));
 export const biomes = new Map<string, BiomeDef>(Object.keys(M.biomes).map((k) => {
   const b = M.biomes[k];
-  return [k, { nameTh: b.nameTh, time: b.time, palette: b.palette, moodTh: b.moodTh, mechanicTh: b.mechanicTh, spawnGate: b.spawnGate, goalGate: b.goalGate }];
+  const r = b.rule ?? {};
+  const rule: BiomeRule = {
+    roofRangePct: r.roofRangePct ?? 0, leap: Math.round((r.leapTiles ?? 0) * TILE), fogSight: Math.round((r.fogSightTiles ?? 0) * TILE),
+    iceSpeedPct: r.iceSpeedPct ?? 0, gateEveryWaves: r.gateEveryWaves ?? 0, moonEveryWaves: r.moonEveryWaves ?? 0,
+  };
+  return [k, { nameTh: b.nameTh, time: b.time, palette: b.palette, moodTh: b.moodTh, mechanicTh: b.mechanicTh, spawnGate: b.spawnGate, goalGate: b.goalGate, rule }];
 }));
 export const layouts = new Map<string, MapLayout>(Object.keys(M.layouts).map((k) => {
   const v = M.layouts[k];

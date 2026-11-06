@@ -2,7 +2,7 @@
 // It owns `root` until dispose(); the front flow decides what happens after onEnd.
 import {
   arts, cards, createDefend, defOf, discipleStats, enemies as enemyDefs, evaluateStars, isOver, recipeById, roleDefs, sellValue,
-  skills, stepDefend, TICK_HZ, units, upgradeCost, upgradeLevels, AUTO_START_TICKS, canBuild, type Command, type DefendState, type SimEvent,
+  skills, stepDefend, TICK_HZ, tileRange, units, upgradeCost, upgradeLevels, AUTO_START_TICKS, canBuild, moonPhase, openPath, type Command, type DefendState, type SimEvent,
 } from '@five-sects/sim';
 import { botCommands } from '../../sim/test/bot';
 import { Board } from './board';
@@ -198,7 +198,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     hud.wave.textContent = `${s.wave}/${s.totalWaves}`;
     const nextIn = s.phase === 'build' ? AUTO_START_TICKS - s.tick : s.phase === 'break' ? s.breakT : 0;
     const nextName = s.wave < s.totalWaves ? recipeById(s.nextRecipe).nameTh : '';
-    hud.next.textContent = nextName ? ` · ถัดไป: ${nextName}${nextIn > 0 ? ` (${Math.ceil(nextIn / TICK_HZ)} วิ)` : ''}` : '';
+    hud.next.textContent = nextName ? ` · ถัดไป: ${nextName}${nextIn > 0 ? ` (${Math.ceil(nextIn / TICK_HZ)} วิ)` : ''}${biomeHint()}` : '';
     waveBtn.textContent = s.phase === 'build' ? 'เริ่มบุก' : 'เรียกระลอกถัดไป';
     waveBtn.disabled = s.wave >= s.totalWaves || s.phase === 'picking';
     for (const [key, b] of cardEls) { b.classList.toggle('sel', key === selectedKey); b.classList.toggle('poor', s.silver < defOf(key).cost); }
@@ -212,6 +212,19 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     if (s.offer) offerBox.querySelector('.timer')!.textContent = `เลือกเองใน ${Math.ceil(s.offerT / TICK_HZ)} วิ`;
   }
 
+  // Next-wave warnings for the biome rule: which city gate opens, and the blood moon's phase (SPEC-pc-v2 §7).
+  function biomeHint(): string {
+    const w = s.wave + 1;
+    let o = '';
+    const road = openPath(stageId, w);
+    if (road != null) o += ` · ประตูเปิด: ทาง ${road + 1}${s.wave > 0 && road !== openPath(stageId, s.wave) ? ' (สลับ!)' : ''}`;
+    if (s.rule.moonEveryWaves > 0) {
+      const ph = moonPhase(s.rule, w);
+      o += ` · จันทร์โลหิต เฟส ${ph}${s.wave > 0 && ph !== moonPhase(s.rule, s.wave) ? ' (ธาตุศัตรูเลื่อน!)' : ''}`;
+    }
+    return o;
+  }
+
   function onEvents(ev: SimEvent[]) {
     for (const e of ev) {
       if (e.e === 'error') toast(ERRORS[e.msg!] ?? e.msg!);
@@ -220,7 +233,12 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
         float(e.x!, e.y!, `+${e.amount}`, 'silver');
         play('death'); play('silver', 0.5);
         hud.silver.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 200, delay: 550 });
-      } else if (e.e === 'wave') play('wave');
+      } else if (e.e === 'wave') {
+        play('wave');
+        const road = openPath(stageId, s.wave);
+        if (road != null && s.wave > 1 && road !== openPath(stageId, s.wave - 1)) toast(`ประตูเมืองสลับ: เปิดทาง ${road + 1}`);
+        if (s.rule.moonEveryWaves > 0 && s.wave > 1 && moonPhase(s.rule, s.wave) !== moonPhase(s.rule, s.wave - 1)) toast('จันทร์โลหิตเปลี่ยนเฟส: ธาตุศัตรูเลื่อน');
+      }
       else if (e.e === 'spawn' && enemyDefs.get(s.enemies.find((x) => x.id === e.id)?.type ?? '')?.boss != null) { play('boss'); toast('บอสมาถึง!'); }
       else if (e.e === 'interest' && e.amount! > 0) toast(`ดอกเบี้ย +${e.amount}`);
       else if (e.e === 'leak') toast('ศัตรูหลุดเข้าประตู!');
@@ -253,7 +271,10 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     if (s.silver !== lastSilver || s.phase !== lastPhase || s.tick % 10 === 0) { refresh(); lastSilver = s.silver; lastPhase = s.phase; }
     const d = s.disciples.find((x) => x.id === selectedId);
     if (d) board.showRange(d.x, d.y, discipleStats(s, d).range);
-    else if (selectedKey && hover) board.showRange(hover.tx * 1000 + 500, hover.ty * 1000 + 500, defOf(selectedKey).range, hover, canBuild(s, hover.tx, hover.ty));
+    else if (selectedKey && hover) {
+      const r = tileRange(s, defOf(selectedKey).range, [units.get(selectedKey)?.sect ?? selectedKey], hover.tx, hover.ty); // roof reach, fog cap
+      board.showRange(hover.tx * 1000 + 500, hover.ty * 1000 + 500, r, hover, canBuild(s, hover.tx, hover.ty));
+    }
     else board.showRange(0, 0, null);
     board.sync(s, now);
     board.render();

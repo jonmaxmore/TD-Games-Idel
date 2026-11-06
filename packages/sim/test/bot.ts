@@ -1,6 +1,6 @@
 // Simple greedy player used for balance checks and golden replays: builds on the tiles that cover the most path,
 // alternates the unlocked sects, and upgrades once it has enough disciples.
-import { canBuild, createDefend, defOf, grid, isOver, placeCost, stepDefend, tilesOnPath, units, upgradeCost, waveRecipes, type Command, type DefendState } from '../src';
+import { canBuild, createDefend, defOf, grid, isOver, placeCost, stepDefend, tileRange, tilesOnPath, units, upgradeCost, waveRecipes, type Command, type DefendState } from '../src';
 
 // A tile scores the path tiles it reaches, counted once per path through them, so the shared stretch every enemy walks
 // beats a pocket that guards a single entrance. Ties go to the tile that reaches furthest up a path (meets enemies first).
@@ -37,7 +37,7 @@ export function botCommands(s: DefendState, o: PlayOpts = {}, mem = { placed: 0 
   const allMaxed = lowest != null && lowest.level >= 3;
   const wantPlace = urgent || mem.placed < 3 || ((mem.placed < maxDisciples || allMaxed) && (lowest == null || lowest.level >= 2));
   if (wantPlace) {
-    const spots = bestTiles(s, defOf(sect).range);
+    const spots = bestTiles(s, tileRange(s, defOf(sect).range, [units.get(sect)?.sect ?? sect], -1, -1)); // sees the fog's cap
     if (spots.length > 0 && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); mem.placed++; }
   } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
   return cmds;

@@ -1,9 +1,9 @@
 // Defend mode rules: one tick at a time, integer math, seeded RNG. Every loop runs over arrays in a fixed order;
 // the golden replays (packages/sim/goldens) pin the outcome tick by tick.
 import {
-  arts, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid, layouts,
+  arts, biomes, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid, layouts,
   mergeFee, roles, roleUnlocks, rosterSects, sectOrder, sectRules, sects, stageList, stages, statPct as statPcts, TICK_HZ, TILE,
-  units, unitList, upgradeLevels, costPct, waveHp, waveRecipes, type CardDef, type ComboDef, type MapLayout, type Pt, type SectDef, type WaveRecipe,
+  units, unitList, upgradeLevels, costPct, waveHp, waveRecipes, generates, propOnPath, type BiomeRule, type CardDef, type ComboDef, type MapLayout, type Pt, type SectDef, type WaveRecipe,
 } from './data';
 import { blockedTiles, div, isGenerated, nextRandom, pathLength, pointAt, resolveLayout, rollPct, tileKey, tilesOnPath, toMilli, within, wuxingPct } from './core';
 
@@ -13,7 +13,7 @@ export interface Command {
   tx?: number; ty?: number; id?: number; a?: number; b?: number;
 }
 
-// e: hit | kill | leak | spawn | placed | combo | wave | interest | stun | error | art | offer | picked | newEnemy | disable | seal | phoenix | end
+// e: hit | kill | leak | spawn | placed | combo | wave | interest | stun | error | art | offer | picked | newEnemy | disable | seal | phoenix | leap | melt | end
 export interface SimEvent {
   e: string;
   from?: number; to?: number; id?: number; dmg?: number; pct?: number; x?: number; y?: number; amount?: number; wave?: number;
@@ -53,6 +53,8 @@ export interface DefendState {
   paths: Pt[][]; pathLens: number[]; pathTiles: Set<string>; blocked: Set<string>; layout: MapLayout; // pathTiles: every path's tiles
   cards: string[]; offer: string[] | null; seenTypes: string[]; stars: boolean[] | null;
   sectsUsed: string[]; // distinct sect elements ever placed (max_2_sects star)
+  // Biome rule (SPEC-pc-v2 §3): roofs hold disciples; roofEdge = path tiles beside a roof; ice = path tiles still frozen.
+  rule: BiomeRule; roofs: Set<string>; roofEdge: Set<string>; ice: Set<string>;
 }
 
 export const isOver = (s: DefendState) => s.phase === 'won' || s.phase === 'lost';
@@ -76,15 +78,46 @@ export function createDefend(stageId: string, seed: number, sect: string | null 
   if (!stage) throw new Error(`unknown stage ${stageId}`);
   const layout = resolveLayout(stage.layout!, stage.variant);
   const paths = layout.paths.map(toMilli);
+  const rule = { ...biomes.get(layout.biome)!.rule };
+  const pathTiles = new Set(layout.paths.flatMap((p) => [...tilesOnPath(p)]));
+  const roofAt = rule.roofRangePct > 0 || rule.leap > 0 ? layout.props.filter((p) => p.type === 'roof').map((p) => p.at) : [];
+  const roofs = new Set(roofAt.map((p) => tileKey(p.x, p.y)));
+  const roofEdge = new Set<string>();
+  for (const p of roofAt)
+    for (const k of [tileKey(p.x + 1, p.y), tileKey(p.x - 1, p.y), tileKey(p.x, p.y + 1), tileKey(p.x, p.y - 1)]) if (pathTiles.has(k)) roofEdge.add(k);
   return {
     stageId, phase: 'build', tick: 0, silver: stage.startSilver ?? 100, lives: stage.startLives ?? economy.startLives, wave: 0,
     totalWaves: stage.waves ?? 10, spawnT: 0, breakT: 0, nextId: 1, livesLost: 0, combosMade: 0,
     peakDisciples: 0, bountyMultT: 0, revealAllT: 0, offerT: 0, rng: seed >>> 0, spawnQueue: [], recipe: 'mixed', nextRecipe: 'mixed',
     sealEl: null, sect: rosterSect, cardsOffered: 0, sealT: 0, artCharges: arts.map((a) => a.charges), artCd: arts.map(() => 0),
     disciples: [], enemies: [], unlocked: rosterSect != null ? unlockedUnits(rosterSect, stageId) : unlockedSects(stageId),
-    paths, pathLens: paths.map(pathLength), pathTiles: new Set(layout.paths.flatMap((p) => [...tilesOnPath(p)])), blocked: blockedTiles(layout), layout,
+    paths, pathLens: paths.map(pathLength), pathTiles, blocked: blockedTiles(layout), layout,
     cards: [], offer: null, seenTypes: [], stars: null, sectsUsed: [],
+    rule, roofs, roofEdge, ice: new Set(rule.iceSpeedPct > 0 ? layout.props.filter((p) => propOnPath.get(p.type)).map((p) => tileKey(p.at.x, p.at.y)) : []),
   };
+}
+
+// City gates: the one open road in a wave (null when every road is open). Waves 1..N use road 0, the next N road 1, ...
+export function openPath(stageId: string, wave: number): number | null {
+  const l = layouts.get(stages.get(stageId)!.layout!)!;
+  const every = biomes.get(l.biome)!.rule.gateEveryWaves;
+  return every > 0 ? div(wave - 1, every) % l.paths.length : null;
+}
+
+// Blood moon: every moonEveryWaves waves the enemies' elements move one step round the generating cycle
+// (wood -> fire -> earth -> metal -> water -> wood). Phase 0 is the enemies' own element.
+export const moonPhase = (rule: BiomeRule, wave: number) => (rule.moonEveryWaves > 0 ? div(Math.max(0, wave - 1), rule.moonEveryWaves) : 0);
+export function moonElement(el: string, phase: number): string {
+  let o = el;
+  for (let i = 0; i < phase % 5; i++) o = generates.get(o) ?? o;
+  return o;
+}
+
+// Range on a tile: a roof adds roofRangePct, fog caps it at fogSight unless the disciple is of the wood sect.
+export function tileRange(s: DefendState, range: number, sectEls: string[], tx: number, ty: number): number {
+  let r = s.roofs.has(tileKey(tx, ty)) ? div(range * (100 + s.rule.roofRangePct), 100) : range;
+  if (s.rule.fogSight > 0 && !sectEls.includes('wood')) r = Math.min(r, s.rule.fogSight);
+  return r;
 }
 
 export function unlockedSects(stageId: string): string[] {
@@ -340,11 +373,13 @@ export function waveEntries(stageId: string, wave: number, recipeId: string): Qu
   const n = Math.max(1, div((4 + wave) * r.countPct, 100));
   const stage = stages.get(stageId)!;
   const paths = layouts.get(stage.layout!)!.paths.length;
+  const gate = openPath(stageId, wave);
+  const road = (i: number) => gate ?? i % paths;
   const o: QueuedEnemy[] = [];
-  // Enemies take the spawn gates in turn, in queue order.
-  for (let i = 0; i < n; i++) o.push({ type: types[(i + wave) % types.length]!, wave, hpPct: r.hpPct, path: i % paths });
+  // Enemies take the open spawn gates in turn, in queue order.
+  for (let i = 0; i < n; i++) o.push({ type: types[(i + wave) % types.length]!, wave, hpPct: r.hpPct, path: road(i) });
   const boss = stage.scriptedWaves.get(String(wave));
-  if (boss != null) o.push({ type: boss, wave, hpPct: 100, path: n % paths });
+  if (boss != null) o.push({ type: boss, wave, hpPct: 100, path: road(n) });
   return o;
 }
 
@@ -386,7 +421,7 @@ function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = f
   }
   const p = pointAt(s.paths[q.path]!, at);
   const e: Enemy = {
-    id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, path: q.path, speed, bounty, x: p.x, y: p.y, small,
+    id: s.nextId++, type, el: moonElement(def.element, moonPhase(s.rule, q.wave)), air: def.air, hp, maxHp: hp, d: at, path: q.path, speed, bounty, x: p.x, y: p.y, small,
     elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0,
     slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, burnAge: 0, poison: 0, poisonT: 0, poisonDps: 0, stunT: 0, lastElT: 0, age: 0, phase: 0,
     lastEl: null, revealed: false,
@@ -421,7 +456,7 @@ export function discipleStats(s: DefendState, d: Disciple): Stats {
   let cooldown = d.combo != null ? div(defs.reduce((a, x) => a + x.cooldown, 0), defs.length) : defs[0]!.cooldown;
   if (neighbours.some((n) => n.els.includes('yinyang') && n.level >= 2)) cooldown = div(cooldown * 100, YY_RATE_PCT);
   return {
-    dmg, cooldown: Math.max(1, cooldown), range: Math.max(...defs.map((x) => x.range)),
+    dmg, cooldown: Math.max(1, cooldown), range: tileRange(s, Math.max(...defs.map((x) => x.range)), wux(d), d.tx, d.ty),
     hitsAir: defs.some((x) => x.hitsAir), hitsGround: defs.some((x) => x.hitsGround),
   };
 }
@@ -618,12 +653,22 @@ function moveEnemies(s: DefendState, ev: SimEvent[]): void {
       for (const o of s.enemies)
         if (o !== e && o.hp > 0 && o.burnT === 0 && o.poisonT === 0 && within(e.x, e.y, o.x, o.y, HEAL_RANGE))
           o.hp = Math.min(o.maxHp, o.hp + div(o.maxHp * (enemyDefs.get(o.type)!.boss != null ? HEAL_BOSS_PCT : HEAL_PCT), 100));
+    const tile = tileKey(div(e.x, TILE), div(e.y, TILE));
+    // Ice: a burning enemy melts the ice under it for the rest of the stage.
+    if (e.burnT > 0 && !e.air && s.ice.delete(tile)) ev.push({ e: 'melt', x: e.x, y: e.y });
     if (e.stunT > 0) { e.stunT--; continue; }
     let sp = e.speed;
     if (e.slowT > 0) { e.slowT--; sp = div(sp * (100 - e.slowPct), 100); } else e.slowPct = 0;
+    if (!e.air && s.ice.has(tile)) sp = div(sp * (100 + s.rule.iceSpeedPct), 100);
     e.d += sp;
     if (e.type === 'runner' && e.age % DASH_EVERY === 0) e.d += DASH_DIST;
-    const p = pointAt(s.paths[e.path]!, e.d);
+    let p = pointAt(s.paths[e.path]!, e.d);
+    // Rooftops: a leaper reaching a roof line jumps leap ahead (once per line: it must come from a tile beside no roof).
+    if (e.type === 'leaper' && s.rule.leap > 0 && !s.roofEdge.has(tile) && s.roofEdge.has(tileKey(div(p.x, TILE), div(p.y, TILE)))) {
+      e.d += s.rule.leap;
+      p = pointAt(s.paths[e.path]!, e.d);
+      ev.push({ e: 'leap', id: e.id });
+    }
     e.x = p.x; e.y = p.y;
   }
   for (const e of s.enemies)

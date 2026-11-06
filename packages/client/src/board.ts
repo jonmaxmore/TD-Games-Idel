@@ -1,7 +1,7 @@
 // The battlefield in 2.5D pixel art with plain Canvas 2D: a 3/4 top-down board (tiles squashed vertically) and
 // upright pixel figures drawn back to front. It draws at low resolution in whole pixels; CSS scales the canvas up
 // with hard edges. It only reads the sim state; it never changes it.
-import { biomes, enemies as enemyDefs, grid, palette, propBlocks, sects, TILE, units, type DefendState, type SimEvent } from '@five-sects/sim';
+import { biomes, discipleStats, enemies as enemyDefs, grid, moonPhase, openPath, palette, propBlocks, sects, TILE, units, type DefendState, type SimEvent } from '@five-sects/sim';
 
 const TOP = 34; // room above the far row for figures standing on it
 const PAD = 6;
@@ -81,8 +81,9 @@ export class Board {
   private fx: Fx[] = [];
   private seen = new Map<number, Seen>(); // drawn enemy positions, eased toward the sim's
   private bg = document.createElement('canvas'); // backdrop, ground and flat props, redrawn on resize
+  private mist = document.createElement('canvas'); // fog layer with each disciple's sight cut out
   private shots = new Pool(128, () => ({ t0: 0, t1: 0, x0: 0, y0: 0, x1: 0, y1: 0, kit: '', fan: false, crit: false }));
-  private nums = new Pool(64, () => ({ t0: 0, t1: 0, x: 0, y: 0, v: 0, crit: false }));
+  private nums = new Pool(64, () => ({ t0: 0, t1: 0, x: 0, y: 0, v: 0, crit: false, to: 0 }));
   private shards = new Pool(256, () => ({ t0: 0, t1: 0, x: 0, y: 0, vx: 0, vy: 0, c: '' }));
   private coins = new Pool(48, () => ({ t0: 0, t1: 0, x: 0, y: 0 }));
   private font = digitSheet(['#FFD34A', '#FFFFFF']); // normal, crit
@@ -162,7 +163,10 @@ export class Board {
         const [x0, y0, x1, y1] = [this.sx(d.x), this.sy(d.y) - 14, this.sx(t.x), this.sy(t.y) - 6];
         const fly = Math.min(220, Math.max(90, Math.hypot(x1 - x0, y1 - y0) * 5));
         Object.assign(this.shots.take(now, now + fly), { x0, y0, x1, y1, kit: u?.element ?? d.els[0]!, fan: u?.roleId === 'burst', crit: !!e.crit });
-        Object.assign(this.nums.take(now + fly, now + fly + (e.crit ? 800 : 550)), { x: x1 + ((e.to! * 7) % 7) - 3, y: y1 - 10, v: e.dmg!, crit: !!e.crit });
+        // Hits landing on one enemy, or on one spot, within 150 ms add up into one number: fast play shows a total, not a pile.
+        const n = this.nums.items.find((p) => now < p.t1 && Math.abs(p.t0 - (now + fly)) < 150 && (p.to === e.to || (Math.abs(p.x - x1) < 20 && Math.abs(p.y - y1 + 10) < 10)));
+        if (n) { n.v += e.dmg!; n.crit ||= !!e.crit; n.t1 = Math.max(n.t1, now + fly + (n.crit ? 800 : 550)); }
+        else Object.assign(this.nums.take(now + fly, now + fly + (e.crit ? 800 : 550)), { x: x1 + ((e.to! * 7) % 7) - 3, y: y1 - 10, v: e.dmg!, crit: !!e.crit, to: e.to! });
         t.flash = now + fly;
       } else if (e.e === 'kill') {
         const t = this.seen.get(e.id!);
@@ -175,6 +179,11 @@ export class Board {
         }
         Object.assign(this.coins.take(now + 80, now + 600), { x, y });
       } else if (e.e === 'leak') this.shakeFor(now, 2, 250);
+      else if (e.e === 'melt') this.paintGround();
+      else if (e.e === 'leap') {
+        const t = this.seen.get(e.id!);
+        if (t) { const [x, y] = [this.sx(t.x), this.sy(t.y)]; this.fx.push({ from: now, until: now + 300, draw: (g, k) => { g.globalAlpha = 1 - k; ring(g, x, y, 4 + 6 * k, 2 + 3 * k, '#D8C0A8'); g.globalAlpha = 1; } }); }
+      }
       else if (e.e === 'spawn' && enemyDefs.get(s.enemies.find((x) => x.id === e.id)?.type ?? '')?.boss != null) this.shakeFor(now, 3, 700);
       else if (e.e === 'art' || e.e === 'phoenix') {
         const phoenix = e.e === 'phoenix';
@@ -214,10 +223,12 @@ export class Board {
       for (let ty = 0; ty < grid.h; ty++) {
         const onPath = s.pathTiles.has(`${tx},${ty}`);
         const px = this.ox + tx * this.T, py = Math.round(this.oy + ty * this.TH), th = Math.round(this.oy + (ty + 1) * this.TH) - py;
-        g.fillStyle = onPath ? ((tx + ty) % 2 ? '#7E5E40' : '#86664A') : (tx + ty) % 2 ? '#2E4430' : '#355036';
+        const ice = s.ice.has(`${tx},${ty}`);
+        g.fillStyle = ice ? ((tx + ty) % 2 ? '#8EC3E8' : '#9ACDEE') : onPath ? ((tx + ty) % 2 ? '#7E5E40' : '#86664A') : (tx + ty) % 2 ? '#2E4430' : '#355036';
         g.fillRect(px, py, this.T, th);
-        g.fillStyle = onPath ? '#6A4C32' : '#26382A';
-        g.fillRect(px + ((tx * 7 + ty * 3) % (this.T - 4)) + 2, py + ((tx * 5 + ty) % Math.max(1, th - 4)) + 2, 2, 1); // speckle, fixed per tile
+        g.fillStyle = ice ? '#E6F4FC' : onPath ? '#6A4C32' : '#26382A';
+        g.fillRect(px + ((tx * 7 + ty * 3) % (this.T - 4)) + 2, py + ((tx * 5 + ty) % Math.max(1, th - 4)) + 2, ice ? 5 : 2, 1); // speckle (ice: a glint), fixed per tile
+        if (ice) { g.fillStyle = '#4A78B8'; g.fillRect(px, py + th - 1, this.T, 1); }
       }
     for (const p of s.layout.props) {
       if (!FLAT.has(p.type)) continue;
@@ -234,6 +245,38 @@ export class Board {
           for (let x = px + 1 + (r % 2) * 2; x < px + this.T - 1; x += 4) { g.fillStyle = '#5BC46A'; g.fillRect(x, y, 1, 2); g.fillStyle = '#9FDCA7'; g.fillRect(x, y, 1, 1); g.fillStyle = '#3DA94C'; g.fillRect(x + 1, y + 1, 1, 1); }
       }
     }
+  }
+
+  // Fog (bamboo rule): mist over the board, drawn above the figures, with each disciple's sight (its range) cut clear.
+  private fog(now: number) {
+    const m = this.mist, f = m.getContext('2d')!, s = this.s;
+    if (m.width !== this.canvas.width || m.height !== this.canvas.height) { m.width = this.canvas.width; m.height = this.canvas.height; }
+    f.clearRect(0, 0, m.width, m.height);
+    f.fillStyle = '#B8CCC4';
+    f.globalAlpha = 0.42;
+    f.fillRect(this.ox, this.oy - 10, this.BW, this.BH + 10);
+    f.globalAlpha = 0.3;
+    for (let i = 0; i < 5; i++) { // slow drifting bands
+      const y = this.oy + ((i * 47 + now / 90) % this.BH), x = this.ox + ((i * 131 + now / 40) % this.BW) - this.BW / 3;
+      f.fillRect(Math.max(this.ox, Math.round(x)), Math.round(y), Math.round(this.BW / 3), 4);
+    }
+    f.globalAlpha = 1;
+    f.globalCompositeOperation = 'destination-out';
+    for (const d of s.disciples) {
+      const r = discipleStats(s, d).range / TILE;
+      f.beginPath(); f.ellipse(this.sx(d.x), this.sy(d.y), r * this.T, r * this.TH, 0, 0, Math.PI * 2); f.fill();
+    }
+    f.globalCompositeOperation = 'source-over';
+    this.g.drawImage(m, 0, 0);
+  }
+
+  // Blood moon in the sky: a red disc with a dark bite that grows one step per phase (0 = full).
+  private moon(phase: number) {
+    const g = this.g, x = this.ox + this.BW - 34, y = Math.max(14, this.oy - 36);
+    g.fillStyle = '#5A0E14'; g.beginPath(); g.arc(x, y, 13, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#D2412F'; g.beginPath(); g.arc(x, y, 11, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#FF7A5A'; g.fillRect(x - 6, y - 6, 4, 3); g.fillRect(x + 2, y + 2, 3, 2);
+    if (phase % 5) { g.fillStyle = '#0B0910'; g.beginPath(); g.arc(x + 24 - (phase % 5) * 4, y - 2, 12, 0, Math.PI * 2); g.fill(); }
   }
 
   render(): void {
@@ -260,7 +303,12 @@ export class Board {
       if (art) things.push({ depth: p.at.y + 0.5, draw: () => this.prop(art, this.ox + p.at.x * this.T + (this.T >> 1), Math.round(this.oy + (p.at.y + 0.7) * this.TH), !!propBlocks.get(p.type)) });
     }
     // A cave mouth at every spawn gate, so each entrance reads at a glance; one sect gate at the shared goal.
-    for (const p of s.paths) things.push({ depth: p[0]!.y / TILE, draw: () => this.cave(this.sx(p[0]!.x), this.sy(p[0]!.y)) });
+    // City gates: a closed road gets bars; the one that opens next wave blinks them.
+    const open = openPath(s.stageId, Math.max(1, s.wave)), next = s.wave < s.totalWaves ? openPath(s.stageId, s.wave + 1) : open;
+    s.paths.forEach((p, i) => things.push({ depth: p[0]!.y / TILE, draw: () => {
+      const closed = open != null && open !== i;
+      this.cave(this.sx(p[0]!.x), this.sy(p[0]!.y), closed && !(next === i && Math.floor(now / 250) % 2 === 0), next === i && closed);
+    } }));
     const goal = s.paths[0]!.at(-1)!;
     things.push({ depth: goal.y / TILE, draw: () => this.gate(this.sx(goal.x), this.sy(goal.y)) });
     for (const d of s.disciples) {
@@ -277,6 +325,8 @@ export class Board {
     }
     things.sort((a, b) => a.depth - b.depth);
     for (const t of things) t.draw();
+    if (s.rule.fogSight > 0) this.fog(now);
+    if (s.rule.moonEveryWaves > 0) this.moon(moonPhase(s.rule, Math.max(1, s.wave)));
     for (const f of this.fx) f.draw(g, (now - f.from) / (f.until - f.from));
     this.particles(now);
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -354,11 +404,12 @@ export class Board {
     this.g.fillRect(x - w + 2, y - 2, w * 2 - 4, 5);
   }
 
-  private cave(x: number, y: number) {
+  private cave(x: number, y: number, barred = false, opening = false) {
     const g = this.g;
     g.fillStyle = '#2A2630'; g.fillRect(x - 11, y - 16, 22, 16);
-    g.fillStyle = '#4E4858'; g.fillRect(x - 11, y - 18, 22, 3);
+    g.fillStyle = opening ? '#E3B04B' : '#4E4858'; g.fillRect(x - 11, y - 18, 22, 3);
     g.fillStyle = '#0B0910'; g.fillRect(x - 6, y - 12, 12, 12);
+    if (barred) { g.fillStyle = '#9A2A1E'; for (let i = -5; i <= 4; i += 3) g.fillRect(x + i, y - 12, 2, 12); g.fillRect(x - 6, y - 8, 12, 2); }
   }
 
   private gate(x: number, y: number) {

@@ -376,7 +376,13 @@
         "TBD",
         "TBD"
       ],
-      "status": "outline",
+      "status": "sample",
+      "title": "Sample stage for the bamboo rule: fog: only wood disciples shoot past fogSightTiles (SPEC-pc-v2 §3)",
+      "layout": "bamboo-stream",
+      "waves": 10,
+      "startSilver": 150,
+      "hpPct": 70,
+      "wavePool": ["mixed", "rush", "split", "stealth"],
       "unlocksSect": "wood"
     },
     {
@@ -593,7 +599,13 @@
         "TBD",
         "TBD"
       ],
-      "status": "outline",
+      "status": "sample",
+      "title": "Sample stage for the ice rule: slick ice speeds enemies up; burning melts it (SPEC-pc-v2 §3)",
+      "layout": "ice-lake",
+      "waves": 10,
+      "startSilver": 150,
+      "hpPct": 70,
+      "wavePool": ["mixed", "armored", "air", "swarm"],
       "unlocksSect": "water"
     },
     {
@@ -820,16 +832,22 @@
       "map": "Southern Fire City",
       "enemies": [
         "cultist",
-        "assassin",
+        "brute",
         "healer",
-        "brute"
+        "assassin"
       ],
       "stars": [
         "clear",
         "TBD",
         "TBD"
       ],
-      "status": "outline"
+      "status": "sample",
+      "title": "Sample stage for the fire-city rule: city gates: one of two roads open, switching every gateEveryWaves (SPEC-pc-v2 §3)",
+      "layout": "fire-market",
+      "waves": 10,
+      "startSilver": 150,
+      "hpPct": 70,
+      "wavePool": ["mixed", "armored", "stealth", "swarm"]
     },
     {
       "id": "4-3",
@@ -1056,18 +1074,24 @@
       "type": "defend",
       "map": "Blood Moon Peak",
       "enemies": [
-        "mimic",
-        "assassin",
         "puppet",
         "brute",
-        "healer"
+        "healer",
+        "mimic",
+        "assassin"
       ],
       "stars": [
         "clear",
         "TBD",
         "TBD"
       ],
-      "status": "outline"
+      "status": "sample",
+      "title": "Sample stage for the blood-moon rule: enemy elements step round the cycle every moonEveryWaves (SPEC-pc-v2 §3)",
+      "layout": "bloodmoon-stairs",
+      "waves": 10,
+      "startSilver": 150,
+      "hpPct": 70,
+      "wavePool": ["mixed", "armored", "split", "swarm"]
     },
     {
       "id": "5-4",
