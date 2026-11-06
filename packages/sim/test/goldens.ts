@@ -92,7 +92,7 @@ function trace(stageId: string, seed: number, sect: string | null, commands: Com
   const tr: [number, string][] = [];
   const end = replay(stageId, seed, sect, commands, (st) => { if (st.tick % 100 === 0) tr.push([st.tick, canonicalHash(st)]); });
   const cmds: Commands = {};
-  for (const k of Object.keys(commands).map(Number).sort((a, b) => a - b)) cmds[k] = commands[k]!.map(toJson) as Command[];
+  for (const k of Object.keys(commands).map(Number).sort((a, b) => a - b)) cmds[k] = commands[k]!.map(toJson) as unknown as Command[];
   return {
     stageId, seed, ...(sect != null ? { sect } : {}), commands: cmds, trace: tr,
     final: { phase: end.phase, wave: end.wave, lives: end.lives, silver: end.silver, tick: end.tick, hash: canonicalHash(end), canonical: canonicalString(end) },
