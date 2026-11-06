@@ -2,7 +2,7 @@
 // upright pixel figures drawn back to front. It draws at low resolution in whole pixels; CSS scales the canvas up
 // with hard edges. It only reads the sim state; it never changes it.
 import {
-  biomes, branchB, discipleStats, enemies as enemyDefs, FIRE_SPLASH, grid, moonPhase, openPath, palette, propBlocks, sects, TILE, units, type DefendState, type Disciple,
+  biomes, branchA, branchB, discipleStats, enemies as enemyDefs, FIRE_SPLASH, grid, moonPhase, openPath, palette, propBlocks, sects, TILE, units, type DefendState, type Disciple,
   type SimEvent,
 } from '@five-sects/sim';
 
@@ -335,7 +335,7 @@ export class Board {
     if (this.range) ring(g, this.sx(this.range.x), this.sy(this.range.y), (this.range.r / TILE) * this.T, (this.range.r / TILE) * this.TH, '#FFE9A8aa');
     // Song of Withering (wood tier 3 a): its aura on the ground, a faint ring breathing slowly.
     g.globalAlpha = 0.35 + 0.2 * Math.sin(now / 700);
-    for (const d of s.disciples) if (woodAura(d)) { const r = discipleStats(s, d).range / TILE; ring(g, this.sx(d.x), this.sy(d.y), r * this.T, r * this.TH, FX.vine); }
+    for (const d of s.disciples) if (woodAura(d)) { const r = discipleStats(s, d).range * branchA.woodAuraRangePct / 100 / TILE; ring(g, this.sx(d.x), this.sy(d.y), r * this.T, r * this.TH, FX.vine); }
     g.globalAlpha = 1;
 
     // Everything that stands up is drawn back to front.
