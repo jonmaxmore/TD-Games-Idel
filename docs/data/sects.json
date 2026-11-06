@@ -1,5 +1,5 @@
 {
-  "_notes": "Towers = disciples (ศิษย์) of a sect placed on the map. dmg per hit, rate = hits/s, range in tiles, cost in silver (ตำลึง). Values are prototype balance targets. All sect names are original (no Jin Yong / Gu Long IP).",
+  "_notes": "Towers = disciples (ศิษย์) of a sect placed on the map. dmg per hit, rate = hits/s, range in tiles, cost in silver (ตำลึง). Values are prototype balance targets. All sect names are original (no Jin Yong / Gu Long IP). Tier 3 of a kit with two lvl-3 skills is a choice made on the upgrade: branch a (the original technique) or b; rule holds branch b's numbers (SPEC-pc-v2 §5). The yinyang kit has one tier 3.",
   "wuxing": {
     "elements": ["metal", "wood", "water", "fire", "earth"],
     "generates": { "metal": "water", "water": "wood", "wood": "fire", "fire": "earth", "earth": "metal" },
@@ -19,7 +19,8 @@
       "skills": [
         { "lvl": 1, "name": "Sword Qi", "nameTh": "ปราณกระบี่", "effect": "ranged crescent slash", "effectTh": "ฟันปราณระยะไกล โอกาสคริติคอล 15% แรงสองเท่า" },
         { "lvl": 2, "name": "Thousand Blades", "nameTh": "พันกระบี่ร่วง", "effect": "every 6th hit rains 5 swords, crit x2", "effectTh": "ทุกการโจมตีครั้งที่ 6 คริติคอลแน่นอน" },
-        { "lvl": 3, "name": "Heart of the Sword", "nameTh": "กระบี่ในใจ", "effect": "crits pierce through all enemies in a line", "effectTh": "คริติคอลแล้วฟันทะลุไปโดนศัตรูอีกตัวในระยะ แรงเท่ากัน" }
+        { "lvl": 3, "branch": "a", "name": "Heart of the Sword", "nameTh": "กระบี่ในใจ", "effect": "crits pierce through all enemies in a line", "effectTh": "คริติคอลแล้วฟันทะลุไปโดนศัตรูอีกตัวในระยะ แรงเท่ากัน" },
+        { "lvl": 3, "branch": "b", "name": "Execution Stroke", "nameTh": "กระบี่ประหาร", "effect": "double damage to a target below 30% HP", "effectTh": "ฟันเป้าที่ HP ต่ำกว่า 30% แรงสองเท่า", "rule": { "belowHpPct": 30, "dmgPct": 200 } }
       ]
     },
     {
@@ -29,7 +30,8 @@
       "skills": [
         { "lvl": 1, "name": "Verdant Venom", "nameTh": "พิษมรกต", "effect": "poison 10 dps, stacks x3", "effectTh": "ติดพิษซ้อนได้ 3 ชั้น เสียเลือดต่อเนื่อง 3 วินาที" },
         { "lvl": 2, "name": "Binding Vines", "nameTh": "เถาวัลย์รัด", "effect": "root 1s every 8s", "effectTh": "ทุก 8 วินาที เถาวัลย์รัดเป้าหมายอยู่กับที่ 1 วินาที" },
-        { "lvl": 3, "name": "Song of Withering", "nameTh": "เพลงขลุ่ยร่วงโรย", "effect": "aura: poisoned enemies take +25% dmg", "effectTh": "ศัตรูที่ติดพิษโดนดาเมจจากทุกคนแรงขึ้น 25%" }
+        { "lvl": 3, "branch": "a", "name": "Song of Withering", "nameTh": "เพลงขลุ่ยร่วงโรย", "effect": "aura: poisoned enemies take +25% dmg", "effectTh": "ศัตรูที่ติดพิษโดนดาเมจจากทุกคนแรงขึ้น 25%" },
+        { "lvl": 3, "branch": "b", "name": "Binding Roots", "nameTh": "รากพันธนาการ", "effect": "every 8s roots every enemy in range for 1s", "effectTh": "ทุก 8 วินาที รากตรึงศัตรูทุกตัวในระยะ 1 วินาที", "rule": { "everySec": 8, "rootSec": 1 } }
       ]
     },
     {
@@ -39,7 +41,8 @@
       "skills": [
         { "lvl": 1, "name": "Cold Palm", "nameTh": "ฝ่ามือเหมันต์", "effect": "slow 30% for 2s", "effectTh": "ทำให้ช้าลง 30% นาน 2 วินาที" },
         { "lvl": 2, "name": "Ice Lotus", "nameTh": "บัวน้ำแข็ง", "effect": "freeze 1.2s every 5th hit", "effectTh": "ทุกการโจมตีครั้งที่ 5 แช่แข็งเป้าหมาย 1.2 วินาที" },
-        { "lvl": 3, "name": "Endless Tide", "nameTh": "คลื่นไม่สิ้นสุด", "effect": "wave pushes enemies back 1 tile every 12s", "effectTh": "ทุก 12 วินาที คลื่นซัดเป้าหมายถอยหลัง 1 ช่อง" }
+        { "lvl": 3, "branch": "a", "name": "Endless Tide", "nameTh": "คลื่นไม่สิ้นสุด", "effect": "wave pushes enemies back 1 tile every 12s", "effectTh": "ทุก 12 วินาที คลื่นซัดเป้าหมายถอยหลัง 1 ช่อง" },
+        { "lvl": 3, "branch": "b", "name": "Deep Freeze", "nameTh": "เยือกแข็ง", "effect": "freezes the target every 3rd hit instead of every 5th", "effectTh": "แช่แข็งเป้าทุกการโจมตีครั้งที่ 3 แทนครั้งที่ 5", "rule": { "freezeEvery": 3 } }
       ]
     },
     {
@@ -49,7 +52,8 @@
       "skills": [
         { "lvl": 1, "name": "Flame Fan", "nameTh": "พัดเพลิง", "effect": "cone of fire, burn 6 dps 3s", "effectTh": "ไฟกระจายรอบเป้า (รัศมี 0.8 ช่อง) เผาต่อเนื่อง 3 วินาที" },
         { "lvl": 2, "name": "Phoenix Feathers", "nameTh": "ขนหงส์กระจาย", "effect": "burning enemies explode on death (30 dmg r=1)", "effectTh": "ศัตรูที่ไหม้อยู่ตอนตาย ระเบิดใส่ตัวรอบข้าง 30 ดาเมจ (รัศมี 1 ช่อง)" },
-        { "lvl": 3, "name": "Rebirth Blaze", "nameTh": "เพลิงคืนชีพ", "effect": "every 20s a phoenix sweeps the path: hits every enemy on it and sets it burning", "effectTh": "ทุก 20 วินาที หงส์เพลิงกวาดทั้งเส้นทาง ศัตรูทุกตัวโดนและติดไฟ" }
+        { "lvl": 3, "branch": "a", "name": "Rebirth Blaze", "nameTh": "เพลิงคืนชีพ", "effect": "every 20s a phoenix sweeps the path: hits every enemy on it and sets it burning", "effectTh": "ทุก 20 วินาที หงส์เพลิงกวาดทั้งเส้นทาง ศัตรูทุกตัวโดนและติดไฟ" },
+        { "lvl": 3, "branch": "b", "name": "Wildfire", "nameTh": "ไฟลามทุ่ง", "effect": "splash 2.5x as wide, burns last 3x as long", "effectTh": "วงระเบิดไฟกว้าง 2.5 เท่า และไฟติดนาน 3 เท่า", "rule": { "splashPct": 250, "burnPct": 300 } }
       ]
     },
     {
@@ -59,7 +63,8 @@
       "skills": [
         { "lvl": 1, "name": "Mountain Strike", "nameTh": "ไม้พลองสะเทือนขุนเขา", "effect": "splash r=1", "effectTh": "ฟาดพื้นกระเทือน ศัตรูบนพื้นรอบเป้า (รัศมี 1 ช่อง) โดนครึ่งหนึ่ง" },
         { "lvl": 2, "name": "Golden Bell", "nameTh": "ระฆังทอง", "effect": "every 10s the golden bell stuns ground enemies within 1 tile for 2s", "effectTh": "ทุก 10 วินาที ระฆังทองสะกดศัตรูบนพื้นรอบตัว 1 ช่อง ให้มึน 2 วินาที" },
-        { "lvl": 3, "name": "Earthquake Stance", "nameTh": "ท่วงท่าธรณีไหว", "effect": "stun all ground enemies in r=2 for 1s every 10s", "effectTh": "ระฆังขยายเป็นธรณีไหว: รัศมี 2 ช่อง มึน 1 วินาที" }
+        { "lvl": 3, "branch": "a", "name": "Earthquake Stance", "nameTh": "ท่วงท่าธรณีไหว", "effect": "stun all ground enemies in r=2 for 1s every 10s", "effectTh": "ระฆังขยายเป็นธรณีไหว: รัศมี 2 ช่อง มึน 1 วินาที" },
+        { "lvl": 3, "branch": "b", "name": "Golden Bell", "nameTh": "ระฆังทอง", "effect": "the bell stays r=1 but stuns twice as long", "effectTh": "ระฆังยังเป็นวง 1 ช่อง แต่มึนนานขึ้นสองเท่า", "rule": { "stunPct": 200 } }
       ]
     },
     {

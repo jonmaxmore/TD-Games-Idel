@@ -1,6 +1,6 @@
 // Simple greedy player used for balance checks and golden replays: builds on the tiles that cover the most path,
 // alternates the unlocked sects, and upgrades once it has enough disciples.
-import { canBuild, createDefend, defOf, grid, isOver, placeCost, stepDefend, tileRange, tilesOnPath, units, upgradeCost, waveRecipes, type Command, type DefendState } from '../src';
+import { canBuild, createDefend, defOf, grid, hasBranchB, isOver, placeCost, stepDefend, tileRange, tilesOnPath, units, upgradeCost, waveRecipes, type Branch, type Command, type DefendState } from '../src';
 
 // A tile scores the path tiles it reaches, counted once per path through them, so the shared stretch every enemy walks
 // beats a pocket that guards a single entrance. Ties go to the tile that reaches furthest up a path (meets enemies first).
@@ -19,7 +19,9 @@ export function bestTiles(s: DefendState, range = 2500, lane: number | null = nu
   return scored.sort((a, b) => b.score - a.score || a.first - b.first || a.ty - b.ty || a.tx - b.tx);
 }
 
-export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean }
+// branch: send this tier-3 branch on every upgrade to tier 3 (a kit without branch b gets a). Unset, the upgrade
+// carries no branch and the rules play branch a, so the default bot's commands and the goldens stay as they were.
+export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean; branch?: Branch }
 
 // earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
 // One decision per tick; `mem.placed` counts placements so the bot rotates through its sects.
@@ -43,7 +45,11 @@ export function botCommands(s: DefendState, o: PlayOpts = {}, mem = { placed: 0 
     const lane = separateLanes(s) ? mem.placed % s.layout.paths.length : null;
     const spots = bestTiles(s, tileRange(s, defOf(sect).range, [units.get(sect)?.sect ?? sect], -1, -1), lane); // sees the fog's cap
     if (spots.length > 0 && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); mem.placed++; }
-  } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
+  } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) {
+    const up: Command = { t: 'upgrade', id: lowest.id };
+    if (o.branch != null && lowest.level === 2) up.branch = o.branch === 'b' && hasBranchB(lowest.els[0]!) ? 'b' : 'a';
+    cmds.push(up);
+  }
   return cmds;
 }
 

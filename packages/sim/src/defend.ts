@@ -1,9 +1,9 @@
 // Defend mode rules: one tick at a time, integer math, seeded RNG. Every loop runs over arrays in a fixed order;
 // the golden replays (packages/sim/goldens) pin the outcome tick by tick.
 import {
-  arts, biomes, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid, layouts,
+  arts, biomes, branchB, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid, layouts,
   mergeFee, roles, roleUnlocks, rosterSects, sectOrder, sectRules, sects, stageList, stages, statPct as statPcts, TICK_HZ, TILE,
-  units, unitList, upgradeLevels, costPct, waveHp, waveRecipes, generates, propOnPath, type BiomeRule, type CardDef, type ComboDef, type MapLayout, type Pt, type SectDef, type WaveRecipe,
+  units, unitList, upgradeLevels, costPct, waveHp, waveRecipes, generates, hasBranchB, propOnPath, type BiomeRule, type Branch, type CardDef, type ComboDef, type MapLayout, type Pt, type SectDef, type WaveRecipe,
 } from './data';
 import { blockedTiles, div, isGenerated, nextRandom, pathLength, pointAt, resolveLayout, rollPct, tileKey, tilesOnPath, toMilli, within, wuxingPct } from './core';
 
@@ -11,6 +11,7 @@ export interface Command {
   t: 'place' | 'upgrade' | 'sell' | 'merge' | 'nextWave' | 'cast' | 'pick' | 'target';
   sect?: string; art?: string; card?: string; mode?: string;
   tx?: number; ty?: number; id?: number; a?: number; b?: number;
+  branch?: Branch; // upgrade to tier 3: the branch chosen (absent = a, the original technique)
 }
 
 // e: hit | kill | leak | spawn | placed | combo | wave | interest | stun | error | art | offer | picked | newEnemy | disable | seal | phoenix | leap | melt | end
@@ -26,6 +27,7 @@ export interface Disciple {
   els: string[];
   combo: string | null; unit: string | null; el: string | null; // unit: roster unit id; el: its sect element (null = legacy)
   target: string;
+  branch: Branch | null; // tier-3 branch, set on the upgrade to tier 3 and fixed after
 }
 
 export interface Enemy {
@@ -191,7 +193,8 @@ const adjacent = (a: Disciple, b: Disciple) => a !== b && Math.abs(a.tx - b.tx) 
 function valid(c: Command): boolean {
   switch (c.t) {
     case 'place': return c.sect != null && (sectOrder.includes(c.sect) || units.has(c.sect));
-    case 'upgrade': case 'sell': case 'nextWave': return true;
+    case 'upgrade': return c.branch == null || c.branch === 'a' || c.branch === 'b';
+    case 'sell': case 'nextWave': return true;
     case 'target': return c.mode === 'first' || c.mode === 'strong' || c.mode === 'weak' || c.mode === 'close';
     case 'merge': return (c.a ?? 0) !== (c.b ?? 0);
     case 'cast': return arts.some((a) => a.id === c.art);
@@ -215,7 +218,7 @@ function apply(s: DefendState, c: Command, ev: SimEvent[]): void {
       const id = s.nextId++;
       const d: Disciple = {
         id, level: 1, tx, ty, x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost,
-        rootT: 0, pushT: 0, bellT: 0, offT: 0, els: [], combo: null, unit: null, el: null, target: 'first',
+        rootT: 0, pushT: 0, bellT: 0, offT: 0, els: [], combo: null, unit: null, el: null, target: 'first', branch: null,
       };
       const unit = units.get(key);
       if (unit) { d.els.push(unit.element); d.unit = unit.id; d.el = unit.sect; } else d.els.push(key);
@@ -228,9 +231,12 @@ function apply(s: DefendState, c: Command, ev: SimEvent[]): void {
     case 'upgrade': {
       const d = s.disciples.find((x) => x.id === (c.id ?? 0));
       if (!d || d.combo != null || d.level >= MAX_LEVEL) { err(ev, 'cannot upgrade'); return; }
+      const branch = d.level + 1 === MAX_LEVEL ? c.branch ?? 'a' : null;
+      if (branch === 'b' && !hasBranchB(d.els[0]!)) { err(ev, 'no such branch'); return; }
       const cost = upgradeCost(d);
       if (s.silver < cost) { err(ev, 'not enough silver'); return; }
       s.silver -= cost; d.spent += cost; d.level++;
+      if (branch != null) d.branch = branch;
       return;
     }
     case 'sell': {
@@ -471,11 +477,13 @@ export function discipleStats(s: DefendState, d: Disciple): Stats {
 const canTarget = (e: Enemy, air: boolean, ground: boolean) => e.hp > 0 && (e.air ? air : ground) && (e.type !== 'assassin' || e.revealed);
 
 const hasLevel = (s: DefendState, el: string, level: number) => s.disciples.some((d) => d.els.includes(el) && d.level >= level);
+// Tier-3 branch b of its kit (a disciple at tier 3 with no branch recorded plays branch a).
+const isB = (d: Disciple) => d.level >= MAX_LEVEL && d.branch === 'b';
 
 function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: boolean, ev: SimEvent[]): void {
   const pct = wuxingPct(wux(d), e.el);
   let dmg = div(raw * pct, 100);
-  if (hasLevel(s, 'wood', 3) && (s.sect === 'fire' ? e.burnT > 0 : e.poison > 0)) dmg = div(dmg * (100 + WOOD_VULN_PCT), 100); // roster: the sect DoT
+  if (s.disciples.some((o) => o.els.includes('wood') && o.level >= 3 && !isB(o)) && (s.sect === 'fire' ? e.burnT > 0 : e.poison > 0)) dmg = div(dmg * (100 + WOOD_VULN_PCT), 100); // roster: the sect DoT
   if (e.type === 'mimic' && e.lastElT > 0 && e.lastEl != null && wux(d).includes(e.lastEl)) dmg = div(dmg, 2);
   const freeze = card(s, 'slowedVuln');
   if (freeze && e.slowT > 0) dmg = div(dmg * (100 + freeze.pct), 100);
@@ -502,9 +510,9 @@ function better(s: DefendState, d: Disciple, e: Enemy, cur: Enemy): boolean {
   }
 }
 
-function addPoison(e: Enemy, dps: number) {
+function addPoison(e: Enemy, dps: number, t = WOOD_POISON_TICKS) {
   e.poison = Math.min(3, e.poison + 1);
-  e.poisonT = WOOD_POISON_TICKS;
+  e.poisonT = Math.max(e.poisonT, t);
   e.poisonDps = Math.max(e.poisonDps, dps);
 }
 
@@ -519,8 +527,10 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
   const bellEvery = bellCard * Hz !== 0 ? bellCard * Hz : EARTH_BELL_EVERY;
   if (d.els.includes('earth') && lvl >= 2 && d.bellT >= bellEvery) {
     d.bellT = 0;
-    const r = lvl >= 3 ? 2 * TILE : TILE;
-    const t = d.combo === 'iron_mountain' ? EARTH_BELL_TICKS + Hz : lvl >= 3 ? EARTH_QUAKE_TICKS : EARTH_BELL_TICKS;
+    // Tier 3: branch a widens the bell into a quake (r 2, shorter stun); branch b keeps r 1 and stuns longer.
+    const quake = lvl >= 3 && !isB(d);
+    const r = quake ? 2 * TILE : TILE;
+    const t = d.combo === 'iron_mountain' ? EARTH_BELL_TICKS + Hz : quake ? EARTH_QUAKE_TICKS : isB(d) ? div(EARTH_BELL_TICKS * branchB.bellStunPct, 100) : EARTH_BELL_TICKS;
     for (const e of s.enemies)
       if (!e.air && e.hp > 0 && within(d.x, d.y, e.x, e.y, r)) {
         e.stunT = Math.max(e.stunT, t);
@@ -531,7 +541,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
 
   // Fire tier 3 "เพลิงคืนชีพ": every 20 s a phoenix sweeps the path; every enemy on it is hit and set burning.
   // pushT doubles as its timer (only the water kit uses pushT otherwise).
-  if (d.combo == null && d.els.includes('fire') && lvl >= 3 && d.pushT >= PHOENIX_EVERY) {
+  if (d.combo == null && d.els.includes('fire') && lvl >= 3 && !isB(d) && d.pushT >= PHOENIX_EVERY) {
     d.pushT = 0;
     ev.push({ e: 'phoenix', from: d.id });
     for (const e of [...s.enemies])
@@ -557,7 +567,9 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
   if (d.els.includes('metal'))
     crit = rollPct(s) < METAL_CRIT_PCT + (card(s, 'critChance')?.pct ?? 0) || (lvl >= 2 && d.hits % METAL_EVERY === 0);
   if (d.combo === 'frozen_blade' && tg.stunT > 0) crit = true;
-  const raw = crit ? st.dmg * 2 : st.dmg;
+  let raw = crit ? st.dmg * 2 : st.dmg;
+  // Metal tier 3 branch b: an execution stroke on a target below executeBelowPct HP.
+  if (isB(d) && d.els.includes('metal') && tg.hp * 100 < tg.maxHp * branchB.executeBelowPct) raw = div(raw * branchB.executeDmgPct, 100);
   dealDamage(s, d, tg, raw, crit, ev);
 
   for (const el of d.els) {
@@ -567,7 +579,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
         // into the sect rule instead of being a generic sword.
         if (crit && dotKind(d) === 'burn') { tg.burnT = FIRE_BURN_TICKS; tg.burnDps = Math.max(tg.burnDps, dotDps(d, tg, FIRE_BURN_DPS, lvl)); }
         else if (crit && dotKind(d) === 'poison') addPoison(tg, dotDps(d, tg, WOOD_POISON_DPS, lvl));
-        if (crit && lvl >= 3) {
+        if (crit && lvl >= 3 && !isB(d)) {
           const second = s.enemies.find((e) => e !== tg && canTarget(e, st.hitsAir, st.hitsGround) && within(d.x, d.y, e.x, e.y, st.range));
           if (second) dealDamage(s, d, second, raw, true, ev);
         }
@@ -578,7 +590,15 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
           tg.burnT = WOOD_POISON_TICKS;
           tg.burnDps = Math.max(tg.burnDps, dotDps(d, tg, WOOD_POISON_DPS * 2, lvl));
         } else addPoison(tg, dotDps(d, tg, WOOD_POISON_DPS, lvl));
-        if (lvl >= 2 && d.rootT >= WOOD_ROOT_EVERY) {
+        if (isB(d) && d.rootT >= branchB.rootEvery) {
+          // Tier 3 branch b: the roots bind every enemy in range, not just the target.
+          d.rootT = 0;
+          for (const e of s.enemies)
+            if (canTarget(e, st.hitsAir, st.hitsGround) && within(d.x, d.y, e.x, e.y, st.range)) {
+              e.stunT = Math.max(e.stunT, branchB.rootTicks);
+              ev.push({ e: 'stun', id: e.id, from: d.id });
+            }
+        } else if (lvl >= 2 && d.rootT >= WOOD_ROOT_EVERY) {
           d.rootT = 0;
           tg.stunT = Math.max(tg.stunT, WOOD_ROOT_TICKS);
           ev.push({ e: 'stun', id: tg.id, from: d.id });
@@ -587,20 +607,25 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
       case 'water':
         tg.slowT = WATER_SLOW_TICKS;
         tg.slowPct = Math.max(tg.slowPct, WATER_SLOW_PCT);
-        if (lvl >= 2 && d.hits % WATER_FREEZE_EVERY === 0) {
+        if (lvl >= 2 && d.hits % (isB(d) ? branchB.freezeEvery : WATER_FREEZE_EVERY) === 0) {
           tg.stunT = Math.max(tg.stunT, WATER_FREEZE_TICKS);
           ev.push({ e: 'stun', id: tg.id, from: d.id });
         }
-        if (lvl >= 3 && d.pushT >= WATER_PUSH_EVERY) { d.pushT = 0; tg.d = Math.max(0, tg.d - TILE); }
+        if (lvl >= 3 && !isB(d) && d.pushT >= WATER_PUSH_EVERY) { d.pushT = 0; tg.d = Math.max(0, tg.d - TILE); }
         break;
-      case 'fire':
+      case 'fire': {
+        // Tier 3 branch b (wildfire): a wider splash whose damage over time lasts longer.
+        const wild = isB(d) ? branchB : null;
+        const splash = wild ? div(FIRE_SPLASH * wild.splashPct, 100) : FIRE_SPLASH;
+        const dotPct = wild ? wild.burnPct : 100;
         for (const e of s.enemies)
-          if (e.hp > 0 && (e === tg || within(tg.x, tg.y, e.x, e.y, FIRE_SPLASH))) {
+          if (e.hp > 0 && (e === tg || within(tg.x, tg.y, e.x, e.y, splash))) {
             // Wood-sect burst: the splash poisons (one stack) instead of burning.
-            if (dotKind(d) === 'poison') addPoison(e, dotDps(d, e, WOOD_POISON_DPS, lvl));
-            else { e.burnT = FIRE_BURN_TICKS; e.burnDps = Math.max(e.burnDps, dotDps(d, e, FIRE_BURN_DPS, lvl)); }
+            if (dotKind(d) === 'poison') addPoison(e, dotDps(d, e, WOOD_POISON_DPS, lvl), div(WOOD_POISON_TICKS * dotPct, 100));
+            else { e.burnT = Math.max(e.burnT, div(FIRE_BURN_TICKS * dotPct, 100)); e.burnDps = Math.max(e.burnDps, dotDps(d, e, FIRE_BURN_DPS, lvl)); }
           }
         break;
+      }
       case 'earth': {
         const volcano = d.combo === 'volcano_fist';
         const r = volcano ? div(EARTH_SPLASH * 3, 2) : EARTH_SPLASH;

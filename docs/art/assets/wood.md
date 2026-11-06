@@ -17,7 +17,7 @@ _mockup นี้บอกแค่ **สัดส่วนและสี** ไ
 | palette | **shared:** `#1A1423` `#F2C9A0` `#C9966E` `#E3B04B` `#D2412F` `#EEF3F8`<br>**wood:** `#9FDCA7` `#5BC46A` `#3DA94C` `#2F833B` `#225F2B` `#173F1D` |
 | ขนาดเฟรม | 48×64 (pivot ที่เท้า, หันขวา) |
 | ท่า | idle 4 · attack 6 · skill 8 · levelUp 6 @ 10 fps |
-| ขั้นเลเวล (ของประดับเพิ่ม ไม่เปลี่ยนโครง) | Lv1 พิษมรกต: poison 10 dps, stacks x3<br>Lv2 เถาวัลย์รัด: root 1s every 8s<br>Lv3 เพลงขลุ่ยร่วงโรย: aura: poisoned enemies take +25% dmg |
+| ขั้นเลเวล (ของประดับเพิ่ม ไม่เปลี่ยนโครง) | Lv1 พิษมรกต: poison 10 dps, stacks x3<br>Lv2 เถาวัลย์รัด: root 1s every 8s<br>Lv3 เพลงขลุ่ยร่วงโรย: aura: poisoned enemies take +25% dmg<br>Lv3 รากพันธนาการ: every 8s roots every enemy in range for 1s |
 | ไฟล์ส่ง | `wood.aseprite` + `wood_idle.png`, `wood_attack.png`, `wood_skill.png`, `wood_levelUp.png` |
 
 ## การอ่านภาพในเกม

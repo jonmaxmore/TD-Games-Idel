@@ -91,11 +91,11 @@ export function isGenerated(own: string[], neighbours: string[][]): boolean {
 }
 
 // Engine-neutral state fingerprint with a fixed layout:
-//   tick|silver|lives|wave|phase|rng|d<id>,<level>,<cd>,<hits>;...|e<id>,<type>,<hp>,<d>,<elite|->,<stunT>,<slowT>,<burnT>,<poison>;...|<cards,>
-// Hash = FNV-1a 32-bit over UTF-16 code units, lowercase hex.
+//   tick|silver|lives|wave|phase|rng|d<id>,<level>,<cd>,<hits>[,b];...|e<id>,<type>,<hp>,<d>,<elite|->,<stunT>,<slowT>,<burnT>,<poison>;...|<cards,>
+// ([,b]: a tier-3 disciple on branch b.) Hash = FNV-1a 32-bit over UTF-16 code units, lowercase hex.
 export function canonicalString(s: DefendState): string {
   let o = `${s.tick}|${s.silver}|${s.lives}|${s.wave}|${s.phase}|${s.rng}|`;
-  for (const d of s.disciples) o += `d${d.id},${d.level},${d.cd},${d.hits};`;
+  for (const d of s.disciples) o += `d${d.id},${d.level},${d.cd},${d.hits}${d.branch === 'b' ? ',b' : ''};`; // branch a adds nothing
   o += '|';
   for (const e of s.enemies) o += `e${e.id},${e.type},${e.hp},${e.d},${e.elite ?? '-'},${e.stunT},${e.slowT},${e.burnT},${e.poison};`;
   return o + '|' + s.cards.join(',');

@@ -1,5 +1,5 @@
 // Visual proof: opens the game in Chromium at 1280x720 (16:9 PC), plays it, and saves screenshots + a video to shots/.
-//   npm run shots                 1-1 by hand (place, select), 1-12 played by the bot, and the first-run walkthrough
+//   npm run shots                 1-1 by hand (place, select, tier-3 branch pick), 1-12 played by the bot, and the first-run walkthrough
 //                                 (consent → intro → T-0 → sect → name → lobby → stages → reload), all as flow-NN-*.png
 // Exits non-zero on any console error or page crash.
 import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
@@ -50,6 +50,17 @@ async function page(url, video) {
   await p.mouse.click(box.x + pt.x, box.y + pt.y);
   await sleep(300);
   await p.screenshot({ path: out + '03-placed-selected.png' });
+  // Tier 3 branch picker (SPEC-pc-v2 §5): silver topped up so the shot does not wait on bounties, U to tier 2, then
+  // the two branch cards; B picks branch b.
+  await p.evaluate(() => { window.__game.s.silver = 1000; });
+  await p.keyboard.press('u');
+  await p.waitForSelector('.panel .branches .branch');
+  await sleep(200);
+  await p.screenshot({ path: out + '04-branch-picker.png' });
+  await p.keyboard.press('b');
+  await p.waitForFunction(() => window.__game.s.disciples[0]?.branch === 'b');
+  await sleep(200);
+  await p.screenshot({ path: out + '05-branch-b.png' });
   await ctx.close();
 }
 
@@ -121,7 +132,7 @@ async function page(url, video) {
     ['1-9', [['lanes', '() => window.__game.s.wave >= 3 && new Set(window.__game.s.enemies.map((e) => e.path)).size === 2'],
       ['warn', '() => window.__game.s.wave === 11 && window.__game.s.phase === "break"'],
       ['solo', '() => window.__game.s.wave === 12 && window.__game.s.enemies.length > 3']]],
-    ['1-10', [['duel', '() => window.__game.s.enemies.some((e) => e.type === "boss_ch1" && e.hp < e.maxHp * 0.7)']]],
+    ['1-10', [['duel', '() => window.__game.s.phase !== "picking" && window.__game.s.enemies.some((e) => e.type === "boss_ch1" && e.hp < e.maxHp * 0.7)']]],
   ]) {
     const dir = out + `${stage}-video/`;
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, recordVideo: { dir, size: { width: 1280, height: 720 } } });

@@ -19,7 +19,9 @@ export interface SectDef {
 }
 // Sect x role disciple (sects.json > roster): fights with its kit's mechanic (element), counts as its sect for Wu Xing.
 export interface UnitDef extends SectDef { id: string; sect: string; roleId: string; dot: string | null; descTh: string; descEn: string }
-export interface SkillDef { lvl: number; name: string; nameTh: string; effect: string; effectTh: string } // view only
+// Tier 3 is a choice between branch a (the original technique) and b, made on the upgrade (SPEC-pc-v2 §5).
+export type Branch = 'a' | 'b';
+export interface SkillDef { lvl: number; branch: Branch | null; name: string; nameTh: string; effect: string; effectTh: string } // view text
 export interface BossMechanics { effect: string; phasesPct: number[]; count: number; ticks: number }
 export interface EnemyDef {
   id: string; nameTh: string; nameEn: string; element: string; traitTh: string; traitEn: string;
@@ -73,8 +75,18 @@ export const sectOrder: string[] = [];
 for (const s of S.sects) {
   sects.set(s.element, sectDef(s, s.element, s.color));
   sectOrder.push(s.element);
-  skills.set(s.element, (s.skills ?? []).map((k: any) => ({ lvl: k.lvl, name: k.name, nameTh: k.nameTh, effect: k.effect, effectTh: k.effectTh })));
+  skills.set(s.element, (s.skills ?? []).map((k: any) => ({ lvl: k.lvl, branch: k.branch ?? null, name: k.name, nameTh: k.nameTh, effect: k.effect, effectTh: k.effectTh })));
 }
+export const hasBranchB = (kit: string) => (skills.get(kit) ?? []).some((k) => k.branch === 'b');
+// Branch b's numbers (the lvl-3 "b" skill's rule), one kit each.
+const ruleB = (kit: string) => S.sects.find((s: any) => s.element === kit).skills.find((k: any) => k.branch === 'b').rule;
+export const branchB = {
+  executeBelowPct: ruleB('metal').belowHpPct as number, executeDmgPct: ruleB('metal').dmgPct as number,
+  rootEvery: ticks(ruleB('wood').everySec), rootTicks: ticks(ruleB('wood').rootSec),
+  freezeEvery: ruleB('water').freezeEvery as number,
+  splashPct: ruleB('fire').splashPct as number, burnPct: ruleB('fire').burnPct as number,
+  bellStunPct: ruleB('earth').stunPct as number,
+};
 
 export const units = new Map<string, UnitDef>();
 export const unitList: UnitDef[] = [];

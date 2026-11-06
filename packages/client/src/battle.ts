@@ -13,7 +13,7 @@ export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text
 
 const ERRORS: Record<string, string> = {
   'not enough silver': 'ตำลึงไม่พอ', 'cannot build here': 'วางตรงนี้ไม่ได้', 'sect locked': 'ยังไม่ปลดศิษย์นี้', 'cannot upgrade': 'อัปเกรดไม่ได้แล้ว',
-  'no more waves': 'ไม่มีระลอกเหลือ', 'art on cooldown': 'วิชายังไม่พร้อม', 'no enemies': 'ยังไม่มีศัตรู', 'cannot call a wave now': 'เรียกระลอกตอนนี้ไม่ได้',
+  'no such branch': 'ไม่มีสายนี้', 'no more waves': 'ไม่มีระลอกเหลือ', 'art on cooldown': 'วิชายังไม่พร้อม', 'no enemies': 'ยังไม่มีศัตรู', 'cannot call a wave now': 'เรียกระลอกตอนนี้ไม่ได้',
 };
 export const STARS: Record<string, string> = {
   clear: 'ผ่านด่าน', no_life_lost: 'ไม่เสียชีวิต', under_3min: 'จบใน 3 นาที', hold_200_silver: 'เหลือตำลึง 200 ขึ้นไป',
@@ -124,13 +124,23 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'เล่น' : 'หยุด'; };
   speedBtn.onclick = () => { speed = speed === 1 ? 2 : 1; speedBtn.textContent = `x${speed}`; };
 
-  // Keyboard: 1-9 pick a disciple card, Space calls the next wave, U upgrades, P pauses, Esc clears the selection.
+  // The upgrade to tier 3 picks a branch (SPEC-pc-v2 §5); a kit with one tier 3 upgrades straight to it.
+  const branchesOf = (d: { els: string[]; level: number }) => (d.level === upgradeLevels - 1 ? (skills.get(d.els[0]!) ?? []).filter((k) => k.branch != null) : []);
+  const upgrade = (id: number, branch?: 'a' | 'b') => pending.push(branch ? { t: 'upgrade', id, branch } : { t: 'upgrade', id });
+
+  // Keyboard: 1-9 pick a disciple card, Space calls the next wave, U upgrades, A / B pick the tier-3 branch, P pauses, Esc clears the selection.
   const onKey = (ev: KeyboardEvent) => {
     if (ev.repeat || isOver(s)) return;
     const card = [...cardEls.values()][Number(ev.key) - 1];
     if (card) card.click();
     else if (ev.code === 'Space') { ev.preventDefault(); waveBtn.click(); }
-    else if (ev.key === 'u' && selectedId != null) pending.push({ t: 'upgrade', id: selectedId });
+    else if ((ev.key === 'u' || ev.key === 'a' || ev.key === 'b') && selectedId != null) {
+      const d = s.disciples.find((x) => x.id === selectedId);
+      if (!d) return;
+      const two = branchesOf(d).length === 2;
+      if (ev.key === 'u') { if (two) toast('เลือกสาย: กด A หรือ B'); else upgrade(d.id); }
+      else if (two) upgrade(d.id, ev.key);
+    }
     else if (ev.key === 'p') pauseBtn.click();
     else if (ev.key === 'Escape') { selectedKey = null; selectedId = null; refresh(); }
   };
@@ -163,16 +173,33 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     const st = discipleStats(s, d);
     const tiers = skills.get(d.els[0]!) ?? [];
     const next = tiers.find((k) => k.lvl === d.level + 1);
+    const chosen = tiers.find((k) => k.lvl === d.level && (k.branch == null || k.branch === (d.branch ?? 'a')));
+    const upCost = upgradeCost(d);
+    const branches = branchesOf(d);
     panel.append(
       el('b', '', `${name(key)} · ขั้น ${d.level}/${upgradeLevels}`),
       el('p', '', `ดาเมจ ${st.dmg} · ระยะ ${(st.range / 1000).toFixed(1)} · ${(TICK_HZ / st.cooldown).toFixed(1)} ครั้ง/วิ`),
-      el('p', 'skill', next ? `ขั้นถัดไป: ${next.nameTh} — ${next.effectTh}` : 'เต็มขั้นแล้ว'),
+      el('p', 'skill', d.level >= upgradeLevels
+        ? `${chosen?.branch ? `สาย ${chosen.branch.toUpperCase()}: ` : ''}${chosen?.nameTh ?? ''} — เต็มขั้นแล้ว`
+        : branches.length === 2 ? 'ขั้น 3 เลือกได้ 1 สาย เลือกแล้วเปลี่ยนไม่ได้' : `ขั้นถัดไป: ${next!.nameTh} — ${next!.effectTh}`),
     );
+    // Two branch cards side by side, each with the data's own text; picking one is the upgrade.
+    if (branches.length === 2) {
+      const pick = el('div', 'branches');
+      for (const k of branches) {
+        const b = el('button', 'branch');
+        b.append(el('kbd', '', k.branch!.toUpperCase()), el('b', '', `สาย ${k.branch!.toUpperCase()} · ${k.nameTh}`), el('p', '', k.effectTh), el('span', 'cost', `${upCost}`));
+        b.disabled = s.silver < upCost;
+        b.onclick = () => upgrade(d.id, k.branch!);
+        pick.append(b);
+      }
+      panel.append(pick);
+    }
     const row = el('div', 'row');
-    const upCost = upgradeCost(d);
     const upB = el('button', 'primary', d.level >= upgradeLevels ? 'เต็มขั้น' : `อัปเกรด ${upCost}`);
     upB.disabled = d.level >= upgradeLevels || s.silver < upCost;
-    upB.onclick = () => pending.push({ t: 'upgrade', id: d.id });
+    upB.onclick = () => upgrade(d.id);
+    if (branches.length === 2) upB.hidden = true;
     const sellB = el('button', '', sellArmed ? `ยืนยันขาย +${sellValue(d, s)}` : `ขาย +${sellValue(d, s)}`);
     sellB.onclick = () => { if (sellArmed) { pending.push({ t: 'sell', id: d.id }); selectedId = null; } sellArmed = !sellArmed; refresh(); };
     const tgt = el('button', '', `เป้า: ${TARGETS.find(([k]) => k === d.target)![1]}`);

@@ -79,7 +79,8 @@ export function toJson(c: Command): Record<string, unknown> {
   const o: Record<string, unknown> = { t: c.t };
   switch (c.t) {
     case 'place': o.sect = c.sect; o.tx = c.tx ?? 0; o.ty = c.ty ?? 0; break;
-    case 'upgrade': case 'sell': o.id = c.id ?? 0; break;
+    case 'upgrade': o.id = c.id ?? 0; if (c.branch != null) o.branch = c.branch; break;
+    case 'sell': o.id = c.id ?? 0; break;
     case 'merge': o.a = c.a ?? 0; o.b = c.b ?? 0; break;
     case 'target': o.id = c.id ?? 0; o.mode = c.mode; break;
     case 'cast': o.art = c.art; if ((c.tx ?? 0) !== 0 || (c.ty ?? 0) !== 0) { o.tx = c.tx; o.ty = c.ty; } break;

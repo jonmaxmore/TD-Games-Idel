@@ -336,6 +336,12 @@ function chapterMap(r: HTMLElement) {
   }
 }
 
+// Tier names in order; tier 3 shows both branches ("a / b") when the kit has two.
+function tierNames(kit: string): string {
+  const ks = skills.get(kit) ?? [];
+  return [...new Set(ks.map((k) => k.lvl))].map((lvl) => ks.filter((k) => k.lvl === lvl).map((k) => k.nameTh).join(' / ')).join(' › ');
+}
+
 // What each disciple of the player's sect does, when it joins, and the technique each tier teaches.
 function disciples(r: HTMLElement) {
   r.append(el('h2', '', `ศิษย์ของ${sects.get(profile.sect!)!.nameTh}`));
@@ -346,7 +352,7 @@ function disciples(r: HTMLElement) {
     const head = el('b', '', `${u.nameTh} · ${roleDefs.get(u.roleId)?.nameTh ?? ''}${have ? '' : `  (ปลดที่ ${at})`}`);
     if (have) head.style.color = ROLE_COLOR[u.roleId] ?? '';
     card.style.borderLeftColor = u.color;
-    card.append(head, el('p', '', u.descTh), el('p', 'skill', `ท่าตามขั้น: ${(skills.get(u.element) ?? []).map((k) => k.nameTh).join(' › ')}`));
+    card.append(head, el('p', '', u.descTh), el('p', 'skill', `ท่าตามขั้น: ${tierNames(u.element)}`));
     r.append(card);
   }
 }
