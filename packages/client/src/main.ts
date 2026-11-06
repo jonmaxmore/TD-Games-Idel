@@ -1,240 +1,345 @@
-// Battle screen: runs the sim at a fixed 20 Hz, draws it with three.js and puts the HUD in plain DOM.
-// URL: ?stage=1-1&sect=fire&seed=1  (&bot=1 lets the test bot play, &speed=4 fast-forwards)
+// The player's path from app start to play (docs/specs/SPEC-front-flow.md §2) and the lobby (SPEC-core §6).
+// first run: consent → intro → tutorial T-0 → sect pick → name → lobby; later runs: lobby. route() decides.
+// Dev shortcut: ?stage=1-1&sect=fire&seed=1 jumps straight into a battle; &bot=1 lets the test bot play, &speed=8 fast-forwards.
+import { allegiance, roleDefs, roleUnlocks, rosterSects, sects, skills, stages, TICK_HZ, unitList, upcomingSects } from '@five-sects/sim';
+import { el, startBattle, STARS, type BattleResult } from './battle';
 import {
-  arts, cards, createDefend, defOf, discipleStats, enemies as enemyDefs, evaluateStars, isOver, recipeById, roleDefs, sellValue,
-  skills, stages, stepDefend, TICK_HZ, units, upgradeCost, upgradeLevels, AUTO_START_TICKS, canBuild, type Command, type DefendState, type SimEvent,
-} from '@five-sects/sim';
-import { botCommands } from '../../sim/test/bot';
-import { Board } from './board';
+  chapterStars, chapterStarsMax, load, migrate, nextStage, PLAYLIST, recordEnd, route, save, TUTORIAL, type LobbyTab, type Profile, type Screen,
+} from './profile';
 
-const q = new URLSearchParams(location.search);
-const stageId = q.get('stage') ?? '1-1';
-const seed = Number(q.get('seed') ?? 1);
-let speed = Number(q.get('speed') ?? 1);
-const useBot = q.get('bot') === '1';
-
-const s: DefendState = createDefend(stageId, seed, q.get('sect') ?? 'fire');
 const app = document.getElementById('app')!;
-const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
+const q = new URLSearchParams(location.search);
+const jump = q.get('stage');
+const dev = { bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), sect: q.get('sect') };
+const profile: Profile = load();
+let dispose: (() => void) | void;
 
-const ERRORS: Record<string, string> = {
-  'not enough silver': 'ตำลึงไม่พอ', 'cannot build here': 'วางตรงนี้ไม่ได้', 'sect locked': 'ยังไม่ปลดศิษย์นี้', 'cannot upgrade': 'อัปเกรดไม่ได้แล้ว',
-  'no more waves': 'ไม่มีระลอกเหลือ', 'art on cooldown': 'วิชายังไม่พร้อม', 'no enemies': 'ยังไม่มีศัตรู', 'cannot call a wave now': 'เรียกระลอกตอนนี้ไม่ได้',
-};
-const STARS: Record<string, string> = {
-  clear: 'ผ่านด่าน', no_life_lost: 'ไม่เสียชีวิต', under_3min: 'จบใน 3 นาที', hold_200_silver: 'เหลือตำลึง 200 ขึ้นไป',
-  max_6_disciples: 'ใช้ศิษย์ไม่เกิน 6', max_2_sects: 'ไม่เกิน 2 สำนัก', use_combo: 'ใช้ท่าผสาน',
-};
-const TARGETS: [string, string][] = [['first', 'ตัวแรก'], ['strong', 'แรงสุด'], ['weak', 'อ่อนสุด'], ['close', 'ใกล้สุด']];
-const name = (key: string) => units.get(key)?.nameTh ?? defOf(key).nameTh;
+function go(next: Screen) {
+  if (dispose) dispose();
+  dispose = undefined;
+  app.replaceChildren();
+  Object.assign(window, { __flow: { profile, screen: next } });
+  switch (next.k) {
+    case 'consent': return consent();
+    case 'intro': dispose = intro(next.page); return;
+    case 'battle': dispose = battle(next.stageId); return;
+    case 'sectPick': return sectPick();
+    case 'sectDetail': return sectDetail(next.sect, next.confirm);
+    case 'name': return nameScreen();
+    case 'lobby': return lobby(next.tab);
+  }
+}
 
-// ---- layout: top bar, board, bottom panel ----
-const top = el('div', 'top');
-const canvas = el('canvas', 'board');
-const floats = el('div', 'floats');
-const bottom = el('div', 'bottom');
-const toastBox = el('div', 'toasts');
-app.append(top, canvas, floats, bottom, toastBox);
-const board = new Board(canvas, s);
-addEventListener('resize', () => board.resize());
+function done(change: Partial<Profile>) {
+  Object.assign(profile, change);
+  save(profile);
+  go(route(profile));
+}
 
-const hud = { silver: el('b'), lives: el('b'), wave: el('b'), next: el('span', 'next') };
-const pauseBtn = el('button', 'icon', '⏸');
-const speedBtn = el('button', 'icon', `x${speed}`);
-top.append(el('span', '', 'ตำลึง '), hud.silver, el('span', '', ' ชีวิต '), hud.lives, el('span', '', ' ระลอก '), hud.wave, hud.next, speedBtn, pauseBtn);
-
-const artsRow = el('div', 'arts');
-const panel = el('div', 'panel');
-const cardsRow = el('div', 'cards');
-const waveBtn = el('button', 'primary wave');
-bottom.append(artsRow, panel, cardsRow, waveBtn);
-
-let pending: Command[] = [];
-let selectedKey: string | null = s.unlocked[0] ?? null; // card to place
-let selectedId: number | null = null; // placed disciple
-let paused = false;
-let sellArmed = false;
-
+// ---- small view helpers ----
+function btn(text: string, cls: string, onclick: (() => void) | null): HTMLButtonElement {
+  const b = el('button', cls, text);
+  if (onclick) b.onclick = onclick; else b.disabled = true;
+  return b;
+}
+function page(cls: string, title?: string): HTMLDivElement {
+  const r = el('div', `screen ${cls}`);
+  if (title) r.append(el('h1', '', title));
+  app.append(r);
+  return r;
+}
 function toast(msg: string) {
-  const t = el('div', 'toast', msg);
-  toastBox.append(t);
+  app.querySelector('.flow-toast')?.remove();
+  const t = el('div', 'toast flow-toast', msg);
+  app.append(t);
   setTimeout(() => t.remove(), 1800);
 }
-
-function float(x: number, y: number, text: string, cls: string) {
-  const p = board.toScreen(x, y);
-  const f = el('div', `float ${cls}`, text);
-  f.style.left = `${p.x}px`; f.style.top = `${p.y + canvas.offsetTop}px`;
-  floats.append(f);
-  setTimeout(() => f.remove(), 900);
-}
-
-// ---- cards (place) ----
-const cardEls = new Map<string, HTMLButtonElement>();
-for (const key of s.unlocked) {
-  const u = units.get(key);
-  const b = el('button', 'card');
-  b.style.borderColor = defOf(key).color;
-  b.append(el('b', '', name(key)), el('small', '', u ? roleDefs.get(u.roleId)!.nameTh : ''), el('span', 'cost', `${defOf(key).cost}`));
-  b.onclick = () => { selectedKey = key; selectedId = null; refresh(); };
-  cardsRow.append(b);
-  cardEls.set(key, b);
-}
-
-// ---- arts ----
-const artEls = arts.map((a) => {
-  const b = el('button', 'art');
-  b.onclick = () => pending.push({ t: 'cast', art: a.id });
-  artsRow.append(b);
-  return b;
-});
-
-waveBtn.onclick = () => pending.push({ t: 'nextWave' });
-pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? '▶' : '⏸'; };
-speedBtn.onclick = () => { speed = speed === 1 ? 2 : 1; speedBtn.textContent = `x${speed}`; };
-
-canvas.addEventListener('pointerdown', (ev) => {
-  if (isOver(s)) return;
-  const t = board.tileAt(ev.clientX, ev.clientY);
-  if (!t) return;
-  const d = s.disciples.find((x) => x.tx === t.tx && x.ty === t.ty);
-  if (d) { selectedId = d.id; selectedKey = null; sellArmed = false; refresh(); return; }
-  if (selectedKey) pending.push({ t: 'place', sect: selectedKey, tx: t.tx, ty: t.ty });
-  else { selectedId = null; refresh(); }
-});
-canvas.addEventListener('pointermove', (ev) => { hover = board.tileAt(ev.clientX, ev.clientY); });
-let hover: { tx: number; ty: number } | null = null;
-
-// ---- the selected disciple: stats, next technique, upgrade / sell / target ----
-function drawPanel() {
-  panel.replaceChildren();
-  const d = s.disciples.find((x) => x.id === selectedId);
-  if (!d) {
-    if (selectedKey) {
-      const u = units.get(selectedKey);
-      panel.append(el('b', '', name(selectedKey)), el('p', '', u?.descTh ?? 'แตะช่องว่างบนกระดานเพื่อวาง'));
-    }
-    return;
-  }
-  const key = d.unit ?? d.els[0]!;
-  const st = discipleStats(s, d);
-  const tiers = skills.get(d.els[0]!) ?? [];
-  const next = tiers.find((k) => k.lvl === d.level + 1);
-  panel.append(
-    el('b', '', `${name(key)} · ขั้น ${d.level}/${upgradeLevels}`),
-    el('p', '', `ดาเมจ ${st.dmg} · ระยะ ${(st.range / 1000).toFixed(1)} · ${(TICK_HZ / st.cooldown).toFixed(1)} ครั้ง/วิ`),
-    el('p', 'skill', next ? `ขั้นถัดไป: ${next.nameTh} — ${next.effectTh}` : 'เต็มขั้นแล้ว'),
-  );
+function dialog(title: string, body: string, buttons: HTMLButtonElement[]): HTMLDivElement {
+  const d = el('div', 'modal');
+  const box = el('div', 'dialog');
   const row = el('div', 'row');
-  const upCost = upgradeCost(d);
-  const upB = el('button', 'primary', d.level >= upgradeLevels ? 'เต็มขั้น' : `อัปเกรด ${upCost}`);
-  upB.disabled = d.level >= upgradeLevels || s.silver < upCost;
-  upB.onclick = () => pending.push({ t: 'upgrade', id: d.id });
-  const sellB = el('button', '', sellArmed ? `ยืนยันขาย +${sellValue(d, s)}` : `ขาย +${sellValue(d, s)}`);
-  sellB.onclick = () => { if (sellArmed) { pending.push({ t: 'sell', id: d.id }); selectedId = null; } sellArmed = !sellArmed; refresh(); };
-  const tgt = el('button', '', `เป้า: ${TARGETS.find(([k]) => k === d.target)![1]}`);
-  tgt.onclick = () => { const i = TARGETS.findIndex(([k]) => k === d.target); pending.push({ t: 'target', id: d.id, mode: TARGETS[(i + 1) % TARGETS.length]![0] }); };
-  row.append(upB, sellB, tgt);
-  panel.append(row);
+  row.append(...buttons);
+  box.append(el('h2', '', title), el('p', '', body), row);
+  d.append(box);
+  app.append(d);
+  return d;
+}
+const starRow = (got: number, max: number) => el('span', 'stars', Array.from({ length: max }, (_, i) => (i < got ? '◆' : '◇')).join(' '));
+const difficulty = (n: number) => (n <= 1 ? 'ง่าย' : n === 2 ? 'ปานกลาง' : 'ยาก');
+function stageName(id: string): string {
+  const st = stages.get(id);
+  if (!st || id === TUTORIAL) return st?.nameTh ?? id;
+  return `บท ${st.chapter} ด่าน ${id.split('-')[1]} — ${st.nameTh}`;
+}
+const ROLE_COLOR: Record<string, string> = { striker: '#E3B04B', burst: '#FF7A3D', control: '#4FB3FF', stacker: '#5BC46A', support: '#C9A0FF' };
+
+// ---- consent ----
+function consent() {
+  const r = page('consent', 'ก่อนเริ่มเล่น');
+  const thisYear = new Date().getFullYear();
+  let year: number | null = null;
+  const yearText = el('div', 'year empty', 'แตะ - / + เพื่อเลือก');
+  const start = btn('เริ่มเล่น', 'primary big', () => done({ consented: true, birthYear: year }));
+  start.disabled = true;
+  // A first tap lands mid-range; after that the steps move from the chosen year.
+  const step = (d: number) => btn(d > 0 ? `+${d}` : `${d}`, '', () => {
+    year = Math.min(thisYear, Math.max(1930, year == null ? 2000 : year + d));
+    yearText.textContent = String(year);
+    yearText.className = 'year';
+    start.disabled = false;
+  });
+  const picker = el('div', 'year-picker');
+  picker.append(step(-10), step(-1), yearText, step(1), step(10));
+  r.append(
+    el('p', '', 'การกด "เริ่มเล่น" ถือว่ายอมรับข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัว (PDPA) เราเก็บรหัสผู้เล่นและความคืบหน้าเพื่อเซฟเกมเท่านั้น'),
+    el('p', 'dim', 'ปีเกิด (ใช้ตั้งเพดานการใช้จ่ายของผู้เยาว์)'),
+    picker, el('div', 'grow'), start,
+  );
 }
 
-// ---- offer (pick a manual every 5 waves) ----
-const offerBox = el('div', 'modal hidden');
-app.append(offerBox);
-let offerShown: string[] | null = null;
-function drawOffer() {
-  if (s.offer === offerShown) return;
-  offerShown = s.offer;
-  offerBox.classList.toggle('hidden', !s.offer);
-  if (!s.offer) return;
-  offerBox.replaceChildren(el('h2', '', 'เลือกคัมภีร์'));
-  for (const id of s.offer) {
-    const c = cards.find((x) => x.id === id)!;
-    const b = el('button', 'offer');
-    b.append(el('b', '', c.nameTh), el('p', '', c.effectTh));
-    b.onclick = () => pending.push({ t: 'pick', card: id });
-    offerBox.append(b);
-  }
-  offerBox.append(el('p', 'timer'));
+// ---- intro: three pages, tap to go on, or skip ----
+const INTRO = [
+  'คืนจันทร์สีเลือด นิกายจันทร์โลหิตบุกหมู่บ้านเชิงเขา',
+  'ห้าสำนักแห่งยุทธภพส่งศิษย์ลงมาช่วย แต่ละสำนักมีวิชาของตัวเอง',
+  'จงวางศิษย์ขวางทางมาร อย่าให้ผ่านประตูหมู่บ้าน',
+];
+function intro(n: number) {
+  const r = page('intro');
+  const next = () => (n + 1 < INTRO.length ? go({ k: 'intro', page: n + 1 }) : done({ introSeen: true }));
+  const skip = btn('ข้าม', 'skip', () => done({ introSeen: true }));
+  skip.addEventListener('click', (e) => e.stopPropagation());
+  r.append(skip, el('div', 'grow'), el('p', 'story', INTRO[n]!), el('div', 'grow'), el('p', 'dim center', `${n + 1} / ${INTRO.length}   ·   แตะเพื่อไปต่อ`));
+  r.onclick = next;
+  const t = setTimeout(next, 6000);
+  return () => clearTimeout(t);
 }
 
-// ---- result ----
-function showResult() {
-  const won = s.phase === 'won';
+// ---- loading → battle → result ----
+const TIPS = [
+  'ดอกเบี้ยได้เมื่อเคลียร์สนามหมด เรียกระลอกก่อนเวลาได้โบนัส แต่เสียดอกเบี้ยรอบนั้น',
+  'บางตัวบินข้ามหลังคา ศิษย์ที่ตีได้แค่พื้นจะตีไม่ถึง',
+  'อัปเกรดแล้วได้ท่าใหม่ แตะศิษย์ที่วางแล้วเพื่อดูท่าถัดไป',
+  'หมอผีฟื้นเลือดเพื่อนไม่ได้ ถ้าเพื่อนติดไฟหรือติดพิษอยู่',
+];
+function battle(stageId: string) {
+  const opts = { stageId, sect: dev.sect ?? profile.sect, seed: dev.seed, bot: dev.bot, speed: dev.speed };
+  if (jump) return startBattle(app, opts, (r) => result(stageId, r));
+  // The loading beat stays at least a second so it reads as a scene change; the board is built after it.
+  const rule = allegiance.find((a) => a.element === profile.sect);
+  const tips = rule ? [...TIPS, `กฎสำนัก: ${rule.ruleTh}`] : TIPS;
+  const r = page('loading');
+  const bar = el('div', 'bar');
+  bar.append(el('div', 'fill'));
+  r.append(
+    el('div', 'grow'), el('p', 'sect', profile.sect ? sects.get(profile.sect)!.nameTh : ''), el('h1', '', stageName(stageId)), bar,
+    el('div', 'grow'), el('p', 'dim center', tips[Math.max(0, PLAYLIST.indexOf(stageId) + 1) % tips.length]!),
+  );
+  let stop: (() => void) | undefined;
+  const t = setTimeout(() => { r.remove(); stop = startBattle(app, opts, (res) => result(stageId, res)); }, 1000);
+  return () => { clearTimeout(t); stop?.(); };
+}
+
+function result(stageId: string, r: BattleResult) {
+  recordEnd(profile, stageId, r.won, r.stars);
+  save(profile);
   const box = el('div', 'modal');
-  box.append(el('h2', won ? 'won' : 'lost', won ? 'ชนะ!' : 'พ่ายแพ้'));
-  const stars = s.stars ?? evaluateStars(s, won);
-  stages.get(stageId)!.stars.forEach((k, i) => box.append(el('p', stars[i] ? 'star on' : 'star', `${stars[i] ? '◆' : '◇'} ${STARS[k] ?? k}`)));
-  box.append(el('p', '', `เวลา ${Math.floor(s.tick / TICK_HZ / 60)}:${String(Math.floor(s.tick / TICK_HZ) % 60).padStart(2, '0')} · เสียชีวิต ${s.livesLost}`));
-  const again = el('button', 'primary', 'เล่นอีกครั้ง');
-  again.onclick = () => location.reload();
-  box.append(again);
+  box.append(el('h2', r.won ? 'won' : 'lost', r.won ? 'ชนะ!' : 'พ่ายแพ้'));
+  stages.get(stageId)!.stars.forEach((k, i) => box.append(el('p', r.stars[i] ? 'star on' : 'star', `${r.stars[i] ? '◆' : '◇'} ${STARS[k] ?? k}`)));
+  const sec = Math.floor(r.tick / TICK_HZ);
+  box.append(el('p', '', `เวลา ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} · เสียชีวิต ${r.livesLost}`));
+  if (stageId === TUTORIAL) box.append(btn('ไปต่อ', 'primary', () => go(route(profile))));
+  else {
+    const i = PLAYLIST.indexOf(stageId);
+    const next = r.won && i >= 0 ? PLAYLIST[i + 1] : undefined;
+    if (next) box.append(btn('ด่านถัดไป', 'primary', () => go({ k: 'battle', stageId: next })));
+    box.append(btn('เล่นอีกครั้ง', next ? '' : 'primary', () => go({ k: 'battle', stageId })), btn('กลับลานสำนัก', '', () => go(route(profile))));
+  }
   app.append(box);
 }
 
-let lastSilver = -1, lastPhase = '';
-function refresh() {
-  hud.silver.textContent = String(s.silver);
-  hud.lives.textContent = String(s.lives);
-  hud.wave.textContent = `${s.wave}/${s.totalWaves}`;
-  const nextIn = s.phase === 'build' ? AUTO_START_TICKS - s.tick : s.phase === 'break' ? s.breakT : 0;
-  const nextName = s.wave < s.totalWaves ? recipeById(s.nextRecipe).nameTh : '';
-  hud.next.textContent = nextName ? ` · ถัดไป: ${nextName}${nextIn > 0 ? ` (${Math.ceil(nextIn / TICK_HZ)} วิ)` : ''}` : '';
-  waveBtn.textContent = s.phase === 'build' ? 'เริ่มบุก' : 'เรียกระลอกถัดไป';
-  waveBtn.disabled = s.wave >= s.totalWaves || s.phase === 'picking';
-  for (const [key, b] of cardEls) { b.classList.toggle('sel', key === selectedKey); b.classList.toggle('poor', s.silver < defOf(key).cost); }
-  arts.forEach((a, i) => {
-    const cd = s.artCd[i]!, ch = s.artCharges[i]!;
-    artEls[i]!.textContent = `${a.glyph} ${a.nameTh}${cd > 0 ? ` ${Math.ceil(cd / TICK_HZ)}` : ch > 0 ? ` ×${ch}` : ` ${a.rechargeSilver}`}`;
-    artEls[i]!.disabled = cd > 0 || (ch === 0 && s.silver < a.rechargeSilver);
-  });
-  drawPanel();
-  drawOffer();
-  if (s.offer) offerBox.querySelector('.timer')!.textContent = `เลือกเองใน ${Math.ceil(s.offerT / TICK_HZ)} วิ`;
-}
-
-function onEvents(ev: SimEvent[]) {
-  for (const e of ev) {
-    if (e.e === 'error') toast(ERRORS[e.msg!] ?? e.msg!);
-    else if (e.e === 'kill') float(e.x!, e.y!, `+${e.amount}`, 'silver');
-    else if (e.e === 'interest' && e.amount! > 0) toast(`ดอกเบี้ย +${e.amount}`);
-    else if (e.e === 'leak') toast('ศัตรูหลุดเข้าประตู!');
-    else if (e.e === 'newEnemy') toast(`ศัตรูใหม่: ${enemyDefs.get(e.type!)!.nameTh}`);
-    else if (e.e === 'picked') toast(`ได้คัมภีร์: ${cards.find((c) => c.id === e.name)!.nameTh}`);
-    else if (e.e === 'seal') toast('บอสผนึกศิษย์!');
-    else if (e.e === 'placed') { selectedId = null; }
+// ---- sect pick: every sect can be read about; only those with a roster can be joined ----
+function sectPick() {
+  const r = page('sect-pick', 'เลือกสำนักต้นสังกัด');
+  for (const a of allegiance) {
+    const def = sects.get(a.element)!;
+    const ready = rosterSects.includes(a.element);
+    const b = btn('', ready ? 'sect-row' : 'sect-row soon', () => go({ k: 'sectDetail', sect: a.element, confirm: false }));
+    b.style.borderLeftColor = def.color;
+    b.append(el('b', '', def.nameTh), el('small', '', `ความยาก ${difficulty(a.difficulty)}${ready ? '' : ' · กำลังพัฒนา'}`));
+    r.append(b);
+  }
+  for (const u of upcomingSects) {
+    const b = btn('', 'sect-row soon', null);
+    b.append(el('b', '', u.nameTh), el('small', '', `เปิดเดือนที่ ${u.opensMonth}`));
+    r.append(b);
   }
 }
 
-// ---- loop ----
-const mem = { placed: 0 };
-let acc = 0, last = performance.now(), frames = 0, fpsAt = last;
-// Hooks for scripts/shots.mjs (visual proof in a real browser).
-Object.assign(window, { __game: { s, fps: 0 }, __toScreen: (tx: number, ty: number) => board.toScreen(tx * 1000 + 500, ty * 1000 + 500, 0) });
-function frame(now: number) {
-  const dt = Math.min(250, now - last); last = now;
-  if (!paused && !isOver(s)) {
-    acc += dt * speed;
-    while (acc >= 1000 / TICK_HZ && !isOver(s)) {
-      acc -= 1000 / TICK_HZ;
-      const cmds = useBot ? botCommands(s, {}, mem) : pending;
-      pending = [];
-      const ev = stepDefend(s, cmds);
-      onEvents(ev);
-      board.events(s, ev, now);
-      if (isOver(s)) showResult();
-    }
+function sectDetail(sect: string, confirm: boolean) {
+  const def = sects.get(sect)!;
+  const a = allegiance.find((x) => x.element === sect)!;
+  const ready = rosterSects.includes(sect);
+  const r = page('sect-detail');
+  r.style.borderTopColor = def.color;
+  const h = el('h1', '', def.nameTh);
+  h.style.color = def.color;
+  r.append(h, el('p', 'dim', `กฎประจำสำนัก · ความยาก ${difficulty(a.difficulty)}`), el('p', 'rule', a.ruleTh));
+  const us = unitList.filter((u) => u.sect === sect);
+  if (us.length === 0) r.append(el('p', 'dim', 'ศิษย์ 5 บทบาทของสำนักนี้กำลังพัฒนา จะเปิดในอัปเดตถัดไป'));
+  for (const u of us) {
+    const head = el('b', '', `${roleDefs.get(u.roleId)?.nameTh ?? ''} · ${u.nameTh}`);
+    head.style.color = ROLE_COLOR[u.roleId] ?? '';
+    const item = el('div', 'unit');
+    item.append(head, el('p', '', u.descTh));
+    r.append(item);
   }
-  if (s.silver !== lastSilver || s.phase !== lastPhase || s.tick % 10 === 0) { refresh(); lastSilver = s.silver; lastPhase = s.phase; }
-  const d = s.disciples.find((x) => x.id === selectedId);
-  if (d) board.showRange(d.x, d.y, discipleStats(s, d).range);
-  else if (selectedKey && hover) board.showRange(hover.tx * 1000 + 500, hover.ty * 1000 + 500, defOf(selectedKey).range, hover, canBuild(s, hover.tx, hover.ty));
-  else board.showRange(0, 0, null);
-  board.sync(s, now);
-  board.render();
-  frames++;
-  if (now - fpsAt >= 1000) { (window as unknown as { __game: { fps: number } }).__game.fps = frames; frames = 0; fpsAt = now; }
-  requestAnimationFrame(frame);
+  const row = el('div', 'row actions');
+  row.append(btn('กลับ', '', () => go({ k: 'sectPick' })), btn(ready ? 'เข้าสำนักนี้' : 'กำลังพัฒนา', 'primary', ready ? () => go({ k: 'sectDetail', sect, confirm: true }) : null));
+  r.append(el('div', 'grow'), row);
+  // Told plainly before the pick: changing later needs the sect-change token (SPEC-front-flow §5).
+  if (confirm)
+    dialog('ยืนยันเข้าสำนักนี้?', 'เปลี่ยนสำนักภายหลังต้องใช้ "ป้ายย้ายสังกัด" ความก้าวหน้าของแต่ละสำนักไม่หาย', [
+      btn('ยกเลิก', '', () => go({ k: 'sectDetail', sect, confirm: false })),
+      btn('ยืนยัน', 'primary', () => done({ sect })),
+    ]);
 }
-refresh();
-requestAnimationFrame(frame);
+
+// ---- name ----
+const NAME_A = ['หลิว', 'เซียว', 'หาน', 'ซือ', 'เยว่', 'ฉิน', 'ไป๋', 'หลง', 'เมิ่ง', 'ซ่ง'];
+const NAME_B = ['อวิ๋น', 'เฟิง', 'เสวี่ย', 'หยาง', 'อี้', 'หลาน', 'จิ่ว', 'ซิน', 'เหอ', 'ชิง'];
+const pick = (xs: string[]) => xs[Math.floor(Math.random() * xs.length)]!;
+const randomName = () => pick(NAME_A) + pick(NAME_B);
+
+// Length in what a reader counts as letters: a Thai vowel or tone mark belongs to its consonant.
+function nameProblem(n: string): string | null {
+  const len = [...new Intl.Segmenter('th', { granularity: 'grapheme' }).segment(n)].length;
+  if (len < 2 || len > 12) return 'ชื่อต้องยาว 2–12 ตัวอักษร';
+  if (/\p{Extended_Pictographic}/u.test(n)) return 'มีตัวอักษรที่แสดงไม่ได้ (เช่นอีโมจิ)';
+  if (!/\p{L}/u.test(n)) return 'ชื่อต้องมีตัวอักษร';
+  return null;
+}
+
+function nameScreen() {
+  const r = page('name', 'ฉายาของท่าน');
+  const field = el('input', 'field');
+  field.value = randomName();
+  field.maxLength = 40;
+  const error = el('p', 'error');
+  field.oninput = () => { error.textContent = ''; };
+  const row = el('div', 'row');
+  row.append(btn('สุ่มชื่อ', '', () => { field.value = randomName(); error.textContent = ''; }), btn('ยืนยัน', 'primary', () => {
+    const n = field.value.trim().replace(/\s+/g, ' ');
+    const problem = nameProblem(n);
+    // The server re-checks names against the profanity list once accounts move online (M1).
+    if (problem) error.textContent = problem; else done({ name: n });
+  }));
+  r.append(field, error, row);
+}
+
+// ---- lobby (ลานสำนัก) ----
+// SPEC-core §6 tabs and the stage that opens each; Battle sits in the middle and is the largest.
+const TABS: { id: LobbyTab | 'hall' | 'shop'; th: string; opensAt: string | null }[] = [
+  { id: 'disciples', th: 'ศิษย์', opensAt: '1-2' },
+  { id: 'hall', th: 'ศาลา', opensAt: '1-4' },
+  { id: 'battle', th: 'ศึก', opensAt: null },
+  { id: 'home', th: 'ลานสำนัก', opensAt: null },
+  { id: 'shop', th: 'ร้าน', opensAt: '1-4' },
+];
+const opened = (at: string | null) => at == null || profile.cleared.includes(at);
+
+// The one line of "what next" that is always on the lobby (SPEC-core §1).
+function nextGoal(): string {
+  const next = PLAYLIST.find((id) => !profile.cleared.includes(id));
+  if (next) {
+    const after = PLAYLIST[PLAYLIST.indexOf(next) + 1]; // roles join in the stage after the one cleared
+    const unlocks = [
+      ...(roleUnlocks.find(([k]) => k === after)?.[1] ?? []).map((id) => `บทบาท${roleDefs.get(id)?.nameTh ?? id}`),
+      ...TABS.filter((t) => t.opensAt === next).map((t) => `หน้า${t.th}`),
+    ];
+    return `เป้าถัดไป: ผ่าน ${next}${unlocks.length ? ` เพื่อปลด ${unlocks.join(', ')}` : ''}`;
+  }
+  const missing = chapterStarsMax() - chapterStars(profile);
+  return missing > 0 ? `เป้าถัดไป: อีก ${missing} ดาวครบบทที่ 1` : 'จบบทที่ 1 ครบทุกดาวแล้ว! บทที่ 2 เปิดในอัปเดตถัดไป';
+}
+
+function lobby(tab: LobbyTab) {
+  const def = sects.get(profile.sect!)!;
+  const top = el('div', 'lobby-top');
+  const seal = el('span', 'seal');
+  seal.style.background = def.color;
+  top.append(seal, el('b', 'who', `${profile.name} · ${def.nameTh}`), el('span', 'total', `◆ ${chapterStars(profile)} / ${chapterStarsMax()}`));
+  const body = el('div', 'screen lobby-body');
+  const tabs = el('nav', 'tabs');
+  for (const t of TABS) {
+    const open = opened(t.opensAt);
+    const b = btn('', `${t.id === tab ? 'primary' : ''}${open ? '' : ' locked'}${t.id === 'battle' ? ' main' : ''}`, () => {
+      if (!open) toast(`ผ่านด่าน ${t.opensAt} เพื่อปลด`);
+      else if (t.id === 'hall' || t.id === 'shop') comingSoon(t.id);
+      else go({ k: 'lobby', tab: t.id });
+    });
+    b.append(el('span', '', t.th));
+    if (!open) b.append(el('small', '', `ผ่าน ${t.opensAt}`));
+    tabs.append(b);
+  }
+  app.append(top, el('p', 'goal', nextGoal()), body, tabs);
+  if (tab === 'battle') chapterMap(body);
+  else if (tab === 'disciples') disciples(body);
+  else home(body);
+}
+
+function home(r: HTMLElement) {
+  // Side shortcuts unlock with progress (release-systems §5); the systems behind them come later.
+  const side = el('div', 'side');
+  for (const [text, at] of [['ภารกิจรายวัน', '1-1'], ['กล่องจดหมาย', '1-1'], ['อีเวนต์', '1-4']] as const) {
+    const open = opened(at);
+    side.append(btn(open ? text : `${text} · ผ่าน ${at}`, open ? '' : 'locked', () => toast(open ? 'เร็วๆ นี้' : `ผ่านด่าน ${at} เพื่อปลด`)));
+  }
+  const next = nextStage(profile);
+  const enter = btn('', 'primary enter', () => go({ k: 'battle', stageId: next }));
+  enter.append(el('b', '', 'เข้าสู่ยุทธภพ'), el('span', '', stageName(next)));
+  r.append(side, el('div', 'grow'), enter, starRow(profile.stars[next] ?? 0, stages.get(next)!.stars.length), el('div', 'grow'));
+  if (import.meta.env.DEV)
+    r.append(btn('[ทดสอบ] เริ่มใหม่ (ลบเซฟ)', 'locked', () => dialog('ลบเซฟทั้งหมดแล้วเริ่มใหม่?', 'ย้อนกลับไม่ได้', [
+      btn('ยกเลิก', '', () => go({ k: 'lobby', tab: 'home' })),
+      btn('ลบ', 'primary', () => { save(migrate(null)); location.reload(); }),
+    ])));
+}
+
+// Chapter 1 as a path of stages: stars won, the next stage open, later ones locked; cleared ones can be replayed.
+function chapterMap(r: HTMLElement) {
+  r.append(el('h2', '', 'บทที่ 1 · หมู่บ้านเชิงเขา'));
+  const next = PLAYLIST.find((id) => !profile.cleared.includes(id));
+  for (const id of PLAYLIST) {
+    const open = profile.cleared.includes(id) || id === next;
+    const b = btn('', `stage-row${id === next ? ' primary' : ''}`, open ? () => go({ k: 'battle', stageId: id }) : null);
+    const text = el('span', 'text');
+    text.append(el('b', '', stageName(id)));
+    if (!open) text.append(el('small', '', 'ผ่านด่านก่อนหน้าเพื่อปลด'));
+    b.append(text, starRow(profile.stars[id] ?? 0, stages.get(id)!.stars.length));
+    r.append(b);
+  }
+}
+
+// What each disciple of the player's sect does, when it joins, and the technique each tier teaches.
+function disciples(r: HTMLElement) {
+  r.append(el('h2', '', `ศิษย์ของ${sects.get(profile.sect!)!.nameTh}`));
+  for (const u of unitList.filter((x) => x.sect === profile.sect)) {
+    const at = roleUnlocks.find(([, rs]) => rs.includes(u.roleId))?.[0];
+    const have = at == null || profile.cleared.includes(at) || at === nextStage(profile); // a role joins in the stage its key names
+    const card = el('div', `unit card-unit${have ? '' : ' locked'}`);
+    const head = el('b', '', `${u.nameTh} · ${roleDefs.get(u.roleId)?.nameTh ?? ''}${have ? '' : `  (ปลดที่ ${at})`}`);
+    if (have) head.style.color = ROLE_COLOR[u.roleId] ?? '';
+    card.style.borderLeftColor = u.color;
+    card.append(head, el('p', '', u.descTh), el('p', 'skill', `ท่าตามขั้น: ${(skills.get(u.element) ?? []).map((k) => k.nameTh).join(' › ')}`));
+    r.append(card);
+  }
+}
+
+// Tabs whose systems come later say what they will hold instead of doing nothing.
+function comingSoon(tab: 'hall' | 'shop') {
+  const d = dialog('เร็วๆ นี้', tab === 'hall'
+    ? 'ศาลา: ตู้วีรชนประจำสัปดาห์ ตู้ถาวร ตู้อุปกรณ์ แสดงอัตรา การันตี และประวัติการสุ่มทุกครั้ง'
+    : 'ร้าน: หยก แพ็ก บัตรรายเดือน ตั๋วยุทธภพ ของใน PvP เป็นของตกแต่งเท่านั้น', [btn('ปิด', '', () => d.remove())]);
+}
+
+go(jump ? { k: 'battle', stageId: jump } : route(profile));

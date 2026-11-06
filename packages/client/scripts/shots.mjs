@@ -1,5 +1,6 @@
 // Visual proof: opens the game in Chromium at phone size, plays it, and saves screenshots + a video to shots/.
-//   npm run shots                 1-1 by hand (place, select) and 1-12 played by the bot
+//   npm run shots                 1-1 by hand (place, select), 1-12 played by the bot, and the first-run walkthrough
+//                                 (consent → intro → T-0 → sect → name → lobby → stages → reload), all as flow-NN-*.png
 // Exits non-zero on any console error or page crash.
 import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -69,6 +70,90 @@ async function page(url, video) {
   await ctx.close();
   const vid = readdirSync(out).find((f) => f.endsWith('.webm'));
   if (vid) renameSync(out + vid, out + '1-12-bot.webm');
+}
+
+// 3) First run on a fresh save, recorded: every screen from consent to the lobby, two stages, then a reload.
+{
+  const dir = out + 'flow-video/';
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, recordVideo: { dir, size: { width: 390, height: 844 } } });
+  const p = await ctx.newPage();
+  p.on('console', (m) => { if (m.type() === 'error') errors.push(`flow: ${m.text()}`); });
+  p.on('pageerror', (e) => errors.push(`flow: ${e.message}`));
+  let n = 0;
+  const shot = async (name) => { await sleep(250); await p.screenshot({ path: out + `flow-${String(++n).padStart(2, '0')}-${name}.png` }); };
+  const at = async (k) => {
+    await p.waitForFunction((k) => window.__flow?.screen.k === k, k, { timeout: 10000 }).catch(() => {});
+    const got = await p.evaluate(() => window.__flow?.screen.k);
+    if (got !== k) errors.push(`flow: expected screen ${k}, got ${got}`);
+  };
+  const tap = (name) => p.getByRole('button', { name, exact: true }).first().click();
+  const result = async (name) => {
+    await p.waitForSelector('.modal h2.won, .modal h2.lost', { timeout: 120000 });
+    await shot(name);
+  };
+
+  await p.goto(base + '?bot=1&speed=16');
+  await at('consent');
+  await shot('consent');
+  await tap('+10'); await tap('-1');
+  await shot('consent-year');
+  await tap('เริ่มเล่น');
+  await at('intro');
+  await shot('intro-1');
+  await p.locator('.intro').click({ position: { x: 195, y: 420 } });
+  await shot('intro-2');
+  await tap('ข้าม');
+  await at('battle');
+  await shot('loading-tutorial');
+  await p.waitForFunction(() => window.__game?.s.stageId === 'T-0');
+  await sleep(1500);
+  await shot('tutorial');
+  await result('tutorial-result');
+  await tap('ไปต่อ');
+  await at('sectPick');
+  await shot('sect-pick');
+  await p.locator('.sect-row', { hasText: 'สำนักกระบี่เมฆา' }).click();
+  await shot('sect-detail-no-roster');
+  await tap('กลับ');
+  await p.locator('.sect-row', { hasText: 'สำนักหงส์เพลิง' }).click();
+  await at('sectDetail');
+  await shot('sect-detail');
+  await tap('เข้าสำนักนี้');
+  await shot('sect-confirm');
+  await tap('ยืนยัน');
+  await at('name');
+  await shot('name');
+  await p.locator('.field').fill('ก');
+  await tap('ยืนยัน');
+  await shot('name-too-short');
+  await tap('สุ่มชื่อ');
+  await tap('ยืนยัน');
+  await at('lobby');
+  await shot('lobby');
+  await p.locator('.tabs button', { hasText: 'ศิษย์' }).click();
+  await shot('lobby-locked-tab-toast');
+  await p.locator('.tabs button', { hasText: 'ศึก' }).click();
+  await shot('chapter-map');
+  await p.locator('.stage-row', { hasText: 'ลานนาขั้นบันได' }).click();
+  await result('1-1-result');
+  await tap('ด่านถัดไป');
+  await result('1-2-result');
+  await tap('กลับลานสำนัก');
+  await at('lobby');
+  await shot('lobby-after-1-2');
+  await p.locator('.tabs button', { hasText: 'ศิษย์' }).click();
+  await shot('disciples');
+  await p.locator('.tabs button', { hasText: 'ศึก' }).click();
+  await shot('chapter-map-after');
+  await p.reload();
+  await at('lobby');
+  await shot('reload-lobby');
+  const prof = await p.evaluate(() => window.__flow.profile);
+  console.log('flow profile:', JSON.stringify(prof));
+  await ctx.close();
+  const vid = readdirSync(dir).find((f) => f.endsWith('.webm'));
+  if (vid) renameSync(dir + vid, out + 'flow.webm');
+  rmSync(dir, { recursive: true, force: true });
 }
 
 await browser.close();

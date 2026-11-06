@@ -241,4 +241,7 @@ export class Board {
   }
 
   render(): void { this.renderer.render(this.scene, this.camera); }
+
+  // Free the GL context too: browsers cap live contexts, and a session plays many stages.
+  dispose(): void { this.renderer.dispose(); this.renderer.forceContextLoss(); }
 }
