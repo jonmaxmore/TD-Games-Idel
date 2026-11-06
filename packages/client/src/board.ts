@@ -308,6 +308,7 @@ export class Board {
     s.paths.forEach((p, i) => things.push({ depth: p[0]!.y / TILE, draw: () => {
       const closed = open != null && open !== i;
       this.cave(this.sx(p[0]!.x), this.sy(p[0]!.y), closed && !(next === i && Math.floor(now / 250) % 2 === 0), next === i && closed);
+      if (s.paths.length > 1) this.number(i + 1, this.sx(p[0]!.x), this.sy(p[0]!.y) - 34, true); // lane number over its cave
     } }));
     const goal = s.paths[0]!.at(-1)!;
     things.push({ depth: goal.y / TILE, draw: () => this.gate(this.sx(goal.x), this.sy(goal.y)) });

@@ -338,7 +338,7 @@ describe('maps', () => {
 
   // SPEC-pc-v2 §2: story maps are long and winding on the wide board.
   it('story layouts: every path 60-110 tiles, turning every 3-8 tiles', () => {
-    for (const name of ['village-terraces', 'village-shrine', 'village-rooftops'])
+    for (const name of ['village-terraces', 'village-shrine', 'village-rooftops', 'village-spiral'])
       for (const r of layouts.get(name)!.paths) {
         let len = 0;
         for (let i = 1; i < r.length; i++) {
@@ -380,7 +380,7 @@ describe('maps', () => {
 
 describe('data', () => {
   it('stages reference existing enemies and layouts', () => {
-    for (const id of ['T-1', '1-1', '1-2', '1-3', '1-4']) {
+    for (const id of ['T-1', '1-1', '1-2', '1-3', '1-4', '1-9', '1-10']) {
       const st = stages.get(id)!;
       expect(st.layout, `${id} has a layout`).not.toBeNull();
       for (const e of st.enemies) expect(enemyDefs.has(e), `${id}: ${e}`).toBe(true);

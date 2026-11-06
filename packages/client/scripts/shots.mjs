@@ -113,6 +113,40 @@ async function page(url, video) {
   console.log('biome fps samples:', fps.join(','));
 }
 
+// 2c) Chapter 1 stages from stage data (SPEC-pc-v2 §4), bot played through and recorded: 1-9 with both lanes busy, then
+//     the warning and the last wave on lane 2 only; 1-10 with the duel bar while the boss walks, then the result.
+{
+  const fps = [];
+  for (const [stage, frames] of [
+    ['1-9', [['lanes', '() => window.__game.s.wave >= 3 && new Set(window.__game.s.enemies.map((e) => e.path)).size === 2'],
+      ['warn', '() => window.__game.s.wave === 11 && window.__game.s.phase === "break"'],
+      ['solo', '() => window.__game.s.wave === 12 && window.__game.s.enemies.length > 3']]],
+    ['1-10', [['duel', '() => window.__game.s.enemies.some((e) => e.type === "boss_ch1" && e.hp < e.maxHp * 0.7)']]],
+  ]) {
+    const dir = out + `${stage}-video/`;
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, recordVideo: { dir, size: { width: 1280, height: 720 } } });
+    const p = await ctx.newPage();
+    p.on('console', (m) => { if (m.type() === 'error') errors.push(`${stage}: ${m.text()}`); });
+    p.on('pageerror', (e) => errors.push(`${stage}: ${e.message}`));
+    await p.goto(base + `?stage=${stage}&sect=fire&seed=1&bot=1&speed=8`);
+    await p.waitForFunction(() => window.__game);
+    for (const [name, wait] of frames) {
+      await p.waitForFunction(`(${wait})()`, null, { timeout: 180000, polling: 'raf' });
+      await p.screenshot({ path: out + `${stage}-${name}.png` });
+      fps.push(`${stage}:${await p.evaluate(() => window.__game.fps)}`);
+    }
+    await p.waitForFunction(() => ['won', 'lost'].includes(window.__game.s.phase), null, { timeout: 180000 });
+    await sleep(1000);
+    await p.screenshot({ path: out + `${stage}-result.png` });
+    console.log(`${stage} bot:`, await p.evaluate(() => ({ phase: window.__game.s.phase, wave: window.__game.s.wave, lives: window.__game.s.lives })));
+    await ctx.close();
+    const vid = readdirSync(dir).find((f) => f.endsWith('.webm'));
+    if (vid) renameSync(dir + vid, out + `${stage}-bot.webm`);
+    rmSync(dir, { recursive: true, force: true });
+  }
+  console.log('stage fps samples:', fps.join(','));
+}
+
 // 3) First run on a fresh save, recorded: every screen from consent to the lobby, two stages, then a reload.
 {
   const dir = out + 'flow-video/';

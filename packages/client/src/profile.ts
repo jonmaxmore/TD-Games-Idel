@@ -3,7 +3,7 @@
 import { rosterSects, sects, stages } from '@five-sects/sim';
 
 export const TUTORIAL = 'T-0';
-export const PLAYLIST = ['1-1', '1-2', '1-4', '1-6', '1-12']; // chapter 1 story: only the defend stages exist yet
+export const PLAYLIST = ['1-1', '1-2', '1-4', '1-6', '1-9', '1-10', '1-12']; // chapter 1 story (SPEC-pc-v2 §4)
 
 export interface Profile {
   v: 1;

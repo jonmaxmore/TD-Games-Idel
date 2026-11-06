@@ -3,7 +3,7 @@
 import { playStage } from '../test/bot';
 
 const env = process.env;
-const stagesToRun = env.MEASURE_STAGES ? env.MEASURE_STAGES.split(',') : ['1-1', '1-2', '1-4', '1-6', '1-12', 'T-1'];
+const stagesToRun = env.MEASURE_STAGES ? env.MEASURE_STAGES.split(',') : ['1-1', '1-2', '1-4', '1-6', '1-9', '1-10', '1-12', 'T-1'];
 const sectsToRun: (string | null)[] = env.MEASURE_LEGACY === '0' ? ['fire', 'wood'] : ['fire', 'wood', null];
 const n = Number(env.MEASURE_SEEDS) || 8;
 const seeds = Array.from({ length: n }, (_, i) => i + 1);

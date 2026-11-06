@@ -88,10 +88,11 @@ describe('balance', () => {
     for (let i = 0; i < 2; i++) stepDefend(s, s.disciples.map((d) => up(d.id)));
     s.wave = wave - 1;
     const ev = stepDefend(s, [NEXT]);
-    while (!isOver(s) && s.wave === wave && s.tick < 20 * 60 * 20) ev.push(...stepDefend(s, []));
+    // a duel runs until the boss falls, past the wave it came in
+    while (!isOver(s) && (s.wave === wave || s.duel != null) && s.tick < 20 * 60 * 20) ev.push(...stepDefend(s, []));
     return ev;
   };
-  it('boss: the bandit king disables disciples at hp thresholds', () => expect(bossWave('1-10', 10).filter((e) => e.e === 'disable').length).toBeGreaterThanOrEqual(2));
+  it('boss: the bandit king disables disciples at hp thresholds', () => expect(bossWave('1-10', 1).filter((e) => e.e === 'disable').length).toBeGreaterThanOrEqual(2));
   it('boss: the envoy seals the most used sect', () => expect(bossWave('1-12', 20, 'fire').some((e) => e.e === 'seal' && e.el != null)).toBe(true));
 
   // Story curve for the player's path (roster sects, a bot that reads the next-wave bar and does not call early):
@@ -105,7 +106,7 @@ describe('balance', () => {
   const finale: Record<string, number> = {};
   for (const sect of ['fire', 'wood']) {
     it(`story ${sect} 1-1 always wins`, () => expect(rate('1-1', sect).win).toBe(1));
-    for (const st of ['1-2', '1-4', '1-6']) it(`story ${sect} ${st} wins at least 85%`, () => expect(rate(st, sect).win).toBeGreaterThanOrEqual(0.85));
+    for (const st of ['1-2', '1-4', '1-6', '1-9', '1-10']) it(`story ${sect} ${st} wins at least 85%`, () => expect(rate(st, sect).win).toBeGreaterThanOrEqual(0.85));
     it(`story ${sect} 1-12 is a real finale`, () => {
       const { win, lost } = rate('1-12', sect);
       expect(win, 'win rate').toBeGreaterThanOrEqual(0.55);

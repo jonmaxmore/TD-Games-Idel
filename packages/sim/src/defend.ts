@@ -55,6 +55,7 @@ export interface DefendState {
   sectsUsed: string[]; // distinct sect elements ever placed (max_2_sects star)
   // Biome rule (SPEC-pc-v2 §3): roofs hold disciples; roofEdge = path tiles beside a roof; ice = path tiles still frozen.
   rule: BiomeRule; roofs: Set<string>; roofEdge: Set<string>; ice: Set<string>;
+  duel: string | null; // boss duel (SPEC-pc-v2 §4): killing this boss wins, its reaching the gate loses
 }
 
 export const isOver = (s: DefendState) => s.phase === 'won' || s.phase === 'lost';
@@ -93,13 +94,17 @@ export function createDefend(stageId: string, seed: number, sect: string | null 
     disciples: [], enemies: [], unlocked: rosterSect != null ? unlockedUnits(rosterSect, stageId) : unlockedSects(stageId),
     paths, pathLens: paths.map(pathLength), pathTiles, blocked: blockedTiles(layout), layout,
     cards: [], offer: null, seenTypes: [], stars: null, sectsUsed: [],
-    rule, roofs, roofEdge, ice: new Set(rule.iceSpeedPct > 0 ? layout.props.filter((p) => propOnPath.get(p.type)).map((p) => tileKey(p.at.x, p.at.y)) : []),
+    duel: stage.bossDuel, rule, roofs, roofEdge, ice: new Set(rule.iceSpeedPct > 0 ? layout.props.filter((p) => propOnPath.get(p.type)).map((p) => tileKey(p.at.x, p.at.y)) : []),
   };
 }
 
-// City gates: the one open road in a wave (null when every road is open). Waves 1..N use road 0, the next N road 1, ...
+// The one open road in a wave (null when every road is open): a stage's lanes entry first, then city gates
+// (waves 1..N use road 0, the next N road 1, ...).
 export function openPath(stageId: string, wave: number): number | null {
-  const l = layouts.get(stages.get(stageId)!.layout!)!;
+  const stage = stages.get(stageId)!;
+  const lane = stage.lanes.get(wave);
+  if (lane != null) return lane;
+  const l = layouts.get(stage.layout!)!;
   const every = biomes.get(l.biome)!.rule.gateEveryWaves;
   return every > 0 ? div(wave - 1, every) % l.paths.length : null;
 }
@@ -259,7 +264,7 @@ function apply(s: DefendState, c: Command, ev: SimEvent[]): void {
       else if (s.phase === 'spawning' || s.phase === 'clearing') {
         // Calling while enemies are still alive overlaps two waves; the bonus pays for that risk.
         let atStake = 0;
-        for (const e of s.enemies) if (e.hp > 0) atStake += e.bounty;
+        for (const e of s.enemies) if (e.hp > 0 && e.type !== s.duel) atStake += e.bounty;
         s.silver += economy.earlyCallBonus + div(atStake * economy.earlyCallPct, 100);
         startWave(s, ev);
       } else err(ev, 'cannot call a wave now');
@@ -378,7 +383,7 @@ export function waveEntries(stageId: string, wave: number, recipeId: string): Qu
   const o: QueuedEnemy[] = [];
   // Enemies take the open spawn gates in turn, in queue order.
   for (let i = 0; i < n; i++) o.push({ type: types[(i + wave) % types.length]!, wave, hpPct: r.hpPct, path: road(i) });
-  const boss = stage.scriptedWaves.get(String(wave));
+  const boss = stage.scriptedWaves.get(String(wave)) ?? (wave === 1 ? stage.bossDuel : null);
   if (boss != null) o.push({ type: boss, wave, hpPct: 100, path: road(n) });
   return o;
 }
@@ -674,7 +679,7 @@ function moveEnemies(s: DefendState, ev: SimEvent[]): void {
   for (const e of s.enemies)
     if (e.hp > 0 && e.d >= s.pathLens[e.path]!) {
       e.hp = 0; e.bounty = 0;
-      const cost = enemyDefs.get(e.type)!.leakCost;
+      const cost = e.type === s.duel ? s.lives : enemyDefs.get(e.type)!.leakCost;
       s.lives = Math.max(0, s.lives - cost);
       s.livesLost += cost;
       ev.push({ e: 'leak', id: e.id });
@@ -715,8 +720,10 @@ function resolveDeaths(s: DefendState, ev: SimEvent[]): void {
   s.enemies = s.enemies.filter((e) => e.hp > 0);
   const yy3 = s.disciples.filter((d) => d.els.includes('yinyang') && d.level >= 3);
   const fireExplodes = hasLevel(s, 'fire', 2);
+  let won = false;
   for (const e of dead) {
     if (e.bounty === 0 && e.d >= s.pathLens[e.path]!) continue; // leaked
+    if (e.type === s.duel) won = true;
     let bounty = e.bounty;
     if (yy3.some((d) => within(d.x, d.y, e.x, e.y, YY_REVEAL))) bounty++;
     bounty += card(s, 'bountyFlat')?.value ?? 0;
@@ -737,6 +744,7 @@ function resolveDeaths(s: DefendState, ev: SimEvent[]): void {
     if (fireExplodes && (e.burnT > 0 || (s.sect === 'wood' && e.poison > 0))) // roster: the sect DoT
       for (const o of s.enemies) if (within(e.x, e.y, o.x, o.y, TILE)) o.hp -= FIRE_EXPLODE_DMG;
   }
+  if (won) finish(s, true, ev);
 }
 
 function waveFlow(s: DefendState, ev: SimEvent[]): void {
@@ -754,7 +762,8 @@ function waveFlow(s: DefendState, ev: SimEvent[]): void {
       }
       break;
     case 'clearing':
-      if (s.enemies.length === 0) {
+      // In a duel the boss does not hold the next wave back, and running out of waves does not end the stage.
+      if (s.duel != null ? s.wave < s.totalWaves && s.enemies.every((e) => e.type === s.duel) : s.enemies.length === 0) {
         payInterest(s, ev);
         if (s.wave >= s.totalWaves) finish(s, true, ev);
         else if (Math.floor(s.wave / CARD_EVERY_WAVES) > s.cardsOffered) {
@@ -809,6 +818,6 @@ export function stepDefend(s: DefendState, commands: readonly Command[] = []): S
   bossPhases(s, ev);
   resolveDeaths(s, ev);
   s.tick++;
-  if (s.lives <= 0) finish(s, false, ev);
+  if (s.lives <= 0 && !isOver(s)) finish(s, false, ev);
   return ev;
 }

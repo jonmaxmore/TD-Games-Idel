@@ -38,7 +38,17 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   const floats = el('div', 'floats');
   const bottom = el('div', 'bottom');
   const toastBox = el('div', 'toasts');
-  root.append(top, canvas, floats, bottom, toastBox);
+  // Boss duel (SPEC-pc-v2 §4): the boss's HP across the board, with a notch at each threshold where it disables disciples.
+  const duelBar = el('div', 'duel hidden');
+  const duelFill = el('i');
+  const duelText = el('span');
+  if (s.duel != null) {
+    const def = enemyDefs.get(s.duel)!;
+    const bar = el('div', 'bar');
+    bar.append(duelFill, ...(def.boss?.phasesPct ?? []).map((p) => { const n = el('em'); n.style.left = `${p}%`; return n; }));
+    duelBar.append(el('b', '', `ดวล: ${def.nameTh}`), bar, duelText, el('small', '', 'ล้มบอสเพื่อชนะ · ถ้าถึงวิหารจะแพ้ทันที'));
+  }
+  root.append(top, canvas, floats, bottom, duelBar, toastBox);
   app.append(root);
   const board = new Board(canvas, s);
   const set = o.settings;
@@ -196,6 +206,9 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     hud.silver.textContent = String(s.silver);
     hud.lives.textContent = String(s.lives);
     hud.wave.textContent = `${s.wave}/${s.totalWaves}`;
+    const boss = s.duel != null ? s.enemies.find((e) => e.type === s.duel && e.hp > 0) : undefined;
+    duelBar.classList.toggle('hidden', boss == null);
+    if (boss) { duelFill.style.width = `${(100 * boss.hp) / boss.maxHp}%`; duelText.textContent = `${boss.hp} / ${boss.maxHp}`; }
     const nextIn = s.phase === 'build' ? AUTO_START_TICKS - s.tick : s.phase === 'break' ? s.breakT : 0;
     const nextName = s.wave < s.totalWaves ? recipeById(s.nextRecipe).nameTh : '';
     hud.next.textContent = nextName ? ` · ถัดไป: ${nextName}${nextIn > 0 ? ` (${Math.ceil(nextIn / TICK_HZ)} วิ)` : ''}${biomeHint()}` : '';
@@ -217,7 +230,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     const w = s.wave + 1;
     let o = '';
     const road = openPath(stageId, w);
-    if (road != null) o += ` · ประตูเปิด: ทาง ${road + 1}${s.wave > 0 && road !== openPath(stageId, s.wave) ? ' (สลับ!)' : ''}`;
+    if (road != null) o += ` · ${s.rule.gateEveryWaves > 0 ? 'ประตูเปิด' : 'มาทางเดียว'}: ทาง ${road + 1}${s.wave > 0 && road !== openPath(stageId, s.wave) ? ' (สลับ!)' : ''}`;
     if (s.rule.moonEveryWaves > 0) {
       const ph = moonPhase(s.rule, w);
       o += ` · จันทร์โลหิต เฟส ${ph}${s.wave > 0 && ph !== moonPhase(s.rule, s.wave) ? ' (ธาตุศัตรูเลื่อน!)' : ''}`;
@@ -236,7 +249,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
       } else if (e.e === 'wave') {
         play('wave');
         const road = openPath(stageId, s.wave);
-        if (road != null && s.wave > 1 && road !== openPath(stageId, s.wave - 1)) toast(`ประตูเมืองสลับ: เปิดทาง ${road + 1}`);
+        if (road != null && s.wave > 1 && road !== openPath(stageId, s.wave - 1)) toast(s.rule.gateEveryWaves > 0 ? `ประตูเมืองสลับ: เปิดทาง ${road + 1}` : `ระลอกนี้มาทาง ${road + 1} ทางเดียว`);
         if (s.rule.moonEveryWaves > 0 && s.wave > 1 && moonPhase(s.rule, s.wave) !== moonPhase(s.rule, s.wave - 1)) toast('จันทร์โลหิตเปลี่ยนเฟส: ธาตุศัตรูเลื่อน');
       }
       else if (e.e === 'spawn' && enemyDefs.get(s.enemies.find((x) => x.id === e.id)?.type ?? '')?.boss != null) { play('boss'); toast('บอสมาถึง!'); }

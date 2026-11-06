@@ -4,8 +4,10 @@ import { canBuild, createDefend, defOf, grid, isOver, placeCost, stepDefend, til
 
 // A tile scores the path tiles it reaches, counted once per path through them, so the shared stretch every enemy walks
 // beats a pocket that guards a single entrance. Ties go to the tile that reaches furthest up a path (meets enemies first).
-export function bestTiles(s: DefendState, range = 2500): { tx: number; ty: number }[] {
-  const path = s.layout.paths.flatMap((p) => [...tilesOnPath(p)].map((k, i) => [...k.split(',').map(Number), i] as [number, number, number]));
+// lane: score only that path's tiles.
+export function bestTiles(s: DefendState, range = 2500, lane: number | null = null): { tx: number; ty: number }[] {
+  const paths = lane == null ? s.layout.paths : [s.layout.paths[lane]!];
+  const path = paths.flatMap((p) => [...tilesOnPath(p)].map((k, i) => [...k.split(',').map(Number), i] as [number, number, number]));
   const scored: { tx: number; ty: number; score: number; first: number }[] = [];
   const r = range / 1000.0;
   for (let ty = 0; ty < grid.h; ty++)
@@ -37,7 +39,9 @@ export function botCommands(s: DefendState, o: PlayOpts = {}, mem = { placed: 0 
   const allMaxed = lowest != null && lowest.level >= 3;
   const wantPlace = urgent || mem.placed < 3 || ((mem.placed < maxDisciples || allMaxed) && (lowest == null || lowest.level >= 2));
   if (wantPlace) {
-    const spots = bestTiles(s, tileRange(s, defOf(sect).range, [units.get(sect)?.sect ?? sect], -1, -1)); // sees the fog's cap
+    // On separate lanes (paths that meet only at the gate) a player splits the defence: placement n guards lane n mod lanes.
+    const lane = separateLanes(s) ? mem.placed % s.layout.paths.length : null;
+    const spots = bestTiles(s, tileRange(s, defOf(sect).range, [units.get(sect)?.sect ?? sect], -1, -1), lane); // sees the fog's cap
     if (spots.length > 0 && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); mem.placed++; }
   } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
   return cmds;
@@ -51,6 +55,12 @@ export function play(s: DefendState, o: PlayOpts = {}): DefendState {
     stepDefend(s, cmds);
   }
   return s;
+}
+
+function separateLanes(s: DefendState): boolean {
+  if (s.layout.paths.length < 2) return false;
+  const [a, b] = s.layout.paths.map((p) => tilesOnPath(p));
+  return [...a!].filter((k) => b!.has(k)).length <= 1;
 }
 
 // A unit for a role the next wave asks for ("air": anything that hits air) when no placed disciple covers it.

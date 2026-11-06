@@ -32,6 +32,8 @@ export interface StageDef {
   id: string; type: string; layout: string | null; variant: string | null; unlocksSect: string | null; nameTh: string; nameEn: string;
   chapter: number; hpPct: number; waves: number | null; startSilver: number | null; startLives: number | null; unlockAll: boolean;
   enemies: string[]; stars: string[]; guestSects: string[]; scriptedWaves: Map<string, string>; wavePool: string[] | null;
+  // lanes: wave -> the one lane (0-based path index) open that wave; bossDuel: the boss that comes in wave 1 and decides the stage.
+  lanes: Map<number, number>; bossDuel: string | null;
 }
 export interface ArtDef {
   id: string; nameTh: string; glyph: string; type: string;
@@ -142,6 +144,7 @@ export const stageList: StageDef[] = ST.stages.map((s: any) => ({
   waves: s.waves ?? null, startSilver: s.startSilver ?? null, startLives: s.startLives ?? null, unlockAll: s.unlockAll ?? false,
   enemies: s.enemies ?? [], stars: s.stars ?? [], guestSects: s.guestSects ?? [],
   scriptedWaves: new Map(Object.entries((s.scriptedWaves ?? {}) as Record<string, string>)), wavePool: s.wavePool ?? null,
+  lanes: new Map(Object.entries((s.lanes ?? {}) as Record<string, number>).map(([w, lane]) => [Number(w), lane - 1])), bossDuel: s.bossDuel ?? null,
 }));
 export const stages = new Map<string, StageDef>(stageList.map((s) => [s.id, s]));
 

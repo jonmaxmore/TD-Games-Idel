@@ -145,7 +145,7 @@ describe('stage data', () => {
     const undefended = defend('T-0');
     run(undefended, 20 * 60 * 6, NEXT);
     expect(undefended.phase).not.toBe('lost');
-    for (const id of ['T-0', '1-1', '1-2', '1-4', '1-6', '1-12']) {
+    for (const id of ['T-0', '1-1', '1-2', '1-4', '1-6', '1-9', '1-10', '1-12']) {
       const st = stages.get(id)!;
       expect(st.nameTh && st.nameEn, `${id} has Thai and English names`).toBeTruthy();
     }

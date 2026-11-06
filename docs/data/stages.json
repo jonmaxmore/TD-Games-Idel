@@ -1,5 +1,5 @@
 {
-  "_notes": "60 story stages (5 chapters x 12). Chapter 1 fully specified; chapters 2-5 are outlines (status=outline). Star conditions are keys interpreted by the game. guestSects = sects lent to this stage only (a taste of later chapters).",
+  "_notes": "60 story stages (5 chapters x 12). Chapter 1 fully specified; chapters 2-5 are outlines (status=outline). Star conditions are keys interpreted by the game. guestSects = sects lent to this stage only (a taste of later chapters). lanes = {wave: lane}: only that lane (1-based path) is open that wave. bossDuel = a boss that comes with wave 1; killing it wins the stage and its reaching the gate loses it (SPEC-pc-v2 §4).",
   "stageTypes": {
     "defend": "classic TD",
     "assault": "reverse TD: lead a party along a chosen route",
@@ -272,37 +272,34 @@
     },
     {
       "id": "1-9",
+      "nameTh": "ปิดล้อมสองทางผ่าน",
+      "nameEn": "Siege of the Twin Passes",
       "chapter": 1,
       "type": "siege",
-      "title": "Two lanes, shared silver",
-      "enemies": [
-        "cultist",
-        "runner",
-        "leaper"
-      ],
-      "stars": [
-        "clear",
-        "no_life_lost",
-        "under_5min"
-      ]
+      "title": "Two lanes, shared silver; the last wave comes down one lane only",
+      "enemies": ["cultist", "runner", "leaper"],
+      "wavePool": ["mixed", "swarm", "rush", "air"],
+      "stars": ["clear", "no_life_lost", "max_6_disciples"],
+      "layout": "village-siege",
+      "lanes": { "12": 2 },
+      "waves": 12,
+      "startSilver": 200,
+      "hpPct": 110
     },
     {
       "id": "1-10",
+      "nameTh": "ดวลราชาโจรร้อยมือ",
+      "nameEn": "Duel with the Hundred-Hand King",
       "chapter": 1,
       "type": "boss",
-      "title": "Duel: Hundred-Hand Bandit King",
-      "enemies": [
-        "cultist",
-        "runner",
-        "boss_ch1"
-      ],
-      "stars": [
-        "clear",
-        "no_disciple_down",
-        "under_2min"
-      ],
+      "title": "Duel: the Bandit King walks in with wave 1; kill him to win, let him reach the temple and lose",
+      "enemies": ["cultist", "runner", "boss_ch1"],
+      "wavePool": ["mixed", "swarm", "rush"],
+      "stars": ["clear", "no_life_lost", "under_3min"],
       "layout": "village-spiral",
-      "scriptedWaves": { "10": "boss_ch1" }
+      "bossDuel": "boss_ch1",
+      "waves": 8,
+      "startSilver": 400
     },
     {
       "id": "1-11",
