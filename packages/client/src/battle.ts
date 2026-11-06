@@ -293,7 +293,10 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   const mem = { placed: 0 };
   let acc = 0, last = performance.now(), frames = 0, fpsAt = last;
   // Hooks for scripts/shots.mjs (visual proof in a real browser).
-  Object.assign(window, { __game: { s, fps: 0 }, __toScreen: (tx: number, ty: number) => board.toScreen(tx * 1000 + 500, ty * 1000 + 500, 0) });
+  Object.assign(window, {
+    __game: { s, fps: 0 }, __toScreen: (tx: number, ty: number) => board.toScreen(tx * 1000 + 500, ty * 1000 + 500, 0),
+    __fx: (ev: SimEvent[]) => { board.sync(s, performance.now()); board.events(s, ev, performance.now()); },
+  });
   function frame(now: number) {
     const dt = Math.min(250, now - last); last = now;
     if (!paused && !isOver(s)) {

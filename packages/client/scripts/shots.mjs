@@ -29,6 +29,79 @@ async function page(url, video) {
   return { ctx, p };
 }
 
+// 0) Looks, zoomed (2x device pixels) on a paused, prop-free 1-1 board: each roster at tier 1, 2, 3a and 3b
+//    (kits-<sect>.png), one enemy per status (status.png), and frames of each tier-3 branch b effect (fx-b-<kind>-N.png).
+//    SHOTS_ONLY=kits stops after this scene.
+{
+  const KIT = { striker: 'metal', burst: 'fire', control: 'water', stacker: 'wood', support: 'yinyang' };
+  const UNIT = { fire: 'crimson_phoenix_', wood: 'jade_bamboo_' };
+  const setup = (p, disciples, enemies) => p.evaluate(([ds, es]) => {
+    const s = window.__game.s;
+    s.layout.props = [];
+    s.disciples = ds.map(([unit, el, kit, level, branch, tx, ty], i) => ({
+      id: 100 + i, level, tx, ty, x: tx * 1000 + 500, y: ty * 1000 + 500, cd: 0, hits: 0, spent: 0, rootT: 0, pushT: 0, bellT: 0, offT: 0,
+      els: [kit], combo: null, unit, el, target: 'first', branch,
+    }));
+    s.enemies = es.map(([tx, ty, st], i) => ({
+      id: 500 + i, hp: st.hp ?? 80, maxHp: 100, d: 0, speed: 0, bounty: 0, x: tx * 1000 + 500, y: ty * 1000 + 500, path: 0,
+      slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, burnAge: 0, poison: 0, poisonT: 0, poisonDps: 0, stunT: 0, rootedT: 0, lastElT: 0, age: 0,
+      regenPct: 0, phase: 0, type: 'cultist', el: 'fire', lastEl: null, elite: null, air: false, revealed: true, small: false, ...st,
+    }));
+    window.dispatchEvent(new Event('resize'));
+  }, [disciples, enemies]);
+  for (const sect of ['fire', 'wood']) {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
+    const p = await ctx.newPage();
+    p.on('console', (m) => { if (m.type() === 'error') errors.push(`kits-${sect}: ${m.text()}`); });
+    p.on('pageerror', (e) => errors.push(`kits-${sect}: ${e.message}`));
+    await p.goto(base + `?stage=1-1&sect=${sect}&seed=1`);
+    await p.waitForFunction(() => window.__game);
+    await p.keyboard.press('p');
+    const box = await p.locator('canvas').boundingBox();
+    const clip = async (x0, y0, x1, y1) => {
+      const [a, b] = await p.evaluate(([x0, y0, x1, y1]) => [window.__toScreen(x0, y0), window.__toScreen(x1, y1)], [x0, y0, x1, y1]);
+      return { x: box.x + a.x, y: box.y + a.y, width: b.x - a.x, height: b.y - a.y };
+    };
+    const roster = [];
+    Object.entries(KIT).forEach(([role, kit], c) =>
+      [[1, null], [2, null], [3, 'a'], [3, 'b']].forEach(([level, branch], r) => roster.push([UNIT[sect] + role, sect, kit, level, branch, 2 + c * 2, 2 + r * 2])));
+    await setup(p, roster, []);
+    await sleep(400);
+    await p.screenshot({ path: out + `kits-${sect}.png`, clip: await clip(0.5, 0, 11.5, 9.5) });
+    if (sect === 'wood') { await ctx.close(); continue; }
+
+    const status = [{}, { burnT: 40 }, { poison: 2, poisonT: 40 }, { stunT: 40 }, { slowT: 40, slowPct: 30 }, { stunT: 40 }, { stunT: 40, rootedT: 40 }];
+    await setup(p, [], status.map((st, i) => [10 + i * 2, 5, st]));
+    await sleep(100);
+    await p.evaluate(() => window.__fx([[503, 'bell'], [505, 'freeze'], [506, 'root']].map(([id, kind]) => ({ e: 'stun', id, from: -1, kind }))));
+    await sleep(300);
+    await p.screenshot({ path: out + 'status.png', clip: await clip(9, 2.5, 23.4, 6.5) });
+
+    const at = (role, kit, ...es) => [[[UNIT.fire + role, 'fire', kit, 3, 'b', 11, 5]], es];
+    for (const [kind, [ds, es], ev] of [
+      ['execute', at('striker', 'metal', [14, 5, { hp: 20 }]), [{ e: 'hit', from: 100, to: 500, dmg: 248, kind: 'execute' }]],
+      ['wildfire', at('burst', 'fire', [14, 5, { burnT: 60 }], [15, 4, { burnT: 60 }], [15, 6, { burnT: 60 }]), [{ e: 'hit', from: 100, to: 500, dmg: 31, kind: 'wildfire' }]],
+      ['root', at('stacker', 'wood', [13, 5, { stunT: 40, rootedT: 40 }], [12, 7, { stunT: 40, rootedT: 40 }], [13, 3, { stunT: 40, rootedT: 40 }]),
+        [{ e: 'hit', from: 100, to: 500, dmg: 12 }, ...[500, 501, 502].map((id) => ({ e: 'stun', id, from: 100, kind: 'root' }))]],
+      ['bell', [[[null, null, 'earth', 3, 'b', 11, 5]], [[12, 5, { stunT: 40 }], [11, 6, { stunT: 40 }]]],
+        [500, 501].map((id) => ({ e: 'stun', id, from: 100, kind: 'bell' }))],
+      ['freeze', at('control', 'water', [14, 5, { stunT: 40, slowT: 40 }]), [{ e: 'hit', from: 100, to: 500, dmg: 14 }, { e: 'stun', id: 500, from: 100, kind: 'freeze' }]],
+    ]) {
+      await setup(p, ds, es);
+      await sleep(1000);
+      await p.evaluate((ev) => window.__fx(ev), ev);
+      for (let i = 0; i < 3; i++) { await sleep(i ? 150 : 60); await p.screenshot({ path: out + `fx-b-${kind}-${i}.png`, clip: await clip(7, 1, 17, 8.5) }); }
+    }
+    await ctx.close();
+  }
+  if (process.env.SHOTS_ONLY === 'kits') {
+    await browser.close(); await server.close();
+    console.log('saved to', out);
+    if (errors.length) { console.error('console errors:\n' + errors.join('\n')); process.exit(1); }
+    process.exit(0);
+  }
+}
+
 // 1) By hand on 1-1: the opening board, a card picked with its range shown, then a placed disciple selected.
 {
   const { ctx, p } = await page('?stage=1-1&sect=fire');

@@ -19,7 +19,9 @@ export interface SimEvent {
   e: string;
   from?: number; to?: number; id?: number; dmg?: number; pct?: number; x?: number; y?: number; amount?: number; wave?: number;
   crit?: boolean; won?: boolean; el?: string | null; msg?: string; name?: string; type?: string; cards?: string[]; stars?: boolean[];
+  kind?: FxKind; // view only (not in the canonical hash): which technique a hit or stun came from, for its own effect
 }
+export type FxKind = 'execute' | 'wildfire' | 'root' | 'bell' | 'freeze';
 
 export interface Disciple {
   id: number; level: number; tx: number; ty: number; x: number; y: number; cd: number; hits: number; spent: number;
@@ -68,7 +70,7 @@ export const AUTO_START_TICKS = 30 * Hz; // the HUD shows the countdown
 const DOT_EVERY = Hz / 2;
 
 const METAL_CRIT_PCT = 15, METAL_EVERY = 6, WOOD_POISON_DPS = 10, WOOD_VULN_PCT = 25, WATER_SLOW_PCT = 30, WATER_FREEZE_EVERY = 5;
-const FIRE_BURN_DPS = 6, FIRE_SPLASH = 800, FIRE_EXPLODE_DMG = 30, EARTH_SPLASH = TILE, YY_REVEAL = 3 * TILE, YY_RATE_PCT = 120;
+export const FIRE_BURN_DPS = 6, FIRE_SPLASH = 800, FIRE_EXPLODE_DMG = 30, EARTH_SPLASH = TILE, YY_REVEAL = 3 * TILE, YY_RATE_PCT = 120;
 const DASH_DIST = 2 * TILE, HEAL_RANGE = 1500, HEAL_PCT = 5, HEAL_BOSS_PCT = 1, BRUTE_ARMOR = 5, ADJACENCY_PCT = 115;
 const WOOD_POISON_TICKS = 3 * Hz, WOOD_ROOT_EVERY = 8 * Hz, WOOD_ROOT_TICKS = 1 * Hz, WATER_SLOW_TICKS = 2 * Hz;
 const WATER_FREEZE_TICKS = Math.round(1.2 * Hz), WATER_PUSH_EVERY = 12 * Hz, FIRE_BURN_TICKS = 3 * Hz;
@@ -481,7 +483,7 @@ const hasLevel = (s: DefendState, el: string, level: number) => s.disciples.some
 // Tier-3 branch b of its kit (a disciple at tier 3 with no branch recorded plays branch a).
 const isB = (d: Disciple) => d.level >= MAX_LEVEL && d.branch === 'b';
 
-function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: boolean, ev: SimEvent[]): void {
+function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: boolean, ev: SimEvent[], kind?: FxKind): void {
   const pct = wuxingPct(wux(d), e.el);
   let dmg = div(raw * pct, 100);
   if (s.disciples.some((o) => o.els.includes('wood') && o.level >= 3 && !isB(o)) && (s.sect === 'fire' ? e.burnT > 0 : e.poison > 0)) dmg = div(dmg * (100 + WOOD_VULN_PCT), 100); // roster: the sect DoT
@@ -496,7 +498,7 @@ function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: bo
   e.hp -= dmg;
   e.lastEl = wux(d)[0]!;
   e.lastElT = MIMIC_TICKS;
-  ev.push({ e: 'hit', from: d.id, to: e.id, dmg, pct, crit, el: wux(d)[0]! });
+  ev.push({ e: 'hit', from: d.id, to: e.id, dmg, pct, crit, el: wux(d)[0]!, kind });
 }
 
 const dist2 = (d: Disciple, e: Enemy) => { const dx = d.x - e.x, dy = d.y - e.y; return dx * dx + dy * dy; };
@@ -537,7 +539,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
       if (!e.air && e.hp > 0 && within(d.x, d.y, e.x, e.y, r)) {
         e.stunT = Math.max(e.stunT, t);
         if (d.combo === 'root_quake') addPoison(e, WOOD_POISON_DPS);
-        ev.push({ e: 'stun', id: e.id, from: d.id });
+        ev.push({ e: 'stun', id: e.id, from: d.id, kind: 'bell' });
       }
   }
 
@@ -571,8 +573,9 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
   if (d.combo === 'frozen_blade' && tg.stunT > 0) crit = true;
   let raw = crit ? st.dmg * 2 : st.dmg;
   // Metal tier 3 branch b: an execution stroke on a target below executeBelowPct HP.
-  if (isB(d) && d.els.includes('metal') && tg.hp * 100 < tg.maxHp * branchB.executeBelowPct) raw = div(raw * branchB.executeDmgPct, 100);
-  dealDamage(s, d, tg, raw, crit, ev);
+  const execute = isB(d) && d.els.includes('metal') && tg.hp * 100 < tg.maxHp * branchB.executeBelowPct;
+  if (execute) raw = div(raw * branchB.executeDmgPct, 100);
+  dealDamage(s, d, tg, raw, crit, ev, execute ? 'execute' : isB(d) && d.els.includes('fire') ? 'wildfire' : undefined);
 
   for (const el of d.els) {
     switch (el) {
@@ -599,12 +602,12 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
             if (canTarget(e, st.hitsAir, st.hitsGround) && within(d.x, d.y, e.x, e.y, st.range)) {
               e.stunT = Math.max(e.stunT, branchB.rootTicks);
               e.rootedT = Math.max(e.rootedT, branchB.rootTicks);
-              ev.push({ e: 'stun', id: e.id, from: d.id });
+              ev.push({ e: 'stun', id: e.id, from: d.id, kind: 'root' });
             }
         } else if (lvl >= 2 && d.rootT >= WOOD_ROOT_EVERY) {
           d.rootT = 0;
           tg.stunT = Math.max(tg.stunT, WOOD_ROOT_TICKS);
-          ev.push({ e: 'stun', id: tg.id, from: d.id });
+          ev.push({ e: 'stun', id: tg.id, from: d.id, kind: 'root' });
         }
         break;
       case 'water':
@@ -612,7 +615,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
         tg.slowPct = Math.max(tg.slowPct, WATER_SLOW_PCT);
         if (lvl >= 2 && d.hits % (isB(d) ? branchB.freezeEvery : WATER_FREEZE_EVERY) === 0) {
           tg.stunT = Math.max(tg.stunT, WATER_FREEZE_TICKS);
-          ev.push({ e: 'stun', id: tg.id, from: d.id });
+          ev.push({ e: 'stun', id: tg.id, from: d.id, kind: 'freeze' });
         }
         if (lvl >= 3 && !isB(d) && d.pushT >= WATER_PUSH_EVERY) { d.pushT = 0; tg.d = Math.max(0, tg.d - TILE); }
         break;
