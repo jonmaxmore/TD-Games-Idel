@@ -31,7 +31,7 @@
         { "lvl": 1, "name": "Verdant Venom", "nameTh": "พิษมรกต", "effect": "poison 10 dps, stacks x3", "effectTh": "ติดพิษซ้อนได้ 3 ชั้น เสียเลือดต่อเนื่อง 3 วินาที" },
         { "lvl": 2, "name": "Binding Vines", "nameTh": "เถาวัลย์รัด", "effect": "root 1s every 8s", "effectTh": "ทุก 8 วินาที เถาวัลย์รัดเป้าหมายอยู่กับที่ 1 วินาที" },
         { "lvl": 3, "branch": "a", "name": "Song of Withering", "nameTh": "เพลงขลุ่ยร่วงโรย", "effect": "aura: poisoned enemies take +25% dmg", "effectTh": "ศัตรูที่ติดพิษโดนดาเมจจากทุกคนแรงขึ้น 25%" },
-        { "lvl": 3, "branch": "b", "name": "Binding Roots", "nameTh": "รากพันธนาการ", "effect": "every 8s roots every enemy in range for 1s", "effectTh": "ทุก 8 วินาที รากตรึงศัตรูทุกตัวในระยะ 1 วินาที", "rule": { "everySec": 8, "rootSec": 1 } }
+        { "lvl": 3, "branch": "b", "name": "Binding Roots", "nameTh": "รากพันธนาการ", "effect": "every 8s roots every enemy in range for 2s; rooted enemies take +50% dmg", "effectTh": "ทุก 8 วินาที รากตรึงศัตรูทุกตัวในระยะ 2 วินาที ศัตรูที่ถูกตรึงโดนดาเมจจากทุกคนแรงขึ้น 50%", "rule": { "everySec": 8, "rootSec": 2, "takenPct": 50 } }
       ]
     },
     {

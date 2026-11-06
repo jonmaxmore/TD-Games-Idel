@@ -62,7 +62,7 @@ describe('tier-3 branches', () => {
     expect(strike('a', 29)).toBe(strike('a', 31));
   });
 
-  it('wood: a makes poisoned enemies take 25% more; b roots every enemy in range every 8 s', () => {
+  it('wood: a makes poisoned enemies take 25% more; b roots every enemy in range every 8 s and they take more damage while rooted', () => {
     const poisoned = (branch: Branch) => {
       const { s, d, foe } = tier3('wood', branch);
       foe(0, 0, { poison: 3, poisonT: 60, poisonDps: 1 });
@@ -75,6 +75,17 @@ describe('tier-3 branches', () => {
       d.rootT = 8 * 20 - 1;
       expect(stunsFrom(run(s, 1), d).length, branch).toBe(branch === 'a' ? 1 : 3);
     }
+    // b: an enemy its roots hold takes takenPct more from every hit while held, and only then.
+    const strike = (rooted: boolean) => {
+      const { s, d, foe } = tier3('wood', 'b');
+      foe(0, 0);
+      d.rootT = rooted ? branchB.rootEvery - 1 : 0; // the roots land on this tick's attack, before the hit's damage on the next
+      run(s, 1);
+      d.cd = 0;
+      return hitsFrom(run(s, 1), d)[0]!.dmg!;
+    };
+    expect(branchB.rootTakenPct).toBeGreaterThan(0);
+    expect(strike(true)).toBe(Math.floor((strike(false) * (100 + branchB.rootTakenPct)) / 100));
   });
 
   it('water: a pushes the target back a tile every 12 s; b freezes more often than every 5th hit', () => {

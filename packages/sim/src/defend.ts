@@ -35,6 +35,7 @@ export interface Enemy {
   path: number; // index into DefendState.paths; d is the distance walked along it
   slowT: number; slowPct: number; burnT: number; burnDps: number; burnAge: number; poison: number; poisonT: number; poisonDps: number;
   stunT: number; lastElT: number; age: number; regenPct: number; phase: number;
+  rootedT: number; // held by Binding Roots (wood tier 3 b): takes more damage from every hit while it lasts
   type: string; el: string; lastEl: string | null; elite: string | null;
   air: boolean; revealed: boolean; small: boolean;
 }
@@ -436,7 +437,7 @@ function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = f
   const e: Enemy = {
     id: s.nextId++, type, el: moonElement(def.element, moonPhase(s.rule, q.wave)), air: def.air, hp, maxHp: hp, d: at, path: q.path, speed, bounty, x: p.x, y: p.y, small,
     elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0,
-    slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, burnAge: 0, poison: 0, poisonT: 0, poisonDps: 0, stunT: 0, lastElT: 0, age: 0, phase: 0,
+    slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, burnAge: 0, poison: 0, poisonT: 0, poisonDps: 0, stunT: 0, rootedT: 0, lastElT: 0, age: 0, phase: 0,
     lastEl: null, revealed: false,
   };
   s.enemies.push(e);
@@ -484,6 +485,7 @@ function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: bo
   const pct = wuxingPct(wux(d), e.el);
   let dmg = div(raw * pct, 100);
   if (s.disciples.some((o) => o.els.includes('wood') && o.level >= 3 && !isB(o)) && (s.sect === 'fire' ? e.burnT > 0 : e.poison > 0)) dmg = div(dmg * (100 + WOOD_VULN_PCT), 100); // roster: the sect DoT
+  if (e.rootedT > 0) dmg = div(dmg * (100 + branchB.rootTakenPct), 100);
   if (e.type === 'mimic' && e.lastElT > 0 && e.lastEl != null && wux(d).includes(e.lastEl)) dmg = div(dmg, 2);
   const freeze = card(s, 'slowedVuln');
   if (freeze && e.slowT > 0) dmg = div(dmg * (100 + freeze.pct), 100);
@@ -591,11 +593,12 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
           tg.burnDps = Math.max(tg.burnDps, dotDps(d, tg, WOOD_POISON_DPS * 2, lvl));
         } else addPoison(tg, dotDps(d, tg, WOOD_POISON_DPS, lvl));
         if (isB(d) && d.rootT >= branchB.rootEvery) {
-          // Tier 3 branch b: the roots bind every enemy in range, not just the target.
+          // Tier 3 branch b: the roots bind every enemy in range, not just the target, and leave it open to every hit.
           d.rootT = 0;
           for (const e of s.enemies)
             if (canTarget(e, st.hitsAir, st.hitsGround) && within(d.x, d.y, e.x, e.y, st.range)) {
               e.stunT = Math.max(e.stunT, branchB.rootTicks);
+              e.rootedT = Math.max(e.rootedT, branchB.rootTicks);
               ev.push({ e: 'stun', id: e.id, from: d.id });
             }
         } else if (lvl >= 2 && d.rootT >= WOOD_ROOT_EVERY) {
@@ -668,6 +671,7 @@ function moveEnemies(s: DefendState, ev: SimEvent[]): void {
     e.age++;
     e.revealed = s.revealAllT > 0 || e.stunT > 0 || e.slowT > 0 || yy.some((d) => within(d.x, d.y, e.x, e.y, YY_REVEAL));
     if (e.lastElT > 0) e.lastElT--;
+    if (e.rootedT > 0) e.rootedT--;
     if (e.age % DOT_EVERY === 0) {
       const armour = e.type === 'brute' ? 2 : 1; // Iron Shirt halves damage over time too
       // Fire sect rule: a burn that keeps going hits harder, +rampPctPerSec per second up to +rampMaxPct.

@@ -21,7 +21,8 @@ export function bestTiles(s: DefendState, range = 2500, lane: number | null = nu
 
 // branch: send this tier-3 branch on every upgrade to tier 3 (a kit without branch b gets a). Unset, the upgrade
 // carries no branch and the rules play branch a, so the default bot's commands and the goldens stay as they were.
-export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean; branch?: Branch }
+// branchKit: force branch only on that kit's disciples, the rest take a.
+export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean; branch?: Branch; branchKit?: string }
 
 // earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
 // One decision per tick; `mem.placed` counts placements so the bot rotates through its sects.
@@ -47,7 +48,7 @@ export function botCommands(s: DefendState, o: PlayOpts = {}, mem = { placed: 0 
     if (spots.length > 0 && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); mem.placed++; }
   } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) {
     const up: Command = { t: 'upgrade', id: lowest.id };
-    if (o.branch != null && lowest.level === 2) up.branch = o.branch === 'b' && hasBranchB(lowest.els[0]!) ? 'b' : 'a';
+    if (o.branch != null && lowest.level === 2) up.branch = o.branch === 'b' && hasBranchB(lowest.els[0]!) && (o.branchKit == null || o.branchKit === lowest.els[0]) ? 'b' : 'a';
     cmds.push(up);
   }
   return cmds;
