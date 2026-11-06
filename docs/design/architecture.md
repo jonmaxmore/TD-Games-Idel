@@ -1,6 +1,6 @@
 # สถาปัตยกรรมระบบ
 
-> ส่วนหนึ่งของ [GDD](../GDD.md) · การตัดสินใจหลักบันทึกใน [ADR 0007](../adr/0007-typescript-threejs-node.md) (TypeScript ทั้งระบบ: three.js + Node แทน ADR 0004 และ 0006) และ [ADR 0003](../adr/0003-node-postgres-backend.md) (หลังบ้าน Node + PostgreSQL)
+> ส่วนหนึ่งของ [GDD](../GDD.md) · การตัดสินใจหลักบันทึกใน [ADR 0007](../adr/0007-typescript-threejs-node.md) (TypeScript ทั้งระบบ + Node แทน ADR 0004 และ 0006), [ADR 0008](../adr/0008-pc-only-16x9.md) (PC 16:9, พิกเซลอาร์ต 2.5D ไม่มี 3D) และ [ADR 0003](../adr/0003-node-postgres-backend.md) (หลังบ้าน Node + PostgreSQL)
 > สถานะ: ที่สร้างจริงแล้วคือกฎเกม `packages/sim` + เทสต์ vitest + client พิกเซลอาร์ต 2.5D บน Canvas 2D สำหรับ PC 16:9 (`packages/client`, [ADR 0008](../adr/0008-pc-only-16x9.md)) · ฝั่งเซิร์ฟเวอร์เริ่มใน M1 · **หมายเหตุ:** หัวข้อที่ยังพูดถึง Unity หรือ ASP.NET ด้านล่างให้อ่านเป็น client เว็บ Canvas 2D บน PC และ Node/Fastify ตาม ADR 0007 จนกว่าจะเขียนใหม่
 > `packages/sim` (TypeScript) และ `packages/client` (Phaser) ถูกแช่แข็งไว้อ้างอิง ไม่ใช่ต้นฉบับอีกต่อไป
 > ระดับเป้าหมาย: **ระดับกลาง** รองรับผู้เล่นออนไลน์พร้อมกันหลักหมื่นในภูมิภาคเดียว (SEA) ขยายต่อได้โดยไม่ต้องรื้อ
