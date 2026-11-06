@@ -1,8 +1,8 @@
 # ศึกห้าสำนัก (TD-Games-Idel)
 
-Wuxia tower defense, pixel art, **PC only, 16:9** (mouse and keyboard; browser build, desktop wrapper later). No mobile build (ADR 0008). End goal is a full esports title; flagship competitive mode is attack/defend 1v1 (`docs/design/esports.md`). Launch v1.0 + Season 1 as a mass-market game first; the esports program starts once the game is mass. Build the foundations (deterministic sim, replays, fair ranked) from day one. Design lives in `docs/`; read `docs/GDD.md` before any game work. Game data (`docs/data/*.json`) is the source of truth for numbers and names; code reads it, never hard-codes it.
+Wuxia tower defense, **2.5D pixel art** (3/4 top-down board, upright pixel figures; no 3D), **PC only, 16:9** (mouse and keyboard; browser build, desktop wrapper later). No mobile build (ADR 0008). End goal is a full esports title; flagship competitive mode is attack/defend 1v1 (`docs/design/esports.md`). Launch v1.0 + Season 1 as a mass-market game first; the esports program starts once the game is mass. Build the foundations (deterministic sim, replays, fair ranked) from day one. Design lives in `docs/`; read `docs/GDD.md` before any game work. Game data (`docs/data/*.json`) is the source of truth for numbers and names; code reads it, never hard-codes it.
 
-Architecture: `docs/design/architecture.md` and ADR 0007 (TypeScript everywhere). **One language, one rules implementation:** the rules are `packages/sim` (TypeScript): deterministic, integer-only, no DOM. The client is `packages/client`: Vite + three.js for the board, plain DOM/CSS for the HUD, all laid out on a fixed 1280x720 stage scaled to the window. The backend (from M1) is Node 22 + Fastify + PostgreSQL 16 (Drizzle) + Redis 7 + BullMQ under `packages/` (`protocol`, `api`, `game`, `worker`, `db`) and uses the same `packages/sim`. No SQLite. The server never trusts client outcomes: it re-runs replays with `packages/sim`.
+Architecture: `docs/design/architecture.md` and ADR 0007 (TypeScript everywhere). **One language, one rules implementation:** the rules are `packages/sim` (TypeScript): deterministic, integer-only, no DOM. The client is `packages/client`: Vite, Canvas 2D for the pixel-art board (no WebGL, no 3D), plain DOM/CSS for the HUD, all laid out on a fixed 1280x720 stage scaled to the window. The backend (from M1) is Node 22 + Fastify + PostgreSQL 16 (Drizzle) + Redis 7 + BullMQ under `packages/` (`protocol`, `api`, `game`, `worker`, `db`) and uses the same `packages/sim`. No SQLite. The server never trusts client outcomes: it re-runs replays with `packages/sim`.
 
 ## Skills and agents to use, by phase
 
@@ -14,7 +14,7 @@ Installed under `.claude/` (sources in `.claude/THIRD_PARTY.md`). Use them; don'
 | Unclear ask | `interview-me` or `idea-refine` before writing anything |
 | Implementing | `/build` (incremental-implementation) + `/test` (test-driven-development). `ponytail` is always on via hooks: smallest change that works. |
 | Large or parallel work | `poteto-mode`; delegate subtasks to `poteto-agent` |
-| Framework/API decisions (three.js, Vite, Fastify, Drizzle, BullMQ) | `source-driven-development` |
+| Framework/API decisions (Vite, Canvas 2D, Fastify, Drizzle, BullMQ) | `source-driven-development` |
 | UI / HUD / menus | `frontend-ui-engineering` |
 | Before merge | `/review` + `code-reviewer` agent; `security-auditor` for server, accounts, IAP; `ponytail-review` for bloat |
 | Performance (60fps on a mid-range PC) | `/webperf` + `web-performance-auditor`, `performance-optimization` |

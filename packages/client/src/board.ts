@@ -1,247 +1,224 @@
-// The battlefield in three.js: a dark low-poly board drawn at low resolution and scaled up with hard pixels.
-// It only reads the sim state; it never changes it.
-import * as THREE from 'three';
+// The battlefield in 2.5D pixel art with plain Canvas 2D: a 3/4 top-down board (tiles squashed vertically) and
+// upright pixel figures drawn back to front. It draws at low resolution in whole pixels; CSS scales the canvas up
+// with hard edges. It only reads the sim state; it never changes it.
 import { enemies as enemyDefs, grid, sects, TILE, units, type DefendState, type SimEvent } from '@five-sects/sim';
 
-const RENDER_HEIGHT = 480; // pixels tall; CSS scales the canvas up with image-rendering: pixelated
-const W = grid.w, H = grid.h;
-const FIG = 1.35; // figures a bit larger than a tile's worth so roles read at a glance
-
-// Milli-tiles (sim) to world units: one tile = 1, board centred on the origin.
-const wx = (x: number) => x / TILE - W / 2;
-const wz = (y: number) => y / TILE - H / 2;
-
-const mats = new Map<string, THREE.MeshLambertMaterial>();
-function mat(color: string | number, emissive = 0x000000): THREE.MeshLambertMaterial {
-  const key = `${color}|${emissive}`;
-  let m = mats.get(key);
-  if (!m) mats.set(key, (m = new THREE.MeshLambertMaterial({ color, emissive, flatShading: true })));
-  return m;
-}
-const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
-const GEO = {
-  tile: box(0.96, 0.2, 0.96), body: new THREE.CylinderGeometry(0.16, 0.22, 0.5, 6), head: new THREE.SphereGeometry(0.13, 6, 4),
-  hat: new THREE.ConeGeometry(0.2, 0.2, 6), blade: box(0.05, 0.5, 0.05), orb: new THREE.IcosahedronGeometry(0.11, 0),
-  fan: new THREE.CylinderGeometry(0.22, 0.22, 0.03, 6, 1, false, 0, Math.PI), ring: new THREE.TorusGeometry(0.28, 0.03, 4, 12),
-  enemy: new THREE.CylinderGeometry(0.14, 0.18, 0.4, 5), hpBg: box(0.5, 0.06, 0.02), hp: box(0.5, 0.06, 0.03),
-  shot: box(0.06, 0.06, 1), wing: box(0.6, 0.03, 0.15),
-};
-
-// What a role carries, so a player can tell disciples apart at a glance.
-function weapon(role: string, color: string): THREE.Object3D {
-  const g = new THREE.Group();
-  const m = mat(color, 0x111111);
-  if (role === 'striker') { const b = new THREE.Mesh(GEO.blade, mat('#E8EEF5', 0x333333)); b.position.set(0.24, 0.45, 0); b.rotation.z = -0.4; g.add(b); }
-  else if (role === 'burst') { const f = new THREE.Mesh(GEO.fan, m); f.position.set(0.22, 0.55, 0); f.rotation.x = Math.PI / 2; g.add(f); }
-  else if (role === 'control') { const r = new THREE.Mesh(GEO.ring, m); r.position.y = 0.1; r.rotation.x = Math.PI / 2; g.add(r); }
-  else if (role === 'stacker') { const o = new THREE.Mesh(GEO.orb, mat('#7CFF6A', 0x225522)); o.position.set(0.25, 0.6, 0); g.add(o); }
-  else { const o = new THREE.Mesh(GEO.orb, mat('#FFE9A8', 0x665522)); o.position.set(0, 1.05, 0); g.add(o); }
-  return g;
-}
-
-function discipleFigure(key: string, level: number): THREE.Group {
-  const u = units.get(key);
-  const color = u?.color ?? sects.get(key)?.color ?? '#ffffff';
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(GEO.body, mat(color)); body.position.y = 0.35; g.add(body);
-  const head = new THREE.Mesh(GEO.head, mat('#E9C9A4')); head.position.y = 0.72; g.add(head);
-  const hat = new THREE.Mesh(GEO.hat, mat('#1A1418')); hat.position.y = 0.86; g.add(hat);
-  g.add(weapon(u?.roleId ?? 'striker', color));
-  // Tier: a gold ring per level above 1.
-  for (let i = 1; i < level; i++) { const r = new THREE.Mesh(GEO.ring, mat('#FFD34A', 0x664400)); r.rotation.x = Math.PI / 2; r.position.y = 0.04 + i * 0.07; g.add(r); }
-  g.traverse((o) => { if (o instanceof THREE.Mesh) o.castShadow = true; });
-  g.scale.setScalar(FIG);
-  return g;
-}
+const T = 24; // buffer pixels per tile across the screen
+const K = 0.625; // vertical squash of the ground (a tile is 24x15): the 3/4 view
+const TH = T * K;
+const TOP = 34; // room above the far row for figures standing on it
+const PAD = 8;
+// The board's long side (grid.h, the y axis) runs across the 16:9 screen; x runs into the screen.
+const BW = grid.h * T, BH = grid.w * TH;
 
 const ENEMY_COLOR: Record<string, string> = {
   cultist: '#8A2A2A', runner: '#3E7A3A', brute: '#6E7680', leaper: '#4A6A3A', puppet: '#5A6E8A',
   assassin: '#2A2A38', healer: '#B0302A', mimic: '#4A5AA0',
 };
+const ROLE_LOOK: Record<string, string> = { striker: '#E8EEF5', burst: '#FF9A4A', control: '#7FD0FF', stacker: '#7CFF6A', support: '#FFE9A8' };
 
-function enemyFigure(type: string): THREE.Group {
-  const def = enemyDefs.get(type)!;
-  const boss = def.boss != null;
-  const g = new THREE.Group();
-  const s = boss ? 2 : type === 'brute' ? 1.4 : 1;
-  const body = new THREE.Mesh(GEO.enemy, mat(boss ? '#5A0E14' : ENEMY_COLOR[type] ?? '#7A2A2A').clone()); // own material: status tint is per enemy
-  body.scale.setScalar(s); body.position.y = 0.2 * s; body.castShadow = true; g.add(body);
-  const head = new THREE.Mesh(GEO.head, mat('#D8C0A8')); head.scale.setScalar(s * 0.9); head.position.y = 0.48 * s; g.add(head);
-  if (def.air) { const w = new THREE.Mesh(GEO.wing, mat('#2A3A2A')); w.position.y = 0.3; g.add(w); }
-  const bg = new THREE.Mesh(GEO.hpBg, new THREE.MeshBasicMaterial({ color: '#200808' }));
-  const hp = new THREE.Mesh(GEO.hp, new THREE.MeshBasicMaterial({ color: '#E23B2E' }));
-  bg.position.y = hp.position.y = 0.75 * s + 0.15;
-  hp.name = 'hp';
-  g.add(bg, hp);
-  g.scale.setScalar(FIG);
-  return g;
-}
-
-interface Fx { obj: THREE.Object3D; until: number }
+interface Fx { draw: (g: CanvasRenderingContext2D, k: number) => void; from: number; until: number }
+interface Status { burnT: number; poison: number; stunT: number; slowT: number; id: number }
 
 export class Board {
-  readonly renderer: THREE.WebGLRenderer;
-  readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
-  private discs = new Map<number, { g: THREE.Group; key: string }>();
-  private foes = new Map<number, THREE.Group>();
+  private g: CanvasRenderingContext2D;
+  private ox = 0;
+  private oy = 0;
+  private scale = 1; // CSS pixels per buffer pixel
   private fx: Fx[] = [];
-  private ring = new THREE.Mesh(new THREE.RingGeometry(0.95, 1, 48), new THREE.MeshBasicMaterial({ color: '#FFE9A8', transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
-  private cursor = new THREE.Mesh(box(1, 0.05, 1), new THREE.MeshBasicMaterial({ color: '#FFE9A8', transparent: true, opacity: 0.35 }));
-  private ground: THREE.Mesh;
-  private ray = new THREE.Raycaster();
+  private seen = new Map<number, { x: number; y: number }>(); // drawn enemy positions, eased toward the sim's
+  private range: { x: number; y: number; r: number } | null = null;
+  private cursor: { tx: number; ty: number; ok: boolean } | null = null;
 
-  constructor(private canvas: HTMLCanvasElement, s: DefendState) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-    this.renderer.shadowMap.enabled = true;
-    this.scene.background = new THREE.Color('#0B0910');
-    this.scene.fog = new THREE.Fog('#0B0910', 30, 60);
-    this.scene.add(new THREE.HemisphereLight('#A898C8', '#2A1A12', 2.2));
-    const sun = new THREE.DirectionalLight('#FFD2A0', 3);
-    sun.position.set(-6, 14, 6); sun.castShadow = true;
-    sun.shadow.camera.left = sun.shadow.camera.bottom = -12; sun.shadow.camera.right = sun.shadow.camera.top = 12;
-    this.scene.add(sun);
-
-    // Tiles: path is packed earth, the rest dark grass in two tones; props are stone blocks.
-    for (let ty = 0; ty < H; ty++)
-      for (let tx = 0; tx < W; tx++) {
-        const key = `${tx},${ty}`;
-        const onPath = s.pathTiles.has(key);
-        const t = new THREE.Mesh(GEO.tile, mat(onPath ? '#8A6A48' : (tx + ty) % 2 ? '#2E4430' : '#355036'));
-        t.position.set(tx - W / 2 + 0.5, onPath ? -0.13 : -0.1, ty - H / 2 + 0.5);
-        t.receiveShadow = true;
-        this.scene.add(t);
-        if (s.blocked.has(key)) {
-          const rock = new THREE.Mesh(box(0.7, 0.5, 0.7), mat('#3A3540'));
-          rock.position.set(t.position.x, 0.2, t.position.z); rock.rotation.y = (tx * 7 + ty) % 3; rock.castShadow = true;
-          this.scene.add(rock);
-        }
-      }
-    // Gate at the goal (last path point).
-    const goal = s.path[s.path.length - 1]!;
-    const gate = new THREE.Mesh(box(1.2, 1.2, 0.3), mat('#7A1A12', 0x220000));
-    gate.position.set(wx(goal.x), 0.5, wz(goal.y)); this.scene.add(gate);
-
-    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ visible: false }));
-    this.ground.rotation.x = -Math.PI / 2;
-    this.scene.add(this.ground);
-    this.ring.rotation.x = -Math.PI / 2; this.ring.position.y = 0.02; this.ring.visible = false;
-    this.cursor.visible = false;
-    this.scene.add(this.ring, this.cursor);
+  constructor(private canvas: HTMLCanvasElement, private s: DefendState) {
+    this.g = canvas.getContext('2d')!;
     this.resize();
   }
 
-  // Fit the whole board into the canvas from a 60-degree pitch, looking along the board so its long side runs across the 16:9 screen.
+  // Whole-number pixel scale where it fits, so pixels stay square.
   resize(): void {
-    const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
-    this.renderer.setPixelRatio(RENDER_HEIGHT / Math.max(1, h));
-    this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
-    const pitch = (60 * Math.PI) / 180;
-    const corners = [[-W / 2, -H / 2], [W / 2, -H / 2], [-W / 2, H / 2], [W / 2, H / 2]].map(([x, z]) => new THREE.Vector3(x, 0, z));
-    let lo = 5, hi = 120;
-    for (let i = 0; i < 30; i++) {
-      const d = (lo + hi) / 2;
-      this.place(d, pitch);
-      const fits = corners.every((c) => { const p = c.clone().project(this.camera); return Math.abs(p.x) <= 0.98 && Math.abs(p.y) <= 0.98; });
-      if (fits) hi = d; else lo = d;
-    }
-    this.place(hi, pitch);
+    const cw = this.canvas.clientWidth, ch = this.canvas.clientHeight;
+    const fit = Math.min(cw / (BW + 2 * PAD), ch / (BH + TOP + 2 * PAD));
+    this.scale = Math.max(1, fit >= 2 ? Math.floor(fit) : fit);
+    this.canvas.width = Math.floor(cw / this.scale);
+    this.canvas.height = Math.floor(ch / this.scale);
+    this.ox = Math.floor((this.canvas.width - BW) / 2);
+    this.oy = Math.floor((this.canvas.height - BH + TOP) / 2);
   }
 
-  private place(d: number, pitch: number) {
-    this.camera.position.set(-Math.cos(pitch) * d, Math.sin(pitch) * d, 0);
-    this.camera.lookAt(0, 0, 0);
-    this.camera.updateProjectionMatrix();
-    this.camera.updateMatrixWorld();
-  }
+  // Sim milli-tiles to buffer pixels at ground level.
+  private sx = (y: number) => Math.round(this.ox + (y / TILE) * T);
+  private sy = (x: number) => Math.round(this.oy + (x / TILE) * TH);
 
-  // Screen point to tile, or null when off the board.
   tileAt(clientX: number, clientY: number): { tx: number; ty: number } | null {
     const r = this.canvas.getBoundingClientRect();
-    this.ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
-    const hit = this.ray.intersectObject(this.ground)[0];
-    if (!hit) return null;
-    const tx = Math.floor(hit.point.x + W / 2), ty = Math.floor(hit.point.z + H / 2);
-    return tx >= 0 && ty >= 0 && tx < W && ty < H ? { tx, ty } : null;
+    const bx = ((clientX - r.left) / r.width) * this.canvas.width, by = ((clientY - r.top) / r.height) * this.canvas.height;
+    const ty = Math.floor((bx - this.ox) / T), tx = Math.floor((by - this.oy) / TH);
+    return tx >= 0 && ty >= 0 && tx < grid.w && ty < grid.h ? { tx, ty } : null;
   }
 
-  // World point (milli-tiles) to CSS pixels inside the canvas, for floating text.
+  // World point (milli-tiles) to CSS pixels inside the canvas, for floating text. lift is in tiles above the ground.
   toScreen(x: number, y: number, lift = 0.9): { x: number; y: number } {
-    const p = new THREE.Vector3(wx(x), lift, wz(y)).project(this.camera);
-    return { x: ((p.x + 1) / 2) * this.canvas.clientWidth, y: ((1 - p.y) / 2) * this.canvas.clientHeight };
+    const r = this.canvas.clientWidth / this.canvas.width;
+    return { x: this.sx(y) * r, y: (this.sy(x) - lift * T) * r };
   }
 
-  showRange(x: number, y: number, range: number | null, tile?: { tx: number; ty: number }, ok = true) {
-    this.ring.visible = range != null;
-    if (range != null) { this.ring.position.set(wx(x), 0.03, wz(y)); this.ring.scale.setScalar(range / TILE); }
-    this.cursor.visible = tile != null;
-    if (tile) { this.cursor.position.set(tile.tx - W / 2 + 0.5, 0.03, tile.ty - H / 2 + 0.5); (this.cursor.material as THREE.MeshBasicMaterial).color.set(ok ? '#FFE9A8' : '#FF3B2E'); }
+  showRange(x: number, y: number, range: number | null, tile?: { tx: number; ty: number }, ok = true): void {
+    this.range = range != null ? { x, y, r: range } : null;
+    this.cursor = tile ? { ...tile, ok } : null;
   }
 
   sync(s: DefendState, now: number): void {
-    for (const d of s.disciples) {
-      const key = d.unit ?? d.els.join('+');
-      const cur = this.discs.get(d.id);
-      if (cur && cur.key === `${key}:${d.level}`) continue;
-      if (cur) this.scene.remove(cur.g);
-      const g = discipleFigure(d.unit ?? d.els[0]!, d.level);
-      g.position.set(wx(d.x), 0, wz(d.y));
-      this.scene.add(g);
-      this.discs.set(d.id, { g, key: `${key}:${d.level}` });
-    }
-    for (const [id, v] of this.discs) if (!s.disciples.some((d) => d.id === id)) { this.scene.remove(v.g); this.discs.delete(id); }
-    // Disciples sealed or disabled by a boss turn grey.
-    for (const d of s.disciples) {
-      const g = this.discs.get(d.id)!.g;
-      const off = d.offT > 0 || (s.sealT > 0 && s.sealEl != null && d.els.includes(s.sealEl));
-      g.scale.setScalar(off ? FIG * 0.85 : FIG);
-    }
-
-    const alive = new Set<number>();
+    this.s = s;
     for (const e of s.enemies) {
-      alive.add(e.id);
-      let g = this.foes.get(e.id);
-      if (!g) { g = enemyFigure(e.type); g.position.set(wx(e.x), 0, wz(e.y)); this.scene.add(g); this.foes.set(e.id, g); }
-      const air = enemyDefs.get(e.type)!.air;
-      g.position.lerp(new THREE.Vector3(wx(e.x), air ? 0.8 + Math.sin(now / 200 + e.id) * 0.1 : 0, wz(e.y)), 0.35);
-      g.lookAt(this.camera.position.x, g.position.y, this.camera.position.z);
-      const hp = g.getObjectByName('hp')!;
-      const f = Math.max(0, e.hp / e.maxHp);
-      hp.scale.x = Math.max(0.001, f); hp.position.x = -(1 - f) * 0.25;
-      // Status tint: burning orange, poisoned green, slowed or stunned blue; a hidden assassin is a shadow.
-      const body = g.children[0] as THREE.Mesh;
-      const tint = e.burnT > 0 ? 0x662200 : e.poison > 0 ? 0x115511 : e.stunT > 0 || e.slowT > 0 ? 0x113366 : 0;
-      (body.material as THREE.MeshLambertMaterial).emissive.setHex(tint);
-      g.visible = e.type !== 'assassin' || e.revealed || Math.floor(now / 150) % 4 === 0;
+      const p = this.seen.get(e.id);
+      if (!p) this.seen.set(e.id, { x: e.x, y: e.y });
+      else { p.x += (e.x - p.x) * 0.35; p.y += (e.y - p.y) * 0.35; }
     }
-    for (const [id, g] of this.foes) if (!alive.has(id)) { this.scene.remove(g); this.foes.delete(id); }
-
-    this.fx = this.fx.filter((f) => { if (now < f.until) return true; this.scene.remove(f.obj); return false; });
+    for (const id of this.seen.keys()) if (!s.enemies.some((e) => e.id === id)) this.seen.delete(id);
+    this.fx = this.fx.filter((f) => now < f.until);
   }
 
-  // Short-lived visuals for sim events: a streak per hit, a flash per art, a sweep for the phoenix.
+  // Short-lived visuals for sim events: a streak per hit, a ring per secret art, a sweep for the phoenix.
   events(s: DefendState, ev: SimEvent[], now: number): void {
     for (const e of ev) {
       if (e.e === 'hit') {
         const d = s.disciples.find((x) => x.id === e.from), t = s.enemies.find((x) => x.id === e.to);
         if (!d || !t) continue;
-        const a = new THREE.Vector3(wx(d.x), 0.6, wz(d.y)), b = new THREE.Vector3(wx(t.x), 0.3, wz(t.y));
-        const color = units.get(d.unit ?? '')?.color ?? sects.get(d.els[0]!)?.color ?? '#fff';
-        const m = new THREE.Mesh(GEO.shot, new THREE.MeshBasicMaterial({ color: e.crit ? '#FFFFFF' : color }));
-        m.position.copy(a).lerp(b, 0.5); m.lookAt(b); m.scale.z = a.distanceTo(b);
-        this.scene.add(m); this.fx.push({ obj: m, until: now + 90 });
+        const color = e.crit ? '#FFFFFF' : units.get(d.unit ?? '')?.color ?? sects.get(d.els[0]!)?.color ?? '#fff';
+        const [x0, y0, x1, y1] = [this.sx(d.y), this.sy(d.x) - 14, this.sx(t.y), this.sy(t.x) - 6];
+        this.fx.push({ from: now, until: now + 100, draw: (g) => line(g, x0, y0, x1, y1, color, e.crit ? 2 : 1) });
       } else if (e.e === 'art' || e.e === 'phoenix') {
-        const m = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.5, 24), new THREE.MeshBasicMaterial({ color: e.e === 'phoenix' ? '#FF7A1F' : '#FFE9A8', side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
-        m.rotation.x = -Math.PI / 2; m.position.set(e.e === 'art' && (e.x || e.y) ? wx(e.x!) : 0, 0.1, e.e === 'art' && (e.x || e.y) ? wz(e.y!) : 0);
-        m.scale.setScalar(e.e === 'phoenix' ? 18 : 4);
-        this.scene.add(m); this.fx.push({ obj: m, until: now + 400 });
+        const phoenix = e.e === 'phoenix';
+        const [cx, cy] = phoenix || !(e.x || e.y) ? [this.ox + BW / 2, this.oy + BH / 2] : [this.sx(e.y!), this.sy(e.x!)];
+        const [rx, ry] = phoenix ? [BW / 2, BH / 2] : [3 * T, 3 * TH];
+        this.fx.push({ from: now, until: now + 450, draw: (g, k) => { g.globalAlpha = 1 - k; ring(g, cx, cy, rx * k, ry * k, phoenix ? '#FF7A1F' : '#FFE9A8'); g.globalAlpha = 1; } });
       }
     }
   }
 
-  render(): void { this.renderer.render(this.scene, this.camera); }
+  render(): void {
+    const g = this.g, s = this.s, now = performance.now();
+    g.imageSmoothingEnabled = false;
+    g.fillStyle = '#0B0910';
+    g.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-  // Free the GL context too: browsers cap live contexts, and a session plays many stages.
-  dispose(): void { this.renderer.dispose(); this.renderer.forceContextLoss(); }
+    // Ground: a cliff lip under the near edge for depth, the tiles with a little speckle, the path.
+    g.fillStyle = '#1A120C'; g.fillRect(this.ox, this.oy + BH, BW, 8);
+    g.fillStyle = '#0F0A08'; g.fillRect(this.ox, this.oy + BH + 8, BW, 2);
+    for (let tx = 0; tx < grid.w; tx++)
+      for (let ty = 0; ty < grid.h; ty++) {
+        const onPath = s.pathTiles.has(`${tx},${ty}`);
+        const px = this.ox + ty * T, py = Math.round(this.oy + tx * TH), h = Math.round(this.oy + (tx + 1) * TH) - py;
+        g.fillStyle = onPath ? ((tx + ty) % 2 ? '#7E5E40' : '#86664A') : (tx + ty) % 2 ? '#2E4430' : '#355036';
+        g.fillRect(px, py, T, h);
+        g.fillStyle = onPath ? '#6A4C32' : '#26382A';
+        g.fillRect(px + ((tx * 7 + ty * 3) % 19) + 2, py + ((tx * 5 + ty) % 9) + 2, 2, 1); // speckle, fixed per tile
+      }
+    if (this.cursor) {
+      const px = this.ox + this.cursor.ty * T, py = Math.round(this.oy + this.cursor.tx * TH);
+      g.fillStyle = this.cursor.ok ? '#FFE9A855' : '#FF3B2E66';
+      g.fillRect(px, py, T, Math.round(TH));
+    }
+    if (this.range) ring(g, this.sx(this.range.y), this.sy(this.range.x), (this.range.r / TILE) * T, (this.range.r / TILE) * TH, '#FFE9A8aa');
+
+    // Everything that stands up is drawn back to front.
+    const things: { depth: number; draw: () => void }[] = [];
+    for (const key of s.blocked) {
+      const [tx, ty] = key.split(',').map(Number) as [number, number];
+      things.push({ depth: tx + 0.5, draw: () => this.rock(this.ox + ty * T + T / 2, Math.round(this.oy + (tx + 0.6) * TH)) });
+    }
+    const goal = s.path[s.path.length - 1]!;
+    things.push({ depth: goal.x / TILE, draw: () => this.gate(this.sx(goal.y), this.sy(goal.x)) });
+    for (const d of s.disciples) {
+      const off = d.offT > 0 || (s.sealT > 0 && s.sealEl != null && d.els.includes(s.sealEl));
+      things.push({ depth: d.x / TILE, draw: () => this.disciple(d.unit ?? d.els[0]!, d.level, this.sx(d.y), this.sy(d.x), off, now + d.id * 97) });
+    }
+    for (const e of s.enemies) {
+      if (e.type === 'assassin' && !e.revealed && Math.floor(now / 150) % 4 !== 0) continue; // a hidden assassin only flickers
+      const p = this.seen.get(e.id) ?? e;
+      things.push({ depth: p.x / TILE, draw: () => this.enemy(e.type, e.hp / e.maxHp, this.sx(p.y), this.sy(p.x), e, now) });
+    }
+    things.sort((a, b) => a.depth - b.depth);
+    for (const t of things) t.draw();
+    for (const f of this.fx) f.draw(g, (now - f.from) / (f.until - f.from));
+  }
+
+  private shadow(x: number, y: number, w: number) {
+    this.g.fillStyle = '#00000066';
+    this.g.fillRect(x - w, y - 1, w * 2, 3);
+    this.g.fillRect(x - w + 2, y - 2, w * 2 - 4, 5);
+  }
+
+  private rock(x: number, y: number) {
+    const g = this.g;
+    this.shadow(x, y, 9);
+    g.fillStyle = '#3A3540'; g.fillRect(x - 8, y - 10, 16, 10);
+    g.fillStyle = '#4E4858'; g.fillRect(x - 8, y - 12, 16, 3);
+    g.fillStyle = '#2A2630'; g.fillRect(x + 3, y - 9, 5, 9);
+  }
+
+  private gate(x: number, y: number) {
+    const g = this.g;
+    g.fillStyle = '#4A0E0A'; g.fillRect(x - 12, y - 26, 3, 26); g.fillRect(x + 9, y - 26, 3, 26);
+    g.fillStyle = '#9A2A1E'; g.fillRect(x - 15, y - 29, 30, 4); g.fillRect(x - 13, y - 22, 26, 2);
+    g.fillStyle = '#E3B04B'; g.fillRect(x - 2, y - 28, 4, 2);
+  }
+
+  // A disciple: sect-coloured robe, dark hat, and what its role carries; one gold pip per level above 1.
+  private disciple(key: string, level: number, x: number, y: number, off: boolean, t: number) {
+    const g = this.g;
+    const u = units.get(key);
+    const color = off ? '#5A5266' : u?.color ?? sects.get(key)?.color ?? '#ffffff';
+    const role = u?.roleId ?? 'striker';
+    const b = Math.round(Math.sin(t / 300)); // idle bob
+    this.shadow(x, y, 7);
+    g.fillStyle = '#1A1418'; g.fillRect(x - 5, y - 14 + b, 10, 13); // outline
+    g.fillStyle = color; g.fillRect(x - 4, y - 13 + b, 8, 12); // robe
+    g.fillStyle = '#1A1418'; g.fillRect(x - 4, y - 5 + b, 8, 1); // belt
+    g.fillStyle = '#E9C9A4'; g.fillRect(x - 3, y - 19 + b, 6, 6); // face
+    g.fillStyle = '#1A1418'; g.fillRect(x - 5, y - 21 + b, 10, 3); g.fillRect(x - 2, y - 23 + b, 4, 2); // hat
+    g.fillStyle = off ? '#5A5266' : ROLE_LOOK[role]!;
+    if (role === 'striker') g.fillRect(x + 5, y - 22 + b, 1, 14); // sword
+    else if (role === 'burst') { g.fillRect(x + 5, y - 15 + b, 5, 2); g.fillRect(x + 6, y - 17 + b, 3, 2); } // fan
+    else if (role === 'control') { g.fillRect(x - 8, y, 16, 1); g.fillRect(x - 6, y - 2, 1, 2); g.fillRect(x + 5, y - 2, 1, 2); } // ring on the ground
+    else if (role === 'stacker') g.fillRect(x + 5, y - 15 + b, 3, 3); // charm
+    else g.fillRect(x - 1, y - 28 + b, 3, 3); // lantern overhead
+    g.fillStyle = '#FFD34A';
+    for (let i = 1; i < level; i++) g.fillRect(x - 5 + (i - 1) * 4, y + 2, 3, 2);
+  }
+
+  // An enemy: body by type (bosses big, brutes wide, fliers raised with wings), status tint, and an HP bar.
+  private enemy(type: string, hp: number, x: number, y: number, e: Status, now: number) {
+    const g = this.g;
+    const def = enemyDefs.get(type)!;
+    const boss = def.boss != null;
+    const w = boss ? 8 : type === 'brute' ? 6 : 4, h = boss ? 22 : 11;
+    const lift = def.air ? 8 + Math.round(Math.sin(now / 200 + e.id) * 2) : 0;
+    this.shadow(x, y, w + 2);
+    const top = y - h - lift;
+    g.fillStyle = '#120A0C'; g.fillRect(x - w - 1, top - 6, w * 2 + 2, h + 7); // outline
+    g.fillStyle = boss ? '#5A0E14' : ENEMY_COLOR[type] ?? '#7A2A2A';
+    g.fillRect(x - w, top, w * 2, h);
+    g.fillStyle = '#D8C0A8'; g.fillRect(x - 3, top - 5, 6, 5);
+    g.fillStyle = '#120A0C'; g.fillRect(x + 1, top - 3, 1, 1); // eye, facing the gate
+    if (def.air) { g.fillStyle = '#2A3A2A'; g.fillRect(x - w - 5, top + 2, 5, 2); g.fillRect(x + w, top + 2, 5, 2); }
+    const tint = e.burnT > 0 ? '#FF6A1F88' : e.poison > 0 ? '#5BC46A88' : e.stunT > 0 || e.slowT > 0 ? '#7FD0FF88' : null;
+    if (tint) { g.fillStyle = tint; g.fillRect(x - w, top, w * 2, h); }
+    const bw = boss ? 24 : 12;
+    g.fillStyle = '#200808'; g.fillRect(x - bw / 2, top - 9, bw, 2);
+    g.fillStyle = '#E23B2E'; g.fillRect(x - bw / 2, top - 9, Math.max(1, Math.round(bw * Math.max(0, hp))), 2);
+  }
+
+  dispose(): void { this.fx = []; this.seen.clear(); }
+}
+
+function line(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, color: string, w: number) {
+  g.strokeStyle = color; g.lineWidth = w;
+  g.beginPath(); g.moveTo(x0 + 0.5, y0 + 0.5); g.lineTo(x1 + 0.5, y1 + 0.5); g.stroke();
+}
+
+function ring(g: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, color: string) {
+  g.strokeStyle = color; g.lineWidth = 1;
+  g.beginPath(); g.ellipse(x + 0.5, y + 0.5, Math.max(0, rx), Math.max(0, ry), 0, 0, Math.PI * 2); g.stroke();
 }

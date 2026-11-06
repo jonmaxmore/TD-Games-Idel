@@ -1,13 +1,13 @@
 # สถาปัตยกรรมระบบ
 
 > ส่วนหนึ่งของ [GDD](../GDD.md) · การตัดสินใจหลักบันทึกใน [ADR 0007](../adr/0007-typescript-threejs-node.md) (TypeScript ทั้งระบบ: three.js + Node แทน ADR 0004 และ 0006) และ [ADR 0003](../adr/0003-node-postgres-backend.md) (หลังบ้าน Node + PostgreSQL)
-> สถานะ: ที่สร้างจริงแล้วคือกฎเกม `packages/sim` + เทสต์ vitest + client three.js (`packages/client`) · ฝั่งเซิร์ฟเวอร์เริ่มใน M1 · **หมายเหตุ:** หัวข้อที่ยังพูดถึง Unity หรือ ASP.NET ด้านล่างให้อ่านเป็น client เว็บ three.js และ Node/Fastify ตาม ADR 0007 จนกว่าจะเขียนใหม่
+> สถานะ: ที่สร้างจริงแล้วคือกฎเกม `packages/sim` + เทสต์ vitest + client พิกเซลอาร์ต 2.5D บน Canvas 2D สำหรับ PC 16:9 (`packages/client`, [ADR 0008](../adr/0008-pc-only-16x9.md)) · ฝั่งเซิร์ฟเวอร์เริ่มใน M1 · **หมายเหตุ:** หัวข้อที่ยังพูดถึง Unity หรือ ASP.NET ด้านล่างให้อ่านเป็น client เว็บ Canvas 2D บน PC และ Node/Fastify ตาม ADR 0007 จนกว่าจะเขียนใหม่
 > `packages/sim` (TypeScript) และ `packages/client` (Phaser) ถูกแช่แข็งไว้อ้างอิง ไม่ใช่ต้นฉบับอีกต่อไป
 > ระดับเป้าหมาย: **ระดับกลาง** รองรับผู้เล่นออนไลน์พร้อมกันหลักหมื่นในภูมิภาคเดียว (SEA) ขยายต่อได้โดยไม่ต้องรื้อ
 
 ## 1. หลักการ
 
-1. **กฎเกมมีต้นฉบับที่เดียว:** `packages/sim` (TypeScript, deterministic, เลขจำนวนเต็ม, ไม่แตะ DOM) client three.js และเซิร์ฟเวอร์ Node ใช้ตัวเดียวกัน ทุกการแก้กฎต้องผ่าน `npm test` และ golden replay ([ADR 0007](../adr/0007-typescript-threejs-node.md))
+1. **กฎเกมมีต้นฉบับที่เดียว:** `packages/sim` (TypeScript, deterministic, เลขจำนวนเต็ม, ไม่แตะ DOM) client เว็บและเซิร์ฟเวอร์ Node ใช้ตัวเดียวกัน ทุกการแก้กฎต้องผ่าน `npm test` และ golden replay ([ADR 0007](../adr/0007-typescript-threejs-node.md))
 2. **เซิร์ฟเวอร์ตัดสินเรื่องที่มีมูลค่า:** เงิน ของ ถ้วย อันดับ การซื้อ client ส่งได้แค่ seed + คำสั่ง ไม่ส่งผลลัพธ์
 3. **Stateless API + stateful game server แยกกัน:** API ขยายได้ง่ายแค่เพิ่ม instance ส่วนห้องแข่งอยู่ในหน่วยความจำของ game server
 4. **ทุกอย่างเป็น container:** รันบนเครื่องตัวเองด้วย Docker Compose เหมือน production ย้ายผู้ให้บริการ cloud ได้

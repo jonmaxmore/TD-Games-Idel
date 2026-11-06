@@ -8,10 +8,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@five-sects/sim": "*",
-    "three": "0.170.0"
-  },
-  "devDependencies": {
-    "@types/three": "0.170.0"
+    "@five-sects/sim": "*"
   }
 }

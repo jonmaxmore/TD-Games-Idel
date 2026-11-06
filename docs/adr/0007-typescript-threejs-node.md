@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-06
-- Amended by: [ADR 0008](0008-pc-only-16x9.md) (PC only, 16:9; no Capacitor build)
+- Amended by: [ADR 0008](0008-pc-only-16x9.md) (PC only, 16:9, 2.5D pixel art in Canvas 2D; no three.js, no Capacitor build)
 - Supersedes: [ADR 0006](0006-csharp-everywhere.md) (C# everywhere) and [ADR 0004](0004-unity-client.md) (Unity client). Restores [ADR 0003](0003-node-postgres-backend.md) (Node + PostgreSQL backend).
 
 ## Context
