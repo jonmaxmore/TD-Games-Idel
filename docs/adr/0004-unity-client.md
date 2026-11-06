@@ -1,6 +1,6 @@
 # ADR 0004: Unity 6 client, rules kept in TypeScript with a C# port held in lockstep
 
-- Status: accepted
+- Status: superseded by [ADR 0007](0007-typescript-threejs-node.md)
 - Date: 2026-10-22
 - Amends: [ADR 0003](0003-node-postgres-backend.md) (backend unchanged; only the client engine changes)
 - Evidence: [docs/design/engine-comparison.md](../design/engine-comparison.md), `prototypes/unity`

@@ -1,6 +1,6 @@
 # ADR 0006: C# everywhere: one rules library for the Unity client and a .NET server (supersedes ADR 0003)
 
-- Status: accepted
+- Status: superseded by [ADR 0007](0007-typescript-threejs-node.md)
 - Date: 2026-10-23
 - Supersedes: [ADR 0003](0003-node-postgres-backend.md) (Node.js + TypeScript backend); amends [ADR 0004](0004-unity-client.md) (the C# rules are no longer a port)
 - Details: [docs/design/architecture.md](../design/architecture.md)
