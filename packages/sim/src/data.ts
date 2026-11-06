@@ -1,295 +1,188 @@
-// Loads docs/data and converts to integer sim units:
+// Loads docs/data (the source of truth for numbers and names) and converts it to integer sim units:
 // distance = milli-tiles, time = ticks (20 Hz), speed = milli-tiles per tick.
+// Lookups are Maps (never iterated for game logic); anything the rules iterate is an array in data order.
 import sectsJson from '../../../docs/data/sects.json';
 import enemiesJson from '../../../docs/data/enemies.json';
 import stagesJson from '../../../docs/data/stages.json';
 import economyJson from '../../../docs/data/economy.json';
 import itemsJson from '../../../docs/data/items.json';
+import mapsJson from '../../../docs/data/maps.json';
+import effectsJson from '../../../docs/data/effects.json';
 
 export const TICK_HZ = 20;
 export const TILE = 1000;
-
-export type Wuxing = 'metal' | 'wood' | 'water' | 'fire' | 'earth';
-export type Element = Wuxing | 'yinyang';
+export const ticks = (sec: number) => Math.round(sec * TICK_HZ);
 
 export interface SectDef {
-  element: Element;
-  nameTh: string;
-  color: string;
-  cost: number;
-  dmg: number;
-  cooldown: number;
-  range: number;
-  hitsAir: boolean;
-  hitsGround: boolean;
+  element: string; nameTh: string; nameEn: string; color: string; role: string;
+  cost: number; dmg: number; cooldown: number; range: number; hitsAir: boolean; hitsGround: boolean;
 }
-
+// Sect x role disciple (sects.json > roster): fights with its kit's mechanic (element), counts as its sect for Wu Xing.
+export interface UnitDef extends SectDef { id: string; sect: string; roleId: string; dot: string | null; descTh: string; descEn: string }
+export interface SkillDef { lvl: number; name: string; nameTh: string; effect: string; effectTh: string } // view only
+export interface BossMechanics { effect: string; phasesPct: number[]; count: number; ticks: number }
 export interface EnemyDef {
-  id: string;
-  nameTh: string;
-  element: Element;
-  air: boolean;
-  hp: number;
-  speed: number;
-  bounty: number;
-  traitTh: string;
-  leakCost: number;
-  boss: BossMechanics | null;
+  id: string; nameTh: string; nameEn: string; element: string; traitTh: string; traitEn: string;
+  air: boolean; hp: number; speed: number; bounty: number; leakCost: number; boss: BossMechanics | null;
 }
-
-export interface BossMechanics {
-  effect: 'disable' | 'seal' | 'absorb';
-  phasesPct: number[];
-  count: number;
-  ticks: number;
-}
-
-export interface WaveRecipe { id: string; nameTh: string; types: string[]; countPct: number; hpPct: number }
-
-export interface ComboDef {
-  id: string;
-  nameTh: string;
-  from: [Wuxing, Wuxing];
-}
-
+export interface WaveRecipe { id: string; nameTh: string; types: string[]; needsRoles: string[]; countPct: number; hpPct: number }
+export interface RoleDef { id: string; nameTh: string; nameEn: string; doesTh: string; counters: string[] }
+export interface ComboDef { id: string; nameTh: string; a: string; b: string }
 export interface StageDef {
-  id: string;
-  chapter: number;
-  type: string;
-  title?: string;
-  layout?: string;
-  variant?: string;
-  waves?: number;
-  startSilver?: number;
-  enemies: string[];
-  stars: string[];
-  unlocksSect?: string;
-  unlockAll?: boolean;
-  guestSects?: string[];
-  scriptedWaves?: Record<string, string>;
-  wavePool?: string[];
+  id: string; type: string; layout: string | null; variant: string | null; unlocksSect: string | null; nameTh: string; nameEn: string;
+  chapter: number; hpPct: number; waves: number | null; startSilver: number | null; startLives: number | null; unlockAll: boolean;
+  enemies: string[]; stars: string[]; guestSects: string[]; scriptedWaves: Map<string, string>; wavePool: string[] | null;
 }
-
-const ticks = (sec: number) => Math.round(sec * TICK_HZ);
-
-export const SECTS: Record<Element, SectDef> = Object.fromEntries(
-  sectsJson.sects.map((s) => [
-    s.element,
-    {
-      element: s.element as Element,
-      nameTh: s.nameTh,
-      color: s.color,
-      cost: s.cost,
-      dmg: s.dmg,
-      cooldown: ticks(1 / s.rate),
-      range: Math.round(s.range * TILE),
-      hitsAir: s.target.includes('air'),
-      hitsGround: s.target.includes('ground'),
-    },
-  ]),
-) as Record<Element, SectDef>;
-
-// Sect x role disciples (sects.json > roster). A unit fights with its kit's mechanic and takes its
-// Wu Xing element and look from its sect; dot says which status its damage over time applies.
-export interface UnitDef extends SectDef {
-  id: string;
-  sect: Element;
-  role: string;
-  dot: 'burn' | 'poison' | null;
+export interface ArtDef {
+  id: string; nameTh: string; glyph: string; type: string;
+  cooldown: number; dmg: number; radius: number; pct: number; duration: number; charges: number; rechargeSilver: number;
 }
+// roster false: never offered to a one-sect roster game.
+export interface CardDef { id: string; nameTh: string; effectTh: string; kind: string; element: string | null; needs: string | null; pct: number; value: number; roster: boolean }
+export interface AllegianceDef { element: string; ruleTh: string; ruleEn: string; difficulty: number }
+export interface UpcomingSectDef { id: string; nameTh: string; nameEn: string; opensMonth: number }
+export interface EliteAffix { id: string; nameTh: string; hpPct: number; speedPct: number; regenPct: number }
 
-export const UNITS: Record<string, UnitDef> = Object.fromEntries(
-  sectsJson.roster.units.map((u) => [
-    u.id,
-    {
-      id: u.id,
-      sect: u.sect as Element,
-      role: u.role,
-      dot: ((u as { dot?: string }).dot ?? null) as UnitDef['dot'],
-      element: u.kit as Element,
-      nameTh: u.nameTh,
-      color: SECTS[u.sect as Element].color,
-      cost: u.cost,
-      dmg: u.dmg,
-      cooldown: ticks(1 / u.rate),
-      range: Math.round(u.range * TILE),
-      hitsAir: u.target.includes('air'),
-      hitsGround: u.target.includes('ground'),
-    },
-  ]),
-);
+export type Pt = { x: number; y: number };
+export interface Prop { type: string; at: Pt }
+export interface MapLayout { kind: string; biome: string; nameTh: string; goalGate: string | null; path: Pt[]; props: Prop[] }
+export interface BiomeDef { nameTh: string; time: string; palette: string; moodTh: string; mechanicTh: string; spawnGate: string; goalGate: string }
 
-export const ROLES: string[] = sectsJson.roster.roles.map((r) => r.id);
-export const ROLE_UNLOCKS = sectsJson.roster.roleUnlocks as Record<string, string[]>;
-export const SECT_RULES = {
-  fireRampPctPerSec: sectsJson.roster.rules.fire.burnRampPctPerSec,
-  fireRampMaxPct: sectsJson.roster.rules.fire.burnRampMaxPct,
-  woodSpreadRange: Math.round(sectsJson.roster.rules.wood.spreadRange * TILE),
-  woodSpreadStacks: sectsJson.roster.rules.wood.spreadStacks,
-};
-/** Stats behind a placeable key: a roster unit id or a legacy element. */
-export const defOf = (key: string): SectDef => UNITS[key] ?? SECTS[key as Element];
-/** Sects that have a roster; picking any other sect plays the legacy element disciples. */
-export const ROSTER_SECTS: Element[] = [...new Set(Object.values(UNITS).map((u) => u.sect))];
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const J = (x: unknown) => x as any;
+const S = sectsJson as any, E = enemiesJson as any, ST = stagesJson as any, EC = economyJson as any, IT = itemsJson as any, M = mapsJson as any, FX = effectsJson as any;
 
-export const SECT_ORDER: Element[] = sectsJson.sects.map((s) => s.element as Element);
-
-
-export const GENERATES = sectsJson.wuxing.generates as Record<Wuxing, Wuxing>;
-export const OVERCOMES = sectsJson.wuxing.overcomes as Record<Wuxing, Wuxing>;
-
-export const COMBOS: ComboDef[] = sectsJson.comboTechniques.items.map((c) => ({
-  id: c.id,
-  nameTh: c.nameTh,
-  from: c.from as [Wuxing, Wuxing],
-}));
-
-export const MERGE_FEE: number = sectsJson.comboTechniques.mergeFee;
-export const COMBO_DMG_PCT: number = sectsJson.comboTechniques.comboDmgPct;
-
-export const UPGRADE = {
-  levels: sectsJson.upgrade.levels,
-  names: sectsJson.upgrade.names,
-  // percent multipliers, e.g. [100, 150, 225]
-  costPct: sectsJson.upgrade.costMultiplier.map((m) => Math.round(m * 100)),
-  statPct: sectsJson.upgrade.statMultiplier.map((m) => Math.round(m * 100)),
-};
-
-function bossMechanics(m: Record<string, unknown>): BossMechanics {
+function sectDef(s: any, el: string, color: string): SectDef {
+  const target: string = s.target;
   return {
-    effect: m.effect as BossMechanics['effect'],
-    phasesPct: (m.phasesPct as number[]) ?? [],
-    count: Number(m.count ?? 1),
-    ticks: ticks(Number(m.sec ?? 0)),
+    element: el, nameTh: s.nameTh, nameEn: s.name ?? s.nameEn, color, role: s.role ?? '',
+    cost: s.cost, dmg: s.dmg, cooldown: ticks(1.0 / s.rate), range: Math.round(s.range * TILE),
+    hitsAir: target.includes('air'), hitsGround: target.includes('ground'),
   };
 }
 
-const allEnemies = [...enemiesJson.enemies, ...enemiesJson.bosses];
-export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(
-  allEnemies.map((e) => [
-    e.id,
-    {
-      id: e.id,
-      nameTh: e.nameTh,
-      element: e.element as Element,
-      air: 'layer' in e && e.layer === 'air',
-      hp: e.hp,
-      speed: Math.round((e.speed * TILE) / TICK_HZ),
-      bounty: 'bounty' in e ? (e.bounty as number) : 50,
-      traitTh: 'traitTh' in e ? String(e.traitTh) : '',
-      leakCost: 'leakCost' in e ? (e.leakCost as number) : 1,
-      boss: 'mechanics' in e ? bossMechanics(e.mechanics as Record<string, unknown>) : null,
-    },
-  ]),
-);
+export const sects = new Map<string, SectDef>();
+export const skills = new Map<string, SkillDef[]>(); // per element (kit), tiers 1..3
+export const sectOrder: string[] = [];
+for (const s of S.sects) {
+  sects.set(s.element, sectDef(s, s.element, s.color));
+  sectOrder.push(s.element);
+  skills.set(s.element, (s.skills ?? []).map((k: any) => ({ lvl: k.lvl, name: k.name, nameTh: k.nameTh, effect: k.effect, effectTh: k.effectTh })));
+}
 
-// Wave shapes (enemies.json waveRecipes), in file order; `mixed` is the fallback.
-export const WAVE_RECIPES: WaveRecipe[] = Object.entries(enemiesJson.waveRecipes)
-  .filter(([k]) => !k.startsWith('_'))
-  .map(([id, v]) => {
-    const r = v as { nameTh: string; types: string[]; countPct: number; hpPct: number };
-    return { id, nameTh: r.nameTh, types: r.types, countPct: r.countPct, hpPct: r.hpPct };
+export const units = new Map<string, UnitDef>();
+export const unitList: UnitDef[] = [];
+export const roles: string[] = [];
+export const roleDefs = new Map<string, RoleDef>();
+export const roleUnlocks: [string, string[]][] = []; // stage id -> roles that join in that stage, in data order
+export const rosterSects: string[] = [];
+export const sectRules = {
+  fireRampPctPerSec: J(S.roster.rules.fire.burnRampPctPerSec) as number,
+  fireRampMaxPct: J(S.roster.rules.fire.burnRampMaxPct) as number,
+  woodSpreadRange: Math.round(S.roster.rules.wood.spreadRange * TILE),
+  woodSpreadStacks: J(S.roster.rules.wood.spreadStacks) as number,
+};
+for (const r of S.roster.roles) {
+  roles.push(r.id);
+  roleDefs.set(r.id, { id: r.id, nameTh: r.nameTh, nameEn: r.nameEn, doesTh: r.doesTh, counters: r.counters ?? [] });
+}
+for (const k of Object.keys(S.roster.roleUnlocks)) roleUnlocks.push([k, S.roster.roleUnlocks[k]]);
+for (const u of S.roster.units) {
+  const def: UnitDef = {
+    ...sectDef({ ...u, name: u.nameEn }, u.kit, sects.get(u.sect)!.color),
+    id: u.id, sect: u.sect, roleId: u.role, dot: u.dot ?? null, descTh: u.descTh, descEn: u.descEn,
+  };
+  units.set(def.id, def);
+  unitList.push(def);
+  if (!rosterSects.includes(u.sect)) rosterSects.push(u.sect);
+}
+
+export const allegiance: AllegianceDef[] = (S.allegiance?.launch ?? []).map((a: any) => ({ element: a.element, ruleTh: a.ruleTh, ruleEn: a.ruleEn, difficulty: a.difficulty }));
+export const upcomingSects: UpcomingSectDef[] = (S.allegiance?.upcoming ?? []).map((u: any) => ({ id: u.id, nameTh: u.nameTh, nameEn: u.nameEn, opensMonth: u.opensMonth }));
+
+export const generates = new Map<string, string>(Object.entries(S.wuxing.generates as Record<string, string>));
+export const overcomes = new Map<string, string>(Object.entries(S.wuxing.overcomes as Record<string, string>));
+export const overcomePct: number = S.wuxing.overcomePct;
+export const overcomeByPct: number = S.wuxing.overcomeByPct;
+export const combos: ComboDef[] = S.comboTechniques.items.map((c: any) => ({ id: c.id, nameTh: c.nameTh, a: c.from[0], b: c.from[1] }));
+export const mergeFee: number = S.comboTechniques.mergeFee;
+export const comboDmgPct: number = S.comboTechniques.comboDmgPct;
+export const upgradeLevels: number = S.upgrade.levels;
+export const upgradeNames: string[] = S.upgrade.names;
+export const costPct: number[] = S.upgrade.costMultiplier.map((x: number) => Math.round(x * 100));
+export const statPct: number[] = S.upgrade.statMultiplier.map((x: number) => Math.round(x * 100));
+
+export const defOf = (key: string): SectDef => units.get(key) ?? sects.get(key)!;
+
+export const enemies = new Map<string, EnemyDef>();
+for (const e of [...E.enemies, ...E.bosses]) {
+  const mech = e.mechanics;
+  enemies.set(e.id, {
+    id: e.id, nameTh: e.nameTh, nameEn: e.name, traitEn: e.trait, traitTh: e.traitTh ?? '', element: e.element,
+    air: e.layer === 'air', hp: e.hp, speed: Math.round((e.speed * TILE) / TICK_HZ),
+    bounty: e.bounty ?? 50, leakCost: e.leakCost ?? 1,
+    boss: mech ? { effect: mech.effect, phasesPct: mech.phasesPct, count: mech.count ?? 1, ticks: ticks(mech.sec ?? 0) } : null,
   });
-
-export const STAGES: Record<string, StageDef> = Object.fromEntries(
-  (stagesJson.stages as StageDef[]).map((s) => [s.id, s]),
-);
-
-const inRun = economyJson.inRun;
-export const ECONOMY = {
-  startLives: inRun.startLives,
-  interestPct: inRun.interestPct,
-  interestCap: inRun.interestCap,
-  interestCapPerWave: inRun.interestCapPerWave,
-  earlyCallPct: inRun.earlyCallPct,
-  sellRefundPct: inRun.sellRefundPct,
-  waveBreak: ticks(inRun.waveBreakSec),
-  spawnInterval: ticks(inRun.spawnIntervalSec),
-  earlyCallBonus: inRun.earlyCallBonusSilver,
-  bountyGrowthPct: inRun.bountyGrowthPctPerWave,
+}
+export const waveRecipes: WaveRecipe[] = Object.keys(E.waveRecipes).filter((k) => !k.startsWith('_')).map((k) => {
+  const w = E.waveRecipes[k];
+  return { id: k, nameTh: w.nameTh, types: w.types, countPct: w.countPct, hpPct: w.hpPct, needsRoles: w.needsRoles ?? [] };
+});
+export const elites = {
+  fromWave: E.elites.eliteFromWave as number, chancePct: E.elites.eliteChancePct as number, bountyMult: E.elites.bountyMult as number,
+  affixes: E.elites.affixes.map((a: any) => ({ id: a.id, nameTh: a.nameTh, hpPct: a.hpPct, speedPct: a.speedPct, regenPct: a.regenPctPerSec })) as EliteAffix[],
 };
 
-// HP at wave w (1-based): hp * (1 + 0.18w) * 1.06^max(0, w-10), in integer math (no Math.pow).
+export const stageList: StageDef[] = ST.stages.map((s: any) => ({
+  id: s.id, type: s.type, layout: s.layout ?? null, variant: s.variant ?? null, unlocksSect: s.unlocksSect ?? null,
+  nameTh: s.nameTh, nameEn: s.nameEn, chapter: s.chapter, hpPct: s.hpPct ?? 100,
+  waves: s.waves ?? null, startSilver: s.startSilver ?? null, startLives: s.startLives ?? null, unlockAll: s.unlockAll ?? false,
+  enemies: s.enemies ?? [], stars: s.stars ?? [], guestSects: s.guestSects ?? [],
+  scriptedWaves: new Map(Object.entries((s.scriptedWaves ?? {}) as Record<string, string>)), wavePool: s.wavePool ?? null,
+}));
+export const stages = new Map<string, StageDef>(stageList.map((s) => [s.id, s]));
+
+const P = (t: [number, number]): Pt => ({ x: t[0], y: t[1] });
+export const grid = { w: M.grid[0] as number, h: M.grid[1] as number };
+export const propBlocks = new Map<string, boolean>(Object.keys(M.propTypes).map((k) => [k, !!M.propTypes[k].block]));
+export const biomes = new Map<string, BiomeDef>(Object.keys(M.biomes).map((k) => {
+  const b = M.biomes[k];
+  return [k, { nameTh: b.nameTh, time: b.time, palette: b.palette, moodTh: b.moodTh, mechanicTh: b.mechanicTh, spawnGate: b.spawnGate, goalGate: b.goalGate }];
+}));
+export const layouts = new Map<string, MapLayout>(Object.keys(M.layouts).map((k) => {
+  const v = M.layouts[k];
+  return [k, { kind: v.kind, biome: v.biome, nameTh: v.nameTh, goalGate: v.goalGate ?? null, path: (v.path ?? []).map(P), props: v.props.map((p: any) => ({ type: p.type, at: P(p.at) })) }];
+}));
+export const palette = new Map<string, string[]>(Object.entries(FX.render.palette as Record<string, string[]>));
+
+const inRun = EC.inRun;
+export const economy = {
+  startLives: inRun.startLives as number, interestPct: inRun.interestPct as number, interestCap: inRun.interestCap as number,
+  sellRefundPct: inRun.sellRefundPct as number, waveBreak: ticks(inRun.waveBreakSec), spawnInterval: ticks(inRun.spawnIntervalSec),
+  earlyCallBonus: inRun.earlyCallBonusSilver as number, bountyGrowthPct: inRun.bountyGrowthPctPerWave as number,
+  interestCapPerWave: inRun.interestCapPerWave as number, earlyCallPct: inRun.earlyCallPct as number,
+};
+
+export const arts: ArtDef[] = IT.secretArts.items.map((a: any) => ({
+  id: a.id, nameTh: a.nameTh, glyph: a.glyph ?? '', type: a.effectType,
+  cooldown: ticks(a.cooldown), dmg: a.dmg ?? 0, radius: Math.round((a.radius ?? 0) * TILE),
+  pct: a.pct ?? 0, duration: ticks(a.durationSec ?? 0), charges: a.charges ?? 0, rechargeSilver: a.rechargeSilver ?? 0,
+}));
+export const cards: CardDef[] = [];
+for (const group of ['damage', 'economy', 'ruleBender'])
+  for (const c of IT.manuals[group]) {
+    if (c.kind === 'disabled') continue;
+    cards.push({
+      id: c.id, nameTh: c.nameTh, effectTh: c.effectTh ?? c.effect, kind: c.kind, element: c.element ?? null, needs: c.needs ?? null,
+      pct: c.pct ?? 0, value: c.value ?? 0, roster: c.roster ?? true,
+    });
+  }
+export const CARD_EVERY_WAVES = 5;
+export const cardAutoPick = ticks(15);
+
+// HP at wave w (1-based): +18% a wave, then x1.06 a wave from wave 11. Integer math.
 export function waveHp(baseHp: number, wave: number): number {
   let bp = 10000 + 1800 * wave;
   for (let i = 10; i < wave; i++) bp = Math.floor((bp * 106) / 100);
   return Math.floor((baseHp * bp) / 10000);
 }
-
-export interface ArtDef {
-  id: string;
-  nameTh: string;
-  glyph: string;
-  effect: string;
-  effectTh: string;
-  type: 'strike' | 'slowAll' | 'bountyMult' | 'stunAll';
-  cooldown: number;
-  dmg: number;
-  radius: number;
-  pct: number;
-  mult: number;
-  duration: number;
-  charges: number;
-  rechargeSilver: number;
-}
-
-export const ARTS: ArtDef[] = itemsJson.secretArts.items.map((a) => {
-  const x = a as Record<string, unknown>;
-  return {
-    id: a.id,
-    nameTh: a.nameTh,
-    glyph: String(x.glyph ?? ''),
-    effect: a.effect,
-    effectTh: String(x.effectTh ?? a.effect),
-    type: x.effectType as ArtDef['type'],
-    cooldown: ticks(a.cooldown),
-    dmg: Number(x.dmg ?? 0),
-    radius: Math.round(Number(x.radius ?? 0) * TILE),
-    pct: Number(x.pct ?? 0),
-    mult: Number(x.mult ?? 1),
-    duration: ticks(Number(x.durationSec ?? 0)),
-    charges: Number(x.charges ?? 0),
-    rechargeSilver: Number(x.rechargeSilver ?? 0),
-  };
-});
-
-export interface CardDef {
-  id: string;
-  nameTh: string;
-  effect: string;
-  effectTh: string;
-  kind: string;
-  element?: Element;
-  needs?: Element;
-  pct: number;
-  value: number;
-}
-
-const m = itemsJson.manuals;
-export const CARDS: CardDef[] = [...m.damage, ...m.economy, ...m.ruleBender]
-  .map((c) => {
-    const x = c as Record<string, unknown>;
-    return {
-      id: c.id, nameTh: c.nameTh, effect: c.effect, effectTh: String(x.effectTh ?? c.effect), kind: String(x.kind),
-      element: x.element as Element | undefined, needs: x.needs as Element | undefined,
-      pct: Number(x.pct ?? 0), value: Number(x.value ?? 0),
-    };
-  })
-  .filter((c) => c.kind !== 'disabled');
-
-export const CARD_EVERY_WAVES = 5;
-export const CARD_AUTO_PICK = ticks(15);
-
-export interface EliteAffix { id: string; nameTh: string; traitTh: string; hpPct: number; speedPct: number; regenPct: number; outline: string }
-const el = enemiesJson.elites;
-export const ELITES = {
-  fromWave: el.eliteFromWave,
-  chancePct: el.eliteChancePct,
-  bountyMult: el.bountyMult,
-  affixes: el.affixes.map((a) => ({
-    id: a.id, nameTh: a.nameTh, traitTh: a.traitTh, hpPct: a.hpPct, speedPct: a.speedPct, regenPct: a.regenPctPerSec, outline: a.outline,
-  })) as EliteAffix[],
-};
-
-export const TARGET_MODES = ['first', 'strong', 'weak', 'close'] as const;
-export type TargetMode = (typeof TARGET_MODES)[number];

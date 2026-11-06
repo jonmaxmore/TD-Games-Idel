@@ -1,262 +1,264 @@
-import { ARTS, CARD_AUTO_PICK, defOf, CARD_EVERY_WAVES, CARDS, COMBOS, ECONOMY, COMBO_DMG_PCT, ENEMIES, MERGE_FEE, ROLE_UNLOCKS, ROLES, ROSTER_SECTS, SECT_RULES, SECTS, SECT_ORDER, STAGES, TICK_HZ, TILE, UNITS, UPGRADE, WAVE_RECIPES, waveHp, type CardDef, type Element, type SectDef, ELITES } from './data';
-import { blockedTiles, GRID_H, GRID_W, resolveLayout, tilesOnPath } from './layouts';
-import { pathLength, pointAt, toMilli, within } from './path';
-import { nextRandom, rollPct } from './rng';
-import { validCommand } from './commands';
-import type { Command, DefendState, Disciple, Enemy, QueuedEnemy, SimEvent } from './types';
-import { isGenerated, overcomePct } from './wuxing';
+// Defend mode rules: one tick at a time, integer math, seeded RNG. Every loop runs over arrays in a fixed order;
+// the golden replays (packages/sim/goldens) pin the outcome tick by tick.
+import {
+  arts, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid,
+  mergeFee, roles, roleUnlocks, rosterSects, sectOrder, sectRules, sects, stageList, stages, statPct as statPcts, TICK_HZ, TILE,
+  units, unitList, upgradeLevels, costPct, waveHp, waveRecipes, type CardDef, type ComboDef, type MapLayout, type Pt, type SectDef, type WaveRecipe,
+} from './data';
+import { blockedTiles, div, isGenerated, nextRandom, pathLength, pointAt, resolveLayout, rollPct, tileKey, tilesOnPath, toMilli, within, wuxingPct } from './core';
 
-const MAX_LEVEL = UPGRADE.levels;
-const AUTO_START_TICKS = 30 * TICK_HZ;
-const DOT_EVERY = TICK_HZ / 2;
+export interface Command {
+  t: 'place' | 'upgrade' | 'sell' | 'merge' | 'nextWave' | 'cast' | 'pick' | 'target';
+  sect?: string; art?: string; card?: string; mode?: string;
+  tx?: number; ty?: number; id?: number; a?: number; b?: number;
+}
 
-// Effect timings (ticks) and sizes (milli-tiles), from sects.json skill text.
-const FX = {
-  metalCritPct: 15,
-  metalEvery: 6,
-  woodPoisonDps: 10,
-  woodPoisonTicks: 3 * TICK_HZ,
-  woodRootEvery: 8 * TICK_HZ,
-  woodRootTicks: 1 * TICK_HZ,
-  woodVulnPct: 25,
-  waterSlowPct: 30,
-  waterSlowTicks: 2 * TICK_HZ,
-  waterFreezeEvery: 5,
-  waterFreezeTicks: Math.round(1.2 * TICK_HZ),
-  waterPushEvery: 12 * TICK_HZ,
-  fireBurnDps: 6,
-  fireBurnTicks: 3 * TICK_HZ,
-  fireSplash: 800,
-  fireExplodeDmg: 30,
-  earthSplash: TILE,
-  earthBellEvery: 10 * TICK_HZ,
-  earthBellTicks: 2 * TICK_HZ,
-  earthQuakeTicks: 1 * TICK_HZ,
-  yyReveal: 3 * TILE,
-  yyRatePct: 120,
-  dashEvery: 4 * TICK_HZ,
-  dashDist: 2 * TILE,
-  healEvery: TICK_HZ,
-  healRange: 1500,
-  healPct: 5,
-  mimicTicks: 3 * TICK_HZ,
-  bruteArmor: 5,
-  adjacencyPct: 115,
-};
+// e: hit | kill | leak | spawn | placed | combo | wave | interest | stun | error | art | offer | picked | newEnemy | disable | seal | phoenix | end
+export interface SimEvent {
+  e: string;
+  from?: number; to?: number; id?: number; dmg?: number; pct?: number; x?: number; y?: number; amount?: number; wave?: number;
+  crit?: boolean; won?: boolean; el?: string | null; msg?: string; name?: string; type?: string; cards?: string[]; stars?: boolean[];
+}
 
-export function createDefend(stageId: string, seed: number, sect: Element | null = null): DefendState {
-  const rosterSect = sect && ROSTER_SECTS.includes(sect) ? sect : null;
-  const stage = STAGES[stageId];
-  if (!stage || !stage.layout) throw new Error(`unknown defend stage ${stageId}`);
-  const layout = resolveLayout(stage.layout, stage.variant);
-  if (!layout || layout.kind !== 'defend') throw new Error(`layout ${stage.layout} is not a defend layout`);
+export interface Disciple {
+  id: number; level: number; tx: number; ty: number; x: number; y: number; cd: number; hits: number; spent: number;
+  rootT: number; pushT: number; bellT: number; offT: number;
+  els: string[];
+  combo: string | null; unit: string | null; el: string | null; // unit: roster unit id; el: its sect element (null = legacy)
+  target: string;
+}
+
+export interface Enemy {
+  id: number; hp: number; maxHp: number; d: number; speed: number; bounty: number; x: number; y: number;
+  slowT: number; slowPct: number; burnT: number; burnDps: number; burnAge: number; poison: number; poisonT: number; poisonDps: number;
+  stunT: number; lastElT: number; age: number; regenPct: number; phase: number;
+  type: string; el: string; lastEl: string | null; elite: string | null;
+  air: boolean; revealed: boolean; small: boolean;
+}
+
+export interface QueuedEnemy { type: string; wave: number; hpPct: number }
+
+export interface DefendState {
+  stageId: string; phase: string;
+  tick: number; silver: number; lives: number; wave: number; totalWaves: number; spawnT: number; breakT: number; nextId: number;
+  pathLen: number; livesLost: number; combosMade: number; peakDisciples: number; bountyMultT: number; revealAllT: number; offerT: number;
+  rng: number;
+  spawnQueue: QueuedEnemy[];
+  recipe: string; nextRecipe: string; sealEl: string | null; sect: string | null; // sect: the player's sect when it has a roster
+  cardsOffered: number; sealT: number;
+  artCharges: number[]; artCd: number[];
+  disciples: Disciple[]; enemies: Enemy[];
+  unlocked: string[];
+  path: Pt[]; pathTiles: Set<string>; blocked: Set<string>; layout: MapLayout;
+  cards: string[]; offer: string[] | null; seenTypes: string[]; stars: boolean[] | null;
+  sectsUsed: string[]; // distinct sect elements ever placed (max_2_sects star)
+}
+
+export const isOver = (s: DefendState) => s.phase === 'won' || s.phase === 'lost';
+
+const Hz = TICK_HZ;
+export const AUTO_START_TICKS = 30 * Hz; // the HUD shows the countdown
+const DOT_EVERY = Hz / 2;
+
+const METAL_CRIT_PCT = 15, METAL_EVERY = 6, WOOD_POISON_DPS = 10, WOOD_VULN_PCT = 25, WATER_SLOW_PCT = 30, WATER_FREEZE_EVERY = 5;
+const FIRE_BURN_DPS = 6, FIRE_SPLASH = 800, FIRE_EXPLODE_DMG = 30, EARTH_SPLASH = TILE, YY_REVEAL = 3 * TILE, YY_RATE_PCT = 120;
+const DASH_DIST = 2 * TILE, HEAL_RANGE = 1500, HEAL_PCT = 5, HEAL_BOSS_PCT = 1, BRUTE_ARMOR = 5, ADJACENCY_PCT = 115;
+const WOOD_POISON_TICKS = 3 * Hz, WOOD_ROOT_EVERY = 8 * Hz, WOOD_ROOT_TICKS = 1 * Hz, WATER_SLOW_TICKS = 2 * Hz;
+const WATER_FREEZE_TICKS = Math.round(1.2 * Hz), WATER_PUSH_EVERY = 12 * Hz, FIRE_BURN_TICKS = 3 * Hz;
+const PHOENIX_EVERY = 20 * Hz, EARTH_BELL_EVERY = 10 * Hz, EARTH_BELL_TICKS = 2 * Hz, EARTH_QUAKE_TICKS = 1 * Hz, DASH_EVERY = 4 * Hz;
+const HEAL_EVERY = Hz, MIMIC_TICKS = 3 * Hz;
+const MAX_LEVEL = upgradeLevels;
+
+export function createDefend(stageId: string, seed: number, sect: string | null = null): DefendState {
+  const rosterSect = sect != null && rosterSects.includes(sect) ? sect : null;
+  const stage = stages.get(stageId);
+  if (!stage) throw new Error(`unknown stage ${stageId}`);
+  const layout = resolveLayout(stage.layout!, stage.variant);
   const path = toMilli(layout.path);
   return {
-    kind: 'defend',
-    stageId,
-    tick: 0,
-    rng: seed >>> 0,
-    silver: stage.startSilver ?? 100,
-    lives: ECONOMY.startLives,
-    wave: 0,
-    totalWaves: stage.waves ?? 10,
-    phase: 'build',
-    spawnQueue: [],
-    recipe: 'mixed',
-    nextRecipe: 'mixed',
-    cardsOffered: 0,
-    sealEl: null,
-    sealT: 0,
-    artCharges: ARTS.map((a) => a.charges),
-    spawnT: 0,
-    breakT: 0,
-    disciples: [],
-    enemies: [],
-    nextId: 1,
-    sect: rosterSect,
-    unlocked: rosterSect ? unlockedUnits(rosterSect, stageId) : unlockedSects(stageId),
-    path,
-    pathLen: pathLength(path),
-    pathTiles: [...tilesOnPath(layout.path)].sort(),
-    blockedTiles: blockedTiles(layout),
-    livesLost: 0,
-    combosMade: 0,
-    peakDisciples: 0,
-    artCd: ARTS.map(() => 0),
-    bountyMultT: 0,
-    revealAllT: 0,
-    cards: [],
-    offer: null,
-    offerT: 0,
-    seenTypes: [],
-    stars: null,
+    stageId, phase: 'build', tick: 0, silver: stage.startSilver ?? 100, lives: stage.startLives ?? economy.startLives, wave: 0,
+    totalWaves: stage.waves ?? 10, spawnT: 0, breakT: 0, nextId: 1, pathLen: pathLength(path), livesLost: 0, combosMade: 0,
+    peakDisciples: 0, bountyMultT: 0, revealAllT: 0, offerT: 0, rng: seed >>> 0, spawnQueue: [], recipe: 'mixed', nextRecipe: 'mixed',
+    sealEl: null, sect: rosterSect, cardsOffered: 0, sealT: 0, artCharges: arts.map((a) => a.charges), artCd: arts.map(() => 0),
+    disciples: [], enemies: [], unlocked: rosterSect != null ? unlockedUnits(rosterSect, stageId) : unlockedSects(stageId),
+    path, pathTiles: tilesOnPath(layout.path), blocked: blockedTiles(layout), layout,
+    cards: [], offer: null, seenTypes: [], stars: null, sectsUsed: [],
   };
 }
 
-// Sects unlocked up to and including this stage (story order), or all for the training ground.
-export function unlockedSects(stageId: string): Element[] {
-  const stage = STAGES[stageId];
-  if (stage?.unlockAll) return [...SECT_ORDER];
-  const out: Element[] = [];
-  for (const s of Object.values(STAGES)) {
-    if (s.chapter > (stage?.chapter ?? 0)) continue;
-    if (s.unlocksSect && compareStage(s.id, stageId) <= 0) out.push(s.unlocksSect as Element);
+export function unlockedSects(stageId: string): string[] {
+  const stage = stages.get(stageId)!;
+  if (stage.unlockAll) return [...sectOrder];
+  const o: string[] = [];
+  for (const s of stageList) {
+    if (s.chapter > stage.chapter) continue;
+    if (s.unlocksSect != null && compareStage(s.id, stageId) <= 0) o.push(s.unlocksSect);
   }
-  for (const g of stage?.guestSects ?? []) if (!out.includes(g as Element)) out.push(g as Element);
-  return out;
+  for (const g of stage.guestSects) if (!o.includes(g)) o.push(g);
+  return o;
 }
 
-function compareStage(a: string, b: string): number {
-  const [ac, as] = a.split('-').map(Number);
-  const [bc, bs] = b.split('-').map(Number);
-  return (ac ?? 0) - (bc ?? 0) || (as ?? 0) - (bs ?? 0);
+const int = (x: string | undefined): number | null => (x != null && /^\d+$/.test(x) ? Number(x) : null);
+
+// "chapter-stage" ids; a non-numeric part (T-0, T-1) is never "earlier" than anything.
+export function compareStage(a: string, b: string): number {
+  const pa = a.split('-'), pb = b.split('-');
+  const ac = int(pa[0]), bc = int(pb[0]);
+  if (ac != null && bc != null && ac !== bc) return ac - bc;
+  const as = int(pa[1]), bs = int(pb[1]);
+  if (as == null || bs == null) return 1;
+  return as - bs;
 }
 
-export function placeCost(key: string): number {
-  return defOf(key).cost;
-}
+export const placeCost = (key: string) => defOf(key).cost;
 
 // Roster units of a sect unlocked up to this stage (sects.json > roster.roleUnlocks), in role order.
-export function unlockedUnits(sect: Element, stageId: string): string[] {
-  const all = STAGES[stageId]?.unlockAll;
-  const roles = new Set<string>();
-  for (const [at, rs] of Object.entries(ROLE_UNLOCKS)) if (all || compareStage(at, stageId) <= 0) for (const r of rs) roles.add(r);
-  const units = Object.values(UNITS).filter((u) => u.sect === sect);
-  return ROLES.filter((r) => roles.has(r)).flatMap((r) => units.filter((u) => u.role === r).map((u) => u.id));
+export function unlockedUnits(sect: string, stageId: string): string[] {
+  const all = stages.get(stageId)?.unlockAll ?? false;
+  const got = new Set<string>();
+  for (const [k, rs] of roleUnlocks) if (all || compareStage(k, stageId) <= 0) for (const r of rs) got.add(r);
+  const o: string[] = [];
+  for (const r of roles) if (got.has(r)) for (const u of unitList) if (u.sect === sect && u.roleId === r) o.push(u.id);
+  return o;
 }
 
-// Stats a disciple fights with: its roster unit, or the sect defs of its element(s).
-const defsOf = (d: Disciple): SectDef[] => (d.unit ? [UNITS[d.unit]!] : d.els.map((el) => SECTS[el]));
+const defsOf = (d: Disciple): SectDef[] => (d.unit != null ? [units.get(d.unit)!] : d.els.map((el) => sects.get(el)!));
 // Wu Xing elements of a disciple: a roster unit counts as its sect's element, whatever its kit.
-const wux = (d: Disciple): Element[] => (d.el ? [d.el] : d.els);
+const wux = (d: Disciple): string[] => (d.el != null ? [d.el] : d.els);
+const dotKind = (d: Disciple) => (d.unit != null ? units.get(d.unit)!.dot : null);
 
 export function upgradeCost(d: Disciple): number {
-  if (d.combo || d.level >= MAX_LEVEL) return 0;
-  const base = defsOf(d)[0]!.cost;
-  return Math.floor((base * UPGRADE.costPct[d.level]!) / 100);
+  if (d.combo != null || d.level >= MAX_LEVEL) return 0;
+  return div(defsOf(d)[0]!.cost * costPct[d.level]!, 100);
 }
 
-const card = (s: DefendState, kind: string): CardDef | undefined =>
-  CARDS.find((c) => c.kind === kind && s.cards.includes(c.id));
+const card = (s: DefendState, kind: string): CardDef | undefined => allCards.find((c) => c.kind === kind && s.cards.includes(c.id));
 
-export function sellValue(d: Disciple, s?: DefendState): number {
-  const pct = (s && card(s, 'sellRefundPct')?.value) || ECONOMY.sellRefundPct;
-  return Math.floor((d.spent * pct) / 100);
+export function sellValue(d: Disciple, s: DefendState): number {
+  const v = card(s, 'sellRefundPct')?.value ?? 0;
+  return div(d.spent * (v !== 0 ? v : economy.sellRefundPct), 100);
 }
 
 export function canBuild(s: DefendState, tx: number, ty: number): boolean {
-  if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return false;
-  if (s.pathTiles.includes(`${tx},${ty}`) || s.blockedTiles.includes(`${tx},${ty}`)) return false;
+  if (tx < 0 || ty < 0 || tx >= grid.w || ty >= grid.h) return false;
+  if (s.pathTiles.has(tileKey(tx, ty)) || s.blocked.has(tileKey(tx, ty))) return false;
   return !s.disciples.some((d) => d.tx === tx && d.ty === ty);
 }
 
-export function findCombo(a: Element, b: Element) {
-  return COMBOS.find((c) => (c.from[0] === a && c.from[1] === b) || (c.from[0] === b && c.from[1] === a));
-}
+export const findCombo = (a: string, b: string): ComboDef | undefined => combos.find((c) => (c.a === a && c.b === b) || (c.a === b && c.b === a));
 
 const adjacent = (a: Disciple, b: Disciple) => a !== b && Math.abs(a.tx - b.tx) <= 1 && Math.abs(a.ty - b.ty) <= 1;
 
-function applyCommand(s: DefendState, c: Command, ev: SimEvent[]) {
-  const err = (msg: string) => ev.push({ e: 'error', msg });
-  if (!validCommand(c)) return err('invalid command');
+function valid(c: Command): boolean {
+  switch (c.t) {
+    case 'place': return c.sect != null && (sectOrder.includes(c.sect) || units.has(c.sect));
+    case 'upgrade': case 'sell': case 'nextWave': return true;
+    case 'target': return c.mode === 'first' || c.mode === 'strong' || c.mode === 'weak' || c.mode === 'close';
+    case 'merge': return (c.a ?? 0) !== (c.b ?? 0);
+    case 'cast': return arts.some((a) => a.id === c.art);
+    case 'pick': return allCards.some((k) => k.id === c.card);
+    default: return false;
+  }
+}
+
+const err = (ev: SimEvent[], msg: string) => ev.push({ e: 'error', msg });
+
+function apply(s: DefendState, c: Command, ev: SimEvent[]): void {
+  if (!valid(c)) { err(ev, 'invalid command'); return; }
   switch (c.t) {
     case 'place': {
-      if (!s.unlocked.includes(c.sect)) return err('sect locked');
-      const unit = UNITS[c.sect];
-      if (!canBuild(s, c.tx, c.ty)) return err('cannot build here');
-      const cost = placeCost(c.sect);
-      if (s.silver < cost) return err('not enough silver');
+      const key = c.sect!, tx = c.tx ?? 0, ty = c.ty ?? 0;
+      if (!s.unlocked.includes(key)) { err(ev, 'sect locked'); return; }
+      if (!canBuild(s, tx, ty)) { err(ev, 'cannot build here'); return; }
+      const cost = placeCost(key);
+      if (s.silver < cost) { err(ev, 'not enough silver'); return; }
       s.silver -= cost;
       const id = s.nextId++;
-      s.disciples.push({
-        id, els: [unit ? unit.element : (c.sect as Element)], unit: unit?.id ?? null, el: unit?.sect ?? null, combo: null, level: 1, tx: c.tx, ty: c.ty,
-        x: c.tx * TILE + TILE / 2, y: c.ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost, rootT: 0, pushT: 0, bellT: 0, target: 'first', offT: 0,
-      });
+      const d: Disciple = {
+        id, level: 1, tx, ty, x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, cd: 0, hits: 0, spent: cost,
+        rootT: 0, pushT: 0, bellT: 0, offT: 0, els: [], combo: null, unit: null, el: null, target: 'first',
+      };
+      const unit = units.get(key);
+      if (unit) { d.els.push(unit.element); d.unit = unit.id; d.el = unit.sect; } else d.els.push(key);
+      s.disciples.push(d);
       s.peakDisciples = Math.max(s.peakDisciples, s.disciples.length);
+      if (!s.sectsUsed.includes(wux(d)[0]!)) s.sectsUsed.push(wux(d)[0]!);
       ev.push({ e: 'placed', id });
       return;
     }
     case 'upgrade': {
-      const d = s.disciples.find((x) => x.id === c.id);
-      if (!d || d.combo || d.level >= MAX_LEVEL) return err('cannot upgrade');
+      const d = s.disciples.find((x) => x.id === (c.id ?? 0));
+      if (!d || d.combo != null || d.level >= MAX_LEVEL) { err(ev, 'cannot upgrade'); return; }
       const cost = upgradeCost(d);
-      if (s.silver < cost) return err('not enough silver');
-      s.silver -= cost;
-      d.spent += cost;
-      d.level++;
+      if (s.silver < cost) { err(ev, 'not enough silver'); return; }
+      s.silver -= cost; d.spent += cost; d.level++;
       return;
     }
     case 'sell': {
-      const i = s.disciples.findIndex((x) => x.id === c.id);
-      if (i < 0) return err('no such disciple');
+      const i = s.disciples.findIndex((x) => x.id === (c.id ?? 0));
+      if (i < 0) { err(ev, 'no such disciple'); return; }
       s.silver += sellValue(s.disciples[i]!, s);
       s.disciples.splice(i, 1);
       return;
     }
     case 'merge': {
-      const a = s.disciples.find((x) => x.id === c.a);
-      const b = s.disciples.find((x) => x.id === c.b);
-      if (!a || !b || !adjacent(a, b)) return err('merge needs two adjacent disciples');
-      if (a.combo || b.combo || a.level < MAX_LEVEL || b.level < MAX_LEVEL) return err('both must be max level');
-      if (a.unit || b.unit) return err('roster disciples cannot merge yet');
+      const a = s.disciples.find((x) => x.id === (c.a ?? 0));
+      const b = s.disciples.find((x) => x.id === (c.b ?? 0));
+      if (!a || !b || !adjacent(a, b)) { err(ev, 'merge needs two adjacent disciples'); return; }
+      if (a.combo != null || b.combo != null || a.level < MAX_LEVEL || b.level < MAX_LEVEL) { err(ev, 'both must be max level'); return; }
+      if (a.unit != null || b.unit != null) { err(ev, 'roster disciples cannot merge yet'); return; }
       const combo = findCombo(a.els[0]!, b.els[0]!);
-      if (!combo) return err('no combo for this pair');
-      if (s.silver < MERGE_FEE) return err('not enough silver');
-      s.silver -= MERGE_FEE;
+      if (!combo) { err(ev, 'no combo for this pair'); return; }
+      if (s.silver < mergeFee) { err(ev, 'not enough silver'); return; }
+      s.silver -= mergeFee;
       a.els = [a.els[0]!, b.els[0]!];
-      a.combo = combo.id;
-      a.spent += b.spent + MERGE_FEE;
-      a.cd = 0;
+      a.combo = combo.id; a.spent += b.spent + mergeFee; a.cd = 0;
       s.disciples.splice(s.disciples.indexOf(b), 1);
       s.combosMade++;
-      ev.push({ e: 'combo', id: a.id, combo: combo.id, nameTh: combo.nameTh });
+      ev.push({ e: 'combo', id: a.id, name: combo.nameTh, type: combo.id });
       return;
     }
-    case 'nextWave': {
-      if (s.wave >= s.totalWaves) return err('no more waves');
+    case 'nextWave':
+      if (s.wave >= s.totalWaves) { err(ev, 'no more waves'); return; }
       if (s.phase === 'build') startWave(s, ev);
-      else if (s.phase === 'break') {
-        s.silver += ECONOMY.earlyCallBonus;
-        startWave(s, ev);
-      } else if (s.phase === 'spawning' || s.phase === 'clearing') {
+      else if (s.phase === 'break') { s.silver += economy.earlyCallBonus; startWave(s, ev); }
+      else if (s.phase === 'spawning' || s.phase === 'clearing') {
         // Calling while enemies are still alive overlaps two waves; the bonus pays for that risk.
-        const atStake = s.enemies.reduce((sum, e) => sum + (e.hp > 0 ? e.bounty : 0), 0);
-        s.silver += ECONOMY.earlyCallBonus + Math.floor((atStake * ECONOMY.earlyCallPct) / 100);
+        let atStake = 0;
+        for (const e of s.enemies) if (e.hp > 0) atStake += e.bounty;
+        s.silver += economy.earlyCallBonus + div(atStake * economy.earlyCallPct, 100);
         startWave(s, ev);
-      } else return err('cannot call a wave now');
+      } else err(ev, 'cannot call a wave now');
       return;
-    }
-    case 'cast': return castArt(s, c.art, ev, err);
+    case 'cast': castArt(s, c.art!, ev); return;
     case 'target': {
-      const d = s.disciples.find((x) => x.id === c.id);
-      if (!d) return err('no such disciple');
-      d.target = c.mode;
+      const d = s.disciples.find((x) => x.id === (c.id ?? 0));
+      if (!d) { err(ev, 'no such disciple'); return; }
+      d.target = c.mode!;
       return;
     }
-    case 'pick': {
-      if (s.phase !== 'picking' || !s.offer?.includes(c.card)) return err('no such card on offer');
-      pickCard(s, c.card, ev);
+    case 'pick':
+      if (s.phase !== 'picking' || s.offer == null || !s.offer.includes(c.card!)) { err(ev, 'no such card on offer'); return; }
+      pickCard(s, c.card!, ev);
       return;
-    }
-    default:
-      return err('command not valid in defend stage');
   }
 }
 
-function castArt(s: DefendState, id: string, ev: SimEvent[], err: (m: string) => void) {
-  const i = ARTS.findIndex((a) => a.id === id);
-  const art = ARTS[i]!;
-  if (s.artCd[i]! > 0) return err('art on cooldown');
+function castArt(s: DefendState, id: string, ev: SimEvent[]): void {
+  const i = arts.findIndex((a) => a.id === id);
+  const art = arts[i]!;
+  if (s.artCd[i]! > 0) { err(ev, 'art on cooldown'); return; }
   const alive = s.enemies.filter((e) => e.hp > 0);
-  if (alive.length === 0) return err('no enemies');
+  if (alive.length === 0) { err(ev, 'no enemies'); return; }
   // Free charges first, then each cast costs silver.
   if (s.artCharges[i]! > 0) s.artCharges[i]!--;
   else if (s.silver >= art.rechargeSilver) s.silver -= art.rechargeSilver;
-  else return err('not enough silver');
+  else { err(ev, 'not enough silver'); return; }
   let x = 0, y = 0;
   switch (art.type) {
     case 'strike': {
-      const lead = alive.reduce((a, b) => (b.d > a.d ? b : a));
+      let lead = alive[0]!;
+      for (const e of alive) if (e.d > lead.d) lead = e;
       x = lead.x; y = lead.y;
       for (const e of alive) if (within(x, y, e.x, e.y, art.radius)) e.hp -= art.dmg;
       break;
@@ -264,107 +266,97 @@ function castArt(s: DefendState, id: string, ev: SimEvent[], err: (m: string) =>
     case 'slowAll':
       for (const e of alive) { e.slowT = Math.max(e.slowT, art.duration); e.slowPct = Math.max(e.slowPct, art.pct); }
       break;
-    case 'bountyMult':
-      s.bountyMultT = art.duration;
-      break;
+    case 'bountyMult': s.bountyMultT = art.duration; break;
     case 'stunAll':
       for (const e of alive) e.stunT = Math.max(e.stunT, art.duration);
       s.revealAllT = art.duration;
       break;
   }
   s.artCd[i] = art.cooldown;
-  ev.push({ e: 'art', art: art.id, x, y });
+  ev.push({ e: 'art', name: art.id, x, y });
 }
 
-function offerCards(s: DefendState, ev: SimEvent[]) {
-  const pool = CARDS.filter((c) => !s.cards.includes(c.id) && (!c.needs || s.unlocked.includes(c.needs)));
+function offerCards(s: DefendState, ev: SimEvent[]): void {
+  // Sect-locked cards follow the player's sect in a roster game (unlocked then holds unit ids, not elements);
+  // cards built on mixing sects (roster false) are never offered there.
+  const pool = allCards.filter((c) => !s.cards.includes(c.id)
+    && (c.needs == null || (s.sect != null ? c.needs === s.sect : s.unlocked.includes(c.needs)))
+    && (s.sect == null || c.roster));
   const offer: string[] = [];
-  while (offer.length < 3 && pool.length > 0) offer.push(pool.splice(Math.floor(nextRandom(s) * pool.length), 1)[0]!.id);
-  if (offer.length === 0) { s.phase = 'break'; s.breakT = ECONOMY.waveBreak; return; }
-  s.offer = offer;
-  s.offerT = CARD_AUTO_PICK;
-  s.phase = 'picking';
+  while (offer.length < 3 && pool.length > 0) {
+    const i = Math.floor(nextRandom(s) * pool.length);
+    offer.push(pool[i]!.id);
+    pool.splice(i, 1);
+  }
+  if (offer.length === 0) { s.phase = 'break'; s.breakT = economy.waveBreak; return; }
+  s.offer = offer; s.offerT = cardAutoPick; s.phase = 'picking';
   ev.push({ e: 'offer', cards: offer });
 }
 
-function pickCard(s: DefendState, id: string, ev: SimEvent[]) {
-  s.cards.push(id);
-  s.offer = null;
-  s.phase = 'break';
-  s.breakT = ECONOMY.waveBreak;
-  ev.push({ e: 'picked', card: id });
+function pickCard(s: DefendState, id: string, ev: SimEvent[]): void {
+  s.cards.push(id); s.offer = null; s.phase = 'break'; s.breakT = economy.waveBreak;
+  ev.push({ e: 'picked', name: id });
 }
 
-const recipeById = (id: string) => WAVE_RECIPES.find((r) => r.id === id) ?? WAVE_RECIPES[0]!;
+export const recipeById = (id: string): WaveRecipe => waveRecipes.find((r) => r.id === id) ?? waveRecipes[0]!;
 
-// Regular enemy types unlocked by this wave, in the stage's order (a new one every 2 waves). Bosses only come
-// from scriptedWaves.
 function availableTypes(stageId: string, wave: number): string[] {
-  const types = STAGES[stageId]!.enemies.filter((t) => ENEMIES[t] && !ENEMIES[t]!.boss);
+  const types = stages.get(stageId)!.enemies.filter((t) => enemyDefs.has(t) && enemyDefs.get(t)!.boss == null);
   if (types.length === 0) throw new Error(`stage ${stageId} has no regular enemies`);
   return types.slice(0, Math.min(types.length, 1 + Math.floor((wave - 1) / 2)));
 }
 
-const recipeTypes = (stageId: string, wave: number, recipeId: string) => {
+function recipeTypes(stageId: string, wave: number, recipeId: string): string[] {
   const avail = availableTypes(stageId, wave);
   const r = recipeById(recipeId);
-  const picked = r.types.length ? avail.filter((t) => r.types.includes(t)) : avail;
-  return picked.length ? picked : avail;
-};
-
-// Seeded choice of the next wave's shape: the first two waves teach (mixed), boss waves are mixed + boss,
-// and the same shape never repeats twice in a row when there is a choice.
-function rollRecipe(s: DefendState, wave: number): string {
-  const stage = STAGES[s.stageId]!;
-  if (wave <= 2 || stage.scriptedWaves?.[String(wave)]) return 'mixed';
-  const avail = availableTypes(s.stageId, wave);
-  const pool = (stage.wavePool ?? WAVE_RECIPES.map((r) => r.id)).filter((id) => {
-    const r = recipeById(id);
-    return r.types.length === 0 || r.types.some((t) => avail.includes(t));
-  });
-  const choices = pool.length > 1 ? pool.filter((id) => id !== s.recipe) : pool;
-  return choices[Math.floor(nextRandom(s) * choices.length)] ?? 'mixed';
+  const picked = r.types.length > 0 ? avail.filter((t) => r.types.includes(t)) : avail;
+  return picked.length > 0 ? picked : avail;
 }
 
-// Enemies of one wave, in spawn order.
+function rollRecipe(s: DefendState, wave: number): string {
+  const stage = stages.get(s.stageId)!;
+  if (wave <= 2 || stage.scriptedWaves.has(String(wave))) return 'mixed';
+  const avail = availableTypes(s.stageId, wave);
+  const pool = (stage.wavePool ?? waveRecipes.map((r) => r.id)).filter((id) => {
+    const r = recipeById(id);
+    return (r.types.length === 0 || r.types.some((t) => avail.includes(t))) && answerable(s, r);
+  });
+  const choices = pool.length > 1 ? pool.filter((id) => id !== s.recipe) : pool;
+  if (choices.length === 0) return 'mixed';
+  return choices[Math.floor(nextRandom(s) * choices.length)]!;
+}
+
+// A roster player must hold at least one of the roles a wave shape asks for ("air": any unit that hits air).
+function answerable(s: DefendState, r: WaveRecipe): boolean {
+  if (s.sect == null || r.needsRoles.length === 0) return true;
+  const us = s.unlocked.filter((k) => units.has(k)).map((k) => units.get(k)!);
+  return r.needsRoles.some((n) => (n === 'air' ? us.some((u) => u.hitsAir) : us.some((u) => u.roleId === n)));
+}
+
 export function waveEntries(stageId: string, wave: number, recipeId: string): QueuedEnemy[] {
   const r = recipeById(recipeId);
   const types = recipeTypes(stageId, wave, recipeId);
-  const n = Math.max(1, Math.floor(((4 + wave) * r.countPct) / 100));
-  const out: QueuedEnemy[] = [];
-  for (let i = 0; i < n; i++) out.push({ type: types[(i + wave) % types.length]!, wave, hpPct: r.hpPct });
-  const boss = STAGES[stageId]!.scriptedWaves?.[String(wave)];
-  if (boss) out.push({ type: boss, wave, hpPct: 100 });
-  return out;
+  const n = Math.max(1, div((4 + wave) * r.countPct, 100));
+  const o: QueuedEnemy[] = [];
+  for (let i = 0; i < n; i++) o.push({ type: types[(i + wave) % types.length]!, wave, hpPct: r.hpPct });
+  const boss = stages.get(stageId)!.scriptedWaves.get(String(wave));
+  if (boss != null) o.push({ type: boss, wave, hpPct: 100 });
+  return o;
 }
 
-// Kept for tools/tests: enemy types of a wave with its default (mixed) shape.
-export function waveTypes(stageId: string, wave: number): string[] {
-  return waveEntries(stageId, wave, 'mixed').map((q) => q.type);
-}
+export const waveTypes = (stageId: string, wave: number) => waveEntries(stageId, wave, 'mixed').map((q) => q.type);
 
-// Next wave summary for the HUD: [type, count] in first-seen order, using the already rolled shape.
-export function previewWave(s: DefendState): [string, number][] {
-  if (s.wave >= s.totalWaves) return [];
-  const counts: [string, number][] = [];
-  for (const { type: t } of waveEntries(s.stageId, s.wave + 1, s.nextRecipe)) {
-    const row = counts.find((c) => c[0] === t);
-    if (row) row[1]++; else counts.push([t, 1]);
-  }
-  return counts;
-}
-
-// Interest is paid when a wave is called: saving is rewarded, but capped by how far you are.
-function payInterest(s: DefendState, ev: SimEvent[]) {
-  const pct = ECONOMY.interestPct + (hasLevel(s, 'yinyang', 3) ? 1 : 0) + (card(s, 'interestPct')?.value ?? 0);
-  const cap = ECONOMY.interestCap + ECONOMY.interestCapPerWave * s.wave;
-  const interest = Math.min(cap, Math.floor((s.silver * pct) / 100));
+// Interest is paid once per wave, when the field is clear, capped by how far the run is. Calling the next wave
+// before the field is clear skips it: that is the price of the early-call bonus.
+function payInterest(s: DefendState, ev: SimEvent[]): void {
+  const pct = economy.interestPct + (hasLevel(s, 'yinyang', 3) ? 1 : 0) + (card(s, 'interestPct')?.value ?? 0);
+  const cap = economy.interestCap + economy.interestCapPerWave * s.wave;
+  const interest = Math.min(cap, div(s.silver * pct, 100));
   s.silver += interest;
   ev.push({ e: 'interest', amount: interest });
 }
 
-function startWave(s: DefendState, ev: SimEvent[]) {
-  payInterest(s, ev);
+function startWave(s: DefendState, ev: SimEvent[]): void {
   s.wave++;
   s.recipe = s.nextRecipe;
   s.spawnQueue.push(...waveEntries(s.stageId, s.wave, s.recipe));
@@ -375,25 +367,25 @@ function startWave(s: DefendState, ev: SimEvent[]) {
 
 function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = false): Enemy {
   const type = q.type;
-  const def = ENEMIES[type]!;
-  // Bosses use their data HP as-is (it is already tuned for their wave); regular enemies scale with the wave curve.
-  const base = def.boss ? def.hp : Math.floor((waveHp(def.hp, q.wave) * q.hpPct) / 100);
-  let hp = small ? Math.max(1, Math.floor(base / 4)) : Math.max(1, base);
+  const def = enemyDefs.get(type)!;
+  // Bosses use their data HP as-is; regular enemies scale with the wave curve.
+  const bas = def.boss != null ? def.hp : div(waveHp(def.hp, q.wave) * q.hpPct * stages.get(s.stageId)!.hpPct, 100 * 100);
+  let hp = small ? Math.max(1, div(bas, 4)) : Math.max(1, bas);
   let speed = def.speed;
-  let bounty = small ? 1 : Math.floor((def.bounty * (100 + ECONOMY.bountyGrowthPct * (q.wave - 1))) / 100);
-  let elite: (typeof ELITES.affixes)[number] | null = null;
-  if (!small && !def.boss && q.wave >= ELITES.fromWave && rollPct(s) < ELITES.chancePct) {
-    elite = ELITES.affixes[Math.floor(nextRandom(s) * ELITES.affixes.length)]!;
-    hp = Math.floor((hp * elite.hpPct) / 100);
-    speed = Math.floor((speed * elite.speedPct) / 100);
-    bounty *= ELITES.bountyMult;
+  let bounty = small ? 1 : div(def.bounty * (100 + economy.bountyGrowthPct * (q.wave - 1)), 100);
+  let elite = null;
+  if (!small && def.boss == null && q.wave >= elites.fromWave && rollPct(s) < elites.chancePct) {
+    elite = elites.affixes[Math.floor(nextRandom(s) * elites.affixes.length)]!;
+    hp = div(hp * elite.hpPct, 100);
+    speed = div(speed * elite.speedPct, 100);
+    bounty *= elites.bountyMult;
   }
-  const [x, y] = pointAt(s.path, at);
+  const p = pointAt(s.path, at);
   const e: Enemy = {
-    id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, speed,
-    bounty, x, y, slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, burnAge: 0, poison: 0, poisonT: 0,
-    poisonDps: 0, stunT: 0, revealed: false, lastEl: null, lastElT: 0, small, age: 0,
-    elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0, phase: 0,
+    id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, speed, bounty, x: p.x, y: p.y, small,
+    elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0,
+    slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, burnAge: 0, poison: 0, poisonT: 0, poisonDps: 0, stunT: 0, lastElT: 0, age: 0, phase: 0,
+    lastEl: null, revealed: false,
   };
   s.enemies.push(e);
   ev.push({ e: 'spawn', id: e.id });
@@ -401,64 +393,58 @@ function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = f
   return e;
 }
 
-const statPct = (level: number) => UPGRADE.statPct[level - 1]!;
+const statPct = (level: number) => statPcts[level - 1]!;
 
-// Poison/burn per second, scaled by level and by the Wu Xing match at the moment it is applied.
-const dotKind = (d: Disciple) => (d.unit ? UNITS[d.unit]!.dot : null);
+// Poison/burn per second, scaled by level and by the Wu Xing match when applied.
+const dotDps = (d: Disciple, e: Enemy, bas: number, lvl: number) => div(div(bas * statPct(lvl), 100) * wuxingPct(wux(d), e.el), 100);
 
-const dotDps = (d: Disciple, e: Enemy, base: number, lvl: number) =>
-  Math.floor((Math.floor((base * statPct(lvl)) / 100) * overcomePct(wux(d), e.el)) / 100);
+export interface Stats { dmg: number; cooldown: number; range: number; hitsAir: boolean; hitsGround: boolean }
 
-function discipleStats(s: DefendState, d: Disciple) {
+export function discipleStats(s: DefendState, d: Disciple): Stats {
   const defs = defsOf(d);
-  // Merged form: summed damage x comboDmgPct, attacking at the average cooldown (sects.json comboTechniques).
-  let dmg = d.combo ? Math.floor((defs.reduce((sum, x) => sum + x.dmg, 0) * COMBO_DMG_PCT) / 100) : defs[0]!.dmg;
-  dmg = Math.floor((dmg * statPct(d.level)) / 100);
+  // Merged form: summed damage x comboDmgPct, attacking at the average cooldown.
+  let dmg = d.combo != null ? div(defs.reduce((a, x) => a + x.dmg, 0) * comboDmgPct, 100) : defs[0]!.dmg;
+  dmg = div(dmg * statPct(d.level), 100);
   const neighbours = s.disciples.filter((o) => adjacent(d, o));
-  if (isGenerated(wux(d), neighbours.map(wux)))
-    dmg = Math.floor((dmg * (card(s, 'adjacencyPct')?.value || FX.adjacencyPct)) / 100);
+  if (isGenerated(wux(d), neighbours.map(wux))) {
+    const v = card(s, 'adjacencyPct')?.value ?? 0;
+    dmg = div(dmg * (v !== 0 ? v : ADJACENCY_PCT), 100);
+  }
   const el = card(s, 'elementDmg');
-  if (el?.element && wux(d).includes(el.element)) dmg = Math.floor((dmg * (100 + el.pct)) / 100);
+  if (el && el.element != null && wux(d).includes(el.element)) dmg = div(dmg * (100 + el.pct), 100);
   const mono = card(s, 'monoSectPct');
-  if (mono && s.disciples.every((o) => wux(o)[0] === wux(s.disciples[0]!)[0])) dmg = Math.floor((dmg * (100 + mono.pct)) / 100);
-  let cooldown = d.combo ? Math.floor(defs.reduce((sum, x) => sum + x.cooldown, 0) / defs.length) : defs[0]!.cooldown;
-  if (neighbours.some((n) => n.els.includes('yinyang') && n.level >= 2)) cooldown = Math.floor((cooldown * 100) / FX.yyRatePct);
+  if (mono && s.disciples.every((o) => wux(o)[0] === wux(s.disciples[0]!)[0])) dmg = div(dmg * (100 + mono.pct), 100);
+  let cooldown = d.combo != null ? div(defs.reduce((a, x) => a + x.cooldown, 0), defs.length) : defs[0]!.cooldown;
+  if (neighbours.some((n) => n.els.includes('yinyang') && n.level >= 2)) cooldown = div(cooldown * 100, YY_RATE_PCT);
   return {
-    dmg,
-    cooldown: Math.max(1, cooldown),
-    range: Math.max(...defs.map((x) => x.range)),
-    hitsAir: defs.some((x) => x.hitsAir),
-    hitsGround: defs.some((x) => x.hitsGround),
+    dmg, cooldown: Math.max(1, cooldown), range: Math.max(...defs.map((x) => x.range)),
+    hitsAir: defs.some((x) => x.hitsAir), hitsGround: defs.some((x) => x.hitsGround),
   };
 }
 
-const canTarget = (e: Enemy, air: boolean, ground: boolean) =>
-  e.hp > 0 && (e.air ? air : ground) && (e.type !== 'assassin' || e.revealed);
+const canTarget = (e: Enemy, air: boolean, ground: boolean) => e.hp > 0 && (e.air ? air : ground) && (e.type !== 'assassin' || e.revealed);
 
-function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: boolean, ev: SimEvent[]) {
-  let pct = overcomePct(wux(d), e.el);
-  let dmg = Math.floor((raw * pct) / 100);
-  if (e.poison > 0 && hasLevel(s, 'wood', 3)) dmg = Math.floor((dmg * (100 + FX.woodVulnPct)) / 100);
-  if (e.type === 'mimic' && e.lastElT > 0 && e.lastEl && wux(d).includes(e.lastEl)) dmg = Math.floor(dmg / 2);
+const hasLevel = (s: DefendState, el: string, level: number) => s.disciples.some((d) => d.els.includes(el) && d.level >= level);
+
+function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: boolean, ev: SimEvent[]): void {
+  const pct = wuxingPct(wux(d), e.el);
+  let dmg = div(raw * pct, 100);
+  if (hasLevel(s, 'wood', 3) && (s.sect === 'fire' ? e.burnT > 0 : e.poison > 0)) dmg = div(dmg * (100 + WOOD_VULN_PCT), 100); // roster: the sect DoT
+  if (e.type === 'mimic' && e.lastElT > 0 && e.lastEl != null && wux(d).includes(e.lastEl)) dmg = div(dmg, 2);
   const freeze = card(s, 'slowedVuln');
-  if (freeze && e.slowT > 0) dmg = Math.floor((dmg * (100 + freeze.pct)) / 100);
+  if (freeze && e.slowT > 0) dmg = div(dmg * (100 + freeze.pct), 100);
   const heavy = card(s, 'vsHeavyPct');
-  if (heavy && (e.type === 'brute' || e.type.startsWith('boss'))) dmg = Math.floor((dmg * (100 + heavy.pct)) / 100);
-  if (e.type === 'brute' && d.combo !== 'molten_edge') dmg -= FX.bruteArmor;
+  if (heavy && (e.type === 'brute' || e.type.startsWith('boss'))) dmg = div(dmg * (100 + heavy.pct), 100);
+  if (e.type === 'brute' && d.combo !== 'molten_edge') dmg -= BRUTE_ARMOR;
   dmg = Math.max(1, dmg);
   e.hp -= dmg;
   e.lastEl = wux(d)[0]!;
-  e.lastElT = FX.mimicTicks;
+  e.lastElT = MIMIC_TICKS;
   ev.push({ e: 'hit', from: d.id, to: e.id, dmg, pct, crit, el: wux(d)[0]! });
 }
 
-function hasLevel(s: DefendState, el: Element, level: number) {
-  return s.disciples.some((d) => d.els.includes(el) && d.level >= level);
-}
+const dist2 = (d: Disciple, e: Enemy) => { const dx = d.x - e.x, dy = d.y - e.y; return dx * dx + dy * dy; };
 
-const dist2 = (d: Disciple, e: Enemy) => (d.x - e.x) ** 2 + (d.y - e.y) ** 2;
-
-// Target priority chosen per disciple; ties keep the earlier enemy (deterministic).
 function better(d: Disciple, e: Enemy, cur: Enemy): boolean {
   switch (d.target) {
     case 'strong': return e.hp > cur.hp;
@@ -468,24 +454,43 @@ function better(d: Disciple, e: Enemy, cur: Enemy): boolean {
   }
 }
 
-function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
+function addPoison(e: Enemy, dps: number) {
+  e.poison = Math.min(3, e.poison + 1);
+  e.poisonT = WOOD_POISON_TICKS;
+  e.poisonDps = Math.max(e.poisonDps, dps);
+}
+
+function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
   if (d.offT > 0) { d.offT--; return; }
-  if (s.sealT > 0 && s.sealEl && d.els.includes(s.sealEl)) return;
+  if (s.sealT > 0 && s.sealEl != null && d.els.includes(s.sealEl)) return;
   d.rootT++; d.pushT++; d.bellT++;
   const st = discipleStats(s, d);
   const lvl = d.level;
 
-  // Timed area skills (earth bell / quake, water push).
-  const bellEvery = (card(s, 'bellEverySec')?.value ?? 0) * TICK_HZ || FX.earthBellEvery;
+  const bellCard = card(s, 'bellEverySec')?.value ?? 0;
+  const bellEvery = bellCard * Hz !== 0 ? bellCard * Hz : EARTH_BELL_EVERY;
   if (d.els.includes('earth') && lvl >= 2 && d.bellT >= bellEvery) {
     d.bellT = 0;
     const r = lvl >= 3 ? 2 * TILE : TILE;
-    const t = d.combo === 'iron_mountain' ? FX.earthBellTicks + TICK_HZ : lvl >= 3 ? FX.earthQuakeTicks : FX.earthBellTicks;
+    const t = d.combo === 'iron_mountain' ? EARTH_BELL_TICKS + Hz : lvl >= 3 ? EARTH_QUAKE_TICKS : EARTH_BELL_TICKS;
     for (const e of s.enemies)
       if (!e.air && e.hp > 0 && within(d.x, d.y, e.x, e.y, r)) {
         e.stunT = Math.max(e.stunT, t);
-        if (d.combo === 'root_quake') { e.poison = Math.min(3, e.poison + 1); e.poisonT = FX.woodPoisonTicks; e.poisonDps = Math.max(e.poisonDps, FX.woodPoisonDps); }
-        ev.push({ e: 'stun', id: e.id, by: d.id });
+        if (d.combo === 'root_quake') addPoison(e, WOOD_POISON_DPS);
+        ev.push({ e: 'stun', id: e.id, from: d.id });
+      }
+  }
+
+  // Fire tier 3 "เพลิงคืนชีพ": every 20 s a phoenix sweeps the path; every enemy on it is hit and set burning.
+  // pushT doubles as its timer (only the water kit uses pushT otherwise).
+  if (d.combo == null && d.els.includes('fire') && lvl >= 3 && d.pushT >= PHOENIX_EVERY) {
+    d.pushT = 0;
+    ev.push({ e: 'phoenix', from: d.id });
+    for (const e of [...s.enemies])
+      if (e.hp > 0 && (e.type !== 'assassin' || e.revealed)) {
+        dealDamage(s, d, e, st.dmg, false, ev);
+        e.burnT = FIRE_BURN_TICKS;
+        e.burnDps = Math.max(e.burnDps, dotDps(d, e, FIRE_BURN_DPS * 2, lvl));
       }
   }
 
@@ -493,105 +498,90 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]) {
   let target: Enemy | null = null;
   for (const e of s.enemies) {
     if (!canTarget(e, st.hitsAir, st.hitsGround) || !within(d.x, d.y, e.x, e.y, st.range)) continue;
-    if (!target || better(d, e, target)) target = e;
+    if (target == null || better(d, e, target)) target = e;
   }
-  if (!target) return;
+  if (target == null) return;
+  const tg = target;
   d.cd = st.cooldown - 1;
   d.hits++;
 
   let crit = false;
-  if (d.els.includes('metal')) crit = rollPct(s) < FX.metalCritPct + (card(s, 'critChance')?.pct ?? 0) || (lvl >= 2 && d.hits % FX.metalEvery === 0);
-  if (d.combo === 'frozen_blade' && target.stunT > 0) crit = true;
+  if (d.els.includes('metal'))
+    crit = rollPct(s) < METAL_CRIT_PCT + (card(s, 'critChance')?.pct ?? 0) || (lvl >= 2 && d.hits % METAL_EVERY === 0);
+  if (d.combo === 'frozen_blade' && tg.stunT > 0) crit = true;
   const raw = crit ? st.dmg * 2 : st.dmg;
-  dealDamage(s, d, target, raw, crit, ev);
+  dealDamage(s, d, tg, raw, crit, ev);
 
   for (const el of d.els) {
     switch (el) {
       case 'metal':
+        // A roster striker's crit feeds its sect's damage over time (fire burn, wood poison), so it plays
+        // into the sect rule instead of being a generic sword.
+        if (crit && dotKind(d) === 'burn') { tg.burnT = FIRE_BURN_TICKS; tg.burnDps = Math.max(tg.burnDps, dotDps(d, tg, FIRE_BURN_DPS, lvl)); }
+        else if (crit && dotKind(d) === 'poison') addPoison(tg, dotDps(d, tg, WOOD_POISON_DPS, lvl));
         if (crit && lvl >= 3) {
-          const second = s.enemies.find((e) => e !== target && canTarget(e, st.hitsAir, st.hitsGround) && within(d.x, d.y, e.x, e.y, st.range));
+          const second = s.enemies.find((e) => e !== tg && canTarget(e, st.hitsAir, st.hitsGround) && within(d.x, d.y, e.x, e.y, st.range));
           if (second) dealDamage(s, d, second, raw, true, ev);
         }
         break;
       case 'wood':
         if (dotKind(d) === 'burn') {
           // Fire-sect stacker: its damage over time is a burn, worth two poison stacks, that the sect rule ramps.
-          target.burnT = FX.woodPoisonTicks;
-          target.burnDps = Math.max(target.burnDps, dotDps(d, target, FX.woodPoisonDps * 2, lvl));
-        } else {
-          target.poison = Math.min(3, target.poison + 1);
-          target.poisonT = FX.woodPoisonTicks;
-          target.poisonDps = Math.max(target.poisonDps, dotDps(d, target, FX.woodPoisonDps, lvl));
-        }
-        if (lvl >= 2 && d.rootT >= FX.woodRootEvery) {
+          tg.burnT = WOOD_POISON_TICKS;
+          tg.burnDps = Math.max(tg.burnDps, dotDps(d, tg, WOOD_POISON_DPS * 2, lvl));
+        } else addPoison(tg, dotDps(d, tg, WOOD_POISON_DPS, lvl));
+        if (lvl >= 2 && d.rootT >= WOOD_ROOT_EVERY) {
           d.rootT = 0;
-          target.stunT = Math.max(target.stunT, FX.woodRootTicks);
-          ev.push({ e: 'stun', id: target.id, by: d.id });
+          tg.stunT = Math.max(tg.stunT, WOOD_ROOT_TICKS);
+          ev.push({ e: 'stun', id: tg.id, from: d.id });
         }
         break;
       case 'water':
-        target.slowT = FX.waterSlowTicks;
-        target.slowPct = Math.max(target.slowPct, FX.waterSlowPct);
-        if (lvl >= 2 && d.hits % FX.waterFreezeEvery === 0) {
-          target.stunT = Math.max(target.stunT, FX.waterFreezeTicks);
-          ev.push({ e: 'stun', id: target.id, by: d.id });
+        tg.slowT = WATER_SLOW_TICKS;
+        tg.slowPct = Math.max(tg.slowPct, WATER_SLOW_PCT);
+        if (lvl >= 2 && d.hits % WATER_FREEZE_EVERY === 0) {
+          tg.stunT = Math.max(tg.stunT, WATER_FREEZE_TICKS);
+          ev.push({ e: 'stun', id: tg.id, from: d.id });
         }
-        if (lvl >= 3 && d.pushT >= FX.waterPushEvery) { d.pushT = 0; target.d = Math.max(0, target.d - TILE); }
+        if (lvl >= 3 && d.pushT >= WATER_PUSH_EVERY) { d.pushT = 0; tg.d = Math.max(0, tg.d - TILE); }
         break;
-      case 'fire': {
+      case 'fire':
         for (const e of s.enemies)
-          if (e.hp > 0 && (e === target || within(target.x, target.y, e.x, e.y, FX.fireSplash))) {
-            if (dotKind(d) === 'poison') {
-              // Wood-sect burst: the splash poisons (one stack) instead of burning.
-              e.poison = Math.min(3, e.poison + 1);
-              e.poisonT = FX.woodPoisonTicks;
-              e.poisonDps = Math.max(e.poisonDps, dotDps(d, e, FX.woodPoisonDps, lvl));
-            } else {
-              e.burnT = FX.fireBurnTicks;
-              e.burnDps = Math.max(e.burnDps, dotDps(d, e, FX.fireBurnDps, lvl));
-            }
+          if (e.hp > 0 && (e === tg || within(tg.x, tg.y, e.x, e.y, FIRE_SPLASH))) {
+            // Wood-sect burst: the splash poisons (one stack) instead of burning.
+            if (dotKind(d) === 'poison') addPoison(e, dotDps(d, e, WOOD_POISON_DPS, lvl));
+            else { e.burnT = FIRE_BURN_TICKS; e.burnDps = Math.max(e.burnDps, dotDps(d, e, FIRE_BURN_DPS, lvl)); }
           }
         break;
-      }
       case 'earth': {
         const volcano = d.combo === 'volcano_fist';
-        const r = volcano ? (FX.earthSplash * 3) / 2 : FX.earthSplash;
-        for (const e of s.enemies)
-          if (e !== target && !e.air && e.hp > 0 && within(target.x, target.y, e.x, e.y, r))
-            dealDamage(s, d, e, volcano ? raw : Math.floor(raw / 2), false, ev);
+        const r = volcano ? div(EARTH_SPLASH * 3, 2) : EARTH_SPLASH;
+        for (const e of [...s.enemies])
+          if (e !== tg && !e.air && e.hp > 0 && within(tg.x, tg.y, e.x, e.y, r))
+            dealDamage(s, d, e, volcano ? raw : div(raw, 2), false, ev);
         break;
       }
-      case 'yinyang':
-        break;
     }
   }
-  if (d.combo) comboOnHit(s, d, target, crit);
+  if (d.combo != null) comboOnHit(s, d, tg, crit);
 }
 
-// Simplified signature effect of each combo technique (sects.json comboTechniques). Effects that
-// act outside a hit live where they trigger: iron_mountain/root_quake in the bell, molten_edge in
-// dealDamage, frozen_blade in the crit roll, volcano_fist in the earth splash, wildfire_flute on death.
-export const COMBO_EFFECTS = [
-  'frozen_blade', 'thorn_sword', 'molten_edge', 'iron_mountain', 'spring_rain',
-  'steam_palm', 'quicksand', 'wildfire_flute', 'root_quake', 'volcano_fist',
-] as const;
-
-function comboOnHit(s: DefendState, d: Disciple, target: Enemy, crit: boolean) {
+function comboOnHit(s: DefendState, d: Disciple, target: Enemy, crit: boolean): void {
   const splash = (r: number, f: (e: Enemy) => void) => {
     for (const e of s.enemies) if (e.hp > 0 && (e === target || within(target.x, target.y, e.x, e.y, r))) f(e);
   };
   switch (d.combo) {
     case 'thorn_sword':
-      if (crit) { target.poison = 3; target.poisonT = FX.woodPoisonTicks; target.poisonDps = Math.max(target.poisonDps, FX.woodPoisonDps); }
+      if (crit) { target.poison = 3; target.poisonT = WOOD_POISON_TICKS; target.poisonDps = Math.max(target.poisonDps, WOOD_POISON_DPS); }
       break;
     case 'spring_rain':
       splash(TILE, (e) => {
-        e.slowT = FX.waterSlowTicks; e.slowPct = Math.max(e.slowPct, FX.waterSlowPct);
-        e.poison = Math.min(3, e.poison + 1); e.poisonT = FX.woodPoisonTicks; e.poisonDps = Math.max(e.poisonDps, FX.woodPoisonDps);
+        e.slowT = WATER_SLOW_TICKS; e.slowPct = Math.max(e.slowPct, WATER_SLOW_PCT);
+        addPoison(e, WOOD_POISON_DPS);
       });
       break;
     case 'steam_palm':
-      splash(FX.fireSplash, (e) => { e.slowT = FX.waterSlowTicks; e.slowPct = Math.max(e.slowPct, FX.waterSlowPct); });
+      splash(FIRE_SPLASH, (e) => { e.slowT = WATER_SLOW_TICKS; e.slowPct = Math.max(e.slowPct, WATER_SLOW_PCT); });
       break;
     case 'quicksand':
       target.slowPct = Math.max(target.slowPct, 50);
@@ -599,40 +589,41 @@ function comboOnHit(s: DefendState, d: Disciple, target: Enemy, crit: boolean) {
   }
 }
 
-function moveEnemies(s: DefendState, ev: SimEvent[]) {
+function moveEnemies(s: DefendState, ev: SimEvent[]): void {
   const yy = s.disciples.filter((d) => d.els.includes('yinyang'));
   for (const e of s.enemies) {
     e.age++;
-    // Assassins show up when stunned/slowed (any sect can answer them), near a Taiji disciple, or by Lion's Roar.
-    e.revealed = s.revealAllT > 0 || e.stunT > 0 || e.slowT > 0 || yy.some((d) => within(d.x, d.y, e.x, e.y, FX.yyReveal));
+    e.revealed = s.revealAllT > 0 || e.stunT > 0 || e.slowT > 0 || yy.some((d) => within(d.x, d.y, e.x, e.y, YY_REVEAL));
     if (e.lastElT > 0) e.lastElT--;
     if (e.age % DOT_EVERY === 0) {
       const armour = e.type === 'brute' ? 2 : 1; // Iron Shirt halves damage over time too
       // Fire sect rule: a burn that keeps going hits harder, +rampPctPerSec per second up to +rampMaxPct.
-      const ramp = s.sect === 'fire' ? Math.min(SECT_RULES.fireRampMaxPct, Math.floor(e.burnAge / TICK_HZ) * SECT_RULES.fireRampPctPerSec) : 0;
-      if (e.burnT > 0) e.hp -= Math.max(1, Math.floor((e.burnDps * (100 + ramp)) / 100 / 2 / armour));
-      if (e.poisonT > 0 && e.poison > 0) e.hp -= Math.max(1, Math.floor((e.poison * e.poisonDps) / 2 / armour));
+      const ramp = s.sect === 'fire' ? Math.min(sectRules.fireRampMaxPct, Math.floor(e.burnAge / Hz) * sectRules.fireRampPctPerSec) : 0;
+      if (e.burnT > 0) e.hp -= Math.max(1, div(e.burnDps * (100 + ramp), 200 * armour));
+      // Wood sect rule: its poison seeps through Iron Shirt (brute armour does not halve it).
+      const poisonArmour = s.sect === 'wood' ? 1 : armour;
+      if (e.poisonT > 0 && e.poison > 0) e.hp -= Math.max(1, div(e.poison * e.poisonDps, 2 * poisonArmour));
     }
     if (e.burnT > 0) { e.burnT--; e.burnAge++; } else e.burnAge = 0;
     if (e.poisonT > 0) e.poisonT--; else e.poison = 0;
-    if (e.regenPct > 0 && e.age % TICK_HZ === 0) e.hp = Math.min(e.maxHp, e.hp + Math.floor((e.maxHp * e.regenPct) / 100));
-    if (e.type === 'healer' && e.age % FX.healEvery === 0)
+    if (e.regenPct > 0 && e.age % Hz === 0) e.hp = Math.min(e.maxHp, e.hp + div(e.maxHp * e.regenPct, 100));
+    // Healers mend allies nearby; burning or poisoned allies cannot be healed (SPEC-core §3.2), bosses only 1%.
+    if (e.type === 'healer' && e.age % HEAL_EVERY === 0 && e.burnT === 0 && e.poisonT === 0)
       for (const o of s.enemies)
-        if (o !== e && o.hp > 0 && within(e.x, e.y, o.x, o.y, FX.healRange))
-          o.hp = Math.min(o.maxHp, o.hp + Math.floor((o.maxHp * FX.healPct) / 100));
+        if (o !== e && o.hp > 0 && o.burnT === 0 && o.poisonT === 0 && within(e.x, e.y, o.x, o.y, HEAL_RANGE))
+          o.hp = Math.min(o.maxHp, o.hp + div(o.maxHp * (enemyDefs.get(o.type)!.boss != null ? HEAL_BOSS_PCT : HEAL_PCT), 100));
     if (e.stunT > 0) { e.stunT--; continue; }
     let sp = e.speed;
-    if (e.slowT > 0) { e.slowT--; sp = Math.floor((sp * (100 - e.slowPct)) / 100); } else e.slowPct = 0;
+    if (e.slowT > 0) { e.slowT--; sp = div(sp * (100 - e.slowPct), 100); } else e.slowPct = 0;
     e.d += sp;
-    if (e.type === 'runner' && e.age % FX.dashEvery === 0) e.d += FX.dashDist;
-    [e.x, e.y] = pointAt(s.path, e.d);
+    if (e.type === 'runner' && e.age % DASH_EVERY === 0) e.d += DASH_DIST;
+    const p = pointAt(s.path, e.d);
+    e.x = p.x; e.y = p.y;
   }
-  // Leaks.
   for (const e of s.enemies)
     if (e.hp > 0 && e.d >= s.pathLen) {
-      e.hp = 0;
-      e.bounty = 0;
-      const cost = ENEMIES[e.type]!.leakCost;
+      e.hp = 0; e.bounty = 0;
+      const cost = enemyDefs.get(e.type)!.leakCost;
       s.lives = Math.max(0, s.lives - cost);
       s.livesLost += cost;
       ev.push({ e: 'leak', id: e.id });
@@ -640,10 +631,10 @@ function moveEnemies(s: DefendState, ev: SimEvent[]) {
 }
 
 // Boss mechanics fire once per HP threshold (enemies.json bosses[].mechanics).
-function bossPhases(s: DefendState, ev: SimEvent[]) {
+function bossPhases(s: DefendState, ev: SimEvent[]): void {
   for (const e of s.enemies) {
-    const m = ENEMIES[e.type]!.boss;
-    if (!m || e.hp <= 0) continue;
+    const m = enemyDefs.get(e.type)!.boss;
+    if (m == null || e.hp <= 0) continue;
     while (e.phase < m.phasesPct.length && e.hp * 100 <= e.maxHp * m.phasesPct[e.phase]!) {
       e.phase++;
       if (m.effect === 'disable') {
@@ -652,24 +643,22 @@ function bossPhases(s: DefendState, ev: SimEvent[]) {
           if (free.length === 0) break;
           const d = free[Math.floor(nextRandom(s) * free.length)]!;
           d.offT = m.ticks;
-          ev.push({ e: 'disable', id: d.id, by: e.id });
+          ev.push({ e: 'disable', id: d.id, from: e.id });
         }
       } else if (m.effect === 'seal' && s.disciples.length > 0) {
-        // Seal the sect the player leans on most (ties: sect order), so one-sect builds must adapt.
-        let best: Element | null = null, bestN = 0;
-        for (const el of SECT_ORDER) {
+        let best: string | null = null, bestN = 0;
+        for (const el of sectOrder) {
           const n = s.disciples.filter((d) => d.els[0] === el).length;
           if (n > bestN) { best = el; bestN = n; }
         }
-        s.sealEl = best;
-        s.sealT = m.ticks;
-        ev.push({ e: 'seal', el: best!, by: e.id });
+        s.sealEl = best; s.sealT = m.ticks;
+        ev.push({ e: 'seal', el: best, from: e.id });
       }
     }
   }
 }
 
-function resolveDeaths(s: DefendState, ev: SimEvent[]) {
+function resolveDeaths(s: DefendState, ev: SimEvent[]): void {
   const dead = s.enemies.filter((e) => e.hp <= 0);
   if (dead.length === 0) return;
   s.enemies = s.enemies.filter((e) => e.hp > 0);
@@ -678,30 +667,28 @@ function resolveDeaths(s: DefendState, ev: SimEvent[]) {
   for (const e of dead) {
     if (e.bounty === 0 && e.d >= s.pathLen) continue; // leaked
     let bounty = e.bounty;
-    if (yy3.some((d) => within(d.x, d.y, e.x, e.y, FX.yyReveal))) bounty++;
+    if (yy3.some((d) => within(d.x, d.y, e.x, e.y, YY_REVEAL))) bounty++;
     bounty += card(s, 'bountyFlat')?.value ?? 0;
     if (s.bountyMultT > 0) bounty *= 2;
     s.silver += bounty;
-    ev.push({ e: 'kill', id: e.id, x: e.x, y: e.y, bounty });
+    ev.push({ e: 'kill', id: e.id, x: e.x, y: e.y, amount: bounty });
     if (e.type === 'puppet' && !e.small) for (let i = 0; i < 3; i++) spawn(s, { type: 'puppet', wave: s.wave, hpPct: 100 }, ev, Math.max(0, e.d - i * 300), true);
-    if (e.burnT > 0 && s.disciples.some((q) => q.combo === 'wildfire_flute')) {
-      const near = s.enemies.filter((o) => o.hp > 0 && within(e.x, e.y, o.x, o.y, 1500)).slice(0, 2);
-      for (const o of near) { o.burnT = FX.fireBurnTicks; o.burnDps = Math.max(o.burnDps, e.burnDps); }
-    }
+    if (e.burnT > 0 && s.disciples.some((q) => q.combo === 'wildfire_flute'))
+      for (const o of s.enemies.filter((o) => o.hp > 0 && within(e.x, e.y, o.x, o.y, 1500)).slice(0, 2)) { o.burnT = FIRE_BURN_TICKS; o.burnDps = Math.max(o.burnDps, e.burnDps); }
     // Wood sect rule: a poisoned enemy that dies passes its poison to everything near it.
     if (s.sect === 'wood' && e.poison > 0)
       for (const o of s.enemies)
-        if (o.hp > 0 && within(e.x, e.y, o.x, o.y, SECT_RULES.woodSpreadRange)) {
-          o.poison = Math.min(3, o.poison + SECT_RULES.woodSpreadStacks);
-          o.poisonT = FX.woodPoisonTicks;
+        if (o.hp > 0 && within(e.x, e.y, o.x, o.y, sectRules.woodSpreadRange)) {
+          o.poison = Math.min(3, o.poison + sectRules.woodSpreadStacks);
+          o.poisonT = WOOD_POISON_TICKS;
           o.poisonDps = Math.max(o.poisonDps, e.poisonDps);
         }
-    if (fireExplodes && e.burnT > 0)
-      for (const o of s.enemies) if (within(e.x, e.y, o.x, o.y, TILE)) o.hp -= FX.fireExplodeDmg;
+    if (fireExplodes && (e.burnT > 0 || (s.sect === 'wood' && e.poison > 0))) // roster: the sect DoT
+      for (const o of s.enemies) if (within(e.x, e.y, o.x, o.y, TILE)) o.hp -= FIRE_EXPLODE_DMG;
   }
 }
 
-function waveFlow(s: DefendState, ev: SimEvent[]) {
+function waveFlow(s: DefendState, ev: SimEvent[]): void {
   switch (s.phase) {
     case 'build':
       if (s.tick >= AUTO_START_TICKS) startWave(s, ev);
@@ -711,61 +698,63 @@ function waveFlow(s: DefendState, ev: SimEvent[]) {
       else {
         const q = s.spawnQueue.shift();
         if (q) spawn(s, q, ev);
-        s.spawnT = ECONOMY.spawnInterval - 1;
+        s.spawnT = economy.spawnInterval - 1;
         if (s.spawnQueue.length === 0) s.phase = 'clearing';
       }
       break;
     case 'clearing':
       if (s.enemies.length === 0) {
+        payInterest(s, ev);
         if (s.wave >= s.totalWaves) finish(s, true, ev);
         else if (Math.floor(s.wave / CARD_EVERY_WAVES) > s.cardsOffered) {
           s.cardsOffered = Math.floor(s.wave / CARD_EVERY_WAVES);
           offerCards(s, ev);
-        } else { s.phase = 'break'; s.breakT = ECONOMY.waveBreak; }
+        } else { s.phase = 'break'; s.breakT = economy.waveBreak; }
       }
       break;
     case 'break':
       if (--s.breakT <= 0) startWave(s, ev);
       break;
     case 'picking':
-      if (--s.offerT <= 0 && s.offer) pickCard(s, s.offer[0]!, ev); // idle-friendly auto pick
+      if (--s.offerT <= 0 && s.offer != null) pickCard(s, s.offer[0]!, ev);
       break;
   }
 }
 
 export function evaluateStars(s: DefendState, won: boolean): boolean[] {
-  const stage = STAGES[s.stageId]!;
-  return stage.stars.map((key) => {
+  return stages.get(s.stageId)!.stars.map((key) => {
     if (!won) return false;
     switch (key) {
       case 'clear': return true;
       case 'no_life_lost': return s.livesLost === 0;
-      case 'under_3min': return s.tick <= 3 * 60 * TICK_HZ;
+      case 'under_3min': return s.tick <= 3 * 60 * Hz;
       case 'hold_200_silver': return s.silver >= 200;
       case 'max_6_disciples': return s.peakDisciples <= 6;
+      case 'max_2_sects': return s.sectsUsed.length <= 2;
       case 'use_combo': return s.combosMade > 0;
       default: return false;
     }
   });
 }
 
-function finish(s: DefendState, won: boolean, ev: SimEvent[]) {
+function finish(s: DefendState, won: boolean, ev: SimEvent[]): void {
   s.phase = won ? 'won' : 'lost';
   s.stars = evaluateStars(s, won);
   ev.push({ e: 'end', won, stars: s.stars });
 }
 
-export function stepDefend(s: DefendState, commands: Command[]): SimEvent[] {
+// Advances exactly one tick (1/20 s). Commands apply at the start of the tick.
+export function stepDefend(s: DefendState, commands: readonly Command[] = []): SimEvent[] {
   const ev: SimEvent[] = [];
-  if (s.phase === 'won' || s.phase === 'lost') return ev;
-  for (const c of commands) applyCommand(s, c, ev);
+  if (isOver(s)) return ev;
+  for (const c of commands) apply(s, c, ev);
   for (let i = 0; i < s.artCd.length; i++) if (s.artCd[i]! > 0) s.artCd[i]!--;
   if (s.bountyMultT > 0) s.bountyMultT--;
   if (s.revealAllT > 0) s.revealAllT--;
   if (s.sealT > 0 && --s.sealT === 0) s.sealEl = null;
   waveFlow(s, ev);
   moveEnemies(s, ev);
-  for (const d of s.disciples) attack(s, d, ev);
+  for (const d of [...s.disciples]) attack(s, d, ev);
   bossPhases(s, ev);
   resolveDeaths(s, ev);
   s.tick++;

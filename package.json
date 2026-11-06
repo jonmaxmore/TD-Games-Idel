@@ -8,19 +8,17 @@
   "scripts": {
     "legacy:dev": "npm run dev -w @five-sects/client",
     "legacy:build": "npm run build -w @five-sects/client",
-    "test": "dotnet run --project tools/simtest -c Release --",
-    "legacy:test": "vitest run",
-    "legacy:typecheck": "tsc -p packages/sim && tsc -p packages/client",
-    "legacy:sim-replay": "vite-node packages/sim/scripts/replay.ts --",
+    "test": "vitest run",
     "legacy:smoke": "node packages/client/scripts/smoke.mjs",
     "economy:check": "node tools/economy/check.mjs",
     "progression:check": "node tools/progression/check.mjs",
-    "legacy:sim-measure": "vite-node packages/sim/scripts/measure.ts --",
-    "sim:golden": "dotnet run --project tools/simtest -c Release -- --write-golden",
+    "sim:golden": "vite-node packages/sim/scripts/write-golden.ts",
     "unity:sync": "node prototypes/unity/sync-data.mjs",
     "art:build": "node tools/blender/build.mjs",
     "art:brief": "node tools/art/brief.mjs",
-    "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py"
+    "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py",
+    "sim:measure": "vite-node packages/sim/scripts/measure.ts",
+    "typecheck": "tsc -p packages/sim"
   },
   "devDependencies": {
     "@types/node": "^22.15.21",

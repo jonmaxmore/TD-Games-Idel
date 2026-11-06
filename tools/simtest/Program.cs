@@ -37,7 +37,7 @@ static class Repo
     public static readonly string Root = FindRoot();
     public static string Assets => Path.Combine(Root, "prototypes", "unity", "Assets");
     public static string Sim => Path.Combine(Assets, "Scripts", "Sim");
-    public static string Goldens => Path.Combine(Assets, "Editor", "Tests");
+    public static string Goldens => Path.Combine(Root, "packages", "sim", "goldens");
     public static string UnityData => Path.Combine(Assets, "Resources", "data");
     public static string DocsData => Path.Combine(Root, "docs", "data");
 

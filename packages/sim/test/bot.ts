@@ -1,40 +1,62 @@
-// Simple greedy player used for balance checks: builds on the tiles that cover the most path,
+// Simple greedy player used for balance checks and golden replays: builds on the tiles that cover the most path,
 // alternates the unlocked sects, and upgrades once it has enough disciples.
-import { canBuild, defOf, GRID_H, GRID_W, isOver, placeCost, step, upgradeCost, type Command, type DefendState } from "../src/index";
+import { canBuild, createDefend, defOf, grid, isOver, placeCost, stepDefend, units, upgradeCost, waveRecipes, type Command, type DefendState } from '../src';
 
-export function bestTiles(s: DefendState, range = 2500): [number, number][] {
-  const pathTiles = s.pathTiles.map((k) => k.split(',').map(Number) as [number, number]);
-  const scored: { t: [number, number]; score: number }[] = [];
-  for (let ty = 0; ty < GRID_H; ty++)
-    for (let tx = 0; tx < GRID_W; tx++) {
+export function bestTiles(s: DefendState, range = 2500): { tx: number; ty: number }[] {
+  const path = [...s.pathTiles].map((k) => k.split(',').map(Number) as [number, number]);
+  const scored: { tx: number; ty: number; score: number }[] = [];
+  const r = range / 1000.0;
+  for (let ty = 0; ty < grid.h; ty++)
+    for (let tx = 0; tx < grid.w; tx++) {
       if (!canBuild(s, tx, ty)) continue;
-      const r = range / 1000;
-      const score = pathTiles.filter(([px, py]) => (px - tx) ** 2 + (py - ty) ** 2 <= r * r).length;
-      scored.push({ t: [tx, ty], score });
+      const score = path.filter(([x, y]) => (x - tx) * (x - tx) + (y - ty) * (y - ty) <= r * r).length;
+      scored.push({ tx, ty, score });
     }
-  scored.sort((a, b) => b.score - a.score || a.t[1] - b.t[1] || a.t[0] - b.t[0]);
-  return scored.map((x) => x.t);
+  return scored.sort((a, b) => b.score - a.score || a.ty - b.ty || a.tx - b.tx);
 }
 
+export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean }
+
 // earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
-export function playBot(s: DefendState, opts: { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean } = {}): DefendState {
-  const sects = opts.sects ?? s.unlocked;
-  const max = opts.maxDisciples ?? 8;
+export function play(s: DefendState, o: PlayOpts = {}): DefendState {
+  const maxDisciples = o.maxDisciples ?? 8;
+  const sects = o.sects ?? s.unlocked;
   let placed = 0;
   while (!isOver(s) && s.tick < 20 * 60 * 30) {
     const cmds: Command[] = s.tick === 0 ? [{ t: 'nextWave' }] : [];
-    if (opts.earlyCall && s.phase === 'clearing' && s.enemies.length <= 3 && s.wave < s.totalWaves) cmds.push({ t: 'nextWave' });
-    const sect = sects[placed % sects.length]!;
-    const lowest = [...s.disciples].sort((a, b) => a.level - b.level)[0];
-    // Past `max`, keep spending: once every disciple is maxed, place more instead of hoarding silver.
-    const allMaxed = !!lowest && lowest.level >= 3;
-    const wantPlace = placed < 3 || ((placed < max || allMaxed) && (!lowest || lowest.level >= 2));
+    if (o.earlyCall && s.phase === 'clearing' && s.enemies.length <= 3 && s.wave < s.totalWaves) cmds.push({ t: 'nextWave' });
+    let sect = sects[placed % sects.length]!;
+    // Like a player reading the next-wave bar: if the coming shape needs a role nobody holds, place that role first.
+    const need = needed(s, sects);
+    const urgent = need != null;
+    if (need != null) sect = need;
+    let lowest = s.disciples[0];
+    for (const d of s.disciples) if (d.level < lowest!.level) lowest = d;
+    // Past the cap, keep spending: once every disciple is maxed, place more instead of hoarding silver.
+    const allMaxed = lowest != null && lowest.level >= 3;
+    const wantPlace = urgent || placed < 3 || ((placed < maxDisciples || allMaxed) && (lowest == null || lowest.level >= 2));
     if (wantPlace) {
-      const spot = bestTiles(s, defOf(sect).range)[0];
-      if (spot && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spot[0], ty: spot[1] }); placed++; }
-    } else if (lowest && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
-    if (opts.record && cmds.length) opts.record[s.tick] = cmds;
-    step(s, cmds);
+      const spots = bestTiles(s, defOf(sect).range);
+      if (spots.length > 0 && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); placed++; }
+    } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) cmds.push({ t: 'upgrade', id: lowest.id });
+    if (o.record && cmds.length > 0) o.record[s.tick] = cmds;
+    stepDefend(s, cmds);
   }
   return s;
 }
+
+// A unit for a role the next wave asks for ("air": anything that hits air) when no placed disciple covers it.
+function needed(s: DefendState, sects: string[]): string | null {
+  if (s.sect == null) return null;
+  const rec = waveRecipes.find((r) => r.id === s.nextRecipe);
+  if (!rec) return null;
+  for (const role of rec.needsRoles) {
+    const covers = (k: string) => { const u = units.get(k); return u != null && (role === 'air' ? u.hitsAir : u.roleId === role); };
+    if (s.disciples.some((d) => d.unit != null && covers(d.unit))) continue;
+    const unit = sects.find(covers);
+    if (unit != null) return unit;
+  }
+  return null;
+}
+
+export const playStage = (stageId: string, seed: number, sect: string | null = null, o: PlayOpts = {}) => play(createDefend(stageId, seed, sect), o);

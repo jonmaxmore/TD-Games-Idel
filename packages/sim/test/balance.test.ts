@@ -1,112 +1,115 @@
-// Balance gates from docs/research/design-review.md §6 (B1, B2, B5, B7 + boss mechanics), measured with the
-// deterministic sim and the greedy bot on fixed seeds. `npm run sim:measure` prints the full report.
+// Balance gates from docs/research/design-review.md §6 (B1, B2, B4-B7 + boss mechanics) and SPEC-core §4 (story curve
+// for the roster sects), measured with the deterministic rules and the greedy bot on fixed seeds. The story is played
+// with a roster sect (sect pick offers only those); the element-mixing build lives on the training ground T-1.
+// npm run sim:measure prints the full table these gates were tuned from.
 import { describe, expect, it } from 'vitest';
-import { COMBO_DMG_PCT, COMBOS, createGame, SECTS, step, type Command, type DefendState, type Element, type SimEvent } from '../src/index';
-import { playBot } from './bot';
+import { comboDmgPct, combos, createDefend, isOver, sects, stepDefend, type Command, type SimEvent } from '../src';
+import { playStage } from './bot';
+import { NEXT, place, up } from './helpers';
 
-const play = (stageId: string, seed: number, opts: Parameters<typeof playBot>[1]) => playBot(createGame(stageId, seed) as DefendState, opts);
 const SEEDS = [1, 2, 3, 4];
+const minutes = (tick: number) => tick / 20 / 60;
 
-describe('B1 cost efficiency', () => {
+describe('balance', () => {
   // Direct damage per second per 100 silver at level 1 (metal adds its 15% crit chance), plus DoT on one target.
-  const dot: Partial<Record<Element, number>> = { wood: 10, fire: 6 };
-  it.each(['metal', 'wood', 'water', 'fire', 'earth'] as Element[])('%s is within 30-55 dps per 100 silver', (el) => {
-    const s = SECTS[el];
-    const rate = 20 / s.cooldown;
-    const direct = s.dmg * rate * (el === 'metal' ? 1.15 : 1);
-    const per100 = ((direct + (dot[el] ?? 0)) * 100) / s.cost;
-    expect(per100).toBeGreaterThanOrEqual(30);
-    expect(per100).toBeLessThanOrEqual(55);
-  });
-});
-
-describe('B2 no single sect solves the chapter finale', () => {
-  it('1-12: a mixed build wins most seeds, metal alone does not', () => {
-    const mixed = SEEDS.filter((seed) => play('1-12', seed, { maxDisciples: 8, earlyCall: true }).phase === 'won').length;
-    const mono = SEEDS.filter((seed) => play('1-12', seed, { maxDisciples: 8, earlyCall: true, sects: ['metal'] }).phase === 'won').length;
-    expect(mixed).toBeGreaterThanOrEqual(3);
-    expect(mono).toBeLessThanOrEqual(1);
-  }, 60_000);
-});
-
-describe('B5 pace', () => {
-  it.each(['T-1', '1-12'])('%s (20 waves) takes at most 10 minutes for a player who calls waves early', (id) => {
-    for (const seed of SEEDS.slice(0, 2)) {
-      const s = play(id, seed, { maxDisciples: 8, earlyCall: true });
-      expect(s.phase, `seed ${seed}`).toBe('won');
-      expect(s.tick / 20 / 60, `seed ${seed}`).toBeLessThanOrEqual(10);
+  it('B1 cost efficiency is within 30-55 dps per 100 silver', () => {
+    const dot: Record<string, number> = { wood: 10, fire: 6 };
+    for (const el of ['metal', 'wood', 'water', 'fire', 'earth']) {
+      const s = sects.get(el)!;
+      const direct = s.dmg * (20 / s.cooldown) * (el === 'metal' ? 1.15 : 1);
+      const per100 = ((direct + (dot[el] ?? 0)) * 100) / s.cost;
+      expect(per100, el).toBeGreaterThanOrEqual(30);
+      expect(per100, el).toBeLessThanOrEqual(55);
     }
   });
-});
 
-describe('B4 merging is worth it but not mandatory', () => {
-  // DPS of the merged form (summed damage x comboDmgPct at the average cooldown) over the two disciples kept apart.
-  it.each(COMBOS.map((c) => [c.id, c.from[0], c.from[1]] as const))('%s: merged/separate DPS in 1.1-1.3', (_id, a, b) => {
-    const A = SECTS[a], B = SECTS[b];
-    const separate = A.dmg / A.cooldown + B.dmg / B.cooldown;
-    const merged = Math.floor(((A.dmg + B.dmg) * COMBO_DMG_PCT) / 100) / Math.floor((A.cooldown + B.cooldown) / 2);
-    expect(merged / separate).toBeGreaterThanOrEqual(1.1);
-    expect(merged / separate).toBeLessThanOrEqual(1.3);
+  // The training ground (all six element sects): mixing wins, any single element alone does not.
+  it('B2 on the training ground no single element wins', () => {
+    expect(SEEDS.filter((seed) => playStage('T-1', seed, null, { earlyCall: true }).phase === 'won').length).toBeGreaterThanOrEqual(4);
+    for (const el of ['metal', 'water', 'earth'])
+      expect(SEEDS.filter((seed) => playStage('T-1', seed, null, { earlyCall: true, sects: [el] }).phase === 'won').length, `${el} alone`).toBeLessThanOrEqual(1);
   });
-});
 
-describe('B6 decision density', () => {
-  it('a player who calls waves early makes at least 3 commands a minute', () => {
+  it('B4 merging is worth it but not mandatory', () => {
+    for (const c of combos) {
+      const A = sects.get(c.a)!, B = sects.get(c.b)!;
+      const separate = A.dmg / A.cooldown + B.dmg / B.cooldown;
+      const merged = Math.floor(((A.dmg + B.dmg) * comboDmgPct) / 100) / Math.floor((A.cooldown + B.cooldown) / 2);
+      expect(merged / separate, c.id).toBeGreaterThanOrEqual(1.1);
+      expect(merged / separate, c.id).toBeLessThanOrEqual(1.3);
+    }
+  });
+
+  it('B5 twenty-wave stages take at most 10 minutes when calling early', () => {
+    for (const seed of SEEDS.slice(0, 2)) {
+      const s = playStage('T-1', seed, null, { earlyCall: true });
+      expect(s.phase, `T-1 seed ${seed}`).toBe('won');
+      expect(minutes(s.tick)).toBeLessThanOrEqual(10);
+    }
+    for (const sect of ['fire', 'wood'])
+      for (const seed of SEEDS) {
+        const s = playStage('1-12', seed, sect, { earlyCall: true });
+        if (s.phase === 'won') expect(minutes(s.tick), `1-12 ${sect} seed ${seed}`).toBeLessThanOrEqual(10);
+      }
+  });
+
+  it('B6 at least 3 commands a minute', () => {
     for (const id of ['1-2', '1-12']) {
       const rec: Record<number, Command[]> = {};
-      const s = play(id, 1, { maxDisciples: 8, earlyCall: true, record: rec });
-      const perMin = Object.values(rec).flat().length / (s.tick / 20 / 60);
-      expect(perMin, id).toBeGreaterThanOrEqual(3);
+      const s = playStage(id, 1, null, { earlyCall: true, record: rec });
+      expect(Object.values(rec).reduce((a, v) => a + v.length, 0) / minutes(s.tick), id).toBeGreaterThanOrEqual(3);
     }
-  }, 60_000);
-});
+  });
 
-describe('B7 run-to-run variety', () => {
-  it('different seeds give different wave shapes on at least half of the waves', () => {
+  it('B7 seeds change wave shapes', () => {
+    // Waves can be called back to back without fighting: the shape sequence depends only on the seed.
     const shapes = (seed: number) => {
-      const s = createGame('T-1', seed) as DefendState;
-      const out: string[] = [];
-      // Waves can be called back to back without fighting: the shape sequence depends only on the seed.
-      while (s.wave < s.totalWaves) { step(s, [{ t: 'nextWave' }]); out.push(s.recipe); }
-      return out;
+      const s = createDefend('T-1', seed);
+      const o: string[] = [];
+      while (s.wave < s.totalWaves) { stepDefend(s, [NEXT]); o.push(s.recipe); }
+      return o;
     };
     const a = shapes(1), b = shapes(2);
     expect(new Set(a).size).toBeGreaterThanOrEqual(4);
-    const differ = a.filter((r, i) => r !== b[i]).length;
-    expect(differ / a.length).toBeGreaterThanOrEqual(0.5);
-    for (let i = 1; i < a.length; i++) if (a[i] !== 'mixed') expect(a[i], `wave ${i + 1}`).not.toBe(a[i - 1]);
+    expect(a.filter((r, i) => r !== b[i]).length / a.length).toBeGreaterThanOrEqual(0.5);
+    for (let i = 1; i < a.length; i++) if (a[i] !== 'mixed') expect(a[i], `wave ${i + 1} repeats`).not.toBe(a[i - 1]);
   });
-});
 
-describe('bosses', () => {
-  // Jump straight to the boss wave with eight maxed disciples of the first unlocked sect, then play it out.
-  const events = (stageId: string, bossWave: number) => {
-    const s = createGame(stageId, 3) as DefendState;
+  // Jump straight to the boss wave with eight maxed disciples (rotating through what is unlocked), then play it out.
+  const bossWave = (stageId: string, wave: number, sect: string | null = null): SimEvent[] => {
+    const s = createDefend(stageId, 3, sect);
     s.silver = 100000;
-    const tiles: [number, number][] = [[4, 3], [6, 4], [3, 7], [5, 9], [7, 7], [3, 12], [7, 12], [5, 13]];
-    step(s, tiles.map(([tx, ty]) => ({ t: 'place' as const, sect: s.unlocked[0]!, tx, ty })));
-    for (let i = 0; i < 2; i++) step(s, s.disciples.map((d) => ({ t: 'upgrade' as const, id: d.id })));
-    s.wave = bossWave - 1;
-    const ev: SimEvent[] = [...step(s, [{ t: 'nextWave' }])];
-    while (s.phase !== 'won' && s.phase !== 'lost' && s.wave === bossWave && s.tick < 20 * 60 * 20) ev.push(...step(s));
-    return { s, ev };
+    s.lives = 1000; // the test is about the boss mechanic, not about holding the wave
+    const tiles = [[4, 3], [6, 4], [3, 7], [5, 9], [7, 7], [3, 12], [7, 12], [5, 13]];
+    stepDefend(s, tiles.map(([x, y], i) => place(s.unlocked[i % s.unlocked.length]!, x!, y!)));
+    for (let i = 0; i < 2; i++) stepDefend(s, s.disciples.map((d) => up(d.id)));
+    s.wave = wave - 1;
+    const ev = stepDefend(s, [NEXT]);
+    while (!isOver(s) && s.wave === wave && s.tick < 20 * 60 * 20) ev.push(...stepDefend(s, []));
+    return ev;
   };
-  it('1-10: the bandit king disables disciples at his HP thresholds', () => {
-    const { ev } = events('1-10', 10);
-    expect(ev.filter((e) => e.e === 'disable').length).toBeGreaterThanOrEqual(2);
-  });
-  it('1-12: the blood moon envoy seals the most-used sect', () => {
-    const { ev } = events('1-12', 20);
-    const seal = ev.find((e) => e.e === 'seal') as { el: Element } | undefined;
-    expect(seal?.el).toBeDefined();
-  });
-});
+  it('boss: the bandit king disables disciples at hp thresholds', () => expect(bossWave('1-10', 10).filter((e) => e.e === 'disable').length).toBeGreaterThanOrEqual(2));
+  it('boss: the envoy seals the most used sect', () => expect(bossWave('1-12', 20, 'fire').some((e) => e.e === 'seal' && e.el != null)).toBe(true));
 
-describe('sect rosters (SPEC-core §4)', () => {
-  const sects = ['fire', 'wood'] as Element[];
-  it('S1/S2: each roster sect wins 1-12 on most seeds, and the two are within 1 seed of each other', () => {
-    const wins = sects.map((sect) => SEEDS.filter((seed) => playBot(createGame('1-12', seed, sect) as DefendState, { maxDisciples: 8, earlyCall: true }).phase === 'won').length);
-    for (const w of wins) expect(w).toBeGreaterThanOrEqual(3);
-    expect(Math.abs(wins[0]! - wins[1]!)).toBeLessThanOrEqual(1);
+  // Story curve for the player's path (roster sects, a bot that reads the next-wave bar and does not call early):
+  // the tutorial is safe, mid-chapter stages are won almost always, the finale is a real test that costs lives,
+  // and the two sects end within 15 points of each other (SPEC-core §4 S1/S2).
+  it('the story curve rises to a real finale for both sects', () => {
+    const storySeeds = Array.from({ length: 24 }, (_, i) => i + 1);
+    const rate = (stage: string, sect: string) => {
+      const runs = storySeeds.map((seed) => playStage(stage, seed, sect));
+      return { win: runs.filter((r) => r.phase === 'won').length / runs.length, lost: runs.reduce((a, r) => a + r.livesLost, 0) / runs.length };
+    };
+    const finale: Record<string, number> = {};
+    for (const sect of ['fire', 'wood']) {
+      expect(rate('1-1', sect).win, `${sect} 1-1`).toBe(1);
+      for (const st of ['1-2', '1-4', '1-6']) expect(rate(st, sect).win, `${sect} ${st}`).toBeGreaterThanOrEqual(0.85);
+      const { win, lost } = rate('1-12', sect);
+      expect(win, `${sect} 1-12 win rate`).toBeGreaterThanOrEqual(0.55);
+      expect(win, `${sect} 1-12 win rate`).toBeLessThanOrEqual(0.9);
+      expect(lost, `${sect} 1-12 lives lost`).toBeGreaterThanOrEqual(1);
+      finale[sect] = win;
+    }
+    expect(Math.abs(finale.fire! - finale.wood!)).toBeLessThanOrEqual(0.15);
   }, 120_000);
 });
