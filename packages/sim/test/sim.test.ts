@@ -54,7 +54,8 @@ describe('economy', () => {
 
   it('cannot build on the path or on a disciple', () => {
     const s = defend();
-    const ev = run(s, 1, place('metal', 0, 1), place('metal', 4, 4), place('earth', 4, 4));
+    const { x, y } = s.layout.paths[0]![0]!;
+    const ev = run(s, 1, place('metal', x, y), place('metal', 4, 4), place('earth', 4, 4));
     expect(s.disciples.length).toBe(1);
     expect(ev.filter((e) => e.e === 'error').length).toBe(2);
   });
@@ -276,7 +277,7 @@ describe('determinism', () => {
     0: [place('metal', 3, 2), place('earth', 3, 3), NEXT],
     200: [place('metal', 6, 5)],
     600: [up(1)],
-    900: [place('earth', 7, 10)],
+    900: [place('earth', 5, 8)],
   };
   const trace = (seed: number) => {
     const hashes: string[] = [];
@@ -318,22 +319,53 @@ describe('maps', () => {
     for (const name of defendLayouts)
       for (const variant of [null, 'mirror']) {
         const l = resolveLayout(name, variant);
-        const r = l.path;
-        for (let i = 1; i < r.length; i++) expect(r[i]!.x === r[i - 1]!.x || r[i]!.y === r[i - 1]!.y, `${name} segment ${i}`).toBe(true);
-        expect(edge(r[0]!), `${name} spawn on the edge`).toBe(true);
-        expect(edge(r.at(-1)!), `${name} goal inside`).toBe(false);
-        const path = tilesOnPath(r);
-        for (const p of l.props) {
-          expect(propBlocks.has(p.type), `${name} prop type ${p.type}`).toBe(true);
-          expect(path.has(`${p.at.x},${p.at.y}`), `${name} prop ${p.type} on the path`).toBe(false);
+        expect(l.paths.length, `${name} has a path`).toBeGreaterThan(0);
+        for (const r of l.paths) {
+          for (let i = 1; i < r.length; i++) expect(r[i]!.x === r[i - 1]!.x || r[i]!.y === r[i - 1]!.y, `${name} segment ${i}`).toBe(true);
+          for (const p of r) expect(p.x >= 0 && p.y >= 0 && p.x < grid.w && p.y < grid.h, `${name} inside the grid`).toBe(true);
+          expect(edge(r[0]!), `${name} spawn on the edge`).toBe(true);
+          expect(edge(r.at(-1)!), `${name} goal inside`).toBe(false);
+          expect(r.at(-1), `${name} paths share one goal`).toEqual(l.paths[0]!.at(-1));
+          const path = tilesOnPath(r);
+          for (const p of l.props) {
+            expect(propBlocks.has(p.type), `${name} prop type ${p.type}`).toBe(true);
+            expect(path.has(`${p.at.x},${p.at.y}`), `${name} prop ${p.type} on the path`).toBe(false);
+          }
         }
         expect(biomes.has(l.biome), `${name} biome`).toBe(true);
       }
   });
 
+  // SPEC-pc-v2 §2: story maps are long and winding on the wide board.
+  it('story layouts: every path 60-110 tiles, turning every 3-8 tiles', () => {
+    for (const name of ['village-terraces', 'village-shrine', 'village-rooftops'])
+      for (const r of layouts.get(name)!.paths) {
+        let len = 0;
+        for (let i = 1; i < r.length; i++) {
+          const seg = Math.abs(r[i]!.x - r[i - 1]!.x) + Math.abs(r[i]!.y - r[i - 1]!.y);
+          expect(seg, `${name} segment ${i}`).toBeGreaterThanOrEqual(3);
+          expect(seg, `${name} segment ${i}`).toBeLessThanOrEqual(8);
+          len += seg;
+        }
+        expect(len, `${name} length`).toBeGreaterThanOrEqual(60);
+        expect(len, `${name} length`).toBeLessThanOrEqual(110);
+      }
+    for (const name of ['village-shrine', 'village-rooftops']) expect(layouts.get(name)!.paths.length, `${name} entrances`).toBe(2);
+  });
+
+  it('a two-gate stage sends its waves down both paths', () => {
+    const s = defend('1-4');
+    const ev = run(s, 400, NEXT);
+    const used = ev.filter((e) => e.e === 'spawn').map((e) => s.enemies.find((x) => x.id === e.id)?.path);
+    expect(used).toContain(0);
+    expect(used).toContain(1);
+    // each enemy stands on its own path
+    for (const e of s.enemies) expect(s.pathTiles.has(`${Math.floor(e.x / 1000)},${Math.floor(e.y / 1000)}`)).toBe(true);
+  });
+
   it('mirror twice is the original', () => {
     for (const name of defendLayouts)
-      expect(resolveLayout(name, 'mirror').path.map((p) => ({ x: grid.w - 1 - p.x, y: p.y }))).toEqual(layouts.get(name)!.path);
+      expect(resolveLayout(name, 'mirror').paths.map((r) => r.map((p) => ({ x: grid.w - 1 - p.x, y: p.y })))).toEqual(layouts.get(name)!.paths);
   });
 
   it('stage layouts exist and blocked tiles stop building', () => {

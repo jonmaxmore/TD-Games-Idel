@@ -1,7 +1,7 @@
 // Defend mode rules: one tick at a time, integer math, seeded RNG. Every loop runs over arrays in a fixed order;
 // the golden replays (packages/sim/goldens) pin the outcome tick by tick.
 import {
-  arts, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid,
+  arts, cardAutoPick, CARD_EVERY_WAVES, cards as allCards, combos, comboDmgPct, defOf, economy, elites, enemies as enemyDefs, grid, layouts,
   mergeFee, roles, roleUnlocks, rosterSects, sectOrder, sectRules, sects, stageList, stages, statPct as statPcts, TICK_HZ, TILE,
   units, unitList, upgradeLevels, costPct, waveHp, waveRecipes, type CardDef, type ComboDef, type MapLayout, type Pt, type SectDef, type WaveRecipe,
 } from './data';
@@ -30,18 +30,19 @@ export interface Disciple {
 
 export interface Enemy {
   id: number; hp: number; maxHp: number; d: number; speed: number; bounty: number; x: number; y: number;
+  path: number; // index into DefendState.paths; d is the distance walked along it
   slowT: number; slowPct: number; burnT: number; burnDps: number; burnAge: number; poison: number; poisonT: number; poisonDps: number;
   stunT: number; lastElT: number; age: number; regenPct: number; phase: number;
   type: string; el: string; lastEl: string | null; elite: string | null;
   air: boolean; revealed: boolean; small: boolean;
 }
 
-export interface QueuedEnemy { type: string; wave: number; hpPct: number }
+export interface QueuedEnemy { type: string; wave: number; hpPct: number; path: number }
 
 export interface DefendState {
   stageId: string; phase: string;
   tick: number; silver: number; lives: number; wave: number; totalWaves: number; spawnT: number; breakT: number; nextId: number;
-  pathLen: number; livesLost: number; combosMade: number; peakDisciples: number; bountyMultT: number; revealAllT: number; offerT: number;
+  livesLost: number; combosMade: number; peakDisciples: number; bountyMultT: number; revealAllT: number; offerT: number;
   rng: number;
   spawnQueue: QueuedEnemy[];
   recipe: string; nextRecipe: string; sealEl: string | null; sect: string | null; // sect: the player's sect when it has a roster
@@ -49,7 +50,7 @@ export interface DefendState {
   artCharges: number[]; artCd: number[];
   disciples: Disciple[]; enemies: Enemy[];
   unlocked: string[];
-  path: Pt[]; pathTiles: Set<string>; blocked: Set<string>; layout: MapLayout;
+  paths: Pt[][]; pathLens: number[]; pathTiles: Set<string>; blocked: Set<string>; layout: MapLayout; // pathTiles: every path's tiles
   cards: string[]; offer: string[] | null; seenTypes: string[]; stars: boolean[] | null;
   sectsUsed: string[]; // distinct sect elements ever placed (max_2_sects star)
 }
@@ -74,14 +75,14 @@ export function createDefend(stageId: string, seed: number, sect: string | null 
   const stage = stages.get(stageId);
   if (!stage) throw new Error(`unknown stage ${stageId}`);
   const layout = resolveLayout(stage.layout!, stage.variant);
-  const path = toMilli(layout.path);
+  const paths = layout.paths.map(toMilli);
   return {
     stageId, phase: 'build', tick: 0, silver: stage.startSilver ?? 100, lives: stage.startLives ?? economy.startLives, wave: 0,
-    totalWaves: stage.waves ?? 10, spawnT: 0, breakT: 0, nextId: 1, pathLen: pathLength(path), livesLost: 0, combosMade: 0,
+    totalWaves: stage.waves ?? 10, spawnT: 0, breakT: 0, nextId: 1, livesLost: 0, combosMade: 0,
     peakDisciples: 0, bountyMultT: 0, revealAllT: 0, offerT: 0, rng: seed >>> 0, spawnQueue: [], recipe: 'mixed', nextRecipe: 'mixed',
     sealEl: null, sect: rosterSect, cardsOffered: 0, sealT: 0, artCharges: arts.map((a) => a.charges), artCd: arts.map(() => 0),
     disciples: [], enemies: [], unlocked: rosterSect != null ? unlockedUnits(rosterSect, stageId) : unlockedSects(stageId),
-    path, pathTiles: tilesOnPath(layout.path), blocked: blockedTiles(layout), layout,
+    paths, pathLens: paths.map(pathLength), pathTiles: new Set(layout.paths.flatMap((p) => [...tilesOnPath(p)])), blocked: blockedTiles(layout), layout,
     cards: [], offer: null, seenTypes: [], stars: null, sectsUsed: [],
   };
 }
@@ -258,7 +259,7 @@ function castArt(s: DefendState, id: string, ev: SimEvent[]): void {
   switch (art.type) {
     case 'strike': {
       let lead = alive[0]!;
-      for (const e of alive) if (e.d > lead.d) lead = e;
+      for (const e of alive) if (toGo(s, e) < toGo(s, lead)) lead = e;
       x = lead.x; y = lead.y;
       for (const e of alive) if (within(x, y, e.x, e.y, art.radius)) e.hp -= art.dmg;
       break;
@@ -337,10 +338,13 @@ export function waveEntries(stageId: string, wave: number, recipeId: string): Qu
   const r = recipeById(recipeId);
   const types = recipeTypes(stageId, wave, recipeId);
   const n = Math.max(1, div((4 + wave) * r.countPct, 100));
+  const stage = stages.get(stageId)!;
+  const paths = layouts.get(stage.layout!)!.paths.length;
   const o: QueuedEnemy[] = [];
-  for (let i = 0; i < n; i++) o.push({ type: types[(i + wave) % types.length]!, wave, hpPct: r.hpPct });
-  const boss = stages.get(stageId)!.scriptedWaves.get(String(wave));
-  if (boss != null) o.push({ type: boss, wave, hpPct: 100 });
+  // Enemies take the spawn gates in turn, in queue order.
+  for (let i = 0; i < n; i++) o.push({ type: types[(i + wave) % types.length]!, wave, hpPct: r.hpPct, path: i % paths });
+  const boss = stage.scriptedWaves.get(String(wave));
+  if (boss != null) o.push({ type: boss, wave, hpPct: 100, path: n % paths });
   return o;
 }
 
@@ -380,9 +384,9 @@ function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = f
     speed = div(speed * elite.speedPct, 100);
     bounty *= elites.bountyMult;
   }
-  const p = pointAt(s.path, at);
+  const p = pointAt(s.paths[q.path]!, at);
   const e: Enemy = {
-    id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, speed, bounty, x: p.x, y: p.y, small,
+    id: s.nextId++, type, el: def.element, air: def.air, hp, maxHp: hp, d: at, path: q.path, speed, bounty, x: p.x, y: p.y, small,
     elite: elite?.id ?? null, regenPct: elite?.regenPct ?? 0,
     slowT: 0, slowPct: 0, burnT: 0, burnDps: 0, burnAge: 0, poison: 0, poisonT: 0, poisonDps: 0, stunT: 0, lastElT: 0, age: 0, phase: 0,
     lastEl: null, revealed: false,
@@ -445,12 +449,14 @@ function dealDamage(s: DefendState, d: Disciple, e: Enemy, raw: number, crit: bo
 
 const dist2 = (d: Disciple, e: Enemy) => { const dx = d.x - e.x, dy = d.y - e.y; return dx * dx + dy * dy; };
 
-function better(d: Disciple, e: Enemy, cur: Enemy): boolean {
+const toGo = (s: DefendState, e: Enemy) => s.pathLens[e.path]! - e.d;
+
+function better(s: DefendState, d: Disciple, e: Enemy, cur: Enemy): boolean {
   switch (d.target) {
     case 'strong': return e.hp > cur.hp;
     case 'weak': return e.hp < cur.hp;
     case 'close': return dist2(d, e) < dist2(d, cur);
-    default: return e.d > cur.d;
+    default: return toGo(s, e) < toGo(s, cur);
   }
 }
 
@@ -498,7 +504,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
   let target: Enemy | null = null;
   for (const e of s.enemies) {
     if (!canTarget(e, st.hitsAir, st.hitsGround) || !within(d.x, d.y, e.x, e.y, st.range)) continue;
-    if (target == null || better(d, e, target)) target = e;
+    if (target == null || better(s, d, e, target)) target = e;
   }
   if (target == null) return;
   const tg = target;
@@ -617,11 +623,11 @@ function moveEnemies(s: DefendState, ev: SimEvent[]): void {
     if (e.slowT > 0) { e.slowT--; sp = div(sp * (100 - e.slowPct), 100); } else e.slowPct = 0;
     e.d += sp;
     if (e.type === 'runner' && e.age % DASH_EVERY === 0) e.d += DASH_DIST;
-    const p = pointAt(s.path, e.d);
+    const p = pointAt(s.paths[e.path]!, e.d);
     e.x = p.x; e.y = p.y;
   }
   for (const e of s.enemies)
-    if (e.hp > 0 && e.d >= s.pathLen) {
+    if (e.hp > 0 && e.d >= s.pathLens[e.path]!) {
       e.hp = 0; e.bounty = 0;
       const cost = enemyDefs.get(e.type)!.leakCost;
       s.lives = Math.max(0, s.lives - cost);
@@ -665,14 +671,14 @@ function resolveDeaths(s: DefendState, ev: SimEvent[]): void {
   const yy3 = s.disciples.filter((d) => d.els.includes('yinyang') && d.level >= 3);
   const fireExplodes = hasLevel(s, 'fire', 2);
   for (const e of dead) {
-    if (e.bounty === 0 && e.d >= s.pathLen) continue; // leaked
+    if (e.bounty === 0 && e.d >= s.pathLens[e.path]!) continue; // leaked
     let bounty = e.bounty;
     if (yy3.some((d) => within(d.x, d.y, e.x, e.y, YY_REVEAL))) bounty++;
     bounty += card(s, 'bountyFlat')?.value ?? 0;
     if (s.bountyMultT > 0) bounty *= 2;
     s.silver += bounty;
     ev.push({ e: 'kill', id: e.id, x: e.x, y: e.y, amount: bounty });
-    if (e.type === 'puppet' && !e.small) for (let i = 0; i < 3; i++) spawn(s, { type: 'puppet', wave: s.wave, hpPct: 100 }, ev, Math.max(0, e.d - i * 300), true);
+    if (e.type === 'puppet' && !e.small) for (let i = 0; i < 3; i++) spawn(s, { type: 'puppet', wave: s.wave, hpPct: 100, path: e.path }, ev, Math.max(0, e.d - i * 300), true);
     if (e.burnT > 0 && s.disciples.some((q) => q.combo === 'wildfire_flute'))
       for (const o of s.enemies.filter((o) => o.hp > 0 && within(e.x, e.y, o.x, o.y, 1500)).slice(0, 2)) { o.burnT = FIRE_BURN_TICKS; o.burnDps = Math.max(o.burnDps, e.burnDps); }
     // Wood sect rule: a poisoned enemy that dies passes its poison to everything near it.

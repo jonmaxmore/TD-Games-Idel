@@ -52,7 +52,7 @@ describe('rosters', () => {
     stepDefend(s, [NEXT]);
     while (s.enemies.length < 2) stepDefend(s, []);
     const [a, b] = [s.enemies[0]!, s.enemies[1]!];
-    b.x = a.x; b.y = a.y; b.poison = 0;
+    Object.assign(b, { path: a.path, d: a.d, x: a.x, y: a.y, poison: 0 });
     Object.assign(a, { poison: 2, poisonT: 40, poisonDps: 10, hp: 0 });
     stepDefend(s, []);
     expect(b.poison).toBeGreaterThan(0);

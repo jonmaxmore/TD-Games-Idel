@@ -1,15 +1,16 @@
 # Map Design Document: แผนที่ ศึกห้าสำนัก
 
-> **EN summary for artists:** Portrait 11×18-tile boards. Enemies enter from a spawn gate on the board edge and walk to the sect's goal gate *inside* the board. Five biomes, each with its own palette, props and one rule that changes play. Layout data lives in `docs/data/maps.json`; this doc explains it and lists the art needed. Mockups: `docs/art/mockups/map-*.png`. They show layout, colour and placement only, not the final art style.
+> **EN summary for artists:** Wide 24×12-tile boards for 16:9 PC (x across the screen, y into it). Enemies enter from one or two spawn gates on the board edge and walk to the sect's goal gate *inside* the board. Five biomes, each with its own palette, props and one rule that changes play. Layout data lives in `docs/data/maps.json`; this doc explains it and lists the art needed. Mockups: `docs/art/mockups/map-*.png`. They show layout, colour and placement only, not the final art style.
 >
 > ส่วนหนึ่งของ [Art Bible](art-bible.md) · ระบบด่านและจำนวนผัง: [design/maps.md](../design/maps.md) · ข้อมูล: [`data/maps.json`](../data/maps.json)
 
 ## 1. กติกาของทุกแผนที่
 | กติกา | เหตุผล |
 |---|---|
-| กระดาน 11×18 ช่อง จอแนวตั้ง (ดูข้อ 7) | เล่นมือเดียวบนมือถือ, ใช้ผังเดียวกันทั้งเว็บและแอป |
+| กระดาน 24×12 ช่อง จอกว้าง 16:9 แกน x เป็นแนวนอนบนจอ ไม่ต้องหมุนกระดาน (ดูข้อ 7) | เล่นบน PC ([ADR 0008](../adr/0008-pc-only-16x9.md)) เห็นทางยาวทั้งเส้นในจอเดียว |
 | ศัตรู**เกิดที่ประตูเกิดบนขอบกระดาน** (ถ้ำ ช่องเขา ประตูมิติ) | ผู้เล่นเห็นว่ามาจากไหน ไม่โผล่กลางอากาศ |
-| ศัตรู**จบที่ประตูสำนักภายในกระดาน** (แถว ≤ 16, ไม่อยู่บนขอบ) | แก้ปัญหา "เดินออกนอกแผนที่" ผู้เล่นเห็นสิ่งที่ต้องปกป้อง |
+| ศัตรู**จบที่ประตูสำนักภายในกระดาน** (ไม่อยู่บนขอบ) | แก้ปัญหา "เดินออกนอกแผนที่" ผู้เล่นเห็นสิ่งที่ต้องปกป้อง |
+| ผังมีได้**หลายประตูเกิด** (`paths`) ทุกเส้นไปบรรจบกันก่อนถึงประตูสำนักเดียวกัน ศัตรูในระลอกสลับกันเดินทีละเส้น | ต้องแบ่งกำลังป้องกัน และมีจุดคุ้มตรงที่ทางบรรจบ |
 | ประตูสำนักกะพริบแดงเมื่อศัตรูหลุดเข้าไป | บอกว่าเสียชีวิตตรงไหน |
 | ของประกอบบางชนิด**ขวางการวาง** (บ้าน ต้นไม้ หิน ไผ่ น้ำแข็ง แผงตลาด ซากวิหาร) | สร้างทางเลือก ช่องดีมีจำกัด ไม่วางที่ไหนก็ได้ |
 | ของประกอบบางชนิด**วางทับได้** (หลังคา นาข้าว โคม ธง) | ตกแต่งโดยไม่ลดช่องวาง หลังคาคือกลไกบท 1 |
@@ -35,9 +36,9 @@
 | ผัง | ภูมิภาค | ชนิด | ใช้ในด่าน | ภาพ |
 |---|---|---|---|---|
 | `village-terraces` นาขั้นบันได | หมู่บ้าน | ตั้งรับ | T-1, 1-1, 1-2 (mirror) | ![](mockups/map-village-terraces.png) |
-| `village-shrine` ลานศาลเจ้า | หมู่บ้าน | ตั้งรับ | 1-4, 1-7 (mirror) | ![](mockups/map-village-shrine.png) |
-| `village-rooftops` หลังคาหมู่บ้าน | หมู่บ้าน | ตั้งรับ (ศัตรูบิน) | 1-6 | ![](mockups/map-village-rooftops.png) |
-| `village-spiral` วงล้อมวิหาร | หมู่บ้าน | สนามบอส | 1-10, 1-12 | ![](mockups/map-village-spiral.png) |
+| `village-shrine` ลานศาลเจ้า | หมู่บ้าน | ตั้งรับ (สองประตูเกิด) | 1-4, 1-7 (mirror) | ![](mockups/map-village-shrine.png) |
+| `village-rooftops` หลังคาหมู่บ้าน | หมู่บ้าน | ตั้งรับ (สองประตูเกิด, ศัตรูบิน) | 1-6, 1-12 (mirror) | ![](mockups/map-village-rooftops.png) |
+| `village-spiral` วงล้อมวิหาร | หมู่บ้าน | สนามบอส | 1-10 | ![](mockups/map-village-spiral.png) |
 | `village-camp` ค่ายโจรเชิงเขา | หมู่บ้าน | บุกค่าย | 1-3, 1-11 (mirror) | ![](mockups/map-village-camp.png) |
 | `village-checkpoint` ด่านตรวจโจร | หมู่บ้าน | บุกค่าย | 1-8 | ![](mockups/map-village-checkpoint.png) |
 | `bamboo-stream` ลำธารไผ่ | หุบไผ่ | ตั้งรับ (ตัวอย่างธีม) | — | ![](mockups/map-bamboo-stream.png) |
@@ -48,9 +49,10 @@
 ผังของบท 2–5 ตอนนี้มีบทละ 1 ผังเพื่อโชว์ธีม ผังจริงบทละ 6 จะออกแบบตาม [design/maps.md](../design/maps.md)
 
 **หลักออกแบบผัง**
-- เส้นทางยาว 31–57 ช่อง: ด่านต้นสั้น ด่านบอสยาว (วงล้อม)
-- ทุกผังมี "จุดคุ้ม" 2–3 จุดที่ยิงถึงทางหลายช่วง แต่บางจุดถูกบ้านหรือต้นไม้กันไว้ ผู้เล่นต้องเลือก
-- ทางโค้งหักมุมทุก 3–8 ช่อง ไม่มีทางตรงยาวเกินครึ่งกระดาน (ศัตรูวิ่งเร็วผ่านง่ายเกินไป)
+- ผังบทที่ 1 ทุกเส้นทางยาว 60–110 ช่อง (นับจากประตูเกิดถึงประตูสำนัก) ผังบอสวงล้อมยาวที่สุด
+- ทุกผังมี "จุดคุ้ม" 3–4 จุดที่ยิงถึงทางหลายช่วง แต่บางจุดถูกบ้านหรือต้นไม้กันไว้ ผู้เล่นต้องเลือก ผังสองประตูต้องมีจุดคุ้มที่ยิงถึงทั้งสองทางอย่างน้อย 1 จุด
+- ทางโค้งหักมุมทุก 3–8 ช่อง (ยกเว้นวงล้อมของสนามบอส) ไม่มีทางตรงยาวเกินครึ่งกระดาน (ศัตรูวิ่งเร็วผ่านง่ายเกินไป)
+- ความยาวและการเลี้ยวของผังบทที่ 1 ตรวจด้วย test `maps` เช่นกัน
 - ผังบุกค่ายต้องมีทางแยกซ้าย/ขวาที่ต่างกันชัดเจน (ป้อมน้อยแต่ยาว กับ ป้อมแข็งแต่สั้น)
 
 ## 4. แผนที่ "ตายตัว" ไหม
@@ -80,12 +82,14 @@
 ส่งมอบ: `.aseprite` + PNG sheet ตั้งชื่อ `<biome>_<item>.png` ตามกฎใน Art Bible
 
 ## 6. แก้ไขหรือเพิ่มผังอย่างไร
-1. แก้ `docs/data/maps.json`: path ใช้พิกัดช่อง (x 0–10, y 0–17) เป็นเส้นตรงแนวตั้ง/นอนต่อกัน
+1. แก้ `docs/data/maps.json`: แต่ละเส้นใน `paths` ใช้พิกัดช่อง (x 0–23, y 0–11) เป็นเส้นตรงแนวตั้ง/นอนต่อกัน
 2. `npm test`: ตรวจว่าทางเดินไม่ขาด, เริ่มบนขอบ, จบในกระดาน และของประกอบไม่ทับทาง
 3. `python3 tools/art/map_mockups.py`: สร้างภาพ mockup ใหม่
 4. ผูกกับด่านใน `docs/data/stages.json` (`layout`, `variant`) แล้วรัน `npm run sim:golden` และ `npm run unity:sync`
 
-## 7. แนวตั้งหรือแนวนอน: เลือก**แนวตั้ง**
+## 7. แนวตั้งหรือแนวนอน: เลือก**แนวตั้ง** (ยกเลิกแล้ว)
+> [ADR 0008](../adr/0008-pc-only-16x9.md) เปลี่ยนเป็น PC จอกว้าง 16:9 กระดาน 24×12 ([SPEC-pc-v2](../specs/SPEC-pc-v2.md) §2) เหตุผลเดิมด้านล่างเก็บไว้เป็นประวัติ
+
 - **มือถือคือตลาดหลัก:** เกม TD/strategy แนวตั้งเล่นมือเดียวได้ เช่น บนรถไฟฟ้า (Rush Royale, Clash Royale, Arknights เป็นแนวนอน แต่ต้องใช้สองมือ)
 - **PvP 1v1 บุก–ตั้งรับ:** แนวตั้งวางฝ่ายบุกด้านบน ฝ่ายรับด้านล่างได้เป็นธรรมชาติ แบบเดียวกับ Clash Royale ซึ่งเป็น esports มือถือที่สำเร็จ
 - **คลิปสั้น** (TikTok/Reels) เป็นช่องทางหาผู้เล่นหลักใน GDD และวิดีโอแนวตั้งตัดลงคลิปได้ทันที

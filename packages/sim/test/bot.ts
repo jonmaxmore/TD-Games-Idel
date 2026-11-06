@@ -1,18 +1,20 @@
 // Simple greedy player used for balance checks and golden replays: builds on the tiles that cover the most path,
 // alternates the unlocked sects, and upgrades once it has enough disciples.
-import { canBuild, createDefend, defOf, grid, isOver, placeCost, stepDefend, units, upgradeCost, waveRecipes, type Command, type DefendState } from '../src';
+import { canBuild, createDefend, defOf, grid, isOver, placeCost, stepDefend, tilesOnPath, units, upgradeCost, waveRecipes, type Command, type DefendState } from '../src';
 
+// A tile scores the path tiles it reaches, counted once per path through them, so the shared stretch every enemy walks
+// beats a pocket that guards a single entrance. Ties go to the tile that reaches furthest up a path (meets enemies first).
 export function bestTiles(s: DefendState, range = 2500): { tx: number; ty: number }[] {
-  const path = [...s.pathTiles].map((k) => k.split(',').map(Number) as [number, number]);
-  const scored: { tx: number; ty: number; score: number }[] = [];
+  const path = s.layout.paths.flatMap((p) => [...tilesOnPath(p)].map((k, i) => [...k.split(',').map(Number), i] as [number, number, number]));
+  const scored: { tx: number; ty: number; score: number; first: number }[] = [];
   const r = range / 1000.0;
   for (let ty = 0; ty < grid.h; ty++)
     for (let tx = 0; tx < grid.w; tx++) {
       if (!canBuild(s, tx, ty)) continue;
-      const score = path.filter(([x, y]) => (x - tx) * (x - tx) + (y - ty) * (y - ty) <= r * r).length;
-      scored.push({ tx, ty, score });
+      const near = path.filter(([x, y]) => (x - tx) * (x - tx) + (y - ty) * (y - ty) <= r * r);
+      scored.push({ tx, ty, score: near.length, first: Math.min(...near.map((p) => p[2])) });
     }
-  return scored.sort((a, b) => b.score - a.score || a.ty - b.ty || a.tx - b.tx);
+  return scored.sort((a, b) => b.score - a.score || a.first - b.first || a.ty - b.ty || a.tx - b.tx);
 }
 
 export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean }

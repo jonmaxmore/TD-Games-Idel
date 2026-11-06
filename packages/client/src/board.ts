@@ -5,7 +5,7 @@ import { enemies as enemyDefs, grid, sects, TILE, units, type DefendState, type 
 
 const TOP = 34; // room above the far row for figures standing on it
 const PAD = 6;
-// The board's long side (grid.h, the y axis) runs across the 16:9 screen; x runs into the screen.
+// The grid's x runs across the 16:9 screen and y runs into it.
 
 const ENEMY_COLOR: Record<string, string> = {
   cultist: '#8A2A2A', runner: '#3E7A3A', brute: '#6E7680', leaper: '#4A6A3A', puppet: '#5A6E8A',
@@ -24,8 +24,8 @@ export class Board {
   // Tile size in buffer pixels, chosen to fill the canvas: T across, TH deep (TH < T is the 3/4 view).
   private T = 24;
   private TH = 15;
-  private get BW() { return grid.h * this.T; }
-  private get BH() { return grid.w * this.TH; }
+  private get BW() { return grid.w * this.T; }
+  private get BH() { return grid.h * this.TH; }
   private fx: Fx[] = [];
   private seen = new Map<number, { x: number; y: number }>(); // drawn enemy positions, eased toward the sim's
   private range: { x: number; y: number; r: number } | null = null;
@@ -42,28 +42,28 @@ export class Board {
     this.scale = Math.max(1, Math.round(ch / 320));
     this.canvas.width = Math.floor(cw / this.scale);
     this.canvas.height = Math.floor(ch / this.scale);
-    this.T = Math.floor((this.canvas.width - 2 * PAD) / grid.h);
-    // Depth per row: fill the height, kept between a steep 0.55 and a near-top-down 0.9 of the tile width.
-    this.TH = Math.max(Math.round(this.T * 0.55), Math.min(Math.round(this.T * 0.9), Math.floor((this.canvas.height - TOP - 2 * PAD - 10) / grid.w)));
+    this.T = Math.floor((this.canvas.width - 2 * PAD) / grid.w);
+    // Depth per row: fill the height, kept between a steep 0.55 and a top-down 1.0 of the tile width.
+    this.TH = Math.max(Math.round(this.T * 0.55), Math.min(this.T, Math.floor((this.canvas.height - TOP - 2 * PAD - 10) / grid.h)));
     this.ox = Math.floor((this.canvas.width - this.BW) / 2);
     this.oy = Math.floor((this.canvas.height - this.BH + TOP - 10) / 2);
   }
 
   // Sim milli-tiles to buffer pixels at ground level.
-  private sx = (y: number) => Math.round(this.ox + (y / TILE) * this.T);
-  private sy = (x: number) => Math.round(this.oy + (x / TILE) * this.TH);
+  private sx = (x: number) => Math.round(this.ox + (x / TILE) * this.T);
+  private sy = (y: number) => Math.round(this.oy + (y / TILE) * this.TH);
 
   tileAt(clientX: number, clientY: number): { tx: number; ty: number } | null {
     const r = this.canvas.getBoundingClientRect();
     const bx = ((clientX - r.left) / r.width) * this.canvas.width, by = ((clientY - r.top) / r.height) * this.canvas.height;
-    const ty = Math.floor((bx - this.ox) / this.T), tx = Math.floor((by - this.oy) / this.TH);
+    const tx = Math.floor((bx - this.ox) / this.T), ty = Math.floor((by - this.oy) / this.TH);
     return tx >= 0 && ty >= 0 && tx < grid.w && ty < grid.h ? { tx, ty } : null;
   }
 
   // World point (milli-tiles) to CSS pixels inside the canvas, for floating text. lift is in tiles above the ground.
   toScreen(x: number, y: number, lift = 0.9): { x: number; y: number } {
     const r = this.canvas.clientWidth / this.canvas.width;
-    return { x: this.sx(y) * r, y: (this.sy(x) - lift * this.T) * r };
+    return { x: this.sx(x) * r, y: (this.sy(y) - lift * this.T) * r };
   }
 
   showRange(x: number, y: number, range: number | null, tile?: { tx: number; ty: number }, ok = true): void {
@@ -89,11 +89,11 @@ export class Board {
         const d = s.disciples.find((x) => x.id === e.from), t = s.enemies.find((x) => x.id === e.to);
         if (!d || !t) continue;
         const color = e.crit ? '#FFFFFF' : units.get(d.unit ?? '')?.color ?? sects.get(d.els[0]!)?.color ?? '#fff';
-        const [x0, y0, x1, y1] = [this.sx(d.y), this.sy(d.x) - 14, this.sx(t.y), this.sy(t.x) - 6];
+        const [x0, y0, x1, y1] = [this.sx(d.x), this.sy(d.y) - 14, this.sx(t.x), this.sy(t.y) - 6];
         this.fx.push({ from: now, until: now + 100, draw: (g) => line(g, x0, y0, x1, y1, color, e.crit ? 2 : 1) });
       } else if (e.e === 'art' || e.e === 'phoenix') {
         const phoenix = e.e === 'phoenix';
-        const [cx, cy] = phoenix || !(e.x || e.y) ? [this.ox + this.BW / 2, this.oy + this.BH / 2] : [this.sx(e.y!), this.sy(e.x!)];
+        const [cx, cy] = phoenix || !(e.x || e.y) ? [this.ox + this.BW / 2, this.oy + this.BH / 2] : [this.sx(e.x!), this.sy(e.y!)];
         const [rx, ry] = phoenix ? [this.BW / 2, this.BH / 2] : [3 * this.T, 3 * this.TH];
         this.fx.push({ from: now, until: now + 450, draw: (g, k) => { g.globalAlpha = 1 - k; ring(g, cx, cy, rx * k, ry * k, phoenix ? '#FF7A1F' : '#FFE9A8'); g.globalAlpha = 1; } });
       }
@@ -112,35 +112,37 @@ export class Board {
     for (let tx = 0; tx < grid.w; tx++)
       for (let ty = 0; ty < grid.h; ty++) {
         const onPath = s.pathTiles.has(`${tx},${ty}`);
-        const px = this.ox + ty * this.T, py = Math.round(this.oy + tx * this.TH), h = Math.round(this.oy + (tx + 1) * this.TH) - py;
+        const px = this.ox + tx * this.T, py = Math.round(this.oy + ty * this.TH), h = Math.round(this.oy + (ty + 1) * this.TH) - py;
         g.fillStyle = onPath ? ((tx + ty) % 2 ? '#7E5E40' : '#86664A') : (tx + ty) % 2 ? '#2E4430' : '#355036';
         g.fillRect(px, py, this.T, h);
         g.fillStyle = onPath ? '#6A4C32' : '#26382A';
         g.fillRect(px + ((tx * 7 + ty * 3) % 19) + 2, py + ((tx * 5 + ty) % 9) + 2, 2, 1); // speckle, fixed per tile
       }
     if (this.cursor) {
-      const px = this.ox + this.cursor.ty * this.T, py = Math.round(this.oy + this.cursor.tx * this.TH);
+      const px = this.ox + this.cursor.tx * this.T, py = Math.round(this.oy + this.cursor.ty * this.TH);
       g.fillStyle = this.cursor.ok ? '#FFE9A855' : '#FF3B2E66';
       g.fillRect(px, py, this.T, Math.round(this.TH));
     }
-    if (this.range) ring(g, this.sx(this.range.y), this.sy(this.range.x), (this.range.r / TILE) * this.T, (this.range.r / TILE) * this.TH, '#FFE9A8aa');
+    if (this.range) ring(g, this.sx(this.range.x), this.sy(this.range.y), (this.range.r / TILE) * this.T, (this.range.r / TILE) * this.TH, '#FFE9A8aa');
 
     // Everything that stands up is drawn back to front.
     const things: { depth: number; draw: () => void }[] = [];
     for (const key of s.blocked) {
       const [tx, ty] = key.split(',').map(Number) as [number, number];
-      things.push({ depth: tx + 0.5, draw: () => this.rock(this.ox + ty * this.T + this.T / 2, Math.round(this.oy + (tx + 0.6) * this.TH)) });
+      things.push({ depth: ty + 0.5, draw: () => this.rock(this.ox + tx * this.T + this.T / 2, Math.round(this.oy + (ty + 0.6) * this.TH)) });
     }
-    const goal = s.path[s.path.length - 1]!;
-    things.push({ depth: goal.x / TILE, draw: () => this.gate(this.sx(goal.y), this.sy(goal.x)) });
+    // A cave mouth at every spawn gate, so each entrance reads at a glance; one sect gate at the shared goal.
+    for (const p of s.paths) things.push({ depth: p[0]!.y / TILE, draw: () => this.cave(this.sx(p[0]!.x), this.sy(p[0]!.y)) });
+    const goal = s.paths[0]!.at(-1)!;
+    things.push({ depth: goal.y / TILE, draw: () => this.gate(this.sx(goal.x), this.sy(goal.y)) });
     for (const d of s.disciples) {
       const off = d.offT > 0 || (s.sealT > 0 && s.sealEl != null && d.els.includes(s.sealEl));
-      things.push({ depth: d.x / TILE, draw: () => this.disciple(d.unit ?? d.els[0]!, d.level, this.sx(d.y), this.sy(d.x), off, now + d.id * 97) });
+      things.push({ depth: d.y / TILE, draw: () => this.disciple(d.unit ?? d.els[0]!, d.level, this.sx(d.x), this.sy(d.y), off, now + d.id * 97) });
     }
     for (const e of s.enemies) {
       if (e.type === 'assassin' && !e.revealed && Math.floor(now / 150) % 4 !== 0) continue; // a hidden assassin only flickers
       const p = this.seen.get(e.id) ?? e;
-      things.push({ depth: p.x / TILE, draw: () => this.enemy(e.type, e.hp / e.maxHp, this.sx(p.y), this.sy(p.x), e, now) });
+      things.push({ depth: p.y / TILE, draw: () => this.enemy(e.type, e.hp / e.maxHp, this.sx(p.x), this.sy(p.y), e, now) });
     }
     things.sort((a, b) => a.depth - b.depth);
     for (const t of things) t.draw();
@@ -159,6 +161,13 @@ export class Board {
     g.fillStyle = '#3A3540'; g.fillRect(x - 8, y - 10, 16, 10);
     g.fillStyle = '#4E4858'; g.fillRect(x - 8, y - 12, 16, 3);
     g.fillStyle = '#2A2630'; g.fillRect(x + 3, y - 9, 5, 9);
+  }
+
+  private cave(x: number, y: number) {
+    const g = this.g;
+    g.fillStyle = '#2A2630'; g.fillRect(x - 11, y - 16, 22, 16);
+    g.fillStyle = '#4E4858'; g.fillRect(x - 11, y - 18, 22, 3);
+    g.fillStyle = '#0B0910'; g.fillRect(x - 6, y - 12, 12, 12);
   }
 
   private gate(x: number, y: number) {

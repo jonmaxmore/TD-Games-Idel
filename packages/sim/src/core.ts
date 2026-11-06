@@ -59,7 +59,7 @@ export function resolveLayout(name: string, variant: string | null): MapLayout {
   const l = layouts.get(name)!;
   if (variant !== 'mirror') return l;
   const f = (p: Pt): Pt => ({ x: grid.w - 1 - p.x, y: p.y });
-  return { ...l, path: l.path.map(f), props: l.props.map((p) => ({ type: p.type, at: f(p.at) })) };
+  return { ...l, paths: l.paths.map((p) => p.map(f)), props: l.props.map((p) => ({ type: p.type, at: f(p.at) })) };
 }
 
 export function blockedTiles(l: MapLayout): Set<string> {

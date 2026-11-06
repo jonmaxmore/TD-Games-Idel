@@ -103,7 +103,7 @@ def board(maps, pal, name):
     pen = Pen(img, 0, 0)
     for i in range(gw * gh * 3):
         pen.rect((i * 53) % (gw * T), (i * 97) % (gh * T), 2, 1, colours[1] if i % 3 else colours[2])
-    routes = [l['path']] if l['kind'] == 'defend' else [l['start'] + l['left'] + l['end'], l['start'] + l['right'] + l['end']]
+    routes = l['paths'] if l['kind'] == 'defend' else [l['start'] + l['left'] + l['end'], l['start'] + l['right'] + l['end']]
     path = set().union(*(tiles(r) for r in routes))
     for (x, y) in path:
         pen.rect(x * T, y * T, T, T, colours[3])

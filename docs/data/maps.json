@@ -1,6 +1,6 @@
 {
-  "_notes": "Map layouts and biomes (docs/art/map-design.md). Grid 11x18 tiles, x 0..10, y 0..17. Paths are axis-aligned polylines through tile centres: they start on the board edge at the spawn gate and end INSIDE the board (y <= 16) at the goal gate, never at the screen edge. props with a type whose propTypes.block is true cannot hold disciples. variant 'mirror' flips x (x -> 10 - x) and is applied by the sim, so one layout gives two maps.",
-  "grid": [11, 18],
+  "_notes": "Map layouts and biomes (docs/art/map-design.md). Grid 24x12 tiles, x 0..23 across the screen, y 0..11 into it. Each defend layout has paths: one or more axis-aligned polylines through tile centres. A path starts on the board edge at a spawn gate and ends INSIDE the board at the goal gate, never at the screen edge; two paths share their last stretch into the same goal. Enemies of a wave take the paths in turn. props with a type whose propTypes.block is true cannot hold disciples. variant 'mirror' flips x (x -> 23 - x) and is applied by the sim, so one layout gives two maps.",
+  "grid": [24, 12],
   "propTypes": {
     "house": { "block": true, "nameTh": "บ้านไม้" },
     "tree": { "block": true, "nameTh": "ต้นสน" },
@@ -45,41 +45,52 @@
   "layouts": {
     "village-terraces": {
       "kind": "defend", "biome": "village", "nameTh": "นาขั้นบันได",
-      "path": [[0, 1], [8, 1], [8, 5], [2, 5], [2, 9], [8, 9], [8, 13], [5, 13], [5, 16]],
+      "paths": [
+        [[0, 1], [8, 1], [8, 5], [2, 5], [2, 9], [10, 9], [10, 3], [14, 3], [14, 9], [18, 9], [18, 2], [21, 2], [21, 7]]
+      ],
       "props": [
-        { "type": "house", "at": [0, 3] }, { "type": "house", "at": [6, 7] }, { "type": "house", "at": [4, 11] },
-        { "type": "tree", "at": [0, 7] }, { "type": "tree", "at": [10, 11] }, { "type": "tree", "at": [0, 15] }, { "type": "tree", "at": [10, 16] },
-        { "type": "rice", "at": [0, 11] }, { "type": "rice", "at": [0, 12] }, { "type": "rice", "at": [10, 3] }, { "type": "rice", "at": [10, 4] },
-        { "type": "lantern", "at": [4, 16] }, { "type": "lantern", "at": [6, 16] }
+        { "type": "house", "at": [0, 3] }, { "type": "house", "at": [9, 6] }, { "type": "house", "at": [12, 7] }, { "type": "house", "at": [16, 4] }, { "type": "tree", "at": [9, 2] },
+        { "type": "tree", "at": [0, 11] }, { "type": "tree", "at": [23, 0] }, { "type": "tree", "at": [23, 11] }, { "type": "tree", "at": [12, 11] }, { "type": "rice", "at": [3, 7] },
+        { "type": "rice", "at": [4, 7] }, { "type": "rice", "at": [5, 7] }, { "type": "rice", "at": [6, 7] }, { "type": "rice", "at": [11, 0] }, { "type": "rice", "at": [12, 0] },
+        { "type": "rice", "at": [16, 10] }, { "type": "rice", "at": [17, 10] }, { "type": "lantern", "at": [20, 8] }, { "type": "lantern", "at": [22, 8] }
       ]
     },
     "village-shrine": {
       "kind": "defend", "biome": "village", "nameTh": "ลานศาลเจ้า",
-      "path": [[5, 0], [5, 3], [1, 3], [1, 8], [9, 8], [9, 12], [3, 12], [3, 15]],
+      "paths": [
+        [[1, 0], [1, 4], [4, 4], [4, 1], [7, 1], [7, 5], [10, 5], [10, 1], [13, 1], [13, 9], [16, 9], [16, 2], [19, 2], [19, 9], [22, 9], [22, 5]],
+        [[1, 11], [1, 7], [4, 7], [4, 10], [7, 10], [7, 5], [10, 5], [10, 1], [13, 1], [13, 9], [16, 9], [16, 2], [19, 2], [19, 9], [22, 9], [22, 5]]
+      ],
       "props": [
-        { "type": "shrine", "at": [7, 4] }, { "type": "tree", "at": [9, 1] }, { "type": "tree", "at": [0, 11] }, { "type": "tree", "at": [10, 15] },
-        { "type": "house", "at": [5, 10] }, { "type": "house", "at": [7, 15] },
-        { "type": "lantern", "at": [2, 15] }, { "type": "lantern", "at": [4, 15] }, { "type": "flag", "at": [3, 16] }
+        { "type": "shrine", "at": [21, 7] }, { "type": "house", "at": [11, 3] }, { "type": "house", "at": [12, 3] }, { "type": "house", "at": [17, 7] }, { "type": "tree", "at": [14, 6] },
+        { "type": "tree", "at": [15, 6] }, { "type": "tree", "at": [0, 6] }, { "type": "tree", "at": [23, 0] }, { "type": "tree", "at": [9, 11] }, { "type": "house", "at": [8, 8] },
+        { "type": "lantern", "at": [20, 4] }, { "type": "lantern", "at": [21, 4] }, { "type": "flag", "at": [23, 5] }, { "type": "flag", "at": [20, 10] }
       ]
     },
     "village-rooftops": {
       "kind": "defend", "biome": "village", "nameTh": "หลังคาหมู่บ้าน",
-      "path": [[10, 2], [2, 2], [2, 6], [8, 6], [8, 10], [2, 10], [2, 14], [7, 14], [7, 16]],
+      "paths": [
+        [[2, 0], [2, 3], [6, 3], [6, 6], [6, 10], [9, 10], [9, 2], [13, 2], [13, 9], [17, 9], [17, 2], [21, 2], [21, 10], [18, 10]],
+        [[0, 9], [3, 9], [3, 6], [6, 6], [6, 10], [9, 10], [9, 2], [13, 2], [13, 9], [17, 9], [17, 2], [21, 2], [21, 10], [18, 10]]
+      ],
       "props": [
-        { "type": "roof", "at": [4, 4] }, { "type": "roof", "at": [5, 4] }, { "type": "roof", "at": [6, 4] },
-        { "type": "roof", "at": [4, 8] }, { "type": "roof", "at": [5, 8] }, { "type": "roof", "at": [6, 8] },
-        { "type": "roof", "at": [4, 12] }, { "type": "roof", "at": [5, 12] }, { "type": "roof", "at": [6, 12] },
-        { "type": "tree", "at": [0, 0] }, { "type": "tree", "at": [10, 8] }, { "type": "tree", "at": [10, 13] },
-        { "type": "lantern", "at": [6, 16] }, { "type": "lantern", "at": [8, 16] }
+        { "type": "roof", "at": [7, 4] }, { "type": "roof", "at": [8, 4] }, { "type": "roof", "at": [7, 5] }, { "type": "roof", "at": [8, 5] }, { "type": "roof", "at": [7, 6] },
+        { "type": "roof", "at": [8, 6] }, { "type": "roof", "at": [11, 4] }, { "type": "roof", "at": [11, 5] }, { "type": "roof", "at": [11, 6] }, { "type": "roof", "at": [15, 3] },
+        { "type": "roof", "at": [15, 4] }, { "type": "roof", "at": [15, 5] }, { "type": "roof", "at": [19, 6] }, { "type": "roof", "at": [19, 7] }, { "type": "roof", "at": [19, 8] },
+        { "type": "roof", "at": [4, 5] }, { "type": "house", "at": [10, 8] }, { "type": "house", "at": [12, 8] }, { "type": "tree", "at": [14, 7] }, { "type": "tree", "at": [16, 7] },
+        { "type": "tree", "at": [5, 4] }, { "type": "tree", "at": [0, 0] }, { "type": "tree", "at": [23, 11] }, { "type": "lantern", "at": [17, 10] }, { "type": "lantern", "at": [19, 11] }
       ]
     },
     "village-spiral": {
       "kind": "defend", "biome": "village", "nameTh": "วงล้อมวิหาร (สนามบอส)",
-      "path": [[0, 2], [9, 2], [9, 15], [1, 15], [1, 5], [6, 5], [6, 11], [4, 11], [4, 8]],
+      "paths": [
+        [[0, 1], [21, 1], [21, 10], [2, 10], [2, 4], [18, 4], [18, 7], [6, 7]]
+      ],
       "goalGate": "temple",
       "props": [
-        { "type": "shrine", "at": [3, 8] }, { "type": "tree", "at": [10, 0] }, { "type": "tree", "at": [0, 17] },
-        { "type": "rock", "at": [3, 13] }, { "type": "rock", "at": [7, 13] }, { "type": "lantern", "at": [5, 8] }
+        { "type": "shrine", "at": [5, 7] }, { "type": "lantern", "at": [7, 6] }, { "type": "lantern", "at": [7, 8] }, { "type": "rock", "at": [8, 5] }, { "type": "rock", "at": [12, 6] },
+        { "type": "rock", "at": [16, 5] }, { "type": "tree", "at": [5, 2] }, { "type": "tree", "at": [11, 3] }, { "type": "tree", "at": [17, 2] }, { "type": "rock", "at": [9, 8] },
+        { "type": "rock", "at": [14, 9] }, { "type": "tree", "at": [23, 0] }, { "type": "tree", "at": [0, 11] }
       ]
     },
     "village-camp": {
@@ -118,34 +129,42 @@
     },
     "bamboo-stream": {
       "kind": "defend", "biome": "bamboo", "nameTh": "ลำธารไผ่ (ตัวอย่างธีม)",
-      "path": [[0, 3], [4, 3], [4, 7], [9, 7], [9, 11], [3, 11], [3, 15], [6, 15]],
+      "paths": [
+        [[1, 0], [1, 8], [5, 8], [5, 2], [9, 2], [9, 9], [13, 9], [13, 3], [17, 3], [17, 9], [21, 9], [21, 2]]
+      ],
       "props": [
-        { "type": "bamboo", "at": [7, 2] }, { "type": "bamboo", "at": [8, 3] }, { "type": "bamboo", "at": [1, 8] }, { "type": "bamboo", "at": [2, 9] },
-        { "type": "bamboo", "at": [10, 15] }, { "type": "rock", "at": [6, 9] }, { "type": "lantern", "at": [7, 15] }
+        { "type": "bamboo", "at": [3, 4] }, { "type": "bamboo", "at": [3, 5] }, { "type": "bamboo", "at": [11, 6] }, { "type": "bamboo", "at": [11, 7] }, { "type": "bamboo", "at": [19, 5] },
+        { "type": "rock", "at": [7, 6] }, { "type": "rock", "at": [15, 6] }, { "type": "lantern", "at": [20, 2] }, { "type": "lantern", "at": [22, 2] }
       ]
     },
     "ice-lake": {
       "kind": "defend", "biome": "ice", "nameTh": "ทะเลสาบน้ำแข็ง (ตัวอย่างธีม)",
-      "path": [[5, 0], [5, 4], [9, 4], [9, 9], [1, 9], [1, 14], [5, 14], [5, 16]],
+      "paths": [
+        [[0, 5], [4, 5], [4, 1], [10, 1], [10, 5], [7, 5], [7, 10], [14, 10], [14, 6], [17, 6], [17, 1], [22, 1], [22, 8], [19, 8]]
+      ],
       "props": [
-        { "type": "ice", "at": [2, 3] }, { "type": "ice", "at": [7, 7] }, { "type": "ice", "at": [3, 12] }, { "type": "ice", "at": [8, 13] },
-        { "type": "lantern", "at": [4, 16] }, { "type": "lantern", "at": [6, 16] }
+        { "type": "ice", "at": [2, 3] }, { "type": "ice", "at": [7, 3] }, { "type": "ice", "at": [11, 8] }, { "type": "ice", "at": [20, 4] }, { "type": "ice", "at": [15, 3] },
+        { "type": "lantern", "at": [18, 8] }, { "type": "lantern", "at": [20, 9] }
       ]
     },
     "fire-market": {
       "kind": "defend", "biome": "fire-city", "nameTh": "ตลาดโคมแดง (ตัวอย่างธีม)",
-      "path": [[10, 1], [1, 1], [1, 5], [9, 5], [9, 9], [1, 9], [1, 13], [8, 13], [8, 16]],
+      "paths": [
+        [[23, 1], [20, 1], [20, 9], [16, 9], [16, 4], [12, 4], [12, 10], [8, 10], [8, 2], [4, 2], [4, 9], [1, 9], [1, 5]]
+      ],
       "props": [
-        { "type": "stall", "at": [3, 3] }, { "type": "stall", "at": [7, 3] }, { "type": "stall", "at": [3, 7] }, { "type": "stall", "at": [7, 7] },
-        { "type": "lantern", "at": [5, 3] }, { "type": "lantern", "at": [5, 7] }, { "type": "lantern", "at": [5, 11] }, { "type": "house", "at": [4, 15] }
+        { "type": "stall", "at": [6, 4] }, { "type": "stall", "at": [6, 7] }, { "type": "stall", "at": [14, 6] }, { "type": "stall", "at": [18, 4] }, { "type": "lantern", "at": [10, 6] },
+        { "type": "lantern", "at": [14, 8] }, { "type": "lantern", "at": [18, 7] }, { "type": "house", "at": [2, 10] }
       ]
     },
     "bloodmoon-stairs": {
       "kind": "defend", "biome": "blood-moon", "nameTh": "บันไดหินจันทร์แดง (ตัวอย่างธีม)",
-      "path": [[0, 16], [3, 16], [3, 12], [7, 12], [7, 8], [3, 8], [3, 4], [8, 4], [8, 1]],
+      "paths": [
+        [[0, 10], [3, 10], [3, 7], [7, 7], [7, 10], [11, 10], [11, 5], [7, 5], [7, 2], [15, 2], [15, 8], [19, 8], [19, 2], [22, 2], [22, 7]]
+      ],
       "props": [
-        { "type": "ruin", "at": [5, 10] }, { "type": "ruin", "at": [5, 6] }, { "type": "rock", "at": [10, 14] }, { "type": "rock", "at": [0, 2] },
-        { "type": "flag", "at": [7, 1] }, { "type": "flag", "at": [9, 1] }
+        { "type": "ruin", "at": [9, 7] }, { "type": "ruin", "at": [13, 5] }, { "type": "rock", "at": [17, 5] }, { "type": "rock", "at": [0, 2] }, { "type": "flag", "at": [21, 8] },
+        { "type": "flag", "at": [23, 7] }
       ]
     }
   }

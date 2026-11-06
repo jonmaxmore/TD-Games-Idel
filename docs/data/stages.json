@@ -235,7 +235,7 @@
       "layout": "village-rooftops",
       "waves": 10,
       "startSilver": 130,
-      "hpPct": 95
+      "hpPct": 90
     },
     {
       "id": "1-7",
@@ -356,8 +356,9 @@
       "variant": "mirror",
       "scriptedWaves": { "10": "boss_ch1", "20": "boss_ch1b" },
       "waves": 20,
-      "startSilver": 300,
-      "hpPct": 170
+      "startSilver": 550,
+      "startLives": 4,
+      "hpPct": 230
     },
     {
       "id": "2-1",

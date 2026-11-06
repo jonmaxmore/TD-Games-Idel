@@ -45,7 +45,8 @@ export interface EliteAffix { id: string; nameTh: string; hpPct: number; speedPc
 
 export type Pt = { x: number; y: number };
 export interface Prop { type: string; at: Pt }
-export interface MapLayout { kind: string; biome: string; nameTh: string; goalGate: string | null; path: Pt[]; props: Prop[] }
+// paths: every spawn gate's route to the one goal gate; enemies of a wave take them in turn.
+export interface MapLayout { kind: string; biome: string; nameTh: string; goalGate: string | null; paths: Pt[][]; props: Prop[] }
 export interface BiomeDef { nameTh: string; time: string; palette: string; moodTh: string; mechanicTh: string; spawnGate: string; goalGate: string }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -151,7 +152,7 @@ export const biomes = new Map<string, BiomeDef>(Object.keys(M.biomes).map((k) =>
 }));
 export const layouts = new Map<string, MapLayout>(Object.keys(M.layouts).map((k) => {
   const v = M.layouts[k];
-  return [k, { kind: v.kind, biome: v.biome, nameTh: v.nameTh, goalGate: v.goalGate ?? null, path: (v.path ?? []).map(P), props: v.props.map((p: any) => ({ type: p.type, at: P(p.at) })) }];
+  return [k, { kind: v.kind, biome: v.biome, nameTh: v.nameTh, goalGate: v.goalGate ?? null, paths: (v.paths ?? []).map((p: any) => p.map(P)), props: v.props.map((p: any) => ({ type: p.type, at: P(p.at) })) }];
 }));
 export const palette = new Map<string, string[]>(Object.entries(FX.render.palette as Record<string, string[]>));
 

@@ -4,7 +4,7 @@
 // npm run sim:measure prints the full table these gates were tuned from.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { comboDmgPct, combos, createDefend, isOver, sects, stepDefend, type Command, type SimEvent } from '../src';
-import { playStage } from './bot';
+import { bestTiles, playStage } from './bot';
 import { NEXT, place, up } from './helpers';
 
 const SEEDS = [1, 2, 3, 4];
@@ -83,8 +83,8 @@ describe('balance', () => {
     const s = createDefend(stageId, 3, sect);
     s.silver = 100000;
     s.lives = 1000; // the test is about the boss mechanic, not about holding the wave
-    const tiles = [[4, 3], [6, 4], [3, 7], [5, 9], [7, 7], [3, 12], [7, 12], [5, 13]];
-    stepDefend(s, tiles.map(([x, y], i) => place(s.unlocked[i % s.unlocked.length]!, x!, y!)));
+    const tiles = bestTiles(s).slice(0, 8); // the eight buildable tiles that cover the most path
+    stepDefend(s, tiles.map(({ tx, ty }, i) => place(s.unlocked[i % s.unlocked.length]!, tx, ty)));
     for (let i = 0; i < 2; i++) stepDefend(s, s.disciples.map((d) => up(d.id)));
     s.wave = wave - 1;
     const ev = stepDefend(s, [NEXT]);
