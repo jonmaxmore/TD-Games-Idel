@@ -1,6 +1,6 @@
 @font-face { font-family: 'Sarabun'; src: url('/fonts/Sarabun-Regular.ttf'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Sarabun'; src: url('/fonts/Sarabun-Bold.ttf'); font-weight: 700; font-display: swap; }
-/* Black lacquer, cinnabar and gold. PC only: everything is laid out on a 1280x720 (16:9) stage that main.ts scales to the window. */
+/* Black lacquer, cinnabar and gold. PC only: the UI is laid out 720 px tall and main.ts scales it to fill the whole window. */
 :root {
   --bg: #0b0910; --panel: #17111a; --line: #3a2a1e; --gold: #e3b04b; --ink: #ece3cf; --dim: #9a92ae; --red: #8a1a12;
   font-family: 'Sarabun', system-ui, sans-serif; color: var(--ink); background: var(--bg);
@@ -8,7 +8,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
 #app {
-  position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; transform: translate(-50%, -50%) scale(var(--k, 1));
+  position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; transform: scale(var(--k, 1));
   display: flex; flex-direction: column; overflow: hidden; background: var(--bg);
 }
 button {

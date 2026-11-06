@@ -8,10 +8,20 @@ import {
 } from './profile';
 
 const app = document.getElementById('app')!;
-// The game is laid out on a fixed 1280x720 stage; scale it to the largest 16:9 box that fits the window.
-const fit = () => app.style.setProperty('--k', String(Math.min(innerWidth / 1280, innerHeight / 720)));
+// The UI is designed 720 px tall; scale it to the window height and let the width fill the whole window (no bars).
+const fit = () => {
+  const k = Math.min(innerHeight / 720, innerWidth / 1100);
+  app.style.setProperty('--k', String(k));
+  app.style.width = `${innerWidth / k}px`;
+  app.style.height = `${innerHeight / k}px`;
+};
 addEventListener('resize', fit);
 fit();
+// F toggles browser full screen (PC).
+addEventListener('keydown', (e) => {
+  if (e.key !== 'f' || e.target instanceof HTMLInputElement) return;
+  if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen();
+});
 const q = new URLSearchParams(location.search);
 const jump = q.get('stage');
 const dev = { bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), sect: q.get('sect') };

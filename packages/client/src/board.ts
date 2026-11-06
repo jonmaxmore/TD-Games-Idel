@@ -3,13 +3,9 @@
 // with hard edges. It only reads the sim state; it never changes it.
 import { enemies as enemyDefs, grid, sects, TILE, units, type DefendState, type SimEvent } from '@five-sects/sim';
 
-const T = 24; // buffer pixels per tile across the screen
-const K = 0.625; // vertical squash of the ground (a tile is 24x15): the 3/4 view
-const TH = T * K;
 const TOP = 34; // room above the far row for figures standing on it
-const PAD = 8;
+const PAD = 6;
 // The board's long side (grid.h, the y axis) runs across the 16:9 screen; x runs into the screen.
-const BW = grid.h * T, BH = grid.w * TH;
 
 const ENEMY_COLOR: Record<string, string> = {
   cultist: '#8A2A2A', runner: '#3E7A3A', brute: '#6E7680', leaper: '#4A6A3A', puppet: '#5A6E8A',
@@ -25,6 +21,11 @@ export class Board {
   private ox = 0;
   private oy = 0;
   private scale = 1; // CSS pixels per buffer pixel
+  // Tile size in buffer pixels, chosen to fill the canvas: T across, TH deep (TH < T is the 3/4 view).
+  private T = 24;
+  private TH = 15;
+  private get BW() { return grid.h * this.T; }
+  private get BH() { return grid.w * this.TH; }
   private fx: Fx[] = [];
   private seen = new Map<number, { x: number; y: number }>(); // drawn enemy positions, eased toward the sim's
   private range: { x: number; y: number; r: number } | null = null;
@@ -35,32 +36,34 @@ export class Board {
     this.resize();
   }
 
-  // Whole-number pixel scale where it fits, so pixels stay square.
+  // A whole-number pixel scale (pixels stay square), then tiles sized to fill the canvas.
   resize(): void {
     const cw = this.canvas.clientWidth, ch = this.canvas.clientHeight;
-    const fit = Math.min(cw / (BW + 2 * PAD), ch / (BH + TOP + 2 * PAD));
-    this.scale = Math.max(1, fit >= 2 ? Math.floor(fit) : fit);
+    this.scale = Math.max(1, Math.round(ch / 320));
     this.canvas.width = Math.floor(cw / this.scale);
     this.canvas.height = Math.floor(ch / this.scale);
-    this.ox = Math.floor((this.canvas.width - BW) / 2);
-    this.oy = Math.floor((this.canvas.height - BH + TOP) / 2);
+    this.T = Math.floor((this.canvas.width - 2 * PAD) / grid.h);
+    // Depth per row: fill the height, kept between a steep 0.55 and a near-top-down 0.9 of the tile width.
+    this.TH = Math.max(Math.round(this.T * 0.55), Math.min(Math.round(this.T * 0.9), Math.floor((this.canvas.height - TOP - 2 * PAD - 10) / grid.w)));
+    this.ox = Math.floor((this.canvas.width - this.BW) / 2);
+    this.oy = Math.floor((this.canvas.height - this.BH + TOP - 10) / 2);
   }
 
   // Sim milli-tiles to buffer pixels at ground level.
-  private sx = (y: number) => Math.round(this.ox + (y / TILE) * T);
-  private sy = (x: number) => Math.round(this.oy + (x / TILE) * TH);
+  private sx = (y: number) => Math.round(this.ox + (y / TILE) * this.T);
+  private sy = (x: number) => Math.round(this.oy + (x / TILE) * this.TH);
 
   tileAt(clientX: number, clientY: number): { tx: number; ty: number } | null {
     const r = this.canvas.getBoundingClientRect();
     const bx = ((clientX - r.left) / r.width) * this.canvas.width, by = ((clientY - r.top) / r.height) * this.canvas.height;
-    const ty = Math.floor((bx - this.ox) / T), tx = Math.floor((by - this.oy) / TH);
+    const ty = Math.floor((bx - this.ox) / this.T), tx = Math.floor((by - this.oy) / this.TH);
     return tx >= 0 && ty >= 0 && tx < grid.w && ty < grid.h ? { tx, ty } : null;
   }
 
   // World point (milli-tiles) to CSS pixels inside the canvas, for floating text. lift is in tiles above the ground.
   toScreen(x: number, y: number, lift = 0.9): { x: number; y: number } {
     const r = this.canvas.clientWidth / this.canvas.width;
-    return { x: this.sx(y) * r, y: (this.sy(x) - lift * T) * r };
+    return { x: this.sx(y) * r, y: (this.sy(x) - lift * this.T) * r };
   }
 
   showRange(x: number, y: number, range: number | null, tile?: { tx: number; ty: number }, ok = true): void {
@@ -90,8 +93,8 @@ export class Board {
         this.fx.push({ from: now, until: now + 100, draw: (g) => line(g, x0, y0, x1, y1, color, e.crit ? 2 : 1) });
       } else if (e.e === 'art' || e.e === 'phoenix') {
         const phoenix = e.e === 'phoenix';
-        const [cx, cy] = phoenix || !(e.x || e.y) ? [this.ox + BW / 2, this.oy + BH / 2] : [this.sx(e.y!), this.sy(e.x!)];
-        const [rx, ry] = phoenix ? [BW / 2, BH / 2] : [3 * T, 3 * TH];
+        const [cx, cy] = phoenix || !(e.x || e.y) ? [this.ox + this.BW / 2, this.oy + this.BH / 2] : [this.sx(e.y!), this.sy(e.x!)];
+        const [rx, ry] = phoenix ? [this.BW / 2, this.BH / 2] : [3 * this.T, 3 * this.TH];
         this.fx.push({ from: now, until: now + 450, draw: (g, k) => { g.globalAlpha = 1 - k; ring(g, cx, cy, rx * k, ry * k, phoenix ? '#FF7A1F' : '#FFE9A8'); g.globalAlpha = 1; } });
       }
     }
@@ -104,29 +107,29 @@ export class Board {
     g.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     // Ground: a cliff lip under the near edge for depth, the tiles with a little speckle, the path.
-    g.fillStyle = '#1A120C'; g.fillRect(this.ox, this.oy + BH, BW, 8);
-    g.fillStyle = '#0F0A08'; g.fillRect(this.ox, this.oy + BH + 8, BW, 2);
+    g.fillStyle = '#1A120C'; g.fillRect(this.ox, this.oy + this.BH, this.BW, 8);
+    g.fillStyle = '#0F0A08'; g.fillRect(this.ox, this.oy + this.BH + 8, this.BW, 2);
     for (let tx = 0; tx < grid.w; tx++)
       for (let ty = 0; ty < grid.h; ty++) {
         const onPath = s.pathTiles.has(`${tx},${ty}`);
-        const px = this.ox + ty * T, py = Math.round(this.oy + tx * TH), h = Math.round(this.oy + (tx + 1) * TH) - py;
+        const px = this.ox + ty * this.T, py = Math.round(this.oy + tx * this.TH), h = Math.round(this.oy + (tx + 1) * this.TH) - py;
         g.fillStyle = onPath ? ((tx + ty) % 2 ? '#7E5E40' : '#86664A') : (tx + ty) % 2 ? '#2E4430' : '#355036';
-        g.fillRect(px, py, T, h);
+        g.fillRect(px, py, this.T, h);
         g.fillStyle = onPath ? '#6A4C32' : '#26382A';
         g.fillRect(px + ((tx * 7 + ty * 3) % 19) + 2, py + ((tx * 5 + ty) % 9) + 2, 2, 1); // speckle, fixed per tile
       }
     if (this.cursor) {
-      const px = this.ox + this.cursor.ty * T, py = Math.round(this.oy + this.cursor.tx * TH);
+      const px = this.ox + this.cursor.ty * this.T, py = Math.round(this.oy + this.cursor.tx * this.TH);
       g.fillStyle = this.cursor.ok ? '#FFE9A855' : '#FF3B2E66';
-      g.fillRect(px, py, T, Math.round(TH));
+      g.fillRect(px, py, this.T, Math.round(this.TH));
     }
-    if (this.range) ring(g, this.sx(this.range.y), this.sy(this.range.x), (this.range.r / TILE) * T, (this.range.r / TILE) * TH, '#FFE9A8aa');
+    if (this.range) ring(g, this.sx(this.range.y), this.sy(this.range.x), (this.range.r / TILE) * this.T, (this.range.r / TILE) * this.TH, '#FFE9A8aa');
 
     // Everything that stands up is drawn back to front.
     const things: { depth: number; draw: () => void }[] = [];
     for (const key of s.blocked) {
       const [tx, ty] = key.split(',').map(Number) as [number, number];
-      things.push({ depth: tx + 0.5, draw: () => this.rock(this.ox + ty * T + T / 2, Math.round(this.oy + (tx + 0.6) * TH)) });
+      things.push({ depth: tx + 0.5, draw: () => this.rock(this.ox + ty * this.T + this.T / 2, Math.round(this.oy + (tx + 0.6) * this.TH)) });
     }
     const goal = s.path[s.path.length - 1]!;
     things.push({ depth: goal.x / TILE, draw: () => this.gate(this.sx(goal.y), this.sy(goal.x)) });
