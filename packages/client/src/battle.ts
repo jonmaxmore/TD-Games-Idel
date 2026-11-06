@@ -29,13 +29,15 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   const useBot = o.bot;
   const s: DefendState = createDefend(stageId, seed, o.sect);
 
-  // ---- layout: top bar, board, bottom panel ----
+  // ---- layout: top bar across, board on the left, side panel on the right ----
+  const root = el('div', 'battle');
   const top = el('div', 'top');
   const canvas = el('canvas', 'board');
   const floats = el('div', 'floats');
   const bottom = el('div', 'bottom');
   const toastBox = el('div', 'toasts');
-  app.append(top, canvas, floats, bottom, toastBox);
+  root.append(top, canvas, floats, bottom, toastBox);
+  app.append(root);
   const board = new Board(canvas, s);
   const onResize = () => board.resize();
   addEventListener('resize', onResize);
@@ -49,7 +51,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   const panel = el('div', 'panel');
   const cardsRow = el('div', 'cards');
   const waveBtn = el('button', 'primary wave');
-  bottom.append(artsRow, panel, cardsRow, waveBtn);
+  bottom.append(cardsRow, panel, artsRow, waveBtn);
 
   let pending: Command[] = [];
   let selectedKey: string | null = s.unlocked[0] ?? null; // card to place
@@ -66,7 +68,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   function float(x: number, y: number, text: string, cls: string) {
     const p = board.toScreen(x, y);
     const f = el('div', `float ${cls}`, text);
-    f.style.left = `${p.x}px`; f.style.top = `${p.y + canvas.offsetTop}px`;
+    f.style.left = `${p.x + canvas.offsetLeft}px`; f.style.top = `${p.y + canvas.offsetTop}px`;
     floats.append(f);
     setTimeout(() => f.remove(), 900);
   }
@@ -77,7 +79,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     const u = units.get(key);
     const b = el('button', 'card');
     b.style.borderColor = defOf(key).color;
-    b.append(el('b', '', name(key)), el('small', '', u ? roleDefs.get(u.roleId)!.nameTh : ''), el('span', 'cost', `${defOf(key).cost}`));
+    b.append(el('kbd', '', String(cardEls.size + 1)), el('b', '', name(key)), el('small', '', u ? roleDefs.get(u.roleId)!.nameTh : ''), el('span', 'cost', `${defOf(key).cost}`));
     b.onclick = () => { selectedKey = key; selectedId = null; refresh(); };
     cardsRow.append(b);
     cardEls.set(key, b);
@@ -94,6 +96,18 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   waveBtn.onclick = () => pending.push({ t: 'nextWave' });
   pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'เล่น' : 'หยุด'; };
   speedBtn.onclick = () => { speed = speed === 1 ? 2 : 1; speedBtn.textContent = `x${speed}`; };
+
+  // Keyboard: 1-9 pick a disciple card, Space calls the next wave, U upgrades, P pauses, Esc clears the selection.
+  const onKey = (ev: KeyboardEvent) => {
+    if (ev.repeat || isOver(s)) return;
+    const card = [...cardEls.values()][Number(ev.key) - 1];
+    if (card) card.click();
+    else if (ev.code === 'Space') { ev.preventDefault(); waveBtn.click(); }
+    else if (ev.key === 'u' && selectedId != null) pending.push({ t: 'upgrade', id: selectedId });
+    else if (ev.key === 'p') pauseBtn.click();
+    else if (ev.key === 'Escape') { selectedKey = null; selectedId = null; refresh(); }
+  };
+  addEventListener('keydown', onKey);
 
   canvas.addEventListener('pointerdown', (ev) => {
     if (isOver(s)) return;
@@ -114,7 +128,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     if (!d) {
       if (selectedKey) {
         const u = units.get(selectedKey);
-        panel.append(el('b', '', name(selectedKey)), el('p', '', u?.descTh ?? 'แตะช่องว่างบนกระดานเพื่อวาง'));
+        panel.append(el('b', '', name(selectedKey)), el('p', '', u?.descTh ?? 'คลิกช่องว่างบนกระดานเพื่อวาง'));
       }
       return;
     }
@@ -226,5 +240,5 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   }
   refresh();
   let raf = requestAnimationFrame(frame);
-  return () => { cancelAnimationFrame(raf); removeEventListener('resize', onResize); board.dispose(); };
+  return () => { cancelAnimationFrame(raf); removeEventListener('resize', onResize); removeEventListener('keydown', onKey); board.dispose(); };
 }

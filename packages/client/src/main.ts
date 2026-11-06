@@ -8,6 +8,10 @@ import {
 } from './profile';
 
 const app = document.getElementById('app')!;
+// The game is laid out on a fixed 1280x720 stage; scale it to the largest 16:9 box that fits the window.
+const fit = () => app.style.setProperty('--k', String(Math.min(innerWidth / 1280, innerHeight / 720)));
+addEventListener('resize', fit);
+fit();
 const q = new URLSearchParams(location.search);
 const jump = q.get('stage');
 const dev = { bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), sect: q.get('sect') };
@@ -78,7 +82,7 @@ function consent() {
   const r = page('consent', 'ก่อนเริ่มเล่น');
   const thisYear = new Date().getFullYear();
   let year: number | null = null;
-  const yearText = el('div', 'year empty', 'แตะ - / + เพื่อเลือก');
+  const yearText = el('div', 'year empty', 'คลิก - / + เพื่อเลือก');
   const start = btn('เริ่มเล่น', 'primary big', () => done({ consented: true, birthYear: year }));
   start.disabled = true;
   // A first tap lands mid-range; after that the steps move from the chosen year.
@@ -108,7 +112,7 @@ function intro(n: number) {
   const next = () => (n + 1 < INTRO.length ? go({ k: 'intro', page: n + 1 }) : done({ introSeen: true }));
   const skip = btn('ข้าม', 'skip', () => done({ introSeen: true }));
   skip.addEventListener('click', (e) => e.stopPropagation());
-  r.append(skip, el('div', 'grow'), el('p', 'story', INTRO[n]!), el('div', 'grow'), el('p', 'dim center', `${n + 1} / ${INTRO.length}   ·   แตะเพื่อไปต่อ`));
+  r.append(skip, el('div', 'grow'), el('p', 'story', INTRO[n]!), el('div', 'grow'), el('p', 'dim center', `${n + 1} / ${INTRO.length}   ·   คลิกเพื่อไปต่อ`));
   r.onclick = next;
   const t = setTimeout(next, 6000);
   return () => clearTimeout(t);
@@ -118,7 +122,7 @@ function intro(n: number) {
 const TIPS = [
   'ดอกเบี้ยได้เมื่อเคลียร์สนามหมด เรียกระลอกก่อนเวลาได้โบนัส แต่เสียดอกเบี้ยรอบนั้น',
   'บางตัวบินข้ามหลังคา ศิษย์ที่ตีได้แค่พื้นจะตีไม่ถึง',
-  'อัปเกรดแล้วได้ท่าใหม่ แตะศิษย์ที่วางแล้วเพื่อดูท่าถัดไป',
+  'อัปเกรดแล้วได้ท่าใหม่ คลิกศิษย์ที่วางแล้วเพื่อดูท่าถัดไป',
   'หมอผีฟื้นเลือดเพื่อนไม่ได้ ถ้าเพื่อนติดไฟหรือติดพิษอยู่',
 ];
 function battle(stageId: string) {

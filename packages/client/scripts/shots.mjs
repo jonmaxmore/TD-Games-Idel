@@ -1,4 +1,4 @@
-// Visual proof: opens the game in Chromium at phone size, plays it, and saves screenshots + a video to shots/.
+// Visual proof: opens the game in Chromium at 1280x720 (16:9 PC), plays it, and saves screenshots + a video to shots/.
 //   npm run shots                 1-1 by hand (place, select), 1-12 played by the bot, and the first-run walkthrough
 //                                 (consent → intro → T-0 → sect → name → lobby → stages → reload), all as flow-NN-*.png
 // Exits non-zero on any console error or page crash.
@@ -20,7 +20,7 @@ const errors = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function page(url, video) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, ...(video ? { recordVideo: { dir: out, size: { width: 390, height: 844 } } } : {}) });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, ...(video ? { recordVideo: { dir: out, size: { width: 1280, height: 720 } } } : {}) });
   const p = await ctx.newPage();
   p.on('console', (m) => { if (m.type() === 'error') errors.push(`${url}: ${m.text()}`); });
   p.on('pageerror', (e) => errors.push(`${url}: ${e.message}`));
@@ -75,7 +75,7 @@ async function page(url, video) {
 // 3) First run on a fresh save, recorded: every screen from consent to the lobby, two stages, then a reload.
 {
   const dir = out + 'flow-video/';
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, recordVideo: { dir, size: { width: 390, height: 844 } } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, recordVideo: { dir, size: { width: 1280, height: 720 } } });
   const p = await ctx.newPage();
   p.on('console', (m) => { if (m.type() === 'error') errors.push(`flow: ${m.text()}`); });
   p.on('pageerror', (e) => errors.push(`flow: ${e.message}`));

@@ -5,7 +5,7 @@ import { enemies as enemyDefs, grid, sects, TILE, units, type DefendState, type 
 
 const RENDER_HEIGHT = 480; // pixels tall; CSS scales the canvas up with image-rendering: pixelated
 const W = grid.w, H = grid.h;
-const FIG = 1.35; // figures a bit larger than a tile's worth so roles read on a phone
+const FIG = 1.35; // figures a bit larger than a tile's worth so roles read at a glance
 
 // Milli-tiles (sim) to world units: one tile = 1, board centred on the origin.
 const wx = (x: number) => x / TILE - W / 2;
@@ -131,13 +131,13 @@ export class Board {
     this.resize();
   }
 
-  // Fit the whole board into the canvas from a 66-degree pitch.
+  // Fit the whole board into the canvas from a 60-degree pitch, looking along the board so its long side runs across the 16:9 screen.
   resize(): void {
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
     this.renderer.setPixelRatio(RENDER_HEIGHT / Math.max(1, h));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
-    const pitch = (66 * Math.PI) / 180;
+    const pitch = (60 * Math.PI) / 180;
     const corners = [[-W / 2, -H / 2], [W / 2, -H / 2], [-W / 2, H / 2], [W / 2, H / 2]].map(([x, z]) => new THREE.Vector3(x, 0, z));
     let lo = 5, hi = 120;
     for (let i = 0; i < 30; i++) {
@@ -150,7 +150,7 @@ export class Board {
   }
 
   private place(d: number, pitch: number) {
-    this.camera.position.set(0, Math.sin(pitch) * d, Math.cos(pitch) * d);
+    this.camera.position.set(-Math.cos(pitch) * d, Math.sin(pitch) * d, 0);
     this.camera.lookAt(0, 0, 0);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();

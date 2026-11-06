@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-06
+- Amended by: [ADR 0008](0008-pc-only-16x9.md) (PC only, 16:9; no Capacitor build)
 - Supersedes: [ADR 0006](0006-csharp-everywhere.md) (C# everywhere) and [ADR 0004](0004-unity-client.md) (Unity client). Restores [ADR 0003](0003-node-postgres-backend.md) (Node + PostgreSQL backend).
 
 ## Context
@@ -9,7 +10,7 @@ The owner asked whether to drop the old code and build the game with three.js an
 
 Facts at the time:
 - **Unity could not be checked here.** Unity does not run in the agent's container. The battle UI and front-flow passes were checked only by compiling against stubs. No screen was ever seen running.
-- **The web can be seen running.** Chromium is installed in the container. A script can open the game at phone size, let the bot play, record video and fail on console errors.
+- **The web can be seen running.** Chromium is installed in the container. A script can open the game in a real browser, let the bot play, record video and fail on console errors.
 - **Thai text renders correctly in the browser.** Vowel and tone marks and line breaks come out right in a bundled web font. Unity needed a font workaround.
 - **The rules were already proven twice.** The C# rules had been ported line by line from TypeScript and pinned by six golden replays.
 - **The original plan was web first, then mobile.** That plan was web first, then mobile through Capacitor (GDD §10, ADR 0003).
