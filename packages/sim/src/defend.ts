@@ -412,10 +412,12 @@ function startWave(s: DefendState, ev: SimEvent[]): void {
 function spawn(s: DefendState, q: QueuedEnemy, ev: SimEvent[], at = 0, small = false): Enemy {
   const type = q.type;
   const def = enemyDefs.get(type)!;
-  // Bosses use their data HP as-is; regular enemies scale with the wave curve.
-  const bas = def.boss != null ? def.hp : div(waveHp(def.hp, q.wave) * q.hpPct * stages.get(s.stageId)!.hpPct, 100 * 100);
+  // Bosses use their data HP; regular enemies scale with the wave curve. A duel boss is scaled by its stage's knobs.
+  const stage = stages.get(s.stageId)!;
+  const duel = type === s.duel;
+  const bas = def.boss == null ? div(waveHp(def.hp, q.wave) * q.hpPct * stage.hpPct, 100 * 100) : duel ? div(def.hp * stage.bossHpPct, 100) : def.hp;
   let hp = small ? Math.max(1, div(bas, 4)) : Math.max(1, bas);
-  let speed = def.speed;
+  let speed = duel ? div(def.speed * stage.bossSpeedPct, 100) : def.speed;
   let bounty = small ? 1 : div(def.bounty * (100 + economy.bountyGrowthPct * (q.wave - 1)), 100);
   let elite = null;
   if (!small && def.boss == null && q.wave >= elites.fromWave && rollPct(s) < elites.chancePct) {

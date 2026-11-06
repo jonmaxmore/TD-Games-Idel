@@ -1,6 +1,6 @@
 // Chapter 1 stages that differ only by stage data (SPEC-pc-v2 §4): 1-9 two-lane siege, 1-10 boss duel.
 import { describe, expect, it } from 'vitest';
-import { canBuild, enemies as enemyDefs, grid, isOver, layouts, openPath, stepDefend, tilesOnPath, waveEntries, type DefendState } from '../src';
+import { canBuild, enemies as enemyDefs, grid, isOver, layouts, openPath, stages, stepDefend, tilesOnPath, waveEntries, type DefendState } from '../src';
 import { defend, run } from './helpers';
 
 const enemyOn = (s: DefendState, type: string, path: number) => {
@@ -53,6 +53,15 @@ describe('1-10 boss duel', () => {
   it('the bandit king comes with wave 1', () => {
     expect(waveEntries('1-10', 1, 'mixed').map((q) => q.type)).toContain('boss_ch1');
     expect(waveEntries('1-10', 2, 'mixed').map((q) => q.type)).not.toContain('boss_ch1');
+  });
+
+  it("the duel boss takes its stage's HP and speed knobs; the same boss in 1-12 wave 10 does not", () => {
+    const st = stages.get('1-10')!, def = enemyDefs.get('boss_ch1')!;
+    const duel = enemyOn(defend('1-10', 1, 'fire'), 'boss_ch1', 0);
+    expect([duel.maxHp, duel.speed]).toEqual([Math.floor((def.hp * st.bossHpPct) / 100), Math.floor((def.speed * st.bossSpeedPct) / 100)]);
+    expect(st.bossHpPct).not.toBe(100);
+    const scripted = enemyOn(defend('1-12', 1, 'fire'), 'boss_ch1', 0);
+    expect([scripted.maxHp, scripted.speed]).toEqual([def.hp, def.speed]);
   });
 
   it('minion waves keep coming while the boss lives', () => {

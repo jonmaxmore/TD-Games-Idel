@@ -1,5 +1,5 @@
 {
-  "_notes": "60 story stages (5 chapters x 12). Chapter 1 fully specified; chapters 2-5 are outlines (status=outline). Star conditions are keys interpreted by the game. guestSects = sects lent to this stage only (a taste of later chapters). lanes = {wave: lane}: only that lane (1-based path) is open that wave. bossDuel = a boss that comes with wave 1; killing it wins the stage and its reaching the gate loses it (SPEC-pc-v2 §4).",
+  "_notes": "60 story stages (5 chapters x 12). Chapter 1 fully specified; chapters 2-5 are outlines (status=outline). Star conditions are keys interpreted by the game. guestSects = sects lent to this stage only (a taste of later chapters). lanes = {wave: lane}: only that lane (1-based path) is open that wave. bossDuel = a boss that comes with wave 1; killing it wins the stage and its reaching the gate loses it (SPEC-pc-v2 §4). bossHpPct / bossSpeedPct = that duel boss's HP and speed as a % of enemies.json (the same boss elsewhere is unchanged).",
   "stageTypes": {
     "defend": "classic TD",
     "assault": "reverse TD: lead a party along a chosen route",
@@ -298,6 +298,8 @@
       "stars": ["clear", "no_life_lost", "under_3min"],
       "layout": "village-spiral",
       "bossDuel": "boss_ch1",
+      "bossHpPct": 550,
+      "bossSpeedPct": 30,
       "waves": 8,
       "startSilver": 400
     },
