@@ -41,7 +41,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   addEventListener('resize', onResize);
 
   const hud = { silver: el('b'), lives: el('b'), wave: el('b'), next: el('span', 'next') };
-  const pauseBtn = el('button', 'icon', '⏸');
+  const pauseBtn = el('button', 'icon', 'หยุด');
   const speedBtn = el('button', 'icon', `x${speed}`);
   top.append(el('span', '', 'ตำลึง '), hud.silver, el('span', '', ' ชีวิต '), hud.lives, el('span', '', ' ระลอก '), hud.wave, hud.next, speedBtn, pauseBtn);
 
@@ -92,7 +92,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   });
 
   waveBtn.onclick = () => pending.push({ t: 'nextWave' });
-  pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? '▶' : '⏸'; };
+  pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'เล่น' : 'หยุด'; };
   speedBtn.onclick = () => { speed = speed === 1 ? 2 : 1; speedBtn.textContent = `x${speed}`; };
 
   canvas.addEventListener('pointerdown', (ev) => {

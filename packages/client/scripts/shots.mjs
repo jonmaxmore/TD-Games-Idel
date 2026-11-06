@@ -55,7 +55,7 @@ async function page(url, video) {
 
 // 2) The bot plays the chapter finale at speed; video plus a frame every few seconds and the result screen.
 {
-  const { ctx, p } = await page('?stage=1-12&sect=fire&seed=1&bot=1&speed=8', true);
+  const { ctx, p } = await page('?stage=1-12&sect=fire&seed=1&bot=1&speed=16', true);
   const fps = [];
   for (let i = 0; i < 14; i++) {
     await sleep(4000);

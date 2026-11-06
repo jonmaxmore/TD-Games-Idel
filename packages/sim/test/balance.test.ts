@@ -2,7 +2,7 @@
 // for the roster sects), measured with the deterministic rules and the greedy bot on fixed seeds. The story is played
 // with a roster sect (sect pick offers only those); the element-mixing build lives on the training ground T-1.
 // npm run sim:measure prints the full table these gates were tuned from.
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { comboDmgPct, combos, createDefend, isOver, sects, stepDefend, type Command, type SimEvent } from '../src';
 import { playStage } from './bot';
 import { NEXT, place, up } from './helpers';
@@ -11,6 +11,9 @@ const SEEDS = [1, 2, 3, 4];
 const minutes = (tick: number) => tick / 20 / 60;
 
 describe('balance', () => {
+  // These tests run synchronously for many seconds; let the worker's message queue drain between them or vitest's RPC times out.
+  beforeEach(() => new Promise((r) => setTimeout(r)));
+
   // Direct damage per second per 100 silver at level 1 (metal adds its 15% crit chance), plus DoT on one target.
   it('B1 cost efficiency is within 30-55 dps per 100 silver', () => {
     const dot: Record<string, number> = { wood: 10, fire: 6 };
@@ -94,22 +97,22 @@ describe('balance', () => {
   // Story curve for the player's path (roster sects, a bot that reads the next-wave bar and does not call early):
   // the tutorial is safe, mid-chapter stages are won almost always, the finale is a real test that costs lives,
   // and the two sects end within 15 points of each other (SPEC-core §4 S1/S2).
-  it('the story curve rises to a real finale for both sects', () => {
-    const storySeeds = Array.from({ length: 24 }, (_, i) => i + 1);
-    const rate = (stage: string, sect: string) => {
-      const runs = storySeeds.map((seed) => playStage(stage, seed, sect));
-      return { win: runs.filter((r) => r.phase === 'won').length / runs.length, lost: runs.reduce((a, r) => a + r.livesLost, 0) / runs.length };
-    };
-    const finale: Record<string, number> = {};
-    for (const sect of ['fire', 'wood']) {
-      expect(rate('1-1', sect).win, `${sect} 1-1`).toBe(1);
-      for (const st of ['1-2', '1-4', '1-6']) expect(rate(st, sect).win, `${sect} ${st}`).toBeGreaterThanOrEqual(0.85);
+  const storySeeds = Array.from({ length: 24 }, (_, i) => i + 1);
+  const rate = (stage: string, sect: string) => {
+    const runs = storySeeds.map((seed) => playStage(stage, seed, sect));
+    return { win: runs.filter((r) => r.phase === 'won').length / runs.length, lost: runs.reduce((a, r) => a + r.livesLost, 0) / runs.length };
+  };
+  const finale: Record<string, number> = {};
+  for (const sect of ['fire', 'wood']) {
+    it(`story ${sect} 1-1 always wins`, () => expect(rate('1-1', sect).win).toBe(1));
+    for (const st of ['1-2', '1-4', '1-6']) it(`story ${sect} ${st} wins at least 85%`, () => expect(rate(st, sect).win).toBeGreaterThanOrEqual(0.85));
+    it(`story ${sect} 1-12 is a real finale`, () => {
       const { win, lost } = rate('1-12', sect);
-      expect(win, `${sect} 1-12 win rate`).toBeGreaterThanOrEqual(0.55);
-      expect(win, `${sect} 1-12 win rate`).toBeLessThanOrEqual(0.9);
-      expect(lost, `${sect} 1-12 lives lost`).toBeGreaterThanOrEqual(1);
+      expect(win, 'win rate').toBeGreaterThanOrEqual(0.55);
+      expect(win, 'win rate').toBeLessThanOrEqual(0.9);
+      expect(lost, 'lives lost').toBeGreaterThanOrEqual(1);
       finale[sect] = win;
-    }
-    expect(Math.abs(finale.fire! - finale.wood!)).toBeLessThanOrEqual(0.15);
-  }, 120_000);
+    });
+  }
+  it('story fire and wood finales are within 15 points', () => expect(Math.abs(finale.fire! - finale.wood!)).toBeLessThanOrEqual(0.15));
 });
