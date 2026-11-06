@@ -6,6 +6,7 @@ import { el, startBattle, STARS, type BattleResult } from './battle';
 import {
   chapterStars, chapterStarsMax, load, migrate, nextStage, PLAYLIST, recordEnd, route, save, TUTORIAL, type LobbyTab, type Profile, type Screen,
 } from './profile';
+import { initSound } from './sound';
 
 const app = document.getElementById('app')!;
 // The UI is designed 720 px tall; scale it to the window height and let the width fill the whole window (no bars).
@@ -26,6 +27,7 @@ const q = new URLSearchParams(location.search);
 const jump = q.get('stage');
 const dev = { bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), sect: q.get('sect') };
 const profile: Profile = load();
+initSound(profile.settings);
 let dispose: (() => void) | void;
 
 function go(next: Screen) {
@@ -136,7 +138,7 @@ const TIPS = [
   'หมอผีฟื้นเลือดเพื่อนไม่ได้ ถ้าเพื่อนติดไฟหรือติดพิษอยู่',
 ];
 function battle(stageId: string) {
-  const opts = { stageId, sect: dev.sect ?? profile.sect, seed: dev.seed, bot: dev.bot, speed: dev.speed };
+  const opts = { stageId, sect: dev.sect ?? profile.sect, seed: dev.seed, bot: dev.bot, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile) };
   if (jump) return startBattle(app, opts, (r) => result(stageId, r));
   // The loading beat stays at least a second so it reads as a scene change; the board is built after it.
   const rule = allegiance.find((a) => a.element === profile.sect);

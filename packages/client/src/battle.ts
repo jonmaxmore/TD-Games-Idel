@@ -1,4 +1,4 @@
-// Battle screen: runs the sim at a fixed 20 Hz, draws it with three.js and puts the HUD in plain DOM.
+// Battle screen: runs the sim at a fixed 20 Hz, draws it on a Canvas 2D board and puts the HUD in plain DOM.
 // It owns `root` until dispose(); the front flow decides what happens after onEnd.
 import {
   arts, cards, createDefend, defOf, discipleStats, enemies as enemyDefs, evaluateStars, isOver, recipeById, roleDefs, sellValue,
@@ -6,6 +6,8 @@ import {
 } from '@five-sects/sim';
 import { botCommands } from '../../sim/test/bot';
 import { Board } from './board';
+import type { Settings } from './profile';
+import { applyVolume, play } from './sound';
 
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
 
@@ -20,7 +22,7 @@ export const STARS: Record<string, string> = {
 const TARGETS: [string, string][] = [['first', 'ตัวแรก'], ['strong', 'แรงสุด'], ['weak', 'อ่อนสุด'], ['close', 'ใกล้สุด']];
 const name = (key: string) => units.get(key)?.nameTh ?? defOf(key).nameTh;
 
-export interface BattleOpts { stageId: string; sect: string | null; seed: number; bot: boolean; speed: number }
+export interface BattleOpts { stageId: string; sect: string | null; seed: number; bot: boolean; speed: number; settings: Settings; saveSettings: () => void }
 export interface BattleResult { won: boolean; stars: boolean[]; tick: number; livesLost: number }
 
 export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleResult) => void): () => void {
@@ -39,13 +41,28 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   root.append(top, canvas, floats, bottom, toastBox);
   app.append(root);
   const board = new Board(canvas, s);
-  const onResize = () => board.resize();
-  addEventListener('resize', onResize);
+  const set = o.settings;
+  board.shake = set.shake;
 
   const hud = { silver: el('b'), lives: el('b'), wave: el('b'), next: el('span', 'next') };
   const pauseBtn = el('button', 'icon', 'หยุด');
   const speedBtn = el('button', 'icon', `x${speed}`);
-  top.append(el('span', '', 'ตำลึง '), hud.silver, el('span', '', ' ชีวิต '), hud.lives, el('span', '', ' ระลอก '), hud.wave, hud.next, speedBtn, pauseBtn);
+  // Sound and shake settings live in the top bar and are saved with the profile.
+  const muteBtn = el('button', 'icon', '');
+  const vol = el('input', 'vol');
+  Object.assign(vol, { type: 'range', min: '0', max: '100', step: '10', title: 'ระดับเสียง' });
+  vol.value = String(set.volume);
+  const shakeBtn = el('button', 'icon', '');
+  const showSettings = () => { muteBtn.textContent = set.muted ? 'เสียง: ปิด' : 'เสียง'; shakeBtn.textContent = set.shake ? 'จอสั่น' : 'จอนิ่ง'; };
+  const changed = () => { board.shake = set.shake; applyVolume(); showSettings(); o.saveSettings(); };
+  muteBtn.onclick = () => { set.muted = !set.muted; changed(); };
+  vol.oninput = () => { set.volume = Number(vol.value); set.muted = false; changed(); };
+  shakeBtn.onclick = () => { set.shake = !set.shake; changed(); };
+  showSettings();
+  top.append(el('span', '', 'ตำลึง '), hud.silver, el('span', '', ' ชีวิต '), hud.lives, el('span', '', ' ระลอก '), hud.wave, hud.next, muteBtn, vol, shakeBtn, speedBtn, pauseBtn);
+  const onResize = () => { board.resize(); const r = hud.silver.getBoundingClientRect(); board.silverAt(r.left + r.width / 2, r.top + r.height / 2); };
+  addEventListener('resize', onResize);
+  onResize();
 
   const artsRow = el('div', 'arts');
   const panel = el('div', 'panel');
@@ -198,7 +215,13 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   function onEvents(ev: SimEvent[]) {
     for (const e of ev) {
       if (e.e === 'error') toast(ERRORS[e.msg!] ?? e.msg!);
-      else if (e.e === 'kill') float(e.x!, e.y!, `+${e.amount}`, 'silver');
+      else if (e.e === 'hit') { play('shoot'); play('hit', 0.1); }
+      else if (e.e === 'kill') {
+        float(e.x!, e.y!, `+${e.amount}`, 'silver');
+        play('death'); play('silver', 0.5);
+        hud.silver.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 200, delay: 550 });
+      } else if (e.e === 'wave') play('wave');
+      else if (e.e === 'spawn' && enemyDefs.get(s.enemies.find((x) => x.id === e.id)?.type ?? '')?.boss != null) { play('boss'); toast('บอสมาถึง!'); }
       else if (e.e === 'interest' && e.amount! > 0) toast(`ดอกเบี้ย +${e.amount}`);
       else if (e.e === 'leak') toast('ศัตรูหลุดเข้าประตู!');
       else if (e.e === 'newEnemy') toast(`ศัตรูใหม่: ${enemyDefs.get(e.type!)!.nameTh}`);

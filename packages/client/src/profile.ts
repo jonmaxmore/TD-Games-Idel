@@ -15,7 +15,10 @@ export interface Profile {
   name: string | null;
   cleared: string[];
   stars: Record<string, number>; // best per stage
+  settings: Settings;
 }
+
+export interface Settings { volume: number; muted: boolean; shake: boolean } // volume 0..100
 
 export type LobbyTab = 'home' | 'battle' | 'disciples';
 export type Screen =
@@ -45,6 +48,8 @@ export function migrate(raw: unknown): Profile {
   const stars: Record<string, number> = {};
   if (r.stars && typeof r.stars === 'object')
     for (const [id, n] of Object.entries(r.stars as Record<string, unknown>)) if (stages.has(id) && typeof n === 'number' && n > 0) stars[id] = n;
+  const st = (r.settings && typeof r.settings === 'object' ? r.settings : {}) as Record<string, unknown>;
+  const vol = st.volume;
   return {
     v: 1,
     consented: r.consented === true,
@@ -55,6 +60,7 @@ export function migrate(raw: unknown): Profile {
     name: str(r.name),
     cleared: Array.isArray(r.cleared) ? [...new Set(r.cleared.filter((id): id is string => typeof id === 'string' && stages.has(id)))] : [],
     stars,
+    settings: { volume: typeof vol === 'number' && vol >= 0 && vol <= 100 ? Math.round(vol) : 70, muted: st.muted === true, shake: st.shake !== false },
   };
 }
 

@@ -53,6 +53,17 @@ async function page(url, video) {
   await ctx.close();
 }
 
+// 1b) Combat feel at normal speed: projectiles, damage numbers, death shards and coins mid-fight.
+{
+  const { ctx, p } = await page('?stage=1-1&sect=fire&seed=1&bot=1&speed=1');
+  await p.waitForFunction(() => window.__game.s.enemies.some((e) => e.hp < e.maxHp), null, { timeout: 60000 });
+  for (let i = 0; i < 3; i++) { await p.screenshot({ path: out + `fx-${i}.png` }); await sleep(90); }
+  const silver = await p.evaluate(() => window.__game.s.silver);
+  await p.waitForFunction((n) => window.__game.s.silver > n, silver, { timeout: 60000, polling: 'raf' });
+  await p.screenshot({ path: out + 'fx-kill.png' });
+  await ctx.close();
+}
+
 // 2) The bot plays the chapter finale at speed; video plus a frame every few seconds and the result screen.
 {
   const { ctx, p } = await page('?stage=1-12&sect=fire&seed=1&bot=1&speed=16', true);

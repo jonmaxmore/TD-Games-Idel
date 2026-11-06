@@ -30,4 +30,10 @@ describe('profile and route', () => {
     expect(p.stars).toEqual({ '1-1': 2 });
     expect(p.cleared).toEqual(['1-1']);
   });
+
+  it('keeps valid sound and shake settings and resets bad ones', () => {
+    expect(migrate(null).settings).toEqual({ volume: 70, muted: false, shake: true });
+    expect(migrate({ settings: { volume: 30, muted: true, shake: false } }).settings).toEqual({ volume: 30, muted: true, shake: false });
+    expect(migrate({ settings: { volume: 500, muted: 'yes' } }).settings).toEqual({ volume: 70, muted: false, shake: true });
+  });
 });
