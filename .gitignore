@@ -5,3 +5,4 @@ graphify-out/
 art/promo/
 __pycache__/
 shots/
+.claude/worktrees/
