@@ -152,4 +152,15 @@ describe('tier-3 branches', () => {
     for (const [t, cs] of Object.entries(commands)) stripped[Number(t)] = cs.map(({ branch: _drop, ...c }) => c);
     expect(canonicalHash(replay('1-12', 1, 'fire', stripped))).not.toBe(canonicalHash(s));
   });
+  it('a merged combo drops the tier-3 branch, so a wood-b + metal combo cannot execute', () => {
+    const s = defend('T-1', 1);
+    s.silver = 100000;
+    run(s, 1, place('wood', 3, 3), place('metal', 4, 3));
+    const [w, m] = s.disciples.map((d) => d.id) as [number, number];
+    run(s, 1, up(w), up(m));
+    run(s, 1, { t: 'upgrade', id: w, branch: 'b' }, { t: 'upgrade', id: m, branch: 'a' });
+    const ev = run(s, 1, { t: 'merge', a: w, b: m });
+    expect(ev.some((e) => e.e === 'combo' && e.type === 'thorn_sword')).toBe(true);
+    expect(s.disciples[0]!.branch).toBeNull();
+  });
 });

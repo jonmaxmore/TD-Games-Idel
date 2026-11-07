@@ -261,6 +261,7 @@ function apply(s: DefendState, c: Command, ev: SimEvent[]): void {
       s.silver -= mergeFee;
       a.els = [a.els[0]!, b.els[0]!];
       a.combo = combo.id; a.spent += b.spent + mergeFee; a.cd = 0;
+      a.branch = null; // a combo plays its combo technique; a branch picked for one element must not carry over
       s.disciples.splice(s.disciples.indexOf(b), 1);
       s.combosMade++;
       ev.push({ e: 'combo', id: a.id, name: combo.nameTh, type: combo.id });
