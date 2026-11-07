@@ -87,7 +87,7 @@ export const branchB = {
   executeBelowPct: ruleB('metal').belowHpPct as number, executeDmgPct: ruleB('metal').dmgPct as number,
   rootEvery: ticks(ruleB('wood').everySec), rootTicks: ticks(ruleB('wood').rootSec), rootTakenPct: ruleB('wood').takenPct as number,
   freezeEvery: ruleB('water').freezeEvery as number,
-  splashPct: ruleB('fire').splashPct as number, burnPct: ruleB('fire').burnPct as number,
+  splashPct: ruleB('fire').splashPct as number, burnPct: ruleB('fire').burnPct as number, dpsPct: ruleB('fire').dpsPct as number,
   bellStunPct: ruleB('earth').stunPct as number,
 };
 

@@ -624,15 +624,17 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
         if (lvl >= 3 && !isB(d) && d.pushT >= WATER_PUSH_EVERY) { d.pushT = 0; tg.d = Math.max(0, tg.d - TILE); }
         break;
       case 'fire': {
-        // Tier 3 branch b (wildfire): a wider splash whose damage over time lasts longer.
+        // Tier 3 branch b (wildfire): a wider splash whose burn lasts longer and burns hotter, so it adds to an
+        // enemy another disciple already set burning (burns take the max, they do not stack).
         const wild = isB(d) ? branchB : null;
         const splash = wild ? div(FIRE_SPLASH * wild.splashPct, 100) : FIRE_SPLASH;
         const dotPct = wild ? wild.burnPct : 100;
+        const burnBase = wild ? div(FIRE_BURN_DPS * wild.dpsPct, 100) : FIRE_BURN_DPS;
         for (const e of s.enemies)
           if (e.hp > 0 && (e === tg || within(tg.x, tg.y, e.x, e.y, splash))) {
             // Wood-sect burst: the splash poisons (one stack) instead of burning.
             if (dotKind(d) === 'poison') addPoison(e, dotDps(d, e, WOOD_POISON_DPS, lvl), div(WOOD_POISON_TICKS * dotPct, 100));
-            else { e.burnT = Math.max(e.burnT, div(FIRE_BURN_TICKS * dotPct, 100)); e.burnDps = Math.max(e.burnDps, dotDps(d, e, FIRE_BURN_DPS, lvl)); }
+            else { e.burnT = Math.max(e.burnT, div(FIRE_BURN_TICKS * dotPct, 100)); e.burnDps = Math.max(e.burnDps, dotDps(d, e, burnBase, lvl)); }
           }
         break;
       }
