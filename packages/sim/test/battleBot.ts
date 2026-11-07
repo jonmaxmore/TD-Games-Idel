@@ -1,12 +1,13 @@
 // Castle-battle bots for the balance test and the golden: rush (pick the next push card from the deck, summon it at the
-// front of its zone once it is affordable) and defend (bank mana, answer what crosses into its half, at the castle gate
-// once it is under siege, push like rush when rich). Each side has its own seeded RNG.
+// front of its zone once it is affordable), defend (bank mana, answer what crosses into its half, at the castle gate
+// once it is under siege, push like rush when rich) and paced (keep a mana reserve, one summon every few seconds and
+// never onto a crowd of its own small units, guards first when enemies come near). Each side has its own seeded RNG.
 import {
   battle, battleCardIds, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, stepBattle, summonZone,
   type BattleCommand, type BattleSetup, type BattleState, type Side,
 } from '../src';
 
-export type Policy = 'rush' | 'defend';
+export type Policy = 'rush' | 'defend' | 'paced';
 // The mirror team of the balance gate: every card in the collection, a large wood leader and a fire sub-leader.
 export const MIXED: BattleSetup = { leader: 'jade_bamboo_warden', sub: 'crimson_phoenix_striker', collection: battleCardIds, bench: [] };
 // Stress teams for control resistance: only the earth and water cards that stun or push (leader, sub and draws).
@@ -28,11 +29,13 @@ export function randomTeam(seed: number, side: Side): BattleSetup {
 // in turn): win % (draws half) of the side in the side-games it summoned the card at least once (winPct) or held it in the
 // dealt hand (handPct), and the plain average of winPct over the cards of each band (bandOf).
 export interface CardRow { card: string; games: number; winPct: number; handPct: number }
-const PAIRS: [Policy, Policy][] = [['rush', 'defend'], ['defend', 'rush'], ['rush', 'rush'], ['defend', 'defend']];
-export function cardTable(games: number): { rows: CardRow[]; band: Map<string, number>; games: number } {
+export const PAIRS: [Policy, Policy][] = [['rush', 'defend'], ['defend', 'rush'], ['rush', 'rush'], ['defend', 'defend']];
+export const PACED_PAIRS: [Policy, Policy][] = [['paced', 'paced']];
+export const PACED_MIXED_PAIRS: [Policy, Policy][] = [['paced', 'rush'], ['rush', 'paced'], ['paced', 'defend'], ['defend', 'paced']];
+export function cardTable(games: number, pairs = PAIRS): { rows: CardRow[]; band: Map<string, number>; games: number } {
   const pts = new Map<string, [number, number]>(), held = new Map<string, [number, number]>(); // lookups; rows come out in data order
   for (let seed = 1; seed <= games; seed++) {
-    const [p0, p1] = PAIRS[seed % 4]!;
+    const [p0, p1] = pairs[seed % pairs.length]!;
     const { state: s, commands } = playBattle(seed, p0, p1, randomTeam(seed, 0), randomTeam(seed, 1));
     const w0 = s.winner === 0 ? 2 : s.winner === -1 ? 1 : 0;
     const sent: [Set<string>, Set<string>] = [new Set(), new Set()];
@@ -62,11 +65,14 @@ export const bandOf = (card: string) => `${def(card).size} ${def(card).move === 
 
 const DECIDE_EVERY = 10;
 const HOLD_MANA = 12;
+// paced: mana kept back for an answer, ticks between two summons, and how close (milli-tiles) and how many of its own
+// small units count as a crowd at the summon point.
+const RESERVE = 6, GAP_TICKS = 50, CROWD = 1500, CROWD_SMALL = 2;
 
 const def = (card: string) => battleUnits.get(card)!;
 
 // A bot's seeded RNG and the push card it is saving for (null: pick one next time).
-export interface BotMind { rng: number; next: string | null }
+export interface BotMind { rng: number; next: string | null; last: number } // last: tick of paced's last summon
 
 function playable(s: BattleState, side: Side, moves: string[], anyMana = false): string[] {
   return s.hands[side].filter((c, i) => {
@@ -90,7 +96,35 @@ function cannonAim(s: BattleState, side: Side, min: number): number | null {
   return best != null && (most >= min || best <= battle.homeZone) ? best : null;
 }
 
+function decidePaced(s: BattleState, side: Side, m: BotMind): BattleCommand[] {
+  const out: BattleCommand[] = [];
+  const shot = cannonAim(s, side, 2);
+  if (shot != null && s.mana[side] - battle.cannon.mana >= RESERVE) { out.push({ t: 'cannon', side, d: shot }); return out; }
+  if (s.tick - m.last < GAP_TICKS) return out;
+  const zone = summonZone(s, side);
+  const pick = (cards: string[]) => cards[Math.floor(nextRandom(m) * cards.length)]!;
+  const send = (card: string, d: number) => { out.push({ t: 'summon', side, card, d }); m.last = s.tick; return out; };
+  const near = s.units.filter((u) => u.side !== side && fwd(side, u.d) <= BATTLE_LEN / 2);
+  if (near.length > 0) { // an answer may spend the reserve: a guard first, else a fighter, just short of the nearest enemy
+    const g = playable(s, side, ['guard']), c = g.length > 0 ? g : playable(s, side, ['march']);
+    if (c.length > 0) return send(pick(c), zone);
+  }
+  const capturing = s.units.some((u) => u.side === side && def(u.card).move === 'capture');
+  if (!capturing && s.forts.some((f) => f.owner !== side)) {
+    const c = playable(s, side, ['capture']);
+    if (c.length > 0 && s.mana[side] - def(c[0]!).mana >= RESERVE) return send(pick(c), zone);
+  }
+  if (m.next == null) { const c = playable(s, side, ['march', 'fly', 'support'], true); m.next = c.length > 0 ? pick(c) : null; }
+  if (m.next == null || def(m.next).mana + RESERVE > s.mana[side]) return out;
+  const crowd = s.units.filter((u) => u.side === side && def(u.card).size === 'small' && Math.abs(fwd(side, u.d) - zone) <= CROWD).length;
+  if (def(m.next).size === 'small' && crowd >= CROWD_SMALL) return out;
+  const card = m.next;
+  m.next = null;
+  return send(card, zone);
+}
+
 function decide(s: BattleState, side: Side, policy: Policy, rng: BotMind): BattleCommand[] {
+  if (policy === 'paced') return decidePaced(s, side, rng);
   const out: BattleCommand[] = [];
   const zone = summonZone(s, side);
   const threats = s.units.filter((u) => u.side !== side && fwd(side, u.d) <= BATTLE_LEN / 2).length;
@@ -121,7 +155,7 @@ function decide(s: BattleState, side: Side, policy: Policy, rng: BotMind): Battl
 export function botCommands(s: BattleState, side: Side, policy: Policy, rng: BotMind): BattleCommand[] {
   return s.tick % DECIDE_EVERY === 0 ? decide(s, side, policy, rng) : [];
 }
-export const botRng = (seed: number, side: Side): BotMind => ({ rng: (seed * 2 + 1 + side) >>> 0, next: null });
+export const botRng = (seed: number, side: Side): BotMind => ({ rng: (seed * 2 + 1 + side) >>> 0, next: null, last: -GAP_TICKS });
 
 export interface BattleResult { state: BattleState; commands: Record<number, BattleCommand[]> }
 

@@ -622,6 +622,17 @@ describe('castle battle balance', () => {
     for (const r of added) expect(r.winPct - t.band.get(bandOf(r.card))!, r.card).toBeLessThanOrEqual(8);
   });
 
+  it('the paced bot spaces its summons: on average at most half its starting mana in the first 10 s, never two summons within 2.5 s', () => {
+    let early = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const { commands } = playBattle(seed, 'paced', 'rush');
+      const mine = Object.entries(commands).flatMap(([t, cs]) => cs.filter((c) => c.side === 0 && c.t === 'summon').map((c) => ({ t: Number(t), card: (c as { card: string }).card })));
+      early += mine.filter((c) => c.t < 10 * TICK_HZ).reduce((a, c) => a + battleUnits.get(c.card)!.mana, 0);
+      for (let i = 1; i < mine.length; i++) expect(mine[i]!.t - mine[i - 1]!.t, `seed ${seed}`).toBeGreaterThanOrEqual(2.5 * TICK_HZ);
+    }
+    expect(early / 20).toBeLessThanOrEqual(battle.manaStart / 2);
+  });
+
   it('rush vs defend on mirror decks, 200 seeds, both side orders: left wins 45-55%, draws at most 5%, a castle falls in 40-60%, 120-170 s', () => {
     const SEEDS = 200;
     let left = 0, draws = 0, games = 0, ko = 0, ticks = 0;

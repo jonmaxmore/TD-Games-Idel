@@ -2,13 +2,14 @@
 // 1. rush vs defend on the mixed mirror team (battleBot.ts > MIXED), both side orders: left wins, draws, castle falls, length.
 // 4. (CARDS=0 skips) per card over random teams of every card (battleBot.ts > cardTable, CARD_GAMES default 4000, one seed each):
 //    win % of the side that summoned it, against its size band's average; FLAG when more than 8 points over.
+//    PACED=1 adds the same table with the paced bot: paced vs paced, then paced vs rush and defend (both sides).
 // 3. (CONTROL=1) the earth and water control-stack teams vs every sect team, with control resistance off (stunImmuneSec 0,
 //    largeControlPct 100) and on: the stack's win %.
 // 2. every sect team vs every other (its whole roster, battle.json > sectTeams leader and sub), both side orders, all four bot pairings:
 //    row sect's win % over its games (draws count half), and each sect's overall average. The diagonal is the mirror
 //    match's left-side win %.
 import { battle, battleUnits, decision, sectSetup, type ResultType } from '../src';
-import { bandOf, cardTable, CONTROL_TEAMS, playBattle, type Policy } from '../test/battleBot';
+import { bandOf, cardTable, CONTROL_TEAMS, PACED_MIXED_PAIRS, PACED_PAIRS, PAIRS, playBattle, type Policy } from '../test/battleBot';
 
 const seeds = Number(process.env.BATTLE_SEEDS ?? 200);
 const pairs: [Policy, Policy][] = [['rush', 'defend'], ['defend', 'rush'], ['rush', 'rush'], ['defend', 'defend']];
@@ -97,11 +98,15 @@ if (process.env.CONTROL === '1') {
 }
 
 if (process.env.CARDS !== '0') {
-  const t = cardTable(Number(process.env.CARD_GAMES ?? 4000));
-  console.log(`\nper card over ${t.games} random-team games: card, kind, cost, band, side-games summoned, win % when summoned, vs band avg, win % when in hand`);
-  for (const [key, avg] of t.band) console.log(`band ${key}: avg ${avg.toFixed(1)}%`);
-  for (const r of t.rows) {
-    const u = battleUnits.get(r.card)!, diff = r.winPct - t.band.get(bandOf(r.card))!;
-    console.log(`${r.card.padEnd(26)} ${u.kind.padEnd(8)} ${String(u.mana).padStart(2)} ${bandOf(r.card).padEnd(13)} ${String(r.games).padStart(6)} ${r.winPct.toFixed(1).padStart(6)} ${((diff >= 0 ? '+' : '') + diff.toFixed(1)).padStart(6)} ${r.handPct.toFixed(1).padStart(6)}${diff > 8 ? '  FLAG' : ''}`);
+  const tables: [string, [Policy, Policy][]][] = [['rush/defend', PAIRS]];
+  if (process.env.PACED === '1') tables.push(['paced vs paced', PACED_PAIRS], ['paced vs rush/defend', PACED_MIXED_PAIRS]);
+  for (const [label, pairs] of tables) {
+    const t = cardTable(Number(process.env.CARD_GAMES ?? 4000), pairs);
+    console.log(`\nper card over ${t.games} random-team games (${label}): card, kind, cost, band, side-games summoned, win % when summoned, vs band avg, win % when in hand`);
+    for (const [key, avg] of t.band) console.log(`band ${key}: avg ${avg.toFixed(1)}%`);
+    for (const r of t.rows) {
+      const u = battleUnits.get(r.card)!, diff = r.winPct - t.band.get(bandOf(r.card))!;
+      console.log(`${r.card.padEnd(26)} ${u.kind.padEnd(8)} ${String(u.mana).padStart(2)} ${bandOf(r.card).padEnd(13)} ${String(r.games).padStart(6)} ${r.winPct.toFixed(1).padStart(6)} ${((diff >= 0 ? '+' : '') + diff.toFixed(1)).padStart(6)} ${r.handPct.toFixed(1).padStart(6)}${diff > 8 ? '  FLAG' : ''}`);
+    }
   }
 }
