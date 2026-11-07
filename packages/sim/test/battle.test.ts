@@ -202,6 +202,43 @@ describe('castle battle on-hit kits', () => {
     });
   });
 
+  it('control resistance: three stunners cannot lock a unit, and a large unit is stunned at most half the time', () => {
+    const STUNNERS = ['frost_tide_stacker', 'vajra_stone_control', 'vajra_stone_striker'];
+    const freeShare = (size: 'medium' | 'large') => {
+      let free = 0;
+      withCard('t_target', { dmg: 0, hp: 999999, move: 'guard', size, armor: 0 }, () => {
+        const s = createBattle(1, fixedHand(STUNNERS), fixedHand(['t_target']));
+        s.mana = [40, 40];
+        stepBattle(s, [...STUNNERS.map((c) => summon(0, c, 0)), summon(1, 't_target', 0)]);
+        for (const u of s.units) u.d = u.home = u.side === 0 ? 6000 : 6800;
+        for (let i = 0; i < 10 * TICK_HZ; i++) { stepBattle(s); if (s.units.find((u) => u.side === 1)!.stunT === 0) free++; }
+      });
+      return free / (10 * TICK_HZ);
+    };
+    expect(freeShare('medium')).toBeGreaterThanOrEqual(0.4);
+    expect(freeShare('large')).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('a stun or root that ends leaves the unit immune to that control for a while; large units take half', () => {
+    withCard('t_stun', { stun: 30, root: 30, range: 1000, cooldown: 1000, move: 'guard', dmg: 1 }, () => {
+      const s = duel('t_stun', 6000, BLADE, BATTLE_LEN - 6900);
+      stepBattle(s);
+      const blade = s.units[1]!;
+      expect([blade.stunT, blade.rootT]).toEqual([30, 30]);
+      run(s, 31);
+      expect(blade.stunT).toBe(0);
+      expect(blade.stunImmT).toBeGreaterThan(0);
+      s.units[0]!.cd = 0;
+      stepBattle(s);
+      expect(blade.stunT).toBe(0); // the second stun does not land
+      withCard('t_big', { size: 'large', hp: 2000, move: 'guard' }, () => {
+        const b = duel('t_stun', 6000, 't_big', BATTLE_LEN - 6900);
+        stepBattle(b);
+        expect([b.units[1]!.stunT, b.units[1]!.rootT]).toEqual([15, 15]);
+      });
+    });
+  });
+
   it('burning ground sets ground walkers on it burning, not fliers, and goes out', () => {
     withCard('t_fire', { ground: 20, range: 1000, cooldown: 1000, move: 'guard', dmg: 1, dot: null }, () => {
       withCard('t_fly', { move: 'fly', dmg: 0, hp: 500 }, () => {

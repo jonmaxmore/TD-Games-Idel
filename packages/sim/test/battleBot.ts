@@ -9,6 +9,12 @@ import {
 export type Policy = 'rush' | 'defend';
 // The mirror team of the balance gate: every card in the collection, a fire leader and a wood sub-leader.
 export const MIXED: BattleSetup = { leader: 'crimson_phoenix_striker', sub: 'jade_bamboo_stacker', collection: battleCardIds, bench: [] };
+// Stress teams for control resistance: only the earth and water cards that stun or push (leader, sub and draws).
+const CONTROL_CARDS = ['vajra_stone_striker', 'vajra_stone_burst', 'vajra_stone_control', 'vajra_stone_guardian', 'frost_tide_stacker', 'frost_tide_burst', 'frost_tide_control', 'frost_tide_naga'];
+export const CONTROL_TEAMS: Record<string, BattleSetup> = {
+  earth: { leader: 'vajra_stone_guardian', sub: 'vajra_stone_control', collection: CONTROL_CARDS, bench: ['frost_tide_naga'] },
+  water: { leader: 'frost_tide_naga', sub: 'frost_tide_stacker', collection: CONTROL_CARDS, bench: ['vajra_stone_guardian'] },
+};
 const DECIDE_EVERY = 10;
 const HOLD_MANA = 12;
 

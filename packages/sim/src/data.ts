@@ -57,6 +57,7 @@ export const battle = {
   guardLeash: tiles(BT.guardLeashTiles), meleeRange: tiles(BT.meleeRange), supportHeal: BT.supportHeal as number, supportGap: tiles(BT.supportGapTiles), critPct: BT.critPct as number,
   burnDps: BT.dot.burnDps as number, burnTicks: ticks(BT.dot.burnSec), poisonDps: BT.dot.poisonDps as number, poisonTicks: ticks(BT.dot.poisonSec), poisonMax: BT.dot.poisonMaxStacks as number,
   slowPct: BT.status.slowPct as number, groundRadius: tiles(BT.status.groundRadius),
+  stunImmune: ticks(BT.status.stunImmuneSec), rootImmune: ticks(BT.status.rootImmuneSec), largeControlPct: BT.status.largeControlPct as number,
   counterTags: new Map<string, string>(Object.entries(BT.counterTags as Record<string, string>)),
   counterPct: new Map<string, number>(Object.entries(BT.counterPct as Record<string, number>)),
   hand: { size: BT.hand.size as number, maxLarge: BT.hand.maxLarge as number, redraws: BT.hand.redraws as number, basic: new Map<string, string>(Object.entries(BT.hand.basic as Record<string, string>)) },

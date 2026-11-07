@@ -505,55 +505,55 @@
  "trace": [
   [
    100,
-   "c5dad9e1"
+   "52c83761"
   ],
   [
    200,
-   "a3d453ff"
+   "613d479f"
   ],
   [
    300,
-   "0d0394ba"
+   "036c8c7a"
   ],
   [
    400,
-   "3a001bf6"
+   "14cdf996"
   ],
   [
    500,
-   "5e7cf60b"
+   "ec93e12b"
   ],
   [
    600,
-   "435d17bf"
+   "2dc604ff"
   ],
   [
    700,
-   "08289cbe"
+   "630f8c5e"
   ],
   [
    800,
-   "b1ccc6d8"
+   "47eefb58"
   ],
   [
    900,
-   "c706ba9e"
+   "8eb6c13e"
   ],
   [
    1000,
-   "c4fe51dd"
+   "c100d3bd"
   ],
   [
    1100,
-   "2afcd910"
+   "3f3624d0"
   ],
   [
    1200,
-   "40e704bd"
+   "496fa3dd"
   ],
   [
    1300,
-   "5d9ee54b"
+   "888e742b"
   ],
   [
    1400,
@@ -561,69 +561,69 @@
   ],
   [
    1500,
-   "2c8d5d7a"
+   "47029a3a"
   ],
   [
    1600,
-   "a061b800"
+   "ed647540"
   ],
   [
    1700,
-   "29858677"
+   "6ad227b7"
   ],
   [
    1800,
-   "736e1ace"
+   "5c88dc4e"
   ],
   [
    1900,
-   "88abc973"
+   "ddec70f3"
   ],
   [
    2000,
-   "389235f9"
+   "c6d3c099"
   ],
   [
    2100,
-   "b73a9d4d"
+   "60fc312d"
   ],
   [
    2200,
-   "be224103"
+   "8b6226a3"
   ],
   [
    2300,
-   "9967c76d"
+   "03c911ed"
   ],
   [
    2400,
-   "2a8f8cd6"
+   "6fb52d16"
   ],
   [
    2500,
-   "c22f56bd"
+   "fdb1523d"
   ],
   [
    2600,
-   "9087d6c9"
+   "28034a29"
   ],
   [
    2700,
-   "b1553aba"
+   "9d9f0dba"
   ],
   [
    2800,
-   "2cb26e11"
+   "61fdb1f1"
   ],
   [
    2900,
-   "90d0adf1"
+   "107f8dd1"
   ]
  ],
  "final": {
   "winner": 0,
   "tick": 2948,
-  "hash": "771e8e50",
-  "canonical": "2948|2072178002|2,0|crimson_phoenix_banner,crimson_phoenix_striker,jade_bamboo_stacker,cloud_sword_banner,crimson_phoenix_beast,jade_bamboo_crane,cloud_sword_support/crimson_phoenix_banner,crimson_phoenix_striker,jade_bamboo_stacker,cloud_sword_stacker,cloud_sword_banner,frost_tide_striker,jade_bamboo_crane|0,0|2,3,3,3,2,3,1/7,1,2,2,19,2,1|2500,0,0;-23,1,0;|0,600,0,-,0;0,455,0,-,0;0,600,0,-,0;|u31,0,cloud_sword_support,17600,59,220,0,3,0,0,0,0,0,0;u35,0,jade_bamboo_stacker,17800,220,220,0,7,0,0,0,0,0,0;u40,0,jade_bamboo_crane,18600,220,220,0,17,0,0,0,0,0,0;u44,0,crimson_phoenix_striker,18300,260,260,0,8,0,0,0,0,0,0;u48,0,jade_bamboo_stacker,17800,220,220,0,5,0,0,0,0,0,0;||34,12|0"
+  "hash": "844adef0",
+  "canonical": "2948|2072178002|2,0|crimson_phoenix_banner,crimson_phoenix_striker,jade_bamboo_stacker,cloud_sword_banner,crimson_phoenix_beast,jade_bamboo_crane,cloud_sword_support/crimson_phoenix_banner,crimson_phoenix_striker,jade_bamboo_stacker,cloud_sword_stacker,cloud_sword_banner,frost_tide_striker,jade_bamboo_crane|0,0|2,3,3,3,2,3,1/7,1,2,2,19,2,1|2500,0,0;-23,1,0;|0,600,0,-,0;0,455,0,-,0;0,600,0,-,0;|u31,0,cloud_sword_support,17600,59,220,0,3,0,0,0,0,0,0,0,0;u35,0,jade_bamboo_stacker,17800,220,220,0,7,0,0,0,0,0,0,0,0;u40,0,jade_bamboo_crane,18600,220,220,0,17,0,0,0,0,0,0,0,0;u44,0,crimson_phoenix_striker,18300,260,260,0,8,0,0,0,0,0,0,0,0;u48,0,jade_bamboo_stacker,17800,220,220,0,5,0,0,0,0,0,0,0,0;||34,12|0"
  }
 }

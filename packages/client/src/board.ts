@@ -89,14 +89,14 @@ export class Board {
   private hitAt = new Map<string, number>(); // 'c0', 'f2': when a castle or fort was last struck (white flash, shiver)
   private props: { type: string; tx: number; ty: number }[] = [];
   private shots = new Pool(128, () => ({ t0: 0, t1: 0, x0: 0, y0: 0, x1: 0, y1: 0, kit: '', big: false, crit: false }));
-  private nums = new Pool(64, () => ({ t0: 0, t1: 0, x: 0, y: 0, v: 0, crit: false, heal: false, to: 0 }));
+  private nums = new Pool(64, () => ({ t0: 0, t1: 0, x: 0, y: 0, v: 0, crit: false, heal: false, to: 0, style: 0 }));
   private rings = new Pool(48, () => ({ t0: 0, t1: 0, x: 0, y: 0, rx: 0, ry: 0, c: '', slash: false }));
   private shards = new Pool(256, () => ({ t0: 0, t1: 0, x: 0, y: 0, vx: 0, vy: 0, c: '' }));
   private ghosts = new Pool(32, () => ({ t0: 0, t1: 0, x: 0, y: 0, card: '', side: 0 as Side }));
   private stop = 0; private stopAt = -Infinity;
   private glows = 0;
   private shakeT = 0; private shakeA = 0;
-  private font = digitSheet([FX.star, FX.glint, FX.heal]); // normal, crit, heal
+  private font = digitSheet([FX.star, FX.glint, FX.heal, FX.fire, FX.poison]); // normal, crit, heal, burn, poison
   shake = true;
   aim: Aim | null = null;
   armed = false; // a card is picked: the summon zone shows bright
@@ -241,7 +241,7 @@ export class Board {
     else if (e.type === 'fort') { [tx, ty] = this.fortAt(e.id!); ty -= 14; }
     else if (e.type === 'castle') { [tx, ty] = this.castleAt(e.id as Side); ty -= 24; }
     else return;
-    if (e.from == null) { this.number(now, tx, ty - 10, e.dmg!, false, false, e.to ?? -1); return; } // burn or poison tick
+    if (e.from == null) { this.number(now, tx + (e.type === 'poison' ? 5 : -5), ty - 10, e.dmg!, false, false, e.to ?? -1, 1, e.type === 'poison' ? 4 : 3); return; } // a burn or poison tick, in its colour
     const src = this.source(e.from);
     if (!src) return;
     const [x0, y0] = src, len = Math.hypot(tx - x0, ty - y0) || 1, ux = (tx - x0) / len, uy = (ty - y0) / len;
@@ -261,11 +261,11 @@ export class Board {
   }
 
   // Hits on one target within 150 ms times the game speed add up into one number; a crit or a heal is big.
-  private number(t0: number, x: number, y: number, v: number, crit: boolean, heal: boolean, to: number, speed = 1) {
-    const n = this.nums.items.find((p) => t0 < p.t1 && p.heal === heal && p.to === to && Math.abs(p.t0 - t0) < 150 * speed);
+  private number(t0: number, x: number, y: number, v: number, crit: boolean, heal: boolean, to: number, speed = 1, style = heal ? 2 : crit ? 1 : 0) {
+    const n = this.nums.items.find((p) => t0 < p.t1 && p.heal === heal && p.style === style && p.to === to && Math.abs(p.t0 - t0) < 150 * speed);
     if (n) { n.v += v; n.crit = false; n.t1 = Math.max(n.t1, t0 + 550); return; }
     if (!crit && !heal && this.nums.items.filter((p) => t0 < p.t1).length >= NUM_CAP) return;
-    Object.assign(this.nums.take(t0, t0 + (crit ? 800 : 550)), { x: x + ((to * 7) % 7) - 3, y, v, crit, heal, to });
+    Object.assign(this.nums.take(t0, t0 + (crit ? 800 : 550)), { x: x + ((to * 7) % 7) - 3, y, v, crit, heal, to, style });
   }
 
   private ring(t0: number, ms: number, x: number, y: number, rx: number, ry: number, c: string) {
@@ -348,11 +348,14 @@ export class Board {
     this.strip(BATTLE_LEN - zones[1], BATTLE_LEN, '#D2412F', 0.2);
     for (const z of this.s.zones) { // burning ground: flickering embers across its radius on the road
       const p = at(z.d), cx = this.sx(p.x), cy = this.sy(p.y), r = Math.max(2, Math.round((battle.groundRadius / TILE) * this.T));
-      g.globalAlpha = 0.35; g.fillStyle = FX.fire; g.fillRect(cx - r, cy - 2, r * 2, 4); g.globalAlpha = 1;
-      for (let i = 0; i < 8; i++) {
-        const k = (Math.floor(now / 90) + i * 7) % 11;
-        g.fillStyle = k & 1 ? FX.fire : FX.star;
-        g.fillRect(cx - r + ((i * 37 + k * 3) % (2 * r)), cy - 3 - (k % 4), 1, 2);
+      const h = Math.max(4, this.TH >> 1); // a glowing band across the road, edged dark, with flames standing on it
+      g.globalAlpha = 0.55 + 0.1 * Math.sin(now / 120 + z.d); g.fillStyle = '#B12F00'; g.fillRect(cx - r, cy - (h >> 1), r * 2, h);
+      g.fillStyle = FX.fire; g.fillRect(cx - r + 1, cy - (h >> 1) + 1, r * 2 - 2, h - 2); g.globalAlpha = 1;
+      g.fillStyle = '#561700'; g.fillRect(cx - r, cy - (h >> 1) - 1, r * 2, 1); g.fillRect(cx - r, cy + (h >> 1), r * 2, 1);
+      for (let i = 0; i < 10; i++) {
+        const k = (Math.floor(now / 90) + i * 7) % 11, fx = cx - r + 1 + ((i * 37 + k * 3) % (2 * r - 2)), tall = 2 + (k % 4);
+        g.fillStyle = FX.fire; g.fillRect(fx, cy - tall, 2, tall);
+        g.fillStyle = FX.star; g.fillRect(fx, cy - tall - 1, 1, 2);
       }
     }
     const edge = at(Math.max(0, zones[0]));
@@ -368,7 +371,7 @@ export class Board {
     for (const u of s.units) {
       const q = this.seen.get(u.id);
       if (!q) continue;
-      things.push({ depth: q.y / TILE + (u.side === 0 ? -0.1 : 0.1), draw: () => this.unit(u.id, q, u.hp / u.maxHp, u.stunT > 0, u.burnT > 0 ? FX.fire : u.poison > 0 ? FX.poison : null, now) });
+      things.push({ depth: q.y / TILE + (u.side === 0 ? -0.1 : 0.1), draw: () => this.unit(u.id, q, u.hp / u.maxHp, u.stunT > 0, u.burnT > 0 ? FX.fire : u.poison > 0 ? FX.poison : null, now, u.stunImmT > 0 || u.rootImmT > 0, u.burnT > 0, u.poison) });
     }
     things.sort((x, y) => x.depth - y.depth);
     for (const t of things) t.draw();
@@ -460,7 +463,7 @@ export class Board {
       if (now < p.t0 || now >= p.t1) continue;
       const k = (now - p.t0) / (p.t1 - p.t0);
       g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
-      this.digits(p.v, p.x, Math.round(p.y - k * (p.crit ? 14 : 10)), p.heal ? 2 : p.crit ? 1 : 0, p.crit);
+      this.digits(p.v, p.x, Math.round(p.y - k * (p.crit ? 14 : 10)), p.style, p.crit);
     }
     g.globalAlpha = 1;
   }
@@ -503,6 +506,20 @@ export class Board {
     const g = this.g;
     shadow(g, x, y, 8);
     for (const [dx, dy, w, h, c] of art) { g.fillStyle = c; g.fillRect(x + dx, y + dy, w, h); }
+  }
+
+  // A 3x5 flame (its tip flickers) and a 3x4 poison drop, bottoms at y, outlined dark so they read on any ground.
+  private flame(x: number, y: number, now: number) {
+    const g = this.g, f = Math.floor(now / 110) & 1;
+    g.fillStyle = '#120A0C'; g.fillRect(x - 1, y - 6, 5, 7);
+    g.fillStyle = FX.fire; g.fillRect(x, y - 3, 3, 3); g.fillRect(x + f, y - 5, 2, 2);
+    g.fillStyle = FX.star; g.fillRect(x + 1, y - 2, 1, 2);
+  }
+  private drop(x: number, y: number) {
+    const g = this.g;
+    g.fillStyle = '#120A0C'; g.fillRect(x - 1, y - 5, 5, 6);
+    g.fillStyle = FX.poison; g.fillRect(x, y - 3, 3, 3); g.fillRect(x + 1, y - 4, 1, 1);
+    g.fillStyle = FX.heal; g.fillRect(x, y - 3, 1, 1);
   }
 
   private bar(x: number, y: number, w: number, frac: number, color: string) {
@@ -571,7 +588,7 @@ export class Board {
   }
 
   // A unit: its eased spot, the attack lunge, knockback and two white frames on a hit, a status tint, stars when stunned, HP.
-  private unit(id: number, q: Seen, hp: number, stunned: boolean, tint: string | null, now: number) {
+  private unit(id: number, q: Seen, hp: number, stunned: boolean, tint: string | null, now: number, immune = false, burning = false, poison = 0) {
     const g = this.g;
     let [x, y] = this.spot(id, q);
     const l = this.lunges.get(id), k = l ? (now - l.t0) / LUNGE_MS : 1;
@@ -601,6 +618,14 @@ export class Board {
       top = y - fly - Math.ceil((sp.f.foot - sp.f.top + 1) / this.K) - 4;
     } else g.drawImage(figure(q.card, q.side, q.side === 1, b, over), x - FIG_X * big, y - FIG_Y * big - fly, FIG_W * big, FIG_H * big);
     this.bar(x, top, 12 * big, hp, HP_BAR[q.side]);
+    // Damage over time: a flame and/or a poison drop with its stack count beside the HP bar, flickering.
+    let mx = x + 6 * big + 3;
+    if (burning) { this.flame(mx, top + 1, now + id * 37); mx += 5; }
+    if (poison > 0) { this.drop(mx, top + 1); if (poison > 1) this.digits(poison, mx + 6, top - 2, 4, false); }
+    if (immune) { // control resistance: an ice-white halo over the head while stuns and roots cannot land
+      ring(g, x, top - 4, 6, 2, FX.ice);
+      if (Math.floor(now / 200) & 1) { g.fillStyle = FX.glint; g.fillRect(x - 6, top - 4, 1, 1); g.fillRect(x + 6, top - 4, 1, 1); }
+    }
     if (stunned) {
       g.fillStyle = FX.star;
       for (let i = 0; i < 3; i++) {

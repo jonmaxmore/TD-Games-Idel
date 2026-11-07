@@ -28,6 +28,7 @@ export interface BattleEvent {
 export interface Fighter {
   id: number; side: Side; card: string; d: number; hp: number; maxHp: number; cd: number; home: number; aura: number; // aura: % more damage it gives allies near it
   stunT: number; burnT: number; poison: number; poisonT: number; rootT: number; slowT: number;
+  stunImmT: number; rootImmT: number; // ticks left of control resistance after a stun or a root ended
 }
 // Burning ground: ground enemies of side within groundRadius of d keep burning while t > 0.
 export interface Zone { side: Side; d: number; t: number }
@@ -140,7 +141,7 @@ function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: 
   const v = abilityValue(def, cardLevel(s.setups[c.side], def.id)), kind = def.ability?.kind;
   if (kind === 'refund') s.mana[c.side] = Math.min(B.manaMax, s.mana[c.side] + v);
   const abs = fwd(c.side, d), hp = kind === 'hp' ? div(def.hp * (100 + v), 100) : def.hp;
-  const u: Fighter = { id: s.nextId++, side: c.side, card: def.id, d: abs, hp, maxHp: hp, cd: 0, home: abs, aura: kind === 'aura' ? v : 0, stunT: 0, burnT: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0 };
+  const u: Fighter = { id: s.nextId++, side: c.side, card: def.id, d: abs, hp, maxHp: hp, cd: 0, home: abs, aura: kind === 'aura' ? v : 0, stunT: 0, burnT: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0, stunImmT: 0, rootImmT: 0 };
   s.units.push(u);
   ev.push({ e: 'spawn', id: u.id, type: def.id, side: c.side, ...at(abs) });
 }
@@ -241,9 +242,11 @@ function act(s: BattleState, u: Fighter, ev: BattleEvent[], pend: Pending[]): nu
   const def = defOf(u);
   if (u.cd > 0) u.cd--;
   const rooted = u.rootT > 0, slowed = u.slowT > 0;
-  if (rooted) u.rootT--;
+  if (u.rootImmT > 0) u.rootImmT--;
+  if (rooted && --u.rootT === 0) u.rootImmT = B.rootImmune;
   if (slowed) u.slowT--;
-  if (u.stunT > 0) { u.stunT--; return null; }
+  if (u.stunImmT > 0) u.stunImmT--;
+  if (u.stunT > 0) { if (--u.stunT === 0) u.stunImmT = B.stunImmune; return null; }
   const me = fwd(u.side, u.d);
   if (def.move === 'support') {
     let hurt: Fighter | null = null;
@@ -338,8 +341,10 @@ function dots(s: BattleState, ev: BattleEvent[]): void {
     if (u.burnT > 0) u.burnT--;
     if (u.poisonT > 0 && --u.poisonT === 0) u.poison = 0;
     if (s.tick % DOT_EVERY !== 0) continue;
-    const dmg = (u.burnT > 0 ? div(B.burnDps, 2) : 0) + div(u.poison * B.poisonDps, 2);
-    if (dmg > 0) { u.hp -= dmg; ev.push({ e: 'hit', to: u.id, dmg, ...at(u.d) }); }
+    const burn = u.burnT > 0 ? div(B.burnDps, 2) : 0, poison = div(u.poison * B.poisonDps, 2);
+    u.hp -= burn + poison;
+    if (burn > 0) ev.push({ e: 'hit', to: u.id, dmg: burn, type: 'burn', ...at(u.d) });
+    if (poison > 0) ev.push({ e: 'hit', to: u.id, dmg: poison, type: 'poison', ...at(u.d) });
   }
 }
 
@@ -388,8 +393,9 @@ function applyPending(s: BattleState, pend: Pending[]): void {
     const u = p.u, def = p.def;
     if (def.ground > 0) s.zones.push({ side: p.side, d: u ? u.d : p.d, t: def.ground });
     if (u == null) continue;
-    u.stunT = Math.max(u.stunT, def.stun);
-    u.rootT = Math.max(u.rootT, def.root);
+    const big = defOf(u).size === 'large', cut = (t: number) => (big ? div(t * B.largeControlPct, 100) : t);
+    if (u.stunImmT === 0) u.stunT = Math.max(u.stunT, cut(def.stun));
+    if (u.rootImmT === 0) u.rootT = Math.max(u.rootT, cut(def.root));
     u.slowT = Math.max(u.slowT, def.slow);
     if (def.push > 0 && defOf(u).size !== 'large') u.d = fwd(u.side, Math.max(0, fwd(u.side, u.d) - def.push));
   }
@@ -439,7 +445,7 @@ export function battleString(s: BattleState): string {
   o += '|';
   for (const f of s.forts) o += `${n(f.owner)},${f.hp},${f.cd},${n(f.capSide)},${f.capT};`;
   o += '|';
-  for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.maxHp},${u.aura},${u.cd},${u.stunT},${u.burnT},${u.poison},${u.poisonT},${u.rootT},${u.slowT};`;
+  for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.maxHp},${u.aura},${u.cd},${u.stunT},${u.burnT},${u.poison},${u.poisonT},${u.rootT},${u.slowT},${u.stunImmT},${u.rootImmT};`;
   o += '|';
   for (const z of s.zones) o += `${z.side},${z.d},${z.t};`;
   return o + `|${s.kills.join(',')}|` + n(s.winner);
