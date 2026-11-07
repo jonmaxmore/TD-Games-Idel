@@ -692,7 +692,8 @@ export function figure(card: string, side: Side, flip: boolean, b: number, over:
 
 // The figure facing right, feet at (FIG_X, FIG_Y): sect-coloured robe, dark hat, and what its card carries.
 function drawFigure(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b: number) {
-  const x = FIG_X, y = FIG_Y, sm = d.size === 'small' ? 2 : 0, robe = sects.get(d.sect)?.color ?? NEUTRAL;
+  if (d.body !== 'human' && d.body !== 'archer' && d.body !== 'ghoul') return drawBeast(g, d, side, b);
+  const x = FIG_X, y = FIG_Y, sm = d.size === 'small' ? 2 : 0, robe = d.body === 'ghoul' ? palette.get('enemy')![0]! : sects.get(d.sect)?.color ?? NEUTRAL;
   const R = (dx: number, dy: number, w: number, h: number, c: string) => { g.fillStyle = c; g.fillRect(x + dx, y + dy, w, h); };
   if (d.move === 'fly') { R(-10, -14 + b, 5, 2, '#C8C4CC'); R(5, -14 + b, 5, 2, '#C8C4CC'); }
   R(-4, -1, 3, 1, '#1A1418'); R(1, -1, 3, 1, '#1A1418'); // feet
@@ -704,7 +705,14 @@ function drawFigure(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b
   R(-5, -21 + sm + b, 10, 3, '#1A1418'); R(-2, -23 + sm + b, 4, 2, '#1A1418'); // hat
   R(-5, -19 + sm + b, 10, 1, SIDE[side]); // hat band in the side colour
   const kit = KIT_LOOK[d.kit] ?? KIT_LOOK.metal!;
-  if (d.move === 'capture') { // a banner pole over the shoulder
+  if (d.body === 'ghoul') { // a pale mask and black threads hanging from the hands
+    R(-3, -19 + sm + b, 6, 6, palette.get('yinyang')![1]!); R(-2, -17 + sm + b, 1, 1, '#E23B2E'); R(1, -17 + sm + b, 1, 1, '#E23B2E');
+    for (const tx of [5, 8, 11]) R(tx, -12 + b, 1, 9 + (tx % 3), '#1A1418');
+    R(4, -13 + b, 9, 1, '#5A5266');
+  } else if (d.body === 'archer') { // a long bow held forward with an arrow nocked
+    R(6, -24 + b, 1, 2, '#6E4A30'); R(7, -22 + b, 1, 16, '#6E4A30'); R(6, -6 + b, 1, 2, '#6E4A30');
+    R(4, -14 + b, 9, 1, '#E5EAF0'); R(13, -15 + b, 1, 3, '#FFFFFF'); R(-6, -18 + sm + b, 2, 9, '#7A4A2A'); // arrow, quiver
+  } else if (d.move === 'capture') { // a banner pole over the shoulder
     R(5, -30 + sm + b, 1, 29, '#C8C4CC'); R(6, -30 + sm + b, 7, 5, SIDE[side]); R(6, -26 + sm + b, 6, 1, robe);
   } else if (d.move === 'guard') { R(4, -12 + b, 4, 10, '#1A1418'); R(5, -11 + b, 2, 8, kit[0]); R(5, -11 + b, 1, 1, kit[1]); } // a shield in front
   else if (d.move === 'support') { R(-1, -29 + sm + b, 1, 6, '#3A2A24'); R(-2, -32 + sm + b, 3, 3, FX.star); R(-1, -31 + sm + b, 1, 1, '#FFFFFF'); } // lantern overhead
@@ -715,6 +723,98 @@ function drawFigure(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b
   else { R(5, -15 + b, 3, 3, kit[0]); R(5, -15 + b, 1, 1, kit[1]); } // a charm
 }
 
+// A beast's figure facing right, feet at (FIG_X, FIG_Y), in its element's palette shades (effects.json render.palette:
+// light, main, mid, dark, darker, darkest) with a collar in the side colour. One silhouette per body so a beast never
+// reads as a disciple: imp, beast (four legs), wing, serpent, mass (squat dome), shell, dragon.
+function drawBeast(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b: number) {
+  const x = FIG_X, y = FIG_Y, P = palette.get(d.sect) ?? palette.get('yinyang')!, O = '#1A1418', EYE = FX.star, demon = d.kind === 'demon';
+  const R = (dx: number, dy: number, w: number, h: number, c: string) => { g.fillStyle = c; g.fillRect(x + dx, y + dy, w, h); };
+  const body = (dx: number, dy: number, w: number, h: number, c = P[1]!) => { R(dx - 1, dy - 1, w + 2, h + 2, O); R(dx, dy, w, h, c); R(dx, dy + h - 1, w, 1, P[3]!); };
+  const eye = (dx: number, dy: number) => { R(dx, dy, 2, 1, demon ? '#E23B2E' : EYE); };
+  switch (d.body) {
+    case 'imp': // a round flame-headed imp with horns
+      R(-3, -1, 2, 1, O); R(1, -1, 2, 1, O);
+      body(-4, -10 + b, 8, 8, P[2]); body(-5, -16 + b, 10, 7, P[1]);
+      R(-5, -19 + b, 2, 3, P[0]!); R(3, -19 + b, 2, 3, P[0]!); R(-1, -20 + b, 2, 3, P[0]!); // flame tips
+      eye(0, -13 + b); eye(3, -13 + b); R(-4, -9 + b, 8, 1, SIDE[side]);
+      break;
+    case 'beast': { // four legs, a long body, the head forward and the tail back
+      for (const lx of [-8, -5, 3, 6]) R(lx, -6, 2, 6, O);
+      for (const lx of [-8, -5, 3, 6]) R(lx, -5, 2, 4, P[3]!);
+      body(-10, -13 + b, 18, 7);
+      body(6, -18 + b, 7, 7, P[0]); eye(10, -16 + b); R(12, -14 + b, 2, 1, O); // head and snout
+      if (d.move === 'guard') { R(-16, -18 + b, 7, 6, O); R(-15, -17 + b, 5, 4, P[0]!); R(-15, -17 + b, 2, 1, FX.glint); } // a bushy tail (fox)
+      else { R(-14, -16 + b, 4, 2, P[2]!); R(-15, -18 + b, 2, 2, P[0]!); } // tail up
+      R(5, -12 + b, 2, 5, SIDE[side]); // collar
+      if (d.kind === 'divine') R(8, -21 + b, 2, 3, EYE); // a small horn or crest
+      break;
+    }
+    case 'wing': { // a small body under two wide wings that flap
+      const f = b ? -2 : 0;
+      R(-15, -22 + f, 12, 3, O); R(3, -22 + f, 12, 3, O); R(-14, -21 + f, 10, 1, P[1]!); R(4, -21 + f, 10, 1, P[1]!);
+      R(-12, -19 + f, 8, 2, P[2]!); R(4, -19 + f, 8, 2, P[2]!);
+      body(-3, -20 + b, 6, 8, P[3]); body(2, -24 + b, 4, 4, P[0]); eye(4, -23 + b);
+      R(-2, -13 + b, 4, 1, SIDE[side]);
+      break;
+    }
+    case 'serpent': // a ringed worm arching out of the broken ground, the round jaw bent forward
+      R(-15, -2, 30, 2, P[4]!);
+      const pts: [number, number][] = [[-11, -4], [-10, -8], [-8, -12], [-6, -16], [-3, -19], [0, -21], [3, -22], [6, -21], [9, -19]];
+      for (const [px, py] of pts) R(px - 3, py - 3 + b, 7, 7, O);
+      pts.forEach(([px, py], k) => R(px - 2, py - 2 + b, 5, 5, k % 2 ? P[2]! : P[1]!));
+      for (const [px, py] of pts.slice(1, -1)) R(px - 1, py - 2 + b, 1, 1, P[0]!); // ring highlights
+      R(9, -17 + b, 6, 6, O); R(10, -16 + b, 4, 4, P[4]!); R(11, -15 + b, 2, 2, EYE); // the round jaw, glowing inside
+      eye(7, -21 + b); R(-12, -6 + b, 5, 1, SIDE[side]);
+      break;
+    case 'mass': // a squat dome, eyes on top, mouth leaking mist
+      R(-12, -1, 4, 1, O); R(8, -1, 4, 1, O);
+      body(-12, -12 + b, 24, 11, P[2]); body(-9, -16 + b, 18, 5, P[1]);
+      R(-6, -19 + b, 4, 3, O); R(3, -19 + b, 4, 3, O); eye(-5, -18 + b); eye(4, -18 + b);
+      R(6, -7 + b, 7, 1, O); R(13, -9 + b, 2, 2, P[0]!); R(-12, -4 + b, 24, 1, SIDE[side]);
+      break;
+    case 'shell': { // a high dome of plates over four stumpy legs, the head out front
+      for (const lx of [-10, -5, 3, 8]) { R(lx - 1, -5, 4, 5, O); R(lx, -4, 2, 3, P[3]!); }
+      const rows: [number, number, number][] = [[-17, -5, 10], [-16, -8, 16], [-15, -10, 20], [-13, -12, 24], [-8, -13, 26]];
+      for (const [ry, rx, w] of rows) R(rx - 1, ry - 1 + b, w + 2, 2, O);
+      R(-14, -7 + b, 28, 2, O);
+      for (let k = 0; k < rows.length; k++) { const [ry, rx, w] = rows[k]!, h = (rows[k + 1]?.[0] ?? -6) - ry; R(rx, ry + b, w, h, P[3]!); }
+      for (const [px, py] of [[-9, -13], [-3, -15], [3, -13], [-6, -10], [0, -11], [6, -10]] as const) R(px, py + b, 4, 2, P[1]!);
+      R(-13, -7 + b, 26, 1, SIDE[side]); // the rim in the side colour
+      R(11, -13 + b, 6, 6, O); R(12, -12 + b, 4, 4, P[0]!); eye(14, -11 + b);
+      if (d.ability?.kind === 'ward') { R(-6, -20 + b, 12, 1, P[0]!); R(-9, -19 + b, 3, 1, P[0]!); R(6, -19 + b, 3, 1, P[0]!); } // the ward's halo
+      break;
+    }
+    case 'dragon': { // the biggest silhouettes on the field: horns, spines and a tail; the flier coils like a serpent
+      if (d.move === 'fly') {
+        const wave = (k: number) => Math.round(Math.sin(k / 4 + b) * 3);
+        for (const [dy, h, c] of [[-1, 6, O], [0, 4, P[2]!], [3, 1, P[0]!]] as const)
+          for (let k = 0; k < 24; k++) R(-15 + k, -15 + wave(k) + dy, 1, h, c);
+        for (let k = 2; k < 22; k += 5) R(-15 + k, -17 + wave(k), 2, 2, P[4]!); // dorsal fins
+        R(7, -23 + b, 9, 7, O); R(8, -22 + b, 7, 5, P[1]!); R(13, -19 + b, 3, 2, P[0]!); eye(11, -21 + b); // head
+        R(9, -26 + b, 1, 3, P[0]!); R(12, -26 + b, 1, 3, P[0]!); // horns
+        R(1, -18 + b, 8, 1, P[0]!); R(-2, -17 + b, 3, 1, P[0]!); // whiskers trailing back
+        R(-12, -24 + b, 1, 2, FX.glint); R(-11, -22 + b, 1, 2, FX.glint); R(-12, -20 + b, 1, 2, FX.glint); // lightning
+        R(6, -16 + wave(21), 3, 2, SIDE[side]);
+      } else { // a heavy body low on four legs, a bat wing raised, a long neck up to a horned head with an open jaw
+        R(-17, -9, 6, 3, O); R(-16, -8, 5, 1, P[3]!); R(-13, -11, 4, 3, O); R(-12, -10, 3, 1, P[3]!); // tail
+        for (const lx of [-9, -5, 1, 4]) { R(lx - 1, -8, 4, 8, O); R(lx, -7, 2, 6, P[3]!); R(lx, -1, 3, 1, O); }
+        const rows: [number, number, number][] = [[-15, -8, 12], [-13, -11, 17], [-10, -12, 18]];
+        for (const [ry, rx, w] of rows) R(rx - 1, ry - 1 + b, w + 2, 2, O);
+        R(-13, -6 + b, 20, 1, O); R(-13, -10 + b, 1, 4, O); R(6, -10 + b, 1, 4, O);
+        for (let k = 0; k < rows.length; k++) { const [ry, rx, w] = rows[k]!, h = (rows[k + 1]?.[0] ?? -6) - ry; R(rx, ry + b, w, h, P[2]!); }
+        R(-10, -7 + b, 15, 1, P[0]!); R(-5, -12 + b, 1, 2, P[0]!); R(0, -11 + b, 1, 2, P[0]!); // molten belly and cracks
+        for (let k = 0; k < 7; k++) { R(-9 + Math.max(0, 3 - k), -23 + k + b, 2 + Math.min(k, 3) * 3, 1, O); R(-8 + Math.max(0, 3 - k), -22 + k + b, Math.min(k, 3) * 3, 1, P[3]!); } // the wing
+        R(-6, -21 + b, 1, 6, P[5]!); R(-2, -19 + b, 1, 4, P[5]!); // its ribs
+        for (const [nx, ny] of [[4, -17], [6, -20], [8, -23]] as const) { R(nx - 1, ny - 1 + b, 6, 6, O); R(nx, ny + b, 4, 4, P[2]!); } // neck
+        R(8, -29 + b, 9, 6, O); R(9, -28 + b, 7, 4, P[2]!); R(12, -24 + b, 5, 2, O); R(13, -23 + b, 1, 2, P[0]!); R(15, -23 + b, 1, 2, P[0]!); eye(11, -27 + b); // head, jaw, lava
+        R(9, -32 + b, 1, 3, P[5]!); R(11, -31 + b, 1, 2, P[5]!); // horns
+        R(3, -14 + b, 3, 4, SIDE[side]); // collar
+      }
+      break;
+    }
+  }
+}
+
 // A card's face for the HUD: the figure at 3 css pixels per board unit, cropped to the body.
 export function portrait(card: string, side: Side = 0, flip = false): HTMLCanvasElement {
   const c = document.createElement('canvas');
@@ -722,7 +822,8 @@ export function portrait(card: string, side: Side = 0, flip = false): HTMLCanvas
   c.className = 'portrait';
   const g = c.getContext('2d')!;
   g.imageSmoothingEnabled = false;
-  g.drawImage(figure(card, side, flip, 0, null), 2, 2, 28, 30, 0, 0, 28 * 3, 30 * 3);
+  const body = defOf(card).body, low = body !== 'dragon' && !['human', 'archer', 'ghoul'].includes(body); // beasts sit low in the figure: crop lower
+  g.drawImage(figure(card, side, flip, 0, null), 2, low ? 6 : 2, 28, 30, 0, 0, 28 * 3, 30 * 3);
   return c;
 }
 

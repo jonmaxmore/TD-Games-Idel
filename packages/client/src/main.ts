@@ -1,10 +1,11 @@
 // The player's path through the app: title → team setup → castle battle → result → back.
 // Dev and shots shortcut: ?mode=battle jumps straight into a match; &bot=1 lets bots play both sides, &speed=4 fast-forwards,
-// &seed=N picks the match, &deck=fire|wood|metal|water|earth|all the player's collection (&leader=, &sub= its leaders).
-import { battle, battleUnits, createBattle, stepBattle, TICK_HZ, type Side } from '@five-sects/sim';
+// &seed=N picks the match, &deck=fire|wood|metal|water|earth (a sect preset), all|mixed (every card) or a comma list of
+// card ids to draw from (&leader=, &sub= the leaders).
+import { battle, battleUnits, createBattle, sects, stepBattle, TICK_HZ, type Side } from '@five-sects/sim';
 import { el, startMatch, type MatchResult } from './battle';
 import { portrait } from './board';
-import { aiTeam, collectionOf, COLLECTIONS, fixTeam, leaderChoices, resolveTeam, teamSetup, type Team } from './decks';
+import { aiTeam, ALL_NAME, COLLECTION, fixTeam, isBasic, PRESETS, presetMatch, presetTeam, resolveTeam, teamSetup, type Team } from './decks';
 import { load, save, type Profile } from './profile';
 import { initSound } from './sound';
 import { cardArt, loadSprites } from './sprites';
@@ -49,57 +50,83 @@ function btn(text: string, cls: string, onclick: () => void): HTMLButtonElement 
   return b;
 }
 
-// ---- title: the name, two lines of disciples facing off, start ----
+// ---- title: the name, a line of disciples facing a line of beasts, start ----
 function title() {
   const r = el('div', 'screen title');
   const face = el('div', 'faceoff');
-  const [a, b] = [COLLECTIONS[0]!, collectionOf(COLLECTIONS[0]!.vs)];
-  const side = (d: typeof a, s: Side) => { const row = el('div', `line side${s}`); for (const c of d.cards.slice(0, 4)) row.append(portrait(c, s, s === 1)); return row; };
-  face.append(side(a, 0), el('span', 'vs', 'ปะทะ'), side(b, 1));
+  const beasts = ['demon', 'divine', 'dragon'].flatMap((k) => COLLECTION.filter((c) => battleUnits.get(c)!.kind === k && battleUnits.get(c)!.size !== 'small').slice(0, k === 'divine' ? 2 : 1));
+  const side = (cards: readonly string[], s: Side) => { const row = el('div', `line side${s}`); for (const c of cards) row.append(portrait(c, s, s === 1)); return row; };
+  face.append(side(PRESETS[0]!.cards.slice(0, 4), 0), el('span', 'vs', 'ปะทะ'), side(beasts, 1));
   r.append(
-    el('div', 'grow'), el('h1', '', 'ศึกห้าสำนัก'), el('p', 'sub', 'ศึกชิงเมือง · อัญเชิญศิษย์ ยึดป้อม ทลายปราสาทศัตรูให้ได้ใน 3 นาที'), face,
+    el('div', 'grow'), el('h1', '', 'ศึกห้าสำนัก'), el('p', 'sub', 'ศึกชิงเมือง · อัญเชิญศิษย์และสัตว์เทพ ยึดป้อม ทลายปราสาทศัตรูให้ได้ใน 3 นาที'), face,
     btn('เริ่มศึก', 'primary big start', () => go({ k: 'deck' })), el('div', 'grow'), el('p', 'dim center', 'คลิกการ์ดแล้วคลิกบนเส้นทาง หรือลากการ์ดลงสนาม · ปุ่ม 1–7 เลือกการ์ด · Space เล็งปืนใหญ่แล้วคลิกยิง · F เต็มจอ'),
   );
   app.append(r);
 }
 
-// ---- team setup: a collection, its leader and sub-leader, a bench, then the dealt hand with redraws ----
-const roleLine = (c: string) => { const u = battleUnits.get(c)!, m = battle.moves.get(u.move)!; return `ตัว${m.roleTh} · ${m.nameTh} · ${battle.sizes.get(u.size)!.nameTh}`; };
+// ---- team setup: every card, filtered by kind, cost and role; leader, sub-leader and bench; presets; the dealt hand ----
+const kindOf = (c: string) => battle.kinds.get(battleUnits.get(c)!.kind)!;
+const roleLine = (c: string) => { const u = battleUnits.get(c)!, m = battle.moves.get(u.move)!; return `${kindOf(c)} · ${m.roleTh} · ${m.nameTh}`; };
 function abilityText(c: string, level: number): string | null {
   const u = battleUnits.get(c)!;
   if (!u.ability) return null;
   const a = battle.abilities.get(u.ability.kind)!;
   return `${a.nameTh} Lv${level}: ${a.doesTh.replace('{v}', String(u.ability.lv[level - 1]))}`;
 }
+const colorOf = (c: string) => sects.get(battleUnits.get(c)!.sect)?.color ?? '#E3B04B';
+// The filter bar: one row of chips per key, 'all' first; a card shows when it matches every key.
+type Filter = { kind: string; cost: string; role: string };
+const FILTERS: { key: keyof Filter; label: string; opts: [string, string][]; test: (c: string, v: string) => boolean }[] = [
+  { key: 'kind', label: 'ชนิด', opts: [...battle.kinds], test: (c, v) => battleUnits.get(c)!.kind === v },
+  { key: 'cost', label: 'ราคา', opts: [1, 2, 3, 4, 5, 6, 7].map((n) => [String(n), String(n)]), test: (c, v) => battleUnits.get(c)!.mana === Number(v) },
+  { key: 'role', label: 'บทบาท', opts: [['บุก', 'ตัวบุก'], ['สกัด', 'ตัวสกัด']], test: (c, v) => battle.moves.get(battleUnits.get(c)!.move)!.roleTh === v },
+];
 function teamScreen() {
   const r = el('div', 'screen team');
   r.append(el('h1', '', 'จัดทัพ'));
-  const body = el('div', 'team-body'), list = el('div', 'deck-list'), grid = el('div', 'team-cards');
-  body.append(list, grid);
+  const body = el('div', 'team-body'), list = el('div', 'deck-list'), main = el('div', 'team-main'), bar = el('div', 'filters'), grid = el('div', 'team-cards many');
+  main.append(bar, grid);
+  body.append(list, main);
   const info = el('p', 'team-info'), handRow = el('div', 'hand-row'), redrawBtn = btn('', 'redraw', () => { redraws++; show(); });
   const seed = (Date.now() % 100000) + 1;
+  const filter: Filter = { kind: '', cost: '', role: '' };
   let redraws = 0;
   const setTeam = (t: Team) => { profile.team = fixTeam(t); save(profile); redraws = 0; show(); };
   const describe = (c: string) => {
     const u = battleUnits.get(c)!, cap = u.perMatch, t = profile.team;
     const lv = c === t.leader ? 3 : c === t.sub ? 2 : 1, ab = abilityText(c, lv);
-    info.textContent = `${u.nameTh} · ${roleLine(c)} · ${cap == null ? 'ลงได้ไม่จำกัด' : `ลงได้ ${cap} ครั้ง`} · HP ${u.hp} · ตี ${u.dmg}${u.hitsAir ? ' · ตีอากาศได้' : ''} · ${u.tagTh}${ab ? ` · ${ab}` : ''}`;
+    info.textContent = `${u.nameTh} · ${roleLine(c)} · ${battle.sizes.get(u.size)!.nameTh} · ${cap == null ? 'ลงได้ไม่จำกัด' : `ลงได้ ${cap} ครั้ง`} · HP ${u.hp} · ตี ${u.dmg}${u.hitsAir ? ' · ตีอากาศได้' : ''} · ${u.tagTh}${ab ? ` · ${ab}` : ''}`;
   };
+  const chips = FILTERS.map((f) => {
+    const row = el('div', 'chips');
+    row.append(el('span', 'chip-label', f.label));
+    for (const [v, name] of [['', 'ทั้งหมด'] as [string, string], ...f.opts]) {
+      const b = btn(name, 'chip', () => { filter[f.key] = v; show(); });
+      b.dataset.f = `${f.key}:${v || 'all'}`;
+      row.append(b);
+    }
+    bar.append(row);
+    return row;
+  });
+  const count = el('small', 'count');
+  bar.append(count);
   const show = () => {
-    const t = profile.team, c = collectionOf(t.collection), lead = leaderChoices(c);
-    for (const b of Array.from(list.children)) b.classList.toggle('sel', (b as HTMLElement).dataset.id === c.id);
-    grid.classList.toggle('many', c.cards.length > 12);
-    grid.replaceChildren(...c.cards.map((id) => {
-      const u = battleUnits.get(id)!, role = id === t.leader ? 'leader' : id === t.sub ? 'sub' : t.bench.includes(id) ? 'bench' : basicIds.has(id) ? 'basic' : '';
-      const tile = el('div', `team-card ${role}`);
+    const t = profile.team, preset = presetMatch(t);
+    for (const b of Array.from(list.querySelectorAll('.deck-row'))) b.classList.toggle('sel', (b as HTMLElement).dataset.id === (preset?.id ?? (t.bench.length === 0 ? 'all' : '')));
+    FILTERS.forEach((f, i) => { for (const b of Array.from(chips[i]!.querySelectorAll('.chip'))) b.classList.toggle('on', (b as HTMLElement).dataset.f === `${f.key}:${filter[f.key] || 'all'}`); });
+    const shown = COLLECTION.filter((c) => FILTERS.every((f) => !filter[f.key] || f.test(c, filter[f.key])));
+    count.textContent = `แสดง ${shown.length} จาก ${COLLECTION.length} ตัว · เข้ากองสุ่ม ${COLLECTION.length - t.bench.length} ตัว`;
+    grid.replaceChildren(...shown.map((id) => {
+      const u = battleUnits.get(id)!, role = id === t.leader ? 'leader' : id === t.sub ? 'sub' : t.bench.includes(id) ? 'bench' : isBasic(id) ? 'basic' : '';
+      const tile = el('div', `team-card ${role} kind-${u.kind}`);
       tile.dataset.id = id;
-      tile.style.borderColor = collectionOf(u.sect).color;
+      tile.style.borderColor = colorOf(id);
       const face = el('span', 'face');
       face.append(cardArt(id) ?? portrait(id));
-      const badge = { leader: 'แม่ทัพ', sub: 'รองแม่ทัพ', bench: 'สำรอง', basic: 'มีในมือเสมอ', '': '' }[role];
+      const badge = { leader: 'แม่ทัพ', sub: 'รองแม่ทัพ', bench: 'สำรอง', basic: 'ยึดป้อม', '': '' }[role];
       tile.append(face, el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh), el('small', '', roleLine(id)));
       if (badge) tile.append(el('em', '', badge));
-      if (lead.includes(id)) {
+      if (!isBasic(id)) {
         const acts = el('div', 'acts');
         acts.append(
           btn('แม่ทัพ', id === t.leader ? 'on' : '', () => setTeam({ ...t, leader: id, sub: id === t.sub ? t.leader : t.sub })),
@@ -116,10 +143,11 @@ function teamScreen() {
     stepBattle(s, Array.from({ length: redraws }, () => ({ t: 'redraw', side: 0 } as const)));
     handRow.replaceChildren(el('span', 'hand-label', 'มือในศึกนี้'), ...s.hands[0].map((id, i) => {
       const u = battleUnits.get(id)!, m = el('div', `hand-card${i < 3 ? ' fixed' : ''}`);
-      m.style.borderColor = collectionOf(u.sect).color;
+      m.dataset.id = id;
+      m.style.borderColor = colorOf(id);
       const face = el('span', 'face');
       face.append(cardArt(id) ?? portrait(id));
-      m.append(face, el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh), el('small', '', i === 0 ? 'ยึดป้อม' : i === 1 ? 'แม่ทัพ' : i === 2 ? 'รอง' : 'สุ่ม'));
+      m.append(face, el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh), el('small', '', i === 0 ? 'ยึดป้อม' : i === 1 ? 'แม่ทัพ' : i === 2 ? 'รอง' : `สุ่ม · ${kindOf(id)}`));
       m.addEventListener('pointerenter', () => describe(id));
       return m;
     }));
@@ -128,11 +156,12 @@ function teamScreen() {
     redrawBtn.disabled = left <= 0;
     describe(t.leader);
   };
-  for (const d of COLLECTIONS) {
-    const b = btn('', 'deck-row', () => setTeam({ collection: d.id } as Team));
+  list.append(el('span', 'list-label', 'ทัพสำเร็จรูป'));
+  for (const d of [{ id: 'all', nameTh: ALL_NAME, color: '#E3B04B', cards: COLLECTION }, ...PRESETS]) {
+    const b = btn('', 'deck-row', () => setTeam(d.id === 'all' ? { ...profile.team, bench: [] } : presetTeam(d.id)));
     b.dataset.id = d.id;
     b.style.borderLeftColor = d.color;
-    b.append(el('b', '', d.nameTh), el('small', '', `${d.cards.length} ตัว · คู่ต่อสู้ AI: ${collectionOf(d.vs).nameTh}`));
+    b.append(el('b', '', d.nameTh), el('small', '', d.id === 'all' ? `สุ่มจากทั้ง ${d.cards.length} ตัว` : `ศิษย์สำนักนี้ ${d.cards.length} ตัว · ตัวอื่นเป็นสำรอง`));
     list.append(b);
   }
   const row = el('div', 'row actions');
@@ -141,7 +170,6 @@ function teamScreen() {
   app.append(r);
   show();
 }
-const basicIds = new Set(battle.hand.basic.values());
 
 // ---- match → result ----
 function match(team: Team, seed: number, redraws: number) {

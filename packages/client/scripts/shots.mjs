@@ -2,7 +2,8 @@
 //   npm run shots    title and team setup (leader, sub, bench, redraw); a match played by hand (aim, a red marker off the
 //                    zone, a click summon, a drag summon, counter highlights, the cannon aimed and fired); then a bot-vs-bot
 //                    match at x4, recorded, with frames of an early field, a fight, a fort capture and the result screen;
-//                    burn/poison marks, burning ground and the stun-resistance halo.
+//                    burn/poison marks, burning ground and the stun-resistance halo; the collection filters, a hand led
+//                    by beasts and a dragon match.
 // Exits non-zero on any console error or page crash.
 import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +57,18 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   await p.locator('.deck-row[data-id=all]').click();
   await sleep(200);
   await shot(p, '03-team-all');
+  // The collection filters: by kind, by cost, by role, then a hand led by a dragon and a divine beast.
+  for (const [f, name] of [['kind:demon', '05-filter-demons'], ['kind:divine', '05-filter-divine'], ['kind:dragon', '05-filter-dragons'], ['kind:all', null], ['cost:1', '05-filter-cost1'], ['cost:all', null], ['role:สกัด', '05-filter-guards'], ['role:all', null]]) {
+    await p.locator(`.chip[data-f="${f}"]`).click();
+    await sleep(150);
+    if (name) await shot(p, name);
+  }
+  await p.locator('.team-card[data-id=storm_dragon] .acts button:nth-child(1)').click();
+  await p.locator('.team-card[data-id=jade_tortoise] .acts button:nth-child(2)').click();
+  await p.locator('.team-card[data-id=storm_dragon]').hover();
+  await sleep(200);
+  await shot(p, '06-hand-beasts');
+  console.log('hand with beasts:', (await p.locator('.hand-card').evaluateAll((es) => es.map((e) => e.dataset.id))).join(','));
   await p.locator('.deck-row[data-id=fire]').click();
   await p.getByRole('button', { name: 'เข้าสู่ศึก' }).click();
   await p.waitForFunction(() => window.__game?.s);
@@ -197,6 +210,32 @@ for (const [deck, seed] of [['fire', 5], ['earth', 7]]) {
   await shot(p, `24-large-${deck}`);
   await sleep(1500);
   await shot(p, `25-large-${deck}-fight`);
+  await ctx.close();
+}
+
+// 3c) Dragons by hand against the AI (all cards): with our mana topped up once, the lava dragon (key 2) holds our zone and
+//     the storm dragon (key 3) flies at the enemy; then the AI's answer and the fight around them.
+{
+  const deck = 'lava_dragon,storm_dragon,wandering_archer,ember_imp,blood_bat,golden_lion,jade_tortoise,corpse_puppeteer';
+  const { ctx, p } = await open(`?mode=battle&seed=5&speed=2&deck=${deck}&leader=lava_dragon&sub=storm_dragon`, 'dragons');
+  await p.waitForFunction(() => window.__game?.s, null, { timeout: 30000 });
+  await sleep(500);
+  const at = (d) => p.evaluate((d) => window.__pathClient(d), d);
+  await p.evaluate(() => { window.__game.s.mana[0] = 40; });
+  for (const [key, d] of [['2', 3500], ['3', 2500]]) {
+    await p.keyboard.press(key);
+    const pt = await at(d);
+    await p.mouse.click(pt.x, pt.y);
+    await sleep(150);
+  }
+  await p.waitForFunction(() => window.__game.s.units.filter((u) => u.card.endsWith('_dragon')).length >= 2, null, { timeout: 20000 });
+  await sleep(1500);
+  await shot(p, '31-dragons');
+  await p.waitForFunction(() => window.__game.fights >= 6, null, { timeout: 120000, polling: 'raf' });
+  await shot(p, '32-dragon-fight');
+  await sleep(2500);
+  await shot(p, '33-dragon-fight-later');
+  console.log('dragon match units:', await p.evaluate(() => window.__game.s.units.map((u) => `${u.side}:${u.card}`).join(',')));
   await ctx.close();
 }
 

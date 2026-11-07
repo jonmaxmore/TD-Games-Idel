@@ -37,6 +37,7 @@ export interface BattleUnitDef {
   splash: number; slow: number; root: number; stun: number; push: number; ground: number; armor: number; pierce: boolean;
   raise: number; // a small enemy this card's hit kills rises on its side with this % of its HP (0 = none)
   tagTh: string; counters: string[];
+  body: string; // how the client draws it: human (default), archer, ghoul, imp, beast, wing, serpent, mass, shell, dragon
   ability: { kind: 'aura' | 'ward' | 'hp' | 'refund'; lv: [number, number, number] } | null; // lv: value as a normal card, sub-leader, leader
 }
 const BT = J(battleJson);
@@ -56,6 +57,7 @@ export const battle = {
   manaStart: BT.mana.startPvp as number, manaMax: BT.mana.max as number,
   regen: (BT.mana.regenSec as any[]).map((r) => ({ from: ticks(r.fromSec), to: ticks(r.toSec), every: ticks(r.everySec) })),
   sizes: new Map<string, { min: number; max: number; perMatch: number | null; nameTh: string }>(Object.keys(BT.sizes).map((k) => [k, { min: BT.sizes[k].mana[0], max: BT.sizes[k].mana[1], perMatch: BT.sizes[k].perMatch, nameTh: BT.sizes[k].nameTh }])),
+  kinds: new Map<string, string>(Object.entries(BT.kinds as Record<string, string>)),
   moves: new Map<string, { roleTh: string; nameTh: string; doesTh: string }>(Object.keys(BT.moves).map((k) => [k, { roleTh: BT.moves[k].role, nameTh: BT.moves[k].nameTh, doesTh: BT.moves[k].doesTh }])),
   speed: new Map<string, number>(Object.keys(BT.moves).map((k) => [k, Math.round((BT.moves[k].speed * TILE) / TICK_HZ)])),
   guardLeash: tiles(BT.guardLeashTiles), meleeRange: tiles(BT.meleeRange), supportHeal: BT.supportHeal as number, supportGap: tiles(BT.supportGapTiles), critPct: BT.critPct as number,
@@ -81,6 +83,6 @@ for (const u of S.roster.units) {
     hitsAir: u.target.includes('air'), hitsGround: u.target.includes('ground'), dot: u.dot ?? null,
     splash: tiles(u.splash ?? 0), slow: ticks(u.slowSec ?? 0), root: ticks(u.rootSec ?? 0), stun: ticks(u.stunSec ?? 0),
     push: tiles(u.pushTiles ?? 0), ground: ticks(u.groundSec ?? 0), armor: u.armor ?? 0, pierce: u.pierce === true, raise: u.raisePct ?? 0,
-    tagTh: u.tagTh ?? '', counters: u.counters ?? [], ability: u.ability ?? null,
+    tagTh: u.tagTh ?? '', counters: u.counters ?? [], ability: u.ability ?? null, body: u.body ?? 'human',
   });
 }

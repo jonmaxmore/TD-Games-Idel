@@ -7,7 +7,7 @@ import {
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { Board, cannonIcon, portrait } from './board';
-import { collectionOf, teamSetup, type Team } from './decks';
+import { teamName, teamSetup, type Team } from './decks';
 import type { Settings } from './profile';
 import { cardArt } from './sprites';
 import { applyVolume, play } from './sound';
@@ -55,7 +55,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     box.append(nowrapWords(el('span', 'who'), name), bar, num);
     return { box, fill, num, last: -1 };
   };
-  const bars = [castleBar(0, `ปราสาทเรา · ${collectionOf(o.team.collection).nameTh}`), castleBar(1, `ปราสาทศัตรู · ${collectionOf(o.vs.collection).nameTh}`)];
+  const bars = [castleBar(0, `ปราสาทเรา · ${teamName(o.team)}`), castleBar(1, `ปราสาทศัตรู · ${teamName(o.vs)}`)];
   const clockBox = el('div', 'clock'), time = el('b', 'time'), fortRow = el('div', 'forts'), regenHint = el('small');
   const fortDots = s.forts.map(() => fortRow.appendChild(el('i')));
   clockBox.append(time, fortRow, regenHint);

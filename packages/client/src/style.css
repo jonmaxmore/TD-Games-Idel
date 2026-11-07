@@ -202,3 +202,16 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .team-cards:not(.many) .team-card .face img.art { top: 0; }
 .team-cards:not(.many) .team-card .face canvas { margin-top: 24px; }
 .team-cards.many .team-card b { font-size: 12px; white-space: nowrap; overflow: hidden; max-width: 100%; }
+/* collection filters (main.ts teamScreen): chips per key over the card grid, the preset list on the left */
+.team-main { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.chips { display: flex; align-items: center; gap: 3px; }
+.chip-label { color: var(--dim); font-size: 12px; margin-right: 2px; }
+.chip { min-height: 24px; padding: 0 8px; font-size: 12px; border-color: var(--line); }
+.chip.on { border-color: var(--gold); background: #3a1410; color: var(--gold); }
+.filters .count { color: var(--dim); font-size: 12px; margin-left: auto; }
+.list-label { color: var(--gold); font-weight: 700; font-size: 14px; }
+.team-card.kind-demon { background: #241016; }
+.team-card.kind-divine { background: #1c1a10; }
+.team-card.kind-dragon { background: #2a1408; }
+.team-cards.many .team-card:not(.kind-disciple) .face canvas { height: 46px; width: auto; image-rendering: pixelated; }

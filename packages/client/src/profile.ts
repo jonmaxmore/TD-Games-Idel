@@ -3,7 +3,7 @@
 import { fixTeam, type Team } from './decks';
 
 export interface Profile {
-  v: 3;
+  v: 4;
   team: Team;
   settings: Settings;
 }
@@ -15,8 +15,8 @@ export function migrate(raw: unknown): Profile {
   const st = (r.settings && typeof r.settings === 'object' ? r.settings : {}) as Record<string, unknown>;
   const vol = st.volume;
   return {
-    v: 3,
-    team: fixTeam(r.team ?? { collection: r.deck }), // a v2 save named its deck by collection id
+    v: 4,
+    team: fixTeam(r.team ?? { collection: r.deck }), // a v2 save named its deck by collection id, a v3 team its collection
     settings: { volume: typeof vol === 'number' && vol >= 0 && vol <= 100 ? Math.round(vol) : 70, muted: st.muted === true, shake: st.shake !== false },
   };
 }
