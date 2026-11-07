@@ -7,6 +7,7 @@ import {
   chapterStars, chapterStarsMax, load, migrate, nextStage, PLAYLIST, recordEnd, route, save, TUTORIAL, type LobbyTab, type Profile, type Screen,
 } from './profile';
 import { initSound } from './sound';
+import { nowrapWords } from './words';
 
 const app = document.getElementById('app')!;
 // The UI is designed 720 px tall; scale it to the window height and let the width fill the whole window (no bars).
@@ -87,7 +88,7 @@ function stageName(id: string): string {
   if (!st || id === TUTORIAL) return st?.nameTh ?? id;
   return `บท ${st.chapter} ด่าน ${id.split('-')[1]} — ${st.nameTh}`;
 }
-const ROLE_COLOR: Record<string, string> = { striker: '#E3B04B', burst: '#FF7A3D', control: '#4FB3FF', stacker: '#5BC46A', support: '#C9A0FF' };
+const ROLE_COLOR: Record<string, string> = { striker: '#E3B04B', burst: '#FF9E7B', control: '#4FB3FF', stacker: '#5BC46A', support: '#C8C4CC' };
 
 // ---- consent ----
 function consent() {
@@ -349,7 +350,7 @@ function disciples(r: HTMLElement) {
     const at = roleUnlocks.find(([, rs]) => rs.includes(u.roleId))?.[0];
     const have = at == null || profile.cleared.includes(at) || at === nextStage(profile); // a role joins in the stage its key names
     const card = el('div', `unit card-unit${have ? '' : ' locked'}`);
-    const head = el('b', '', `${u.nameTh} · ${roleDefs.get(u.roleId)?.nameTh ?? ''}${have ? '' : `  (ปลดที่ ${at})`}`);
+    const head = nowrapWords(el('b'), `${u.nameTh} · ${roleDefs.get(u.roleId)?.nameTh ?? ''}${have ? '' : `  (ปลดที่ ${at})`}`);
     if (have) head.style.color = ROLE_COLOR[u.roleId] ?? '';
     card.style.borderLeftColor = u.color;
     card.append(head, el('p', '', u.descTh), el('p', 'skill', `ท่าตามขั้น: ${tierNames(u.element)}`));

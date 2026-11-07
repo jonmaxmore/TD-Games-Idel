@@ -17,7 +17,7 @@ art/manifest.json        รายการ asset: ขนาด, กลุ่ม
 art/blender/*.blend      โมเดลจริงจากศิลปินหรือจาก Claude (MCP)
 tools/blender/build.py   สคริปต์ที่รันใน Blender: เรนเดอร์ → ย่อเป็น pixel → ล็อกสีตาม palette → ขอบ 1px → sprite sheet
 tools/blender/build.mjs  หาโปรแกรม Blender แล้วเรียก build.py (ใช้ผ่าน npm run art:build)
-packages/client/public/sprites/   ผลลัพธ์ (<id>.png + <id>.json แบบ Phaser JSON-hash)
+art/out/sprites/         ผลลัพธ์ (<id>.png + <id>.json แบบ Phaser JSON-hash)
 art/promo/               ภาพโปรโมตความละเอียดสูง (ไม่แปลงเป็น pixel)
 ```
 

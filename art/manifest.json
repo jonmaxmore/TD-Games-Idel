@@ -1,6 +1,6 @@
 {
   "_notes": "Blender art pipeline input (docs/tools/blender.md). size = a key of effects.json > render or [w, h]. palette = groups from effects.json > render.palette. source.proxy builds a stand-in model from primitives until an artist .blend exists; source.blend + source.object + per-action Blender action names use the real file instead. Frames face right; engines mirror for left.",
-  "out": "packages/client/public/sprites",
+  "out": "art/out/sprites",
   "assets": [
     {
       "id": "metal", "kind": "character", "size": "characterSprite", "palette": ["shared", "metal"], "outline": true,

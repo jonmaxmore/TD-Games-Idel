@@ -482,6 +482,8 @@ const canTarget = (e: Enemy, air: boolean, ground: boolean) => e.hp > 0 && (e.ai
 const hasLevel = (s: DefendState, el: string, level: number) => s.disciples.some((d) => d.els.includes(el) && d.level >= level);
 // Tier-3 branch b of its kit (a disciple at tier 3 with no branch recorded plays branch a).
 const isB = (d: Disciple) => d.level >= MAX_LEVEL && d.branch === 'b';
+// Earth bell reach. Tier 3: branch a widens the bell into a quake (r 2, shorter stun); branch b keeps r 1 and stuns longer.
+export const bellRadius = (d: Disciple) => (d.level >= MAX_LEVEL && !isB(d) ? 2 * TILE : TILE);
 
 const inWitheringAura = (s: DefendState, e: Enemy) => s.disciples.some((o) => o.els.includes('wood') && o.level >= MAX_LEVEL && !isB(o)
   && within(o.x, o.y, e.x, e.y, div(discipleStats(s, o).range * branchA.woodAuraRangePct, 100)));
@@ -534,9 +536,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
   const bellEvery = bellCard * Hz !== 0 ? bellCard * Hz : EARTH_BELL_EVERY;
   if (d.els.includes('earth') && lvl >= 2 && d.bellT >= bellEvery) {
     d.bellT = 0;
-    // Tier 3: branch a widens the bell into a quake (r 2, shorter stun); branch b keeps r 1 and stuns longer.
-    const quake = lvl >= 3 && !isB(d);
-    const r = quake ? 2 * TILE : TILE;
+    const r = bellRadius(d), quake = r > TILE;
     const t = d.combo === 'iron_mountain' ? EARTH_BELL_TICKS + Hz : quake ? EARTH_QUAKE_TICKS : isB(d) ? div(EARTH_BELL_TICKS * branchB.bellStunPct, 100) : EARTH_BELL_TICKS;
     for (const e of s.enemies)
       if (!e.air && e.hp > 0 && within(d.x, d.y, e.x, e.y, r)) {
