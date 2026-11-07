@@ -223,7 +223,7 @@
    {
     "t": "cannon",
     "side": 1,
-    "d": 9846
+    "d": 9834
    }
   ],
   "240": [
@@ -234,7 +234,7 @@
     "d": 6300
    }
   ],
-  "290": [
+  "280": [
    {
     "t": "summon",
     "side": 0,
@@ -242,15 +242,7 @@
     "d": 10500
    }
   ],
-  "360": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "cloud_sword_banner",
-    "d": 6300
-   }
-  ],
-  "400": [
+  "320": [
    {
     "t": "summon",
     "side": 0,
@@ -258,7 +250,27 @@
     "d": 10500
    }
   ],
+  "360": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "cloud_sword_banner",
+    "d": 10500
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 6300
+   }
+  ],
   "480": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "cloud_sword_banner",
+    "d": 10500
+   },
    {
     "t": "summon",
     "side": 1,
@@ -271,16 +283,10 @@
     "t": "summon",
     "side": 1,
     "card": "cloud_sword_banner",
-    "d": 3350
+    "d": 4250
    }
   ],
   "720": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_crane",
-    "d": 14700
-   },
    {
     "t": "summon",
     "side": 1,
@@ -296,95 +302,7 @@
     "d": 2000
    }
   ],
-  "990": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "cloud_sword_banner",
-    "d": 2000
-   }
-  ],
-  "1080": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "cloud_sword_banner",
-    "d": 2000
-   }
-  ],
-  "1200": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "cloud_sword_support",
-    "d": 14700
-   }
-  ],
-  "1210": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "crimson_phoenix_banner",
-    "d": 2200
-   }
-  ],
-  "1320": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "crimson_phoenix_banner",
-    "d": 2200
-   }
-  ],
-  "1420": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "cloud_sword_banner",
-    "d": 2200
-   }
-  ],
-  "1500": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_stacker",
-    "d": 14700
-   }
-  ],
-  "1530": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "cloud_sword_banner",
-    "d": 2200
-   }
-  ],
-  "1620": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "crimson_phoenix_banner",
-    "d": 2200
-   }
-  ],
-  "1700": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "cloud_sword_banner",
-    "d": 2200
-   }
-  ],
-  "1820": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "cloud_sword_banner",
-    "d": 2200
-   }
-  ],
-  "1900": [
+  "960": [
    {
     "t": "summon",
     "side": 0,
@@ -392,31 +310,168 @@
     "d": 14700
    }
   ],
-  "1910": [
+  "990": [
    {
     "t": "summon",
     "side": 1,
-    "card": "crimson_phoenix_banner",
+    "card": "cloud_sword_banner",
     "d": 2200
    }
   ],
-  "2020": [
+  "1110": [
    {
     "t": "summon",
     "side": 1,
     "card": "cloud_sword_banner",
     "d": 2000
+   }
+  ],
+  "1250": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 5250
+   }
+  ],
+  "1400": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "cloud_sword_support",
+    "d": 14700
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 5250
+   }
+  ],
+  "1510": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 5250
+   }
+  ],
+  "1600": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 5250
+   }
+  ],
+  "1700": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "jade_bamboo_stacker",
+    "d": 14700
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 5250
+   }
+  ],
+  "1760": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 4850
+   }
+  ],
+  "1840": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 3500
+   }
+  ],
+  "1940": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 2450
    }
   ],
   "2100": [
    {
     "t": "summon",
+    "side": 0,
+    "card": "jade_bamboo_crane",
+    "d": 14700
+   },
+   {
+    "t": "cannon",
+    "side": 1,
+    "d": 3200
+   }
+  ],
+  "2210": [
+   {
+    "t": "summon",
     "side": 1,
     "card": "cloud_sword_banner",
     "d": 2000
    }
   ],
-  "2200": [
+  "2330": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 2000
+   }
+  ],
+  "2440": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 2000
+   }
+  ],
+  "2480": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_striker",
+    "d": 14700
+   }
+  ],
+  "2530": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 2000
+   }
+  ],
+  "2560": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 2000
+   }
+  ],
+  "2640": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "cloud_sword_banner",
+    "d": 2000
+   }
+  ],
+  "2720": [
    {
     "t": "summon",
     "side": 0,
@@ -430,15 +485,7 @@
     "d": 2000
    }
   ],
-  "2300": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "crimson_phoenix_banner",
-    "d": 2000
-   }
-  ],
-  "2400": [
+  "2800": [
    {
     "t": "summon",
     "side": 1,
@@ -446,35 +493,11 @@
     "d": 2000
    }
   ],
-  "2480": [
+  "2910": [
    {
     "t": "summon",
     "side": 1,
     "card": "cloud_sword_banner",
-    "d": 2000
-   }
-  ],
-  "2560": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_crane",
-    "d": 14700
-   }
-  ],
-  "2580": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "crimson_phoenix_banner",
-    "d": 2000
-   }
-  ],
-  "2650": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "crimson_phoenix_banner",
     "d": 2000
    }
   ]
@@ -482,113 +505,125 @@
  "trace": [
   [
    100,
-   "b90c9bd7"
+   "4fbdaf31"
   ],
   [
    200,
-   "3e506eca"
+   "21870b9d"
   ],
   [
    300,
-   "790afb9c"
+   "cd1866c4"
   ],
   [
    400,
-   "d8e4a919"
+   "0c634117"
   ],
   [
    500,
-   "c96c7505"
+   "c529ba8d"
   ],
   [
    600,
-   "427b4644"
+   "09e71441"
   ],
   [
    700,
-   "0313158c"
+   "a39a2d38"
   ],
   [
    800,
-   "9b192364"
+   "b682f1ad"
   ],
   [
    900,
-   "3c2651a5"
+   "c0a0464f"
   ],
   [
    1000,
-   "46de5198"
+   "8327c63e"
   ],
   [
    1100,
-   "66c8c889"
+   "1eb028e4"
   ],
   [
    1200,
-   "3499bb07"
+   "708ed6ba"
   ],
   [
    1300,
-   "3109a59f"
+   "3a930e58"
   ],
   [
    1400,
-   "76d92dec"
+   "97566d3d"
   ],
   [
    1500,
-   "9fbe3bfa"
+   "ef8a909f"
   ],
   [
    1600,
-   "5bb0b4ac"
+   "4e8f00b9"
   ],
   [
    1700,
-   "5ab9016c"
+   "62f9a73f"
   ],
   [
    1800,
-   "9ce4b70f"
+   "31340e31"
   ],
   [
    1900,
-   "d04ae713"
+   "66ac2d5d"
   ],
   [
    2000,
-   "d305da0a"
+   "6d0213b4"
   ],
   [
    2100,
-   "2d73f11d"
+   "0a426c21"
   ],
   [
    2200,
-   "634c2edd"
+   "34f34487"
   ],
   [
    2300,
-   "064fc975"
+   "ca65f4c1"
   ],
   [
    2400,
-   "886ca839"
+   "f3b6eddd"
   ],
   [
    2500,
-   "a2c459ea"
+   "b0d02c6f"
   ],
   [
    2600,
-   "0b5dc4da"
+   "cf49def3"
+  ],
+  [
+   2700,
+   "78f87e0d"
+  ],
+  [
+   2800,
+   "b49616f9"
+  ],
+  [
+   2900,
+   "f325acb4"
   ]
  ],
  "final": {
   "winner": 0,
-  "tick": 2694,
-  "hash": "db64d011",
-  "canonical": "2694|1568224726|1,0|crimson_phoenix_banner,crimson_phoenix_striker,jade_bamboo_stacker,cloud_sword_banner,crimson_phoenix_beast,jade_bamboo_crane,cloud_sword_support/crimson_phoenix_banner,crimson_phoenix_striker,jade_bamboo_stacker,cloud_sword_stacker,cloud_sword_banner,frost_tide_striker,jade_bamboo_crane|0,0|2,2,3,1,2,4,1/11,1,2,2,14,2,1|2500,0,0;-14,11,0;|0,600,0,-,0;0,600,0,-,0;0,600,0,-,0;|u13,0,jade_bamboo_stacker,17800,214,220,0,9,0,0,0,0,0,0;u28,0,cloud_sword_support,17600,220,220,0,7,0,0,0,0,0,0;u32,0,jade_bamboo_stacker,17800,220,220,0,8,0,0,0,0,0,0;u37,0,jade_bamboo_crane,18600,220,220,0,3,0,0,0,0,0,0;u41,0,jade_bamboo_stacker,17800,220,220,0,10,0,0,0,0,0,0;u46,0,jade_bamboo_crane,18600,220,220,0,17,0,0,0,0,0,0;||0"
+  "tick": 2948,
+  "hash": "b5a517fe",
+  "canonical": "2948|2072178002|2,0|crimson_phoenix_banner,crimson_phoenix_striker,jade_bamboo_stacker,cloud_sword_banner,crimson_phoenix_beast,jade_bamboo_crane,cloud_sword_support/crimson_phoenix_banner,crimson_phoenix_striker,jade_bamboo_stacker,cloud_sword_stacker,cloud_sword_banner,frost_tide_striker,jade_bamboo_crane|0,0|2,3,3,3,2,3,1/7,1,2,2,19,2,1|2500,0,0;-23,1,0;|0,600,0,-,0;0,455,0,-,0;0,600,0,-,0;|u31,0,cloud_sword_support,17600,59,220,0,3,0,0,0,0,0,0;u35,0,jade_bamboo_stacker,17800,220,220,0,7,0,0,0,0,0,0;u40,0,jade_bamboo_crane,18600,220,220,0,17,0,0,0,0,0,0;u44,0,crimson_phoenix_striker,18300,260,260,0,8,0,0,0,0,0,0;u48,0,jade_bamboo_stacker,17800,220,220,0,5,0,0,0,0,0,0;||0"
  }
 }

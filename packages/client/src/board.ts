@@ -3,7 +3,7 @@
 // full resolution; the procedural drawing works in board units of 2 stage pixels scaled up K = 3 times (setTransform).
 // It only reads the sim state; it never changes it.
 import {
-  battle, BATTLE_LEN, BATTLE_PATH, battleUnits, palette, pointAt, sects, TILE, tilesOnPath,
+  battle, BATTLE_LEN, BATTLE_PATH, battleUnits, counterPct, palette, pointAt, sects, TILE, tilesOnPath,
   type BattleEvent, type BattleState, type BattleUnitDef, type Side,
 } from '@five-sects/sim';
 import { boardSprite, rim, silhouette, type Frame } from './sprites';
@@ -101,6 +101,7 @@ export class Board {
   aim: Aim | null = null;
   armed = false; // a card is picked: the summon zone shows bright
   reach: number | null = null; // the cannon is picked: how far it reaches from our castle
+  counter: string | null = null; // a card picked or hovered: enemies it is strong against glow orange, ones strong against it blue
 
   constructor(private canvas: HTMLCanvasElement, private s: BattleState, private inset: { top: number; bottom: number }) {
     this.g = canvas.getContext('2d')!;
@@ -585,6 +586,12 @@ export class Board {
     const walking = now - q.walk < 200 && !stunned;
     const b = walking ? ((Math.floor(now / 140 + id) & 1) ? -1 : 0) : Math.round(Math.sin(now / 300 + id));
     const big = def.size === 'large' ? 2 : 1; // a large card's procedural figure is drawn twice the size
+    const mark = this.counter && q.side === 1 ? counterMark(defOf(this.counter), def) : null;
+    if (mark) { // a pulsing ring on the ground under the enemy, outside the shadow
+      const r = (def.size === 'small' ? 7 : 8 * big) + Math.round(Math.sin(now / 140));
+      ring(g, x, y, r, r * 0.45, mark); ring(g, x, y, r - 1, r * 0.45 - 1, mark);
+      this.glow(x, y - 6, 8 * big, mark, 0.35);
+    }
     shadow(g, x, y, def.size === 'small' ? 5 : 6 * big);
     const over = white ? 'white' : stunned ? 'stun' : tint;
     const sp = boardSprite(q.card, q.side === 0 ? 'east' : 'west');
@@ -687,6 +694,14 @@ export function portrait(card: string, side: Side = 0, flip = false): HTMLCanvas
   g.imageSmoothingEnabled = false;
   g.drawImage(figure(card, side, flip, 0, null), 2, 2, 28, 30, 0, 0, 28 * 3, 30 * 3);
   return c;
+}
+
+// Orange when a deals extra damage to t, blue when t deals extra damage to a, else null (orange wins a both-ways pair).
+export const COUNTER_GLOW = { strong: '#F2A23A', weak: '#4FB3FF' } as const;
+export function counterMark(a: BattleUnitDef, t: BattleUnitDef): string | null {
+  if (counterPct(a, t) > 0) return COUNTER_GLOW.strong;
+  if (counterPct(t, a) > 0) return COUNTER_GLOW.weak;
+  return null;
 }
 
 // The castle cannon for its button.

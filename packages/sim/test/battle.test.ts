@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   battle, battleCardIds, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fixedHand, fwd, sectSetup, stepBattle,
-  summonZone, TICK_HZ, sects, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
+  summonZone, TICK_HZ, sects, COUNTER_CLASSES, classesOf, counterPct, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
 } from '../src';
 import { MIXED, playBattle, type Policy } from './battleBot';
 import { BATTLE_GOLDEN, battleGolden, replayBattle, type BattleGolden } from './goldens';
@@ -27,8 +27,12 @@ describe('castle battle data', () => {
       expect(u.hp, u.id).toBeGreaterThan(0);
       expect(sects.has(u.sect), u.id).toBe(true);
       expect(u.tagTh.length, `${u.id} tagTh`).toBeGreaterThan(0);
-      for (const c of u.counters) expect(battle.counterTags.has(c), `${u.id} counters ${c}`).toBe(true);
+      for (const c of u.counters) expect(battle.counterTags.has(c) && battle.counterPct.has(c), `${u.id} counters ${c}`).toBe(true);
     }
+  });
+
+  it('every counter tag names a class the rules know', () => {
+    expect([...battle.counterTags.keys()].sort()).toEqual([...COUNTER_CLASSES].sort());
   });
 
   it('each sect has a basic capturer and a default leader and sub-leader of its own', () => {
@@ -439,6 +443,32 @@ describe('cheap counters expensive (reference §1c)', () => {
     };
     expect(survives(null)).toBe(true);
     expect(survives('jade_bamboo_striker')).toBe(false);
+  });
+});
+
+describe('counters by class', () => {
+  it('a card deals counterPct more to a unit of a class its counters name, and the plain amount to others', () => {
+    withCard('t_big', { dmg: 0, hp: 9999, move: 'guard', size: 'large', sect: 'yinyang' }, () => {
+      withCard('t_mid', { dmg: 0, hp: 9999, move: 'guard', size: 'medium', sect: 'yinyang' }, () => {
+        withCard('t_anti', { dmg: 100, kit: 'earth', dot: null, range: 1000, cooldown: 1000, move: 'guard', sect: 'yinyang', counters: ['large'] }, () => {
+          const hitFor = (target: string) => {
+            const s = duel('t_anti', 6000, target, BATTLE_LEN - 6500);
+            return stepBattle(s).find((e) => e.e === 'hit' && e.from === s.units[0]!.id)!.dmg;
+          };
+          expect(hitFor('t_big')).toBe(100 + battle.counterPct.get('large')!);
+          expect(hitFor('t_mid')).toBe(100);
+        });
+      });
+    });
+  });
+  it('the classes: size, fliers, guards, capturers, medium attackers; structures only for structure', () => {
+    const d = (id: string) => battleUnits.get(id)!;
+    expect(classesOf(d('crimson_phoenix_beast'))).toEqual(['large', 'air']);
+    expect(classesOf(d('crimson_phoenix_banner'))).toEqual(['swarm', 'capture']);
+    expect(classesOf(d('crimson_phoenix_striker'))).toEqual(['attacker']);
+    expect(classesOf(d('jade_bamboo_control'))).toEqual(['guard']);
+    expect(counterPct(d('crimson_phoenix_kite'), 'structure')).toBe(battle.counterPct.get('structure'));
+    expect(counterPct(d('crimson_phoenix_striker'), 'structure')).toBe(0);
   });
 });
 

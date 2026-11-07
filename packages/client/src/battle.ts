@@ -88,6 +88,8 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses,
       nowrapWords(el('b', 'name'), def.nameTh), nowrapWords(el('small'), `${battle.moves.get(def.move)?.nameTh ?? def.move} · ${battle.sizes.get(def.size)?.nameTh ?? def.size}`));
     b.addEventListener('pointerdown', (ev) => { if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
+    b.addEventListener('pointerenter', () => { hover = slot; });
+    b.addEventListener('pointerleave', () => { if (hover === slot) hover = null; });
     cardRow.append(b);
     return { b, uses, card };
   });
@@ -99,6 +101,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const game = { s, fps: 0, fights: 0 };
   let pending: BattleCommand[] = [];
   let sel: number | 'cannon' | null = null; // the hand slot picked, or the cannon
+  let hover: number | null = null; // the hand slot under the pointer
   let drag: { x: number; y: number; moved: boolean } | null = null;
   let paused = false;
   let lastPointer: { x: number; y: number } | null = null;
@@ -219,6 +222,8 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
       cannonBtn.disabled = !human;
     });
     reload.style.height = `${(100 * cd) / battle.cannon.cooldown}%`;
+    const shown = hover ?? (typeof sel === 'number' ? sel : null);
+    board.counter = shown == null ? null : s.hands[0][shown]!;
   }
   // The mana bar fills toward the next point between ticks (the sim only adds whole points).
   function manaProgress(): number {

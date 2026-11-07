@@ -58,6 +58,7 @@ export const battle = {
   burnDps: BT.dot.burnDps as number, burnTicks: ticks(BT.dot.burnSec), poisonDps: BT.dot.poisonDps as number, poisonTicks: ticks(BT.dot.poisonSec), poisonMax: BT.dot.poisonMaxStacks as number,
   slowPct: BT.status.slowPct as number, groundRadius: tiles(BT.status.groundRadius),
   counterTags: new Map<string, string>(Object.entries(BT.counterTags as Record<string, string>)),
+  counterPct: new Map<string, number>(Object.entries(BT.counterPct as Record<string, number>)),
   hand: { size: BT.hand.size as number, maxLarge: BT.hand.maxLarge as number, redraws: BT.hand.redraws as number, basic: new Map<string, string>(Object.entries(BT.hand.basic as Record<string, string>)) },
   auraRadius: tiles(BT.abilities.aura.radiusTiles),
   abilities: new Map<string, { nameTh: string; doesTh: string }>(Object.keys(BT.abilities).map((k) => [k, { nameTh: BT.abilities[k].nameTh, doesTh: BT.abilities[k].doesTh.replace('{r}', String(BT.abilities.aura.radiusTiles)) }])),

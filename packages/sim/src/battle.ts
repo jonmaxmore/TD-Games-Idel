@@ -161,6 +161,22 @@ function fireCannon(s: BattleState, side: Side, d: number, ev: BattleEvent[]): v
   for (const u of light.slice(0, B.cannon.maxPush)) u.d = fwd(u.side, Math.max(0, fwd(u.side, u.d) - B.cannon.push));
 }
 
+// What each counter tag is strong against (battle.json > counterTags, counterPct); 'structure' means forts and castles.
+const COUNTER_CLASS: [string, (t: BattleUnitDef) => boolean][] = [
+  ['large', (t) => t.size === 'large'], ['air', (t) => t.move === 'fly'], ['swarm', (t) => t.size === 'small'],
+  ['guard', (t) => t.move === 'guard'], ['capture', (t) => t.move === 'capture'],
+  ['attacker', (t) => t.size === 'medium' && (t.move === 'march' || t.move === 'fly')],
+];
+export const COUNTER_CLASSES = [...COUNTER_CLASS.map(([k]) => k), 'structure'];
+export const classesOf = (t: BattleUnitDef): string[] => COUNTER_CLASS.filter(([, f]) => f(t)).map(([k]) => k);
+// The % more damage a deals to t: the best counterPct among a's counters that name one of t's classes.
+export function counterPct(a: BattleUnitDef, t: BattleUnitDef | 'structure'): number {
+  const cls = t === 'structure' ? ['structure'] : classesOf(t);
+  let best = 0;
+  for (const tag of a.counters) if (cls.includes(tag)) best = Math.max(best, B.counterPct.get(tag) ?? 0);
+  return best;
+}
+
 const canHit = (a: BattleUnitDef, t: Fighter) => (defOf(t).move === 'fly' ? a.hitsAir : a.hitsGround);
 
 // The enemy in range nearest our castle (lowest own depth), lower id on ties. Fliers only stop for fliers.
@@ -175,7 +191,7 @@ function pickEnemy(s: BattleState, u: Fighter, def: BattleUnitDef): Fighter | nu
 }
 
 function damage(s: BattleState, from: number, u: Fighter, def: BattleUnitDef | null, raw: number, ev: BattleEvent[]): void {
-  let dmg = def ? div(raw * wuxingPct([def.sect], defOf(u).sect), 100) : raw;
+  let dmg = def ? div(raw * wuxingPct([def.sect], defOf(u).sect) * (100 + counterPct(def, defOf(u))), 10000) : raw;
   const crit = def?.kit === 'metal' && rollPct(s) < B.critPct;
   if (crit) dmg *= 2;
   if (!def?.pierce) dmg = Math.max(1, dmg - defOf(u).armor);
@@ -257,10 +273,11 @@ function act(s: BattleState, u: Fighter, ev: BattleEvent[], pend: Pending[]): nu
   if (st != null) {
     if (u.cd === 0) {
       u.cd = def.cooldown;
-      st.hp -= dmg;
+      const hit = div(dmg * (100 + counterPct(def, 'structure')), 100);
+      st.hp -= hit;
       const isFort = 'owner' in st;
       const d = isFort ? st.d : fwd(other(u.side), 0);
-      ev.push({ e: 'hit', from: u.id, to: -1, dmg, type: isFort ? 'fort' : 'castle', id: isFort ? s.forts.indexOf(st) : other(u.side), ...at(d) });
+      ev.push({ e: 'hit', from: u.id, to: -1, dmg: hit, type: isFort ? 'fort' : 'castle', id: isFort ? s.forts.indexOf(st) : other(u.side), ...at(d) });
       pend.push({ side: u.side, d, u: null, def });
     }
     return null;
