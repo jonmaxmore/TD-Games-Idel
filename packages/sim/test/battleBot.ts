@@ -1,5 +1,6 @@
-// Castle-battle bots for the balance test and the golden: rush (spend as soon as it can, at the front of its zone)
-// and defend (bank mana, answer what crosses into its half at the castle gate once it is under siege, push when rich). Each side has its own seeded RNG.
+// Castle-battle bots for the balance test and the golden: rush (pick the next push card from the deck, summon it at the
+// front of its zone once it is affordable) and defend (bank mana, answer what crosses into its half, at the castle gate
+// once it is under siege, push like rush when rich). Each side has its own seeded RNG.
 import { battle, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, stepBattle, summonZone, type BattleCommand, type BattleState, type Side } from '../src';
 
 export type Policy = 'rush' | 'defend';
@@ -12,14 +13,17 @@ const HOLD_MANA = 12;
 
 const def = (card: string) => battleUnits.get(card)!;
 
-function playable(s: BattleState, side: Side, moves: string[]): string[] {
+// A bot's seeded RNG and the push card it is saving for (null: pick one next time).
+export interface BotMind { rng: number; next: string | null }
+
+function playable(s: BattleState, side: Side, moves: string[], anyMana = false): string[] {
   return s.decks[side].filter((c, i) => {
     const u = def(c), cap = battle.sizes.get(u.size)!.perMatch;
-    return moves.includes(u.move) && u.mana <= s.mana[side] && (cap == null || s.uses[side][i]! < cap);
+    return moves.includes(u.move) && (anyMana || u.mana <= s.mana[side]) && (cap == null || s.uses[side][i]! < cap);
   });
 }
 
-function decide(s: BattleState, side: Side, policy: Policy, rng: { rng: number }): BattleCommand[] {
+function decide(s: BattleState, side: Side, policy: Policy, rng: BotMind): BattleCommand[] {
   const out: BattleCommand[] = [];
   const zone = summonZone(s, side);
   const threats = s.units.filter((u) => u.side !== side && fwd(side, u.d) <= BATTLE_LEN / 2).length;
@@ -33,9 +37,9 @@ function decide(s: BattleState, side: Side, policy: Policy, rng: { rng: number }
     const c = playable(s, side, ['capture']);
     if (c.length > 0) summon(pick(c), zone);
   }
-  if (policy === 'rush' || s.mana[side] >= HOLD_MANA) {
-    const c = playable(s, side, ['march', 'fly', 'support']);
-    if (c.length > 0) summon(pick(c), zone);
+  if (policy === 'rush' || s.mana[side] >= HOLD_MANA) { // push: pick the next card from the whole deck, then save for it
+    if (rng.next == null) { const c = playable(s, side, ['march', 'fly', 'support'], true); rng.next = c.length > 0 ? pick(c) : null; }
+    if (rng.next != null && def(rng.next).mana <= s.mana[side]) { summon(rng.next, zone); rng.next = null; }
   } else if (threats > 0) {
     const c = playable(s, side, ['guard', 'march']);
     const atGate = s.units.some((u) => u.side !== side && fwd(side, u.d) <= battle.homeZone + battle.castle.range);
@@ -46,10 +50,10 @@ function decide(s: BattleState, side: Side, policy: Policy, rng: { rng: number }
 }
 
 // One side's commands for this tick (it decides every DECIDE_EVERY ticks); the client's AI and bot=1 play through this.
-export function botCommands(s: BattleState, side: Side, policy: Policy, rng: { rng: number }): BattleCommand[] {
+export function botCommands(s: BattleState, side: Side, policy: Policy, rng: BotMind): BattleCommand[] {
   return s.tick % DECIDE_EVERY === 0 ? decide(s, side, policy, rng) : [];
 }
-export const botRng = (seed: number, side: Side) => ({ rng: (seed * 2 + 1 + side) >>> 0 });
+export const botRng = (seed: number, side: Side): BotMind => ({ rng: (seed * 2 + 1 + side) >>> 0, next: null });
 
 export interface BattleResult { state: BattleState; commands: Record<number, BattleCommand[]> }
 

@@ -11,7 +11,7 @@
     "max": 20,
     "regenSec": [
       { "fromSec": 0, "toSec": 60, "everySec": 5 },
-      { "fromSec": 60, "toSec": 120, "everySec": 3 },
+      { "fromSec": 60, "toSec": 120, "everySec": 4 },
       { "fromSec": 120, "toSec": 180, "everySec": 2 }
     ]
   },
@@ -40,9 +40,9 @@
     "water": ["frost_tide_banner", "frost_tide_blade", "frost_tide_striker", "frost_tide_burst", "frost_tide_control", "frost_tide_stacker", "frost_tide_naga", "frost_tide_swallow"],
     "earth": ["vajra_stone_banner", "vajra_stone_blade", "vajra_stone_striker", "vajra_stone_burst", "vajra_stone_control", "vajra_stone_stacker", "vajra_stone_guardian", "vajra_stone_hawk"]
   },
-  "dot": { "burnDps": 6, "burnSec": 3, "poisonDps": 4, "poisonSec": 3, "poisonMaxStacks": 5 },
+  "dot": { "burnDps": 6, "burnSec": 3, "poisonDps": 3, "poisonSec": 3, "poisonMaxStacks": 5 },
   "castle": {
-    "hp": 1500, "dmg": 30, "rate": 0.6667, "range": 4,
+    "hp": 2500, "dmg": 40, "rate": 0.6667, "range": 4,
     "art": { "id": "binding_bell", "nameTh": "ระฆังสะกด", "nameEn": "Binding Bell", "stunSec": 3 }
   },
   "matchSec": 180

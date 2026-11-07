@@ -146,7 +146,7 @@ describe('castle battle on-hit kits', () => {
 });
 
 describe('castle battle rules', () => {
-  it('mana regenerates one point per 5 s, then 3 s, then 2 s: 62 over the match on top of the 5 at start', () => {
+  it('mana regenerates one point per 5 s, then 4 s, then 2 s: 57 over the match on top of the 5 at start', () => {
     const s = fresh();
     expect(s.mana).toEqual([battle.manaStart, battle.manaStart]);
     const gainedAt: number[] = [];
@@ -157,10 +157,10 @@ describe('castle battle rules', () => {
     }
     expect(gainedAt[0]).toBe(100);
     expect(gainedAt.filter((t) => t <= 1200).length).toBe(12);
-    expect(gainedAt.filter((t) => t > 1200 && t <= 2400).length).toBe(20);
+    expect(gainedAt.filter((t) => t > 1200 && t <= 2400).length).toBe(15);
     expect(gainedAt.filter((t) => t > 2400).length).toBe(30);
-    expect(gainedAt[13]! - gainedAt[12]!).toBe(60);
-    expect(gainedAt[33]! - gainedAt[32]!).toBe(40);
+    expect(gainedAt[13]! - gainedAt[12]!).toBe(80);
+    expect(gainedAt[28]! - gainedAt[27]!).toBe(40);
     const capped = fresh();
     run(capped, 2000);
     expect(capped.mana[0]).toBe(battle.manaMax);
@@ -309,8 +309,17 @@ describe('cheap counters expensive (reference §1c)', () => {
   it('a 3-mana guard that hits air takes more than half off what the 8-mana phoenix does to the castle', () => {
     expect(castleLoss('crimson_phoenix_beast', 'crimson_phoenix_control') * 2).toBeLessThan(castleLoss('crimson_phoenix_beast', null));
   });
-  it('a 4-mana single-target striker takes at least a quarter off what the 8-mana bamboo warden does to the castle', () => {
-    expect(castleLoss('jade_bamboo_warden', 'jade_bamboo_striker') * 4).toBeLessThanOrEqual(castleLoss('jade_bamboo_warden', null) * 3);
+  it('a 4-mana single-target striker kills the 8-mana bamboo warden that lives through the castle alone', () => {
+    const survives = (answer: string | null) => {
+      const s = createBattle(1, ['jade_bamboo_warden'], answer ? [answer] : [BLADE]);
+      s.mana = [20, 20];
+      stepBattle(s, [summon(0, 'jade_bamboo_warden', 4000), ...(answer ? [summon(1, answer, 3000)] : [])]);
+      const id = s.units[0]!.id;
+      run(s, 1200);
+      return s.units.some((u) => u.id === id);
+    };
+    expect(survives(null)).toBe(true);
+    expect(survives('jade_bamboo_striker')).toBe(false);
   });
 });
 
