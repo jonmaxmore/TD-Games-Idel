@@ -35,7 +35,7 @@ function decide(s: BattleState, side: Side, policy: Policy, rng: { rng: number }
     if (c.length > 0) summon(pick(c), zone);
   }
   if (policy === 'rush' || s.mana[side] >= HOLD_MANA) {
-    const c = playable(s, side, ['march', 'support']);
+    const c = playable(s, side, ['march', 'fly', 'support']);
     if (c.length > 0) summon(pick(c), zone);
   } else if (threats > 0) {
     const c = playable(s, side, ['guard', 'march']);

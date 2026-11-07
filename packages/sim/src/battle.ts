@@ -18,14 +18,18 @@ export interface BattleEvent {
 
 export interface Fighter {
   id: number; side: Side; card: string; d: number; hp: number; maxHp: number; cd: number; home: number;
-  stunT: number; burnT: number; poison: number; poisonT: number;
+  stunT: number; burnT: number; poison: number; poisonT: number; rootT: number; slowT: number;
 }
+// Burning ground: ground enemies of side within groundRadius of d keep burning while t > 0.
+export interface Zone { side: Side; d: number; t: number }
+// An on-hit effect waiting for the end of the tick, so every unit acts on the same picture (u null: ground only).
+interface Pending { side: Side; d: number; u: Fighter | null; def: BattleUnitDef }
 export interface Fort { d: number; owner: Side | null; hp: number; cd: number; capSide: Side | null; capT: number }
 export interface Castle { hp: number; cd: number; artUsed: boolean }
 export interface BattleState {
   tick: number; rng: number; nextId: number;
   decks: [string[], string[]]; uses: [number[], number[]]; mana: [number, number]; // uses: summons per deck slot
-  castles: [Castle, Castle]; forts: Fort[]; units: Fighter[];
+  castles: [Castle, Castle]; forts: Fort[]; units: Fighter[]; zones: Zone[];
   winner: Side | -1 | null; // null while the match runs, -1 = draw
 }
 
@@ -48,7 +52,7 @@ export function createBattle(seed: number, deck0: string[], deck1: string[]): Ba
     decks: [[...deck0], [...deck1]], uses: [deck0.map(() => 0), deck1.map(() => 0)], mana: [B.manaStart, B.manaStart],
     castles: [castle(), castle()],
     forts: B.forts.atPct.map((p) => ({ d: div(BATTLE_LEN * p, 100), owner: null, hp: B.forts.hp, cd: 0, capSide: null, capT: 0 })),
-    units: [], winner: null,
+    units: [], zones: [], winner: null,
   };
 }
 
@@ -74,7 +78,7 @@ function summon(s: BattleState, c: BattleCommand, ev: BattleEvent[]): void {
   s.mana[c.side] -= def.mana;
   s.uses[c.side][slot]!++;
   const abs = fwd(c.side, d);
-  const u: Fighter = { id: s.nextId++, side: c.side, card: def.id, d: abs, hp: def.hp, maxHp: def.hp, cd: 0, home: abs, stunT: 0, burnT: 0, poison: 0, poisonT: 0 };
+  const u: Fighter = { id: s.nextId++, side: c.side, card: def.id, d: abs, hp: def.hp, maxHp: def.hp, cd: 0, home: abs, stunT: 0, burnT: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0 };
   s.units.push(u);
   ev.push({ e: 'spawn', id: u.id, type: def.id, side: c.side, ...at(abs) });
 }
@@ -108,6 +112,7 @@ function damage(s: BattleState, from: number, u: Fighter, def: BattleUnitDef | n
   let dmg = def ? div(raw * wuxingPct([def.sect], defOf(u).sect), 100) : raw;
   const crit = def?.kit === 'metal' && rollPct(s) < B.critPct;
   if (crit) dmg *= 2;
+  if (!def?.pierce) dmg = Math.max(1, dmg - defOf(u).armor);
   u.hp -= dmg;
   if (def?.dot === 'burn') u.burnT = B.burnTicks;
   if (def?.dot === 'poison') { u.poison = Math.min(B.poisonMax, u.poison + 1); u.poisonT = B.poisonTicks; }
@@ -149,9 +154,12 @@ function captureStop(s: BattleState, u: Fighter): Fort | null {
 }
 
 // Acts on the start-of-tick picture; returns where it wants to stand (own depth), or null to hold.
-function act(s: BattleState, u: Fighter, ev: BattleEvent[]): number | null {
+function act(s: BattleState, u: Fighter, ev: BattleEvent[], pend: Pending[]): number | null {
   const def = defOf(u);
   if (u.cd > 0) u.cd--;
+  const rooted = u.rootT > 0, slowed = u.slowT > 0;
+  if (rooted) u.rootT--;
+  if (slowed) u.slowT--;
   if (u.stunT > 0) { u.stunT--; return null; }
   const me = fwd(u.side, u.d);
   if (def.move === 'support') {
@@ -168,7 +176,14 @@ function act(s: BattleState, u: Fighter, ev: BattleEvent[]): number | null {
   }
   const enemy = pickEnemy(s, u, def);
   if (enemy != null) {
-    if (u.cd === 0) { u.cd = def.cooldown; damage(s, u.id, enemy, def, def.dmg, ev); }
+    if (u.cd === 0) {
+      u.cd = def.cooldown;
+      for (const e of s.units)
+        if (e === enemy || (def.splash > 0 && e.side !== u.side && Math.abs(e.d - enemy.d) <= def.splash && canHit(def, e))) {
+          damage(s, u.id, e, def, def.dmg, ev);
+          pend.push({ side: u.side, d: e.d, u: e, def });
+        }
+    }
     return null;
   }
   const st = pickStructure(s, u, def);
@@ -177,11 +192,15 @@ function act(s: BattleState, u: Fighter, ev: BattleEvent[]): number | null {
       u.cd = def.cooldown;
       st.hp -= def.dmg;
       const isFort = 'owner' in st;
-      ev.push({ e: 'hit', from: u.id, to: -1, dmg: def.dmg, type: isFort ? 'fort' : 'castle', id: isFort ? s.forts.indexOf(st) : other(u.side), ...at(isFort ? st.d : fwd(other(u.side), 0)) });
+      const d = isFort ? st.d : fwd(other(u.side), 0);
+      ev.push({ e: 'hit', from: u.id, to: -1, dmg: def.dmg, type: isFort ? 'fort' : 'castle', id: isFort ? s.forts.indexOf(st) : other(u.side), ...at(d) });
+      pend.push({ side: u.side, d, u: null, def });
     }
     return null;
   }
-  const speed = B.speed.get(def.move)!;
+  if (def.ground > 0 && def.move === 'fly' && u.cd === 0) { u.cd = def.cooldown; pend.push({ side: u.side, d: u.d, u: null, def }); } // a burning trail
+  if (rooted) return null;
+  const speed = slowed ? div(B.speed.get(def.move)! * (100 - B.slowPct), 100) : B.speed.get(def.move)!;
   if (speed === 0) return null;
   let want = Math.min(me + speed, BATTLE_LEN);
   if (def.move === 'capture') {
@@ -218,6 +237,12 @@ function captures(s: BattleState, ev: BattleEvent[]): void {
 }
 
 function dots(s: BattleState, ev: BattleEvent[]): void {
+  const zones: Zone[] = [];
+  for (const z of s.zones) {
+    for (const u of s.units) if (u.side !== z.side && defOf(u).move !== 'fly' && Math.abs(u.d - z.d) <= B.groundRadius) u.burnT = B.burnTicks;
+    if (--z.t > 0) zones.push(z);
+  }
+  s.zones = zones;
   for (const u of s.units) {
     if (u.burnT > 0) u.burnT--;
     if (u.poisonT > 0 && --u.poisonT === 0) u.poison = 0;
@@ -258,6 +283,19 @@ export function decision(s: BattleState): { winner: Side | -1; step: DecideStep 
 }
 export const decide = (s: BattleState): Side | -1 => decision(s).winner;
 
+// On-hit effects land after everyone moved: statuses, a knock-back (never on large units) and burning ground.
+function applyPending(s: BattleState, pend: Pending[]): void {
+  for (const p of pend) {
+    const u = p.u, def = p.def;
+    if (def.ground > 0) s.zones.push({ side: p.side, d: u ? u.d : p.d, t: def.ground });
+    if (u == null) continue;
+    u.stunT = Math.max(u.stunT, def.stun);
+    u.rootT = Math.max(u.rootT, def.root);
+    u.slowT = Math.max(u.slowT, def.slow);
+    if (def.push > 0 && defOf(u).size !== 'large') u.d = fwd(u.side, Math.max(0, fwd(u.side, u.d) - def.push));
+  }
+}
+
 function regen(s: BattleState): void {
   const r = B.regen.find((p) => s.tick - 1 >= p.from && s.tick - 1 < p.to);
   if (r == null || (s.tick - r.from) % r.every !== 0) return;
@@ -275,10 +313,12 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
   }
   dots(s, ev);
   resolveDeaths(s, ev);
-  const wants = s.units.map((u) => act(s, u, ev));
+  const pend: Pending[] = [];
+  const wants = s.units.map((u) => act(s, u, ev, pend));
   s.forts.forEach((f, i) => { if (f.owner !== null) shoot(s, f.owner, f.d, f, B.forts, -10 - i, ev); });
   s.castles.forEach((c, side) => shoot(s, side as Side, fwd(side as Side, 0), c, B.castle, -1 - side, ev));
   s.units.forEach((u, i) => { const w = wants[i]; if (w != null) u.d = fwd(u.side, w); });
+  applyPending(s, pend);
   captures(s, ev);
   resolveDeaths(s, ev);
   s.tick++;
@@ -290,7 +330,7 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
   return ev;
 }
 
-// Engine-neutral fingerprint: tick|rng|mana|uses|castles hp,cd,art|forts owner,hp,cd,capSide,capT|units|winner.
+// Engine-neutral fingerprint: tick|rng|mana|uses|castles hp,cd,art|forts owner,hp,cd,capSide,capT|units|zones|winner.
 export function battleString(s: BattleState): string {
   const n = (x: number | null) => (x === null ? '-' : String(x));
   let o = `${s.tick}|${s.rng}|${s.mana.join(',')}|${s.uses[0].join(',')}/${s.uses[1].join(',')}|`;
@@ -298,7 +338,9 @@ export function battleString(s: BattleState): string {
   o += '|';
   for (const f of s.forts) o += `${n(f.owner)},${f.hp},${f.cd},${n(f.capSide)},${f.capT};`;
   o += '|';
-  for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.cd},${u.stunT},${u.burnT},${u.poison},${u.poisonT};`;
+  for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.cd},${u.stunT},${u.burnT},${u.poison},${u.poisonT},${u.rootT},${u.slowT};`;
+  o += '|';
+  for (const z of s.zones) o += `${z.side},${z.d},${z.t};`;
   return o + '|' + n(s.winner);
 }
 export const battleHash = (s: BattleState) => fnv1a(battleString(s));

@@ -30,6 +30,9 @@ export type Size = 'small' | 'medium' | 'large';
 export interface BattleUnitDef {
   id: string; sect: string; kit: string; nameTh: string; nameEn: string; move: Move; size: Size; mana: number; hp: number;
   dmg: number; cooldown: number; range: number; hitsAir: boolean; hitsGround: boolean; dot: string | null;
+  // On-hit kit (ticks or milli-tiles, 0 = none): splash hits every enemy it can hit this close to the target too.
+  splash: number; slow: number; root: number; stun: number; push: number; ground: number; armor: number; pierce: boolean;
+  tagTh: string; counters: string[];
 }
 const BT = J(battleJson);
 const P = (t: [number, number]): Pt => ({ x: t[0], y: t[1] });
@@ -48,6 +51,9 @@ export const battle = {
   speed: new Map<string, number>(Object.keys(BT.moves).map((k) => [k, Math.round((BT.moves[k].speed * TILE) / TICK_HZ)])),
   meleeRange: tiles(BT.meleeRange), supportHeal: BT.supportHeal as number, supportGap: tiles(BT.supportGapTiles), critPct: BT.critPct as number,
   burnDps: BT.dot.burnDps as number, burnTicks: ticks(BT.dot.burnSec), poisonDps: BT.dot.poisonDps as number, poisonTicks: ticks(BT.dot.poisonSec), poisonMax: BT.dot.poisonMaxStacks as number,
+  slowPct: BT.status.slowPct as number, groundRadius: tiles(BT.status.groundRadius),
+  counterTags: new Map<string, string>(Object.entries(BT.counterTags as Record<string, string>)),
+  sectDecks: new Map<string, string[]>(Object.entries(BT.sectDecks as Record<string, string[]>)),
   matchTicks: ticks(BT.matchSec),
 };
 export const battleUnits = new Map<string, BattleUnitDef>();
@@ -56,5 +62,8 @@ for (const u of S.roster.units) {
     id: u.id, sect: u.sect, kit: u.kit, nameTh: u.nameTh, nameEn: u.nameEn, move: u.move, size: u.size, mana: u.mana, hp: u.hp,
     dmg: u.dmg, cooldown: ticks(1.0 / u.rate), range: Math.max(tiles(u.range), tiles(BT.meleeRange)),
     hitsAir: u.target.includes('air'), hitsGround: u.target.includes('ground'), dot: u.dot ?? null,
+    splash: tiles(u.splash ?? 0), slow: ticks(u.slowSec ?? 0), root: ticks(u.rootSec ?? 0), stun: ticks(u.stunSec ?? 0),
+    push: tiles(u.pushTiles ?? 0), ground: ticks(u.groundSec ?? 0), armor: u.armor ?? 0, pierce: u.pierce === true,
+    tagTh: u.tagTh ?? '', counters: u.counters ?? [],
   });
 }
