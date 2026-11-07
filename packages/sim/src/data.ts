@@ -230,6 +230,7 @@ const BT = J(battleJson);
 const tiles = (t: number) => Math.round(t * TILE);
 const structure = (x: any) => ({ hp: x.hp as number, dmg: x.dmg as number, cooldown: ticks(1 / x.rate), range: tiles(x.range) });
 export const battle = {
+  grid: { w: BT.grid[0] as number, h: BT.grid[1] as number },
   path: (BT.path as [number, number][]).map(P), // tiles; battle.ts converts with toMilli
   forts: { ...structure(BT.forts), atPct: BT.forts.atPct as number[], captureTicks: ticks(BT.forts.captureSec), captureRadius: tiles(BT.forts.captureRadius) },
   castle: { ...structure(BT.castle), artStunTicks: ticks(BT.castle.art.stunSec) },

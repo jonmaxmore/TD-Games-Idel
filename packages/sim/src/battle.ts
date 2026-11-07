@@ -237,7 +237,10 @@ function resolveDeaths(s: BattleState, ev: BattleEvent[]): void {
 }
 
 // Spec §7: castle HP, then forts held, deepest fort, mana left, units alive; else a draw.
-export function decide(s: BattleState): Side | -1 {
+// step names the key that decided it (null on a draw), so a result screen can say why.
+export const DECIDE_STEPS = ['castle', 'forts', 'deepest', 'mana', 'units'] as const;
+export type DecideStep = (typeof DECIDE_STEPS)[number];
+export function decision(s: BattleState): { winner: Side | -1; step: DecideStep | null } {
   const key = (side: Side): number[] => {
     let forts = 0, deepest = -1, units = 0;
     for (const f of s.forts) if (f.owner === side) { forts++; deepest = Math.max(deepest, fwd(side, f.d)); }
@@ -245,9 +248,10 @@ export function decide(s: BattleState): Side | -1 {
     return [Math.max(0, s.castles[side].hp), forts, deepest, s.mana[side], units];
   };
   const a = key(0), b = key(1);
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i]! > b[i]! ? 0 : 1;
-  return -1;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return { winner: a[i]! > b[i]! ? 0 : 1, step: DECIDE_STEPS[i]! };
+  return { winner: -1, step: null };
 }
+export const decide = (s: BattleState): Side | -1 => decision(s).winner;
 
 function regen(s: BattleState): void {
   const r = B.regen.find((p) => s.tick - 1 >= p.from && s.tick - 1 < p.to);

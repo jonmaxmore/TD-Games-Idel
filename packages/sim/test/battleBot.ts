@@ -45,15 +45,20 @@ function decide(s: BattleState, side: Side, policy: Policy, rng: { rng: number }
   return out;
 }
 
+// One side's commands for this tick (it decides every DECIDE_EVERY ticks); the client's AI and bot=1 play through this.
+export function botCommands(s: BattleState, side: Side, policy: Policy, rng: { rng: number }): BattleCommand[] {
+  return s.tick % DECIDE_EVERY === 0 ? decide(s, side, policy, rng) : [];
+}
+export const botRng = (seed: number, side: Side) => ({ rng: (seed * 2 + 1 + side) >>> 0 });
+
 export interface BattleResult { state: BattleState; commands: Record<number, BattleCommand[]> }
 
 export function playBattle(seed: number, p0: Policy, p1: Policy, deck0 = DECK, deck1 = DECK): BattleResult {
   const s = createBattle(seed, deck0, deck1);
-  const rngs = [{ rng: (seed * 2 + 1) >>> 0 }, { rng: (seed * 2 + 2) >>> 0 }];
+  const rngs = [botRng(seed, 0), botRng(seed, 1)];
   const commands: Record<number, BattleCommand[]> = {};
   while (!battleOver(s)) {
-    const cmds: BattleCommand[] = [];
-    if (s.tick % DECIDE_EVERY === 0) cmds.push(...decide(s, 0, p0, rngs[0]!), ...decide(s, 1, p1, rngs[1]!));
+    const cmds = [...botCommands(s, 0, p0, rngs[0]!), ...botCommands(s, 1, p1, rngs[1]!)];
     if (cmds.length > 0) commands[s.tick] = cmds;
     stepBattle(s, cmds);
   }

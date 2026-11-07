@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  battle, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, fwd, stepBattle, summonZone,
+  battle, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fwd, stepBattle, summonZone,
   type BattleCommand, type BattleState, type Side,
 } from '../src';
 import { DECK, playBattle, type Policy } from './battleBot';
@@ -111,25 +111,25 @@ describe('castle battle rules', () => {
 
   it('ties at time break on forts held, deepest fort, mana left, units alive, then draw', () => {
     const s = fresh();
-    expect(decide(s)).toBe(-1);
+    expect(decision(s)).toEqual({ winner: -1, step: null });
     s.castles[0].hp = 2999;
-    expect(decide(s)).toBe(1);
+    expect(decision(s)).toEqual({ winner: 1, step: 'castle' });
     s.castles[0].hp = 3000;
     s.forts[0]!.owner = 0; s.forts[2]!.owner = 1; // one fort each, at equal depth
     expect(decide(s)).toBe(-1);
     s.forts[1]!.owner = 1;
-    expect(decide(s)).toBe(1); // more forts
+    expect(decision(s)).toEqual({ winner: 1, step: 'forts' });
     s.forts[1]!.owner = 0; s.forts[0]!.owner = 1; // 1 holds forts 0 and 2, 0 holds the middle: 2 vs 1
     expect(decide(s)).toBe(1);
     s.forts[0]!.owner = null; // 0: middle (depth 50%), 1: fort 2 (depth 30%)
-    expect(decide(s)).toBe(0);
+    expect(decision(s)).toEqual({ winner: 0, step: 'deepest' });
     s.forts[1]!.owner = null; s.forts[2]!.owner = null;
     s.mana[1] = 6;
-    expect(decide(s)).toBe(1);
+    expect(decision(s)).toEqual({ winner: 1, step: 'mana' });
     s.mana[1] = 5;
     stepBattle(s, [summon(0, BLADE, 0)]);
     s.mana = [5, 5];
-    expect(decide(s)).toBe(0);
+    expect(decision(s)).toEqual({ winner: 0, step: 'units' });
     s.tick = battle.matchTicks - 1;
     stepBattle(s);
     expect(s.winner).toBe(0);
