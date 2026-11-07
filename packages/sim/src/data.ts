@@ -43,7 +43,7 @@ export const battle = {
   path: (BT.path as [number, number][]).map(P), // tiles; battle.ts converts with toMilli
   forts: { ...structure(BT.forts), atPct: BT.forts.atPct as number[], captureTicks: ticks(BT.forts.captureSec), captureRadius: tiles(BT.forts.captureRadius) },
   castle: { ...structure(BT.castle), artStunTicks: ticks(BT.castle.art.stunSec), artNameTh: BT.castle.art.nameTh as string },
-  summonBasePct: BT.summonBasePct as number, summonGap: tiles(BT.summonGapTiles),
+  summonBasePct: BT.summonBasePct as number, summonGap: tiles(BT.summonGapTiles), homeZone: tiles(BT.homeZoneTiles),
   manaStart: BT.mana.start as number, manaMax: BT.mana.max as number,
   regen: (BT.mana.regenSec as any[]).map((r) => ({ from: ticks(r.fromSec), to: ticks(r.toSec), every: ticks(r.everySec) })),
   sizes: new Map<string, { min: number; max: number; perMatch: number | null; nameTh: string }>(Object.keys(BT.sizes).map((k) => [k, { min: BT.sizes[k].mana[0], max: BT.sizes[k].mana[1], perMatch: BT.sizes[k].perMatch, nameTh: BT.sizes[k].nameTh }])),

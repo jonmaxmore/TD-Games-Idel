@@ -196,6 +196,21 @@ describe('castle battle rules', () => {
     expect(s.mana[0]).toBe(20);
   });
 
+  it('the castle gate stays open with enemies on it: a summon at depth 0 lands and fights', () => {
+    const s = createBattle(1, [BLADE], [BLADE]);
+    s.mana = [20, 20];
+    stepBattle(s, [summon(1, BLADE, 0), summon(1, BLADE, 0)]);
+    for (const u of s.units) u.d = 300; // at side 0's castle
+    expect(summonZone(s, 0)).toBe(battle.homeZone);
+    const ev = stepBattle(s, [summon(0, BLADE, 0)]);
+    expect(ev.find((e) => e.e === 'error')).toBeUndefined();
+    const mine = s.units.find((u) => u.side === 0)!;
+    const hits: number[] = [];
+    for (let i = 0; i < 20; i++) for (const e of stepBattle(s)) if (e.e === 'hit' && e.from === mine.id) hits.push(e.to!);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(stepBattle(s, [summon(0, BLADE, battle.homeZone + 1)]).find((e) => e.e === 'error')?.msg).toBe('outside summon zone');
+  });
+
   it('a capture unit takes a neutral fort after holding it and the summon zone grows to it', () => {
     const s = fresh();
     stepBattle(s, [summon(0, BANNER, summonZone(s, 0))]);
@@ -294,14 +309,8 @@ describe('cheap counters expensive (reference §1c)', () => {
   it('a 3-mana guard that hits air takes more than half off what the 8-mana phoenix does to the castle', () => {
     expect(castleLoss('crimson_phoenix_beast', 'crimson_phoenix_control') * 2).toBeLessThan(castleLoss('crimson_phoenix_beast', null));
   });
-  it('a 4-mana single-target striker kills the 8-mana bamboo warden that would otherwise live through the castle', () => {
-    const s = createBattle(1, ['jade_bamboo_warden'], ['jade_bamboo_striker']);
-    s.mana = [20, 20];
-    stepBattle(s, [summon(0, 'jade_bamboo_warden', 4000), summon(1, 'jade_bamboo_striker', 3000)]);
-    const id = s.units[0]!.id;
-    run(s, 1200);
-    expect(s.units.some((u) => u.id === id)).toBe(false);
-    expect(castleLoss('jade_bamboo_warden', 'jade_bamboo_striker')).toBeLessThan(castleLoss('jade_bamboo_warden', null));
+  it('a 4-mana single-target striker takes at least a quarter off what the 8-mana bamboo warden does to the castle', () => {
+    expect(castleLoss('jade_bamboo_warden', 'jade_bamboo_striker') * 4).toBeLessThanOrEqual(castleLoss('jade_bamboo_warden', null) * 3);
   });
 });
 

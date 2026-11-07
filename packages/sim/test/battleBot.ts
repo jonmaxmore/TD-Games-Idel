@@ -1,5 +1,5 @@
 // Castle-battle bots for the balance test and the golden: rush (spend as soon as it can, at the front of its zone)
-// and defend (bank mana, answer what crosses into its half, push when rich). Each side has its own seeded RNG.
+// and defend (bank mana, answer what crosses into its half at the castle gate once it is under siege, push when rich). Each side has its own seeded RNG.
 import { battle, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, stepBattle, summonZone, type BattleCommand, type BattleState, type Side } from '../src';
 
 export type Policy = 'rush' | 'defend';
@@ -22,7 +22,6 @@ function playable(s: BattleState, side: Side, moves: string[]): string[] {
 function decide(s: BattleState, side: Side, policy: Policy, rng: { rng: number }): BattleCommand[] {
   const out: BattleCommand[] = [];
   const zone = summonZone(s, side);
-  if (zone < 0) return out;
   const threats = s.units.filter((u) => u.side !== side && fwd(side, u.d) <= BATTLE_LEN / 2).length;
   if (threats >= 3 && !s.castles[side].artUsed) out.push({ t: 'art', side });
   const pick = (cards: string[]) => cards[Math.floor(nextRandom(rng) * cards.length)]!;
@@ -39,7 +38,8 @@ function decide(s: BattleState, side: Side, policy: Policy, rng: { rng: number }
     if (c.length > 0) summon(pick(c), zone);
   } else if (threats > 0) {
     const c = playable(s, side, ['guard', 'march']);
-    if (c.length > 0) summon(pick(c), Math.max(0, Math.min(zone, BATTLE_LEN / 2 - 4000) | 0));
+    const atGate = s.units.some((u) => u.side !== side && fwd(side, u.d) <= battle.homeZone + battle.castle.range);
+    if (c.length > 0) summon(pick(c), atGate ? 0 : Math.max(0, Math.min(zone, BATTLE_LEN / 2 - 4000) | 0)); // under siege: at the gate
   }
   s.mana[side] = mana0; // the sim spends it when the commands run
   return out;

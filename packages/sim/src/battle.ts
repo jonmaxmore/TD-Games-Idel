@@ -56,12 +56,13 @@ export function createBattle(seed: number, deck0: string[], deck1: string[]): Ba
   };
 }
 
-// How deep (own depth) a side may summon: its deepest fort or the base zone, and never within the gap of an enemy.
+// How deep (own depth) a side may summon: its deepest fort or the base zone, and never within the gap of an enemy;
+// the castle gate (homeZone) stays open whatever stands there, so a side can always defend its castle.
 export function summonZone(s: BattleState, side: Side): number {
   let end = SUMMON_BASE;
   for (const f of s.forts) if (f.owner === side) end = Math.max(end, fwd(side, f.d));
   for (const u of s.units) if (u.side !== side) end = Math.min(end, fwd(side, u.d) - B.summonGap);
-  return end;
+  return Math.max(end, B.homeZone);
 }
 
 const err = (ev: BattleEvent[], msg: string): void => void ev.push({ e: 'error', msg });
