@@ -8,6 +8,7 @@ import { botCommands } from '../../sim/test/bot';
 import { Board } from './board';
 import type { Settings } from './profile';
 import { applyVolume, play } from './sound';
+import { nowrapWords } from './words';
 
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
 
@@ -106,7 +107,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     const u = units.get(key);
     const b = el('button', 'card');
     b.style.borderColor = defOf(key).color;
-    b.append(el('kbd', '', String(cardEls.size + 1)), el('b', '', name(key)), el('small', '', u ? roleDefs.get(u.roleId)!.nameTh : ''), el('span', 'cost', `${defOf(key).cost}`));
+    b.append(el('kbd', '', String(cardEls.size + 1)), nowrapWords(el('b'), name(key)), el('small', '', u ? roleDefs.get(u.roleId)!.nameTh : ''), el('span', 'cost', `${defOf(key).cost}`));
     b.onclick = () => { selectedKey = key; selectedId = null; refresh(); };
     cardsRow.append(b);
     cardEls.set(key, b);
@@ -188,7 +189,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
       const pick = el('div', 'branches');
       for (const k of branches) {
         const b = el('button', 'branch');
-        b.append(el('kbd', '', k.branch!.toUpperCase()), el('b', '', `สาย ${k.branch!.toUpperCase()} · ${k.nameTh}`), el('p', '', k.effectTh), el('span', 'cost', `${upCost}`));
+        b.append(el('kbd', '', k.branch!.toUpperCase()), nowrapWords(el('b'), `สาย ${k.branch!.toUpperCase()} · ${k.nameTh}`), el('p', '', k.effectTh), el('span', 'cost', `${upCost}`));
         b.disabled = s.silver < upCost;
         b.onclick = () => upgrade(d.id, k.branch!);
         pick.append(b);
@@ -307,7 +308,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
         pending = [];
         const ev = stepDefend(s, cmds);
         onEvents(ev);
-        board.events(s, ev, now);
+        board.events(s, ev, now, speed);
         if (isOver(s)) onEnd({ won: s.phase === 'won', stars: s.stars ?? evaluateStars(s, s.phase === 'won'), tick: s.tick, livesLost: s.livesLost });
       }
     }

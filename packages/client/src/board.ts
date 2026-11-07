@@ -2,7 +2,7 @@
 // upright pixel figures drawn back to front. It draws at low resolution in whole pixels; CSS scales the canvas up
 // with hard edges. It only reads the sim state; it never changes it.
 import {
-  biomes, branchA, branchB, discipleStats, enemies as enemyDefs, FIRE_SPLASH, grid, moonPhase, openPath, palette, propBlocks, sects, TILE, units, type DefendState, type Disciple,
+  bellRadius, biomes, branchA, branchB, discipleStats, enemies as enemyDefs, FIRE_SPLASH, grid, moonPhase, openPath, palette, propBlocks, sects, TILE, units, type DefendState, type Disciple,
   type SimEvent,
 } from '@five-sects/sim';
 
@@ -14,7 +14,7 @@ const ENEMY_COLOR: Record<string, string> = {
   cultist: '#8A2A2A', runner: '#3E7A3A', brute: '#6E7680', leaper: '#4A6A3A', puppet: '#5A6E8A',
   assassin: '#2A2A38', healer: '#B0302A', mimic: '#4A5AA0',
 };
-const ROLE_LOOK: Record<string, string> = { striker: '#E8EEF5', burst: '#FF9A4A', control: '#7FD0FF', stacker: '#7CFF6A', support: '#FFE9A8' };
+const ROLE_LOOK: Record<string, string> = { striker: '#E5EAF0', burst: '#F2A23A', control: '#ABDBFF', stacker: '#9FDCA7', support: '#FFE08A' };
 
 const BOSS_COLOR = '#5A0E14';
 
@@ -101,7 +101,7 @@ export class Board {
   private marks = new Pool(48, () => ({ t0: 0, t1: 0, x: 0, y: 0, rx: 0, ry: 0, kind: '' }));
   private shards = new Pool(256, () => ({ t0: 0, t1: 0, x: 0, y: 0, vx: 0, vy: 0, c: '' }));
   private coins = new Pool(48, () => ({ t0: 0, t1: 0, x: 0, y: 0 }));
-  private font = digitSheet(['#FFD34A', '#FFFFFF', FX.slash]); // normal, crit, execute
+  private font = digitSheet([FX.star, FX.glint, FX.slash]); // normal, crit, execute
   private shakeT = 0;
   private shakeA = 0;
   private silver = { x: 0, y: -8 }; // the top bar's silver counter, in buffer pixels
@@ -169,7 +169,7 @@ export class Board {
 
   // Short-lived visuals for sim events: a projectile, number and flash per hit, shards and a coin per kill,
   // rings for secret arts, and a shake for leaks, bosses and arts.
-  events(s: DefendState, ev: SimEvent[], now: number): void {
+  events(s: DefendState, ev: SimEvent[], now: number, speed = 1): void {
     for (const e of ev) {
       if (e.e === 'hit') {
         const d = s.disciples.find((x) => x.id === e.from), t = this.seen.get(e.to!);
@@ -178,11 +178,12 @@ export class Board {
         const [x0, y0, x1, y1] = [this.sx(d.x), this.sy(d.y) - 14, this.sx(t.x), this.sy(t.y) - 6];
         const fly = Math.min(220, Math.max(90, Math.hypot(x1 - x0, y1 - y0) * 5));
         Object.assign(this.shots.take(now, now + fly), { x0, y0, x1, y1, kit: u?.element ?? d.els[0]!, fan: u?.roleId === 'burst', crit: !!e.crit });
-        // Hits landing on one enemy, or on one spot, within 150 ms add up into one number: fast play shows a total, not a pile.
+        // Hits landing on one enemy, or on one spot, within 150 ms times the game speed add up into one number: fast play shows a total, not a pile.
+        // A total stays big only for an execute; a lone crit is big. Past 24 live numbers, plain hits show none.
         const exec = e.kind === 'execute', big = !!e.crit || exec;
-        const n = this.nums.items.find((p) => now < p.t1 && Math.abs(p.t0 - (now + fly)) < 150 && (p.to === e.to || (Math.abs(p.x - x1) < 20 && Math.abs(p.y - y1 + 10) < 10)));
-        if (n) { n.v += e.dmg!; n.crit ||= !!e.crit; n.exec ||= exec; n.t1 = Math.max(n.t1, now + fly + (n.crit || n.exec ? 800 : 550)); }
-        else Object.assign(this.nums.take(now + fly, now + fly + (big ? 800 : 550)), { x: x1 + ((e.to! * 7) % 7) - 3, y: y1 - (exec ? 24 : 10), v: e.dmg!, crit: !!e.crit, exec, to: e.to! });
+        const n = this.nums.items.find((p) => now < p.t1 && Math.abs(p.t0 - (now + fly)) < 150 * speed && (p.to === e.to || (Math.abs(p.x - x1) < 20 && Math.abs(p.y - y1 + 10) < 10)));
+        if (n) { n.v += e.dmg!; n.crit = false; n.exec ||= exec; n.t1 = Math.max(n.t1, now + fly + (n.exec ? 800 : 550)); }
+        else if (big || this.nums.items.filter((p) => now < p.t1).length < 24) Object.assign(this.nums.take(now + fly, now + fly + (big ? 800 : 550)), { x: x1 + ((e.to! * 7) % 7) - 3, y: y1 - (exec ? 24 : 10), v: e.dmg!, crit: !!e.crit, exec, to: e.to! });
         t.flash = now + fly;
         if (exec) this.mark(now + fly, 360, x1, y1, 0, 0, 'execute');
         else if (e.kind === 'wildfire') { const r = (FIRE_SPLASH * branchB.splashPct) / 100 / TILE; this.mark(now + fly, 420, x1, y1 + 6, r * this.T, r * this.TH, 'wildfire'); }
@@ -190,7 +191,7 @@ export class Board {
         const t = this.seen.get(e.id!), d = s.disciples.find((x) => x.id === e.from);
         if (t) t.stunBy = e.kind ?? '';
         if (e.kind === 'freeze' && t) this.freezeBurst(now, this.sx(t.x), this.sy(t.y) - 6);
-        else if (d && e.kind === 'bell') { const r = d.level >= 3 && d.branch !== 'b' ? 2 : 1; this.mark(now, 420, this.sx(d.x), this.sy(d.y), r * this.T, r * this.TH, 'bell'); }
+        else if (d && e.kind === 'bell') { const r = bellRadius(d) / TILE; this.mark(now, 420, this.sx(d.x), this.sy(d.y), r * this.T, r * this.TH, 'bell'); }
         else if (d && e.kind === 'root' && d.branch === 'b') { const r = discipleStats(s, d).range / TILE; this.mark(now, 600, this.sx(d.x), this.sy(d.y), r * this.T, r * this.TH, 'root'); }
       } else if (e.e === 'kill') {
         const t = this.seen.get(e.id!);
@@ -213,7 +214,7 @@ export class Board {
         const phoenix = e.e === 'phoenix';
         const [cx, cy] = phoenix || !(e.x || e.y) ? [this.ox + this.BW / 2, this.oy + this.BH / 2] : [this.sx(e.x!), this.sy(e.y!)];
         const [rx, ry] = phoenix ? [this.BW / 2, this.BH / 2] : [3 * this.T, 3 * this.TH];
-        this.fx.push({ from: now, until: now + 450, draw: (g, k) => { g.globalAlpha = 1 - k; ring(g, cx, cy, rx * k, ry * k, phoenix ? '#FF7A1F' : '#FFE9A8'); g.globalAlpha = 1; } });
+        this.fx.push({ from: now, until: now + 450, draw: (g, k) => { g.globalAlpha = 1 - k; ring(g, cx, cy, rx * k, ry * k, phoenix ? FX.fire : '#FFE9A8'); g.globalAlpha = 1; } });
         this.shakeFor(now, 2, 300);
       }
     }
@@ -493,6 +494,7 @@ export class Board {
     this.shadow(x, y, 7);
     g.fillStyle = '#1A1418'; g.fillRect(x - 5, y - 14 + b, 10, 13); // outline
     g.fillStyle = color; g.fillRect(x - 4, y - 13 + b, 8, 12); // robe
+    if (!off && (u?.sect ?? key) === 'wood') { g.fillStyle = FX.leaf; g.fillRect(x - 4, y - 13 + b, 8, 1); g.fillRect(x - 4, y - 12 + b, 1, 11); } // light rim: green robe on green grass
     g.fillStyle = '#1A1418'; g.fillRect(x - 4, y - 5 + b, 8, 1); // belt
     g.fillStyle = '#E9C9A4'; g.fillRect(x - 3, y - 19 + b, 6, 6); // face
     g.fillStyle = '#1A1418'; g.fillRect(x - 5, y - 21 + b, 10, 3); g.fillRect(x - 2, y - 23 + b, 4, 2); // hat
@@ -506,7 +508,7 @@ export class Board {
     else if (role === 'control') { g.fillRect(x - 8, y, 16, 1); g.fillRect(x - 6, y - 2, 1, 2); g.fillRect(x + 5, y - 2, 1, 2); } // ring on the ground
     else if (role === 'stacker') g.fillRect(x + 5, y - 15 + b, 3, 3); // charm
     else g.fillRect(x - 1, y - 28 + b, 3, 3); // lantern overhead
-    g.fillStyle = '#FFD34A';
+    g.fillStyle = FX.star;
     for (let i = 1; i < level; i++) g.fillRect(x - 5 + (i - 1) * 4, y + 2, 3, 2);
   }
 
@@ -526,7 +528,7 @@ export class Board {
     g.fillStyle = white ? '#FFFFFF' : '#D8C0A8'; g.fillRect(x - 3, top - 5, 6, 5);
     g.fillStyle = '#120A0C'; g.fillRect(x + 1, top - 3, 1, 1); // eye, facing the gate
     if (def.air) { g.fillStyle = '#2A3A2A'; g.fillRect(x - w - 5, top + 2, 5, 2); g.fillRect(x + w, top + 2, 5, 2); }
-    const tint = e.burnT > 0 ? '#FF6A1F88' : e.poison > 0 ? '#5BC46A88' : e.slowT > 0 ? FX.slow + '88' : null;
+    const tint = e.burnT > 0 ? FX.fire + '88' : e.poison > 0 ? '#5BC46A88' : e.slowT > 0 ? FX.slow + '88' : null;
     if (tint && !white) { g.fillStyle = tint; g.fillRect(x - w, top, w * 2, h); }
     const bw = boss ? 24 : 12;
     g.fillStyle = '#200808'; g.fillRect(x - bw / 2, top - 9, bw, 2);
