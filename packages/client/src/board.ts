@@ -343,7 +343,7 @@ export class Board {
 
     // Summon zones: ours from the castle to its edge (bright while a card is picked), the enemy's faint red.
     const pulse = this.armed ? 0.34 + 0.1 * Math.sin(now / 160) : 0.22;
-    if (this.reach != null) this.strip(0, this.reach, '#F2A23A', 0.3 + 0.08 * Math.sin(now / 160));
+    if (this.reach != null) this.strip(0, this.reach, '#F2A23A', 0.45 + 0.1 * Math.sin(now / 160));
     else this.strip(0, zones[0], '#FFE9A8', pulse);
     this.strip(BATTLE_LEN - zones[1], BATTLE_LEN, '#D2412F', 0.2);
     for (const z of this.s.zones) { // burning ground: flickering embers across its radius on the road
@@ -358,8 +358,8 @@ export class Board {
         g.fillStyle = FX.star; g.fillRect(fx, cy - tall - 1, 1, 2);
       }
     }
-    const edge = at(Math.max(0, zones[0]));
-    g.fillStyle = FX.gold; g.fillRect(this.sx(edge.x) - 1, this.sy(edge.y) - (this.TH >> 1) - 2, 2, this.TH + 4);
+    const edge = at(Math.max(0, this.reach ?? zones[0]));
+    g.fillStyle = this.reach != null ? '#F2A23A' : FX.gold; g.fillRect(this.sx(edge.x) - 1, this.sy(edge.y) - (this.TH >> 1) - 2, 2, this.TH + 4);
 
     const things: { depth: number; draw: () => void }[] = [];
     for (const p of this.props) {
@@ -605,8 +605,8 @@ export class Board {
     const big = def.size === 'large' ? 2 : 1; // a large card's procedural figure is drawn twice the size
     const mark = this.counter && q.side === 1 ? counterMark(defOf(this.counter), def) : null;
     if (mark) { // a pulsing ring on the ground under the enemy, outside the shadow
-      const r = (def.size === 'small' ? 7 : 8 * big) + Math.round(Math.sin(now / 140));
-      ring(g, x, y, r, r * 0.45, mark); ring(g, x, y, r - 1, r * 0.45 - 1, mark);
+      const r = (def.size === 'small' ? 8 : 9 * big) + Math.round(Math.sin(now / 140));
+      ring(g, x, y, r + 1, r * 0.45 + 1, '#120A0C'); ring(g, x, y, r, r * 0.45, mark); ring(g, x, y, r - 1, r * 0.45 - 1, mark);
       this.glow(x, y - 6, 8 * big, mark, 0.35);
     }
     shadow(g, x, y, def.size === 'small' ? 5 : 6 * big);
@@ -618,12 +618,17 @@ export class Board {
       top = y - fly - Math.ceil((sp.f.foot - sp.f.top + 1) / this.K) - 4;
     } else g.drawImage(figure(q.card, q.side, q.side === 1, b, over), x - FIG_X * big, y - FIG_Y * big - fly, FIG_W * big, FIG_H * big);
     this.bar(x, top, 12 * big, hp, HP_BAR[q.side]);
+    if (mark) { // and a pointer over the head, outlined, bobbing
+      const b2 = Math.round(Math.sin(now / 120) * 1.5), ty = top - 9 + b2;
+      g.fillStyle = '#120A0C'; g.fillRect(x - 4, ty - 1, 9, 2); g.fillRect(x - 3, ty + 1, 7, 2); g.fillRect(x - 2, ty + 3, 5, 2); g.fillRect(x - 1, ty + 5, 3, 1);
+      g.fillStyle = mark; g.fillRect(x - 3, ty, 7, 1); g.fillRect(x - 2, ty + 1, 5, 2); g.fillRect(x - 1, ty + 3, 3, 1); g.fillRect(x, ty + 4, 1, 1);
+    }
     // Damage over time: a flame and/or a poison drop with its stack count beside the HP bar, flickering.
     let mx = x + 6 * big + 3;
     if (burn > 0) { this.flame(mx, top + 1, now + id * 37); mx += 5; if (burn > 1) { this.digits(burn, mx + 1, top - 2, 3, false); mx += 5; } }
     if (poison > 0) { this.drop(mx, top + 1); if (poison > 1) this.digits(poison, mx + 6, top - 2, 4, false); }
     if (immune) { // control resistance: an ice-white halo over the head while stuns and roots cannot land
-      ring(g, x, top - 4, 6, 2, FX.ice);
+      ring(g, x, top - 5, 8, 3, '#120A0C'); ring(g, x, top - 4, 7, 3, FX.ice); ring(g, x, top - 4, 6, 2, FX.glint);
       if (Math.floor(now / 200) & 1) { g.fillStyle = FX.glint; g.fillRect(x - 6, top - 4, 1, 1); g.fillRect(x + 6, top - 4, 1, 1); }
     }
     if (stunned) {

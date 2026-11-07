@@ -1,7 +1,8 @@
 // Visual proof: opens the game in Chromium at 1280x720 (16:9 PC), plays it, and saves screenshots + a video to shots/.
-//   npm run shots    title and deck screens; a match played by hand (aim, a red marker off the zone, a click summon, a drag
-//                    summon, the bell cut-in); then a bot-vs-bot match at x4, recorded, with frames of an early field, a fight,
-//                    a fort capture and the result screen.
+//   npm run shots    title and team setup (leader, sub, bench, redraw); a match played by hand (aim, a red marker off the
+//                    zone, a click summon, a drag summon, counter highlights, the cannon aimed and fired); then a bot-vs-bot
+//                    match at x4, recorded, with frames of an early field, a fight, a fort capture and the result screen;
+//                    burn/poison marks, burning ground and the stun-resistance halo.
 // Exits non-zero on any console error or page crash.
 import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,32 +31,41 @@ async function open(url, name, videoDir) {
 }
 const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
 
-// 1) Front screens: title, then the deck pick with each deck shown.
+// 1) Front screens: title, then the team setup: a collection, a leader and a bench picked, the dealt hand, a redraw.
 {
   const { ctx, p } = await open('', 'front');
   await p.waitForSelector('.title');
   await sleep(300);
   await shot(p, '01-title');
   await p.getByRole('button', { name: 'เริ่มศึก' }).click();
-  await p.waitForSelector('.deck-card');
+  await p.waitForSelector('.team-card');
+  await p.locator('.deck-row[data-id=fire]').click();
   await sleep(200);
-  await shot(p, '02-deck-fire');
-  await p.locator('.deck-row', { hasText: 'สำรับผสม' }).click();
+  await shot(p, '02-team-fire');
+  await p.locator('.team-card[data-id=crimson_phoenix_kite] .acts button:nth-child(2)').click();
+  await p.locator('.team-card[data-id=crimson_phoenix_support] .acts button:nth-child(3)').click();
+  await p.locator('.team-card[data-id=crimson_phoenix_beast]').hover();
   await sleep(200);
-  await shot(p, '03-deck-mixed');
-  for (const sect of ['metal', 'water', 'earth']) {
-    await p.locator(`.deck-row[data-id=${sect}]`).click();
-    await sleep(150);
-    await shot(p, `03-deck-${sect}`);
-  }
+  await shot(p, '03-team-sub-bench');
+  const before = await p.locator('.hand-card b').allTextContents();
+  await p.getByRole('button', { name: /สับมือใหม่/ }).click();
+  await sleep(200);
+  const after = await p.locator('.hand-card b').allTextContents();
+  console.log('hand before redraw:', before.join(','), '| after:', after.join(','));
+  await shot(p, '03-team-redraw');
+  await p.locator('.deck-row[data-id=all]').click();
+  await sleep(200);
+  await shot(p, '03-team-all');
+  await p.locator('.deck-row[data-id=fire]').click();
   await p.getByRole('button', { name: 'เข้าสู่ศึก' }).click();
   await p.waitForFunction(() => window.__game?.s);
   await sleep(600);
-  await shot(p, '04-match-from-deck');
+  await shot(p, '04-match-from-team');
   await ctx.close();
 }
 
-// 2) A match by hand (fire deck vs the AI): aim inside the zone, aim past it (red), summon by click, by drag, ring the bell.
+// 2) A match by hand (fire team vs the AI): aim inside the zone, aim past it (red), summon by click, by drag, a card's
+//    counter highlight, the cannon aimed and fired.
 {
   const { ctx, p } = await open('?mode=battle&seed=3&deck=fire', 'hand');
   await p.waitForFunction(() => window.__game?.s);
@@ -80,9 +90,9 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   await p.waitForFunction(() => window.__game.s.units.some((u) => u.side === 0));
   await sleep(600);
   await shot(p, '14-summoned');
-  // Drag the blade card (2 mana) onto the road.
-  await p.waitForFunction(() => window.__game.s.mana[0] >= 2, null, { timeout: 20000 });
-  const card = await p.locator('.card').nth(1).boundingBox();
+  // Drag the sub-leader card (slot 3) onto the road.
+  await p.waitForFunction(() => window.__game.s.mana[0] >= 4, null, { timeout: 20000 });
+  const card = await p.locator('.card').nth(2).boundingBox();
   await p.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
   await p.mouse.down();
   pt = await at(zone - 2500);
@@ -92,14 +102,30 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   await shot(p, '15-drag');
   await p.mouse.up();
   await p.waitForFunction(() => window.__game.s.units.filter((u) => u.side === 0).length >= 2, null, { timeout: 5000 });
-  await sleep(300);
-  await p.waitForFunction(() => window.__game.s.units.some((u) => u.side === 1), null, { timeout: 30000 });
-  await sleep(4000);
+  await p.waitForFunction(() => window.__game.s.units.filter((u) => u.side === 1).length >= 3, null, { timeout: 40000 });
+  await sleep(500);
+  // Hover each card until one marks an enemy (orange: it beats it, blue: it loses to it).
+  for (let i = 0; i < 7; i++) {
+    const b = await p.locator('.card').nth(i).boundingBox();
+    await p.mouse.move(b.x + b.width / 2, b.y + 20);
+    await sleep(120);
+    await shot(p, `16-counter-hover-${i + 1}`);
+  }
+  // The cannon: Space arms it, the enemy nearest our castle is the aim, a click fires.
+  await p.keyboard.press('Escape');
+  await p.waitForFunction(() => window.__game.s.mana[0] >= 2 && window.__game.s.castles[0].cannonCd === 0, null, { timeout: 20000 });
+  await p.waitForFunction(() => window.__game.s.units.some((u) => u.side === 1 && u.d <= 8500), null, { timeout: 60000 });
+  const foe = await p.evaluate(() => Math.min(...window.__game.s.units.filter((u) => u.side === 1).map((u) => u.d)));
   await p.keyboard.press('Space');
-  await sleep(140);
-  await shot(p, '16-bell-cutin');
+  pt = await at(foe);
+  await p.mouse.move(pt.x, pt.y);
+  await sleep(200);
+  await shot(p, '17-cannon-aim');
+  await p.mouse.click(pt.x, pt.y);
+  await sleep(220);
+  await shot(p, '17-cannon-shot');
   await sleep(400);
-  await shot(p, '17-bell-after');
+  await shot(p, '17-cannon-after');
   // Under siege: an enemy stands on our castle, yet the gate stays tinted and a click there summons.
   await p.evaluate(() => { for (const u of window.__game.s.units) if (u.side === 1) u.d = 600; });
   await p.waitForFunction(() => window.__game.s.mana[0] >= 1, null, { timeout: 20000 });
@@ -119,7 +145,7 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
 // 3) Bot vs bot at x4, recorded: an early field, a fight, a fort capture, then the result; fps sampled throughout.
 {
   const dir = out + 'bot-video/';
-  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=2&deck=mixed', 'bots', dir);
+  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=2&deck=all', 'bots', dir);
   await p.waitForFunction(() => window.__game?.s);
   const fps = [];
   const sample = async () => { fps.push(await p.evaluate(() => window.__game.fps)); };
@@ -148,7 +174,21 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   rmSync(dir, { recursive: true, force: true });
 }
 
-// 3b) Sect decks bot vs bot at x4: the first large unit and the first flier on the field.
+// 3a) Status marks, bot vs bot: burn and poison stacks (fire vs wood), burning ground, an earth unit's stun resistance halo.
+for (const [deck, seed, name, cond] of [
+  ['fire', 4, '26-dot-marks', 'window.__game.s.units.some((u) => u.burn > 1) && window.__game.s.units.some((u) => u.poison > 0)'],
+  ['fire', 7, '27-burning-ground', 'window.__game.s.zones.length > 0 && window.__game.s.units.length >= 4'],
+  ['earth', 7, '28-stun-immune', 'window.__game.s.units.some((u) => u.stunImmT > 0)'],
+]) {
+  const { ctx, p } = await open(`?mode=battle&bot=1&speed=2&seed=${seed}&deck=${deck}`, name);
+  await p.waitForFunction(() => window.__game?.s, null, { timeout: 30000 });
+  console.log('waiting for', name);
+  await p.waitForFunction(cond, null, { timeout: 120000, polling: 'raf' });
+  await shot(p, name);
+  await ctx.close();
+}
+
+// 3b) Sect teams bot vs bot at x4: the first large unit on the field.
 for (const [deck, seed] of [['fire', 5], ['earth', 7]]) {
   const { ctx, p } = await open(`?mode=battle&bot=1&speed=4&seed=${seed}&deck=${deck}`, `sect-${deck}`);
   await p.waitForFunction(() => window.__game?.s, null, { timeout: 30000 });
@@ -163,9 +203,9 @@ for (const [deck, seed] of [['fire', 5], ['earth', 7]]) {
 // 4) Frame rate at x4 without the video recorder, sampled once a second: a busy bot match (seed 12 peaks at 13 units), then a
 //    stress run where both sides' mana is kept full so the bots flood the road (the juice caps must hold 60 fps).
 for (const [name, stress] of [['busy', false], ['stress', true]]) {
-  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=12&deck=mixed', `fps-${name}`);
+  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=12&deck=all', `fps-${name}`);
   await p.waitForFunction(() => window.__game?.s, null, { timeout: 30000 });
-  if (stress) await p.evaluate(() => setInterval(() => { window.__game.s.mana = [20, 20]; }, 100));
+  if (stress) await p.evaluate(() => setInterval(() => { window.__game.s.mana = [40, 40]; }, 100));
   await p.waitForFunction(() => window.__game.s.units.length >= 10, null, { timeout: 60000, polling: 'raf' });
   const fps = [], units = [];
   for (let i = 0; i < 8; i++) { await sleep(1000); fps.push(await p.evaluate(() => window.__game.fps)); units.push(await p.evaluate(() => window.__game.s.units.length)); }

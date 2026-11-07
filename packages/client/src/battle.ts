@@ -80,13 +80,16 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   stepBattle(s, firstTick); // tick 0 before the hand is shown, so the cards are the redrawn ones
   const cards = s.hands[0].map((card, slot) => {
     const def = battleUnits.get(card)!;
-    const b = el('button', 'card');
+    const b = el('button', `card${def.move === 'guard' ? ' guard' : ''}`);
     b.style.setProperty('--sect', sects.get(def.sect)?.color ?? '#E3B04B');
     const face = el('span', 'face');
     face.append(cardArt(card) ?? portrait(card));
-    const uses = el('span', 'uses');
-    b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses,
-      nowrapWords(el('b', 'name'), def.nameTh), nowrapWords(el('small'), `${battle.moves.get(def.move)?.nameTh ?? def.move} · ${battle.sizes.get(def.size)?.nameTh ?? def.size}`));
+    const uses = el('span', 'uses'), m = battle.moves.get(def.move)!;
+    const rank = card === o.team.leader ? 'แม่ทัพ' : card === o.team.sub ? 'รอง' : null;
+    b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses);
+    if (rank) b.append(el('em', 'rank', rank));
+    b.append(nowrapWords(el('b', 'name'), def.nameTh), nowrapWords(el('small', 'role'), `${m.roleTh} · ${m.nameTh} · ${battle.sizes.get(def.size)?.nameTh ?? def.size}`));
+    b.title = def.tagTh;
     b.addEventListener('pointerdown', (ev) => { if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
     b.addEventListener('pointerenter', () => { hover = slot; });
     b.addEventListener('pointerleave', () => { if (hover === slot) hover = null; });
