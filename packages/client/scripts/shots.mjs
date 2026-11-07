@@ -130,6 +130,16 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   rmSync(dir, { recursive: true, force: true });
 }
 
+// 4) Frame rate at x4 without the video recorder, sampled once a second through the busy middle of a bot match.
+{
+  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=5&deck=mixed', 'fps');
+  await p.waitForFunction(() => window.__game?.s.tick > 900, null, { timeout: 60000 });
+  const fps = [];
+  for (let i = 0; i < 10; i++) { await sleep(1000); fps.push(await p.evaluate(() => window.__game.fps)); }
+  console.log('fps x4 (no video):', fps.join(','), 'units on field:', await p.evaluate(() => window.__game.s.units.length));
+  await ctx.close();
+}
+
 await browser.close();
 await server.close();
 console.log('saved to', out);
