@@ -53,7 +53,7 @@ const LUNGE_MS = 170, LUNGE = 4;
 const KICK_MS = 130, KICK = 2;
 const STOP_FRAMES = 3, STOP_GAP = 400; // hit-stop on big hits: frames held, and the least time between two
 const GLOW_CAP = 24; // additive glows per frame; past it the rest are skipped
-const NUM_CAP = 24; // live plain damage numbers; past it plain hits show none
+const NUM_CAP = 12; // live plain damage numbers; past it plain hits show none (a crowded clash stays readable)
 
 class Pool<T extends Live> {
   readonly items: T[];

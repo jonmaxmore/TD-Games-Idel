@@ -130,13 +130,17 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   rmSync(dir, { recursive: true, force: true });
 }
 
-// 4) Frame rate at x4 without the video recorder, sampled once a second through the busy middle of a bot match.
-{
-  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=5&deck=mixed', 'fps');
-  await p.waitForFunction(() => window.__game?.s.tick > 900, null, { timeout: 60000 });
-  const fps = [];
-  for (let i = 0; i < 10; i++) { await sleep(1000); fps.push(await p.evaluate(() => window.__game.fps)); }
-  console.log('fps x4 (no video):', fps.join(','), 'units on field:', await p.evaluate(() => window.__game.s.units.length));
+// 4) Frame rate at x4 without the video recorder, sampled once a second: a busy bot match (seed 12 peaks at 13 units), then a
+//    stress run where both sides' mana is kept full so the bots flood the road (the juice caps must hold 60 fps).
+for (const [name, stress] of [['busy', false], ['stress', true]]) {
+  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=12&deck=mixed', `fps-${name}`);
+  await p.waitForFunction(() => window.__game?.s, null, { timeout: 30000 });
+  if (stress) await p.evaluate(() => setInterval(() => { window.__game.s.mana = [20, 20]; }, 100));
+  await p.waitForFunction(() => window.__game.s.units.length >= 10, null, { timeout: 60000, polling: 'raf' });
+  const fps = [], units = [];
+  for (let i = 0; i < 8; i++) { await sleep(1000); fps.push(await p.evaluate(() => window.__game.fps)); units.push(await p.evaluate(() => window.__game.s.units.length)); }
+  if (stress) await shot(p, '30-stress');
+  console.log(`fps x4 ${name} (no video):`, fps.join(','), 'units on field:', units.join(','));
   await ctx.close();
 }
 
