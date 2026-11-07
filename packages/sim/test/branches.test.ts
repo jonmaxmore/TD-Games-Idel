@@ -131,6 +131,15 @@ describe('tier-3 branches', () => {
     }
   });
 
+  it('fire a: the phoenix sweep never cuts a longer burn short', () => {
+    const { s, d, foe } = tier3('fire', 'a');
+    const far = foe(20000, 0, { burnT: 200, burnDps: 1 }); // out of the disciple's range: only the sweep reaches it
+    d.pushT = 20 * 20 - 1;
+    expect(run(s, 1).some((e) => e.e === 'phoenix')).toBe(true);
+    expect(far.burnT).toBeGreaterThan(60);
+    expect(far.burnDps).toBeGreaterThan(1);
+  });
+
   it('earth: a widens the bell to r 2 for 1 s; b keeps r 1 and stuns twice as long as the bell', () => {
     for (const branch of ['a', 'b'] as const) {
       const { s, d, foe } = tier3('earth', branch);

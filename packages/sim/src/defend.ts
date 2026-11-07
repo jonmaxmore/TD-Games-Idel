@@ -555,7 +555,7 @@ function attack(s: DefendState, d: Disciple, ev: SimEvent[]): void {
     for (const e of [...s.enemies])
       if (e.hp > 0 && (e.type !== 'assassin' || e.revealed)) {
         dealDamage(s, d, e, st.dmg, false, ev);
-        e.burnT = FIRE_BURN_TICKS;
+        e.burnT = Math.max(e.burnT, FIRE_BURN_TICKS);
         e.burnDps = Math.max(e.burnDps, dotDps(d, e, FIRE_BURN_DPS * 2, lvl));
       }
   }
