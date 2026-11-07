@@ -17,8 +17,18 @@ export type BattleCommand =
 // hand: a fixed hand used as dealt, with no redraw (unit tests, scripted PvE sides). progress: the side's card levels, forge
 // items and town tiers (progression.ts); a normalized match ignores it.
 export interface BattleSetup { leader: string; sub: string; collection: readonly string[]; bench: readonly string[]; hand?: readonly string[]; progress?: Progress }
-// normalized: ranked ศึกฝีมือ, every card at its base stats whatever either side's progress says.
-export interface BattleOpts { normalized?: boolean }
+// A ศึกปราบ stage (campaign.json, campaign.ts): side 1 is the stage's enemy. manaStart and regenPct (of the normal regen) are
+// the enemy's; fortsAtPct the fort layout; gimmick the stage's one rule: the enemy castle starts at hpPct of its HP (over 100:
+// reinforced), scripted enemy waves summoned free at a tick and depth, no cannon for either side, or blood moon (enemy units
+// deal dmgPct of their damage).
+export type Gimmick =
+  | { kind: 'castle'; hpPct: number }
+  | { kind: 'waves'; waves: readonly { tick: number; card: string; d: number }[] }
+  | { kind: 'noCannon' }
+  | { kind: 'bloodMoon'; dmgPct: number };
+export interface StageRules { manaStart: number; regenPct: number; fortsAtPct: readonly number[]; gimmick: Gimmick }
+// normalized: ranked ศึกฝีมือ, every card at its base stats whatever either side's progress says. stage: a ศึกปราบ stage.
+export interface BattleOpts { normalized?: boolean; stage?: StageRules }
 export const fixedHand = (cards: readonly string[], leader = '', sub = ''): BattleSetup => ({ leader, sub, collection: cards, bench: [], hand: cards });
 // What a tick did, for the view and sound (never read back by the rules). x, y: where, in milli-tiles.
 // side: who summoned, captured or won (-1 on end = draw); heal: amount = HP restored; hit on a structure: to = -1,
@@ -49,6 +59,7 @@ export interface BattleState {
   hands: [string[], string[]]; uses: [number[], number[]]; mana: [number, number]; // uses: summons per hand slot
   castles: [Castle, Castle]; forts: Fort[]; units: Fighter[]; zones: Zone[];
   kills: [number, number]; // enemy units each side has killed
+  stage: StageRules | null; regenAcc: number; // regenAcc: the stage enemy's regen carried over, in % of a mana point
   winner: Side | -1 | null; // null while the match runs, -1 = draw
 }
 
@@ -94,19 +105,20 @@ export function sectSetup(sect: string): BattleSetup {
 
 export function createBattle(seed: number, setup0: BattleSetup, setup1: BattleSetup, opts: BattleOpts = {}): BattleState {
   const progress: [Progress | null, Progress | null] = opts.normalized ? [null, null] : [setup0.progress ?? null, setup1.progress ?? null];
-  const castle = (p: Progress | null): Castle => {
-    const t = townBonus(p);
-    return { hp: B.castle.hp + t.castleHp, maxHp: B.castle.hp + t.castleHp, cd: 0, cannonCd: 0, cannonDmg: B.cannon.dmg + t.cannonDmg, cannonPush: B.cannon.push + t.cannonPush };
+  const stage = opts.stage ?? null, hpPct = stage?.gimmick.kind === 'castle' ? stage.gimmick.hpPct : 100;
+  const castle = (p: Progress | null, pct: number): Castle => {
+    const t = townBonus(p), hp = B.castle.hp + t.castleHp;
+    return { hp: div(hp * pct, 100), maxHp: div(hp * Math.max(100, pct), 100), cd: 0, cannonCd: 0, cannonDmg: B.cannon.dmg + t.cannonDmg, cannonPush: B.cannon.push + t.cannonPush };
   };
   const deal: [{ rng: number }, { rng: number }] = [{ rng: (seed ^ 0x9e3779b9) >>> 0 }, { rng: (seed ^ 0x7f4a7c15) >>> 0 }];
   const hands: [string[], string[]] = [dealHand(setup0, deal[0]), dealHand(setup1, deal[1])];
   return {
     tick: 0, rng: seed >>> 0, nextId: 1,
     setups: [setup0, setup1], progress, deal, redraws: [0, 0],
-    hands, uses: [hands[0].map(() => 0), hands[1].map(() => 0)], mana: [B.manaStart, B.manaStart],
-    castles: [castle(progress[0]), castle(progress[1])],
-    forts: B.forts.atPct.map((p) => ({ d: div(BATTLE_LEN * p, 100), owner: null, hp: B.forts.hp, cd: 0, capSide: null, capT: 0 })),
-    units: [], zones: [], kills: [0, 0], winner: null,
+    hands, uses: [hands[0].map(() => 0), hands[1].map(() => 0)], mana: [B.manaStart, stage?.manaStart ?? B.manaStart],
+    castles: [castle(progress[0], 100), castle(progress[1], hpPct)],
+    forts: (stage?.fortsAtPct ?? B.forts.atPct).map((p) => ({ d: div(BATTLE_LEN * p, 100), owner: null, hp: B.forts.hp, cd: 0, capSide: null, capT: 0 })),
+    units: [], zones: [], kills: [0, 0], stage, regenAcc: 0, winner: null,
   };
 }
 
@@ -159,15 +171,16 @@ function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: 
   s.uses[c.side][slot]!++;
   const p = s.progress[c.side], v = abilityValue(def, cardLevel(s.setups[c.side], def.id, p)), kind = def.ability?.kind;
   if (kind === 'refund') s.mana[c.side] = Math.min(B.manaMax, s.mana[c.side] + v);
-  const st = cardStats(def, p);
+  const st = cardStats(def, p), moon = c.side === 1 && s.stage?.gimmick.kind === 'bloodMoon' ? s.stage.gimmick.dmgPct : 100;
   const hp = kind === 'hp' ? div(st.hp * (100 + v), 100) : st.hp;
-  addFighter(s, c.side, def.id, fwd(c.side, d), hp, st.dmg, kind === 'aura' ? v : 0, kind === 'ward' ? v : 0, ev);
+  addFighter(s, c.side, def.id, fwd(c.side, d), hp, div(st.dmg * moon, 100), kind === 'aura' ? v : 0, kind === 'ward' ? v : 0, ev);
 }
 
 // The castle cannon: every enemy within its radius of the aimed point takes the shot, and the nearest small ones are
 // knocked back toward their own castle (larger units stand). Lands at once, before anyone acts this tick.
 function fireCannon(s: BattleState, side: Side, d: number, ev: BattleEvent[]): void {
   const c = s.castles[side];
+  if (s.stage?.gimmick.kind === 'noCannon') return err(ev, 'no cannon this stage');
   if (c.cannonCd > 0) return err(ev, 'cannon reloading');
   if (s.mana[side] < B.cannon.mana) return err(ev, 'not enough mana');
   if (!Number.isInteger(d) || d < 0 || d > B.cannon.reach) return err(ev, 'out of cannon reach');
@@ -428,7 +441,21 @@ function applyPending(s: BattleState, pend: Pending[]): void {
 function regen(s: BattleState): void {
   const r = B.regen.find((p) => s.tick - 1 >= p.from && s.tick - 1 < p.to);
   if (r == null || (s.tick - r.from) % r.every !== 0) return;
-  for (const side of [0, 1] as Side[]) s.mana[side] = Math.min(B.manaMax, s.mana[side] + 1);
+  s.mana[0] = Math.min(B.manaMax, s.mana[0] + 1);
+  if (s.stage == null) { s.mana[1] = Math.min(B.manaMax, s.mana[1] + 1); return; }
+  s.regenAcc += s.stage.regenPct;
+  s.mana[1] = Math.min(B.manaMax, s.mana[1] + div(s.regenAcc, 100));
+  s.regenAcc %= 100;
+}
+
+// A waves stage: the enemy units due this tick walk out free (no mana, no hand), at the enemy's card levels.
+function waves(s: BattleState, ev: BattleEvent[]): void {
+  if (s.stage?.gimmick.kind !== 'waves') return;
+  for (const w of s.stage.gimmick.waves) {
+    if (w.tick !== s.tick) continue;
+    const def = battleUnits.get(w.card)!, st = cardStats(def, s.progress[1]);
+    addFighter(s, 1, def.id, fwd(1, w.d), st.hp, st.dmg, 0, 0, ev);
+  }
 }
 
 export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []): BattleEvent[] {
@@ -441,6 +468,7 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
     else if (c.t === 'cannon') fireCannon(s, c.side, c.d, ev);
     else err(ev, 'unknown command');
   }
+  waves(s, ev);
   dots(s, ev);
   resolveDeaths(s, ev);
   const pend: Pending[] = [];
@@ -472,6 +500,18 @@ export function battleString(s: BattleState): string {
   for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.maxHp},${u.aura},${u.ward},${u.raise},${u.cd},${u.stunT},${u.burnT},${u.burn},${u.poison},${u.poisonT},${u.rootT},${u.slowT},${u.stunImmT},${u.rootImmT};`;
   o += '|';
   for (const z of s.zones) o += `${z.side},${z.d},${z.t};`;
-  return o + `|${s.kills.join(',')}|` + n(s.winner);
+  o += `|${s.kills.join(',')}|` + n(s.winner);
+  return s.stage == null ? o : o + `|stage ${s.regenAcc}`; // a plain match fingerprints exactly as before stages existed
 }
 export const battleHash = (s: BattleState) => fnv1a(battleString(s));
+
+// A match as the server (and the client's replay) re-runs it: the seed, both setups, the options and every command by tick.
+export interface BattleRecord { seed: number; setups: [BattleSetup, BattleSetup]; opts: BattleOpts; commands: Record<number, BattleCommand[]> }
+export function replayBattle(r: BattleRecord, onTick?: (s: BattleState) => void): BattleState {
+  const s = createBattle(r.seed, r.setups[0], r.setups[1], r.opts);
+  while (!isOver(s)) {
+    stepBattle(s, r.commands[s.tick] ?? []);
+    onTick?.(s);
+  }
+  return s;
+}
