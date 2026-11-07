@@ -1,5 +1,5 @@
 {
-  "_notes": "See docs/design/modes.md. release: v1.0 | S1 | S2 | rotating.",
+  "_notes": "See docs/design/modes.md. release: v1.0 | S1 | S2 | rotating. Every mode is a castle battle (ADR 0010); story, async_raid, coop_boss, tower and guild_war still carry their TD-era fields until redesigned.",
   "modes": [
     {
       "id": "story",
@@ -72,31 +72,16 @@
       ]
     },
     {
-      "id": "duel_1v1",
-      "nameTh": "ศึกชิงยุทธภพ 1v1",
-      "players": "2",
-      "release": "S1",
-      "net": "lockstep + server authoritative sim",
-      "statsNormalized": true,
-      "minutes": "6-8",
-      "waves": 12,
-      "deck": {
-        "sects": 5,
-        "arts": 2
-      },
-      "ranked": true
-    },
-    {
-      "id": "siege_1v1",
-      "nameTh": "บุก–ตั้งรับ 1v1",
+      "id": "castle_1v1",
+      "nameTh": "ศึกชิงเมือง 1v1",
       "players": "2",
       "release": "v1.0",
       "net": "lockstep + server authoritative sim",
       "statsNormalized": true,
-      "minutes": "6",
-      "rounds": 2,
-      "roundMinutes": 3,
-      "fog": true,
+      "minutes": "3",
+      "deck": {
+        "cards": 8
+      },
       "ranked": true,
       "flagshipEsports": true,
       "competitiveFormat": {
@@ -108,8 +93,8 @@
       }
     },
     {
-      "id": "duel_2v2",
-      "nameTh": "ศึกชิงยุทธภพ 2v2",
+      "id": "castle_2v2",
+      "nameTh": "ศึกชิงเมือง 2v2",
       "players": "4",
       "release": "S2",
       "net": "lockstep + server authoritative sim",

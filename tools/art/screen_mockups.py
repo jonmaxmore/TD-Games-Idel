@@ -19,50 +19,6 @@ def font(size, thai=False):
     return ImageFont.truetype(path, size * S)
 
 
-def world_ch1(stages):
-    img = Image.new('RGB', (W * S, H * S), '#16201A')
-    d = ImageDraw.Draw(img)
-    sc = lambda *v: [x * S for x in v]
-    # terrain bands: mountains top, terraces middle, river bottom
-    d.rectangle(sc(0, 0, W, 120), fill='#2A1E3A')
-    for i in range(6):
-        d.polygon(sc(i * 70 - 20, 120, i * 70 + 40, 40 + (i % 3) * 15, i * 70 + 100, 120), fill='#3A3442')
-    for y in range(140, 520, 26):
-        d.rectangle(sc(0, y, W, y + 3), fill='#1E2B22')
-    d.rectangle(sc(0, 560, W, 640), fill='#16324A')
-    nodes = [s for s in stages if s['chapter'] == 1]
-    # winding route bottom -> top, 4 nodes per row
-    pts = []
-    for i, _ in enumerate(nodes):
-        row, col = divmod(i, 4)
-        x = 60 + (col if row % 2 == 0 else 3 - col) * 80
-        y = 520 - row * 120
-        pts.append((x, y))
-    d.line([c for p in pts for c in sc(*p)], fill='#3B2C2A', width=10 * S, joint='curve')
-    for (x, y), st in zip(pts, nodes):
-        big = st['type'] == 'boss'
-        r = 26 if big else 18
-        col = TYPE_COL.get(st['type'], '#9A92AE')
-        d.ellipse(sc(x - r - 3, y - r - 3, x + r + 3, y + r + 3), fill='#1A1423')
-        d.ellipse(sc(x - r, y - r, x + r, y + r), fill=col)
-        d.text((x * S, (y - 4) * S), st['id'], fill='#FFFFFF', font=font(10), anchor='mm')
-        d.text((x * S, (y + 9) * S), ICON.get(st['type'], '?'), fill='#1A1423', font=font(8), anchor='mm')
-        d.text((x * S, (y + r + 9) * S), '***', fill='#E3B04B', font=font(8), anchor='mm')
-    # boss landmark + secret stage + star gate to chapter 2
-    bx, by = pts[-1]
-    d.rectangle(sc(bx - 40, by - 90, bx + 40, by - 40), fill='#5A1E28'); d.polygon(sc(bx - 50, by - 90, bx, by - 120, bx + 50, by - 90), fill='#1A1423')
-    d.ellipse(sc(300, 140, 340, 180), fill='#E3B04B'); d.text((320 * S, 160 * S), 'S1', fill='#1A1423', font=font(10), anchor='mm')
-    d.text((320 * S, 190 * S), '30*', fill='#E3B04B', font=font(8), anchor='mm')
-    d.rectangle(sc(130, 8, 230, 34), fill='#0E0B14'); d.text((180 * S, 21 * S), 'LOCK 2: 25*', fill='#ECE3CF', font=font(9), anchor='mm')
-    # HUD frame
-    d.rectangle(sc(0, 600, W, 640), fill='#0E0B14')
-    for i, lab in enumerate(['MAP', 'BASE', 'PVP', 'SHOP', 'GUILD']):
-        d.text(((36 + i * 72) * S, 620 * S), lab, fill='#E3B04B' if i == 0 else '#9A92AE', font=font(9), anchor='mm')
-    d.text((8 * S, 128 * S), 'CH1 Foothill Village', fill='#ECE3CF', font=font(11))
-    d.text((8 * S, 142 * S), 'D defend  A assault  E escort  S siege  B boss  P puzzle  ? secret', fill='#9A92AE', font=font(6))
-    return img
-
-
 def sect_base():
     img = Image.new('RGB', (W * S, H * S), '#3B2C2A')
     d = ImageDraw.Draw(img)
@@ -94,9 +50,7 @@ def sect_base():
 
 
 def main():
-    stages = json.load(open(os.path.join(ROOT, 'docs/data/stages.json'), encoding='utf-8'))['stages']
     out = os.path.join(ROOT, 'docs/art/mockups')
-    world_ch1(stages).save(os.path.join(out, 'world-ch1.png'), optimize=True)
     sect_base().save(os.path.join(out, 'sect-base.png'), optimize=True)
     print('world-ch1, sect-base')
 

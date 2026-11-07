@@ -10,30 +10,12 @@
 | 1 | [`fire`](fire.md) | ศิษย์สำนักหงส์เพลิง | ตัวละคร | [ภาพ](../mockups/fire.png) |
 | 1 | [`earth`](earth.md) | ศิษย์วัดวัชระศิลา | ตัวละคร | [ภาพ](../mockups/earth.png) |
 | 1 | [`yinyang`](yinyang.md) | ศิษย์หอกระจกไท่จี๋ | ตัวละคร | [ภาพ](../mockups/yinyang.png) |
-| 2 | [`cultist`](cultist.md) | สมุนพรรคมาร | ศัตรูพื้น | [ภาพ](../mockups/cultist.png) |
-| 2 | [`runner`](runner.md) | โจรวิชาตัวเบา | ศัตรูพื้น | [ภาพ](../mockups/runner.png) |
-| 2 | [`brute`](brute.md) | ยักษ์เสื้อเหล็ก | ศัตรูพื้น | [ภาพ](../mockups/brute.png) |
-| 2 | [`leaper`](leaper.md) | นักกระโดดหลังคา | ศัตรูบิน | [ภาพ](../mockups/leaper.png) |
-| 2 | [`puppet`](puppet.md) | หุ่นศพ | ศัตรูพื้น | [ภาพ](../mockups/puppet.png) |
-| 2 | [`assassin`](assassin.md) | มือสังหารเงา | ศัตรูพื้น | [ภาพ](../mockups/assassin.png) |
-| 2 | [`healer`](healer.md) | ภิกษุโลหิต | ศัตรูพื้น | [ภาพ](../mockups/healer.png) |
-| 2 | [`mimic`](mimic.md) | ศิษย์ทรยศ | ศัตรูพื้น | [ภาพ](../mockups/mimic.png) |
-| 2 | [`boss_ch1`](boss_ch1.md) | ราชาโจรร้อยมือ | บอส บท 1 wave 10 | [ภาพ](../mockups/boss_ch1.png) |
-| 2 | [`boss_ch1b`](boss_ch1b.md) | ทูตจันทร์โลหิต | บอส บท 1 wave 20 | [ภาพ](../mockups/boss_ch1b.png) |
-| 2 | [`boss_final`](boss_final.md) | จอมมารเสวี่ยเยว่ | บอส บท 5 wave 30 | [ภาพ](../mockups/boss_final.png) |
-| 2 | [`elite-golden`](elite-golden.md) | ศัตรูชั้นยอด: เกราะทอง | overlay ทับศัตรูทุกตัว | - |
-| 2 | [`elite-swift`](elite-swift.md) | ศัตรูชั้นยอด: ก้าวลม | overlay ทับศัตรูทุกตัว | - |
-| 2 | [`elite-undying`](elite-undying.md) | ศัตรูชั้นยอด: ฟื้นคืน | overlay ทับศัตรูทุกตัว | - |
 | 3 | [`fx-metal`](fx-metal.md) | เอฟเฟกต์ธาตุโลหะ 金 | VFX | - |
 | 3 | [`fx-wood`](fx-wood.md) | เอฟเฟกต์ธาตุไม้ 木 | VFX | - |
 | 3 | [`fx-water`](fx-water.md) | เอฟเฟกต์ธาตุน้ำ 水 | VFX | - |
 | 3 | [`fx-fire`](fx-fire.md) | เอฟเฟกต์ธาตุไฟ 火 | VFX | - |
 | 3 | [`fx-earth`](fx-earth.md) | เอฟเฟกต์ธาตุดิน 土 | VFX | - |
 | 3 | [`fx-yinyang`](fx-yinyang.md) | เอฟเฟกต์ธาตุหยินหยาง ☯ | VFX | - |
-| 3 | [`art-heaven_sword`](art-heaven_sword.md) | ไม้ตาย: กระบี่สวรรค์ทลายฟ้า | VFX เต็มจอ | - |
-| 3 | [`art-time_incense`](art-time_incense.md) | ไม้ตาย: ธูปหยุดกาล | VFX เต็มจอ | - |
-| 3 | [`art-silver_rain`](art-silver_rain.md) | ไม้ตาย: ฝนตำลึงเงิน | VFX เต็มจอ | - |
-| 3 | [`art-lion_roar`](art-lion_roar.md) | ไม้ตาย: สิงห์คำราม | VFX เต็มจอ | - |
 | 6 | [`combo-frozen_blade`](combo-frozen_blade.md) | ยุทธ์ผสาน: กระบี่เหมันต์ | ตัวละครร่างผสาน | - |
 | 6 | [`combo-thorn_sword`](combo-thorn_sword.md) | ยุทธ์ผสาน: กระบี่หนามพิษ | ตัวละครร่างผสาน | - |
 | 6 | [`combo-molten_edge`](combo-molten_edge.md) | ยุทธ์ผสาน: คมดาบหลอมเหลว | ตัวละครร่างผสาน | - |

@@ -43,8 +43,7 @@ export function plan(m = manifest()) {
     jobs.push({ key: `${a.kind}:${a.id}`, kind: a.kind, asset: a, size: a.size, dirs: a.kind === 'character' ? 8 : 1, done: SPRITES + done });
   }
   for (const a of m.assets.filter((x) => x.kind === 'character')) {
-    const who = a.role === 'enemy' ? 'enemy' : 'disciple';
-    for (const an of m.animations[who])
+    for (const an of m.animations.disciple)
       for (const dir of an.directions)
         jobs.push({ key: `anim:${a.id}:${an.name}:${dir}`, kind: 'animation', asset: a, anim: an, dir, size: a.size, est: an.estPerDirection, done: SPRITES + `board/${a.id}/anim/${an.name}/${dir}/0.png` });
   }

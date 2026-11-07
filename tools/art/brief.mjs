@@ -21,17 +21,6 @@ const READ = {
   fire: 'ยืนกว้าง พัดกางเป็นครึ่งวงกลมสีส้มทอง เป็น silhouette กว้างที่สุดในหกสำนัก',
   earth: 'ไหล่กว้าง หัวโล้น พลองยาวเกินความสูงตัว เป็นตัวที่ "หนัก" ที่สุด ท่า idle ทิ้งน้ำหนักลงพื้น',
   yinyang: 'นั่งสมาธิลอยเหนือพื้นเล็กน้อย มีไท่จี๋หมุนลอยเหนือหัว ขาวดำตัดกันแรง ถือแส้ปัดฝุ่น',
-  cultist: 'ทหารพื้นฐาน อ่านง่ายที่สุด ชุดแดงเลือดหมู ผ้าคาดแดง ใช้เป็นฐานสัดส่วนของศัตรูทุกตัว',
-  runner: 'ตัวเล็ก ก้มตัวไปข้างหน้า ผ้าคาดหัวแดงปลิว ต้องมีเฟรม "พุ่ง" ที่ยืดตัวยาว ให้เห็นว่ากำลังพุ่ง 2 ช่อง',
-  brute: 'ใหญ่กว่าคนอื่น 1.3 เท่า เกราะเหล็กเห็นชัด (เทาเหล็กมีขอบสว่าง) โดนตีแล้วมีประกายเกราะ บอกว่าดาเมจโดนหัก',
-  leaper: 'ศัตรูบิน: ตัวลอย มีเงาวงรีบนพื้นห่างจากตัว ฮู้ดเขียวเข้ม ท่าเดินคือกระโดดเป็นจังหวะ ห้ามสับสนกับศัตรูพื้น',
-  puppet: 'หุ่นศพ ผิวซีดเทาฟ้า หมวกขุนนาง แขนยื่นตรง ต้องมีเวอร์ชันเล็ก (32×40) ตอนแตกเป็น 3 ตัว',
-  assassin: 'ล่องหน: ต้องอ่านออกทั้งสองสถานะ ปกติ = โครงดำทึบเห็นแค่ตาและใบมีด, ล่องหน = เหลือแค่เส้นขอบ 1px (เอนจินทำความโปร่งและกระพริบเอง ศิลปินวาดพิกเซลทึบ), ถูกเปิดเผย = ขอบขาวดำ (หอไท่จี๋)',
-  healer: 'ภิกษุโลหิต หัวโล้น จีวรแดงเข้ม ไม้เท้าทอง มีวงแสงแดงจางรอบตัวตอนฟื้นเลือด ให้ผู้เล่นรู้ว่าต้องฆ่าก่อน',
-  mimic: 'ศิษย์ทรยศ ชุดคล้ายศิษย์สำนัก แต่สีหม่น ขอบเปลี่ยนสีตามธาตุที่ต้านอยู่ (ใช้ palette swap ไม่ต้องวาดใหม่)',
-  boss_ch1: 'ราชาโจร ตัวใหญ่ หลายแขนถืออาวุธลับ เฟส 75/50/25% ขว้างอาวุธ: ท่าง้างแขนทั้งหมดพร้อมกัน',
-  boss_ch1b: 'ทูตจันทร์โลหิต ฮู้ด หน้ากากทอง จันทร์แดงด้านหลัง แต่ละเฟสผนึกหนึ่งสำนัก: จันทร์เปลี่ยนเป็นสีธาตุที่ถูกผนึก',
-  boss_final: 'จอมมาร ขาวดำ สูงที่สุดในเกม ไท่จี๋ใหญ่ด้านหลัง ดูดธาตุทีละเฟส: ชุดและออร่าเปลี่ยนเป็นสีธาตุที่ดูดอยู่',
 };
 
 const swatches = (groups, pal) => groups.map((g) => `**${g}:** ${pal[g].map((c) => `\`${c}\``).join(' ')}`).join('<br>');
@@ -53,7 +42,7 @@ function card({ id, title, batch, kind, element, rows, mockup, notes }) {
 }
 
 export function cards() {
-  const sects = data('sects'), enemies = data('enemies'), fx = data('effects'), items = data('items'), heroes = data('heroes');
+  const sects = data('sects'), fx = data('effects'), heroes = data('heroes');
   const pal = fx.render.palette, A = fx.animations;
   const [cw, ch] = SPEC_V1.character, [bw, bh] = SPEC_V1.boss;
   const out = [];
@@ -71,31 +60,6 @@ export function cards() {
       ],
     });
   }
-  for (const e of enemies.enemies) {
-    out.push({
-      id: e.id, title: e.nameTh, batch: 2, kind: e.layer === 'air' ? 'ศัตรูบิน' : 'ศัตรูพื้น', element: e.element, mockup: true, notes: READ[e.id],
-      rows: [
-        ['ชื่อ (EN)', e.name], ['ลักษณะในเกม', e.traitTh], ['palette', swatches(['shared', 'enemy', e.element], pal)],
-        ['ขนาดเฟรม', `${cw}×${ch}`], ['ท่า', anims(A.enemy)], ['ไฟล์ส่ง', deliver(e.id, A.enemy)],
-      ],
-    });
-  }
-  for (const b of enemies.bosses) {
-    out.push({
-      id: b.id, title: b.nameTh, batch: 2, kind: `บอส บท ${b.chapter} wave ${b.wave}`, element: b.element, mockup: true, notes: READ[b.id],
-      rows: [
-        ['ชื่อ (EN)', b.name], ['กลไก', b.mechanic], ['palette', swatches(['shared', 'enemy', b.element], pal)],
-        ['ขนาดเฟรม', `${bw}×${bh}`], ['ท่า', anims(A.boss)], ['ไฟล์ส่ง', deliver(b.id, A.boss)],
-      ],
-    });
-  }
-  for (const a of enemies.elites.affixes) {
-    out.push({
-      id: `elite-${a.id}`, title: `ศัตรูชั้นยอด: ${a.nameTh}`, batch: 2, kind: 'overlay ทับศัตรูทุกตัว',
-      notes: 'ทำเป็นชั้นทับ (ขอบสี + ออร่า 4 เฟรมวนซ้ำ) ใช้กับศัตรูได้ทุกตัว ไม่วาดศัตรูใหม่',
-      rows: [['ผลในเกม', a.traitTh], ['สีขอบ', `\`${a.outline}\``], ['ขนาดเฟรม', `${cw}×${ch} (เท่าศัตรู)`], ['ไฟล์ส่ง', `\`elite-${a.id}.aseprite\` + \`elite-${a.id}_loop.png\``]],
-    });
-  }
   for (const [el, f] of Object.entries(fx.sects)) {
     out.push({
       id: `fx-${el}`, title: `เอฟเฟกต์ธาตุ${ELEMENT_TH[el]}`, batch: 3, kind: 'VFX', element: el,
@@ -104,12 +68,6 @@ export function cards() {
         ['สถานะบนศัตรู', f.status], ['particle สูงสุด', f.particles], ['palette', swatches(['shared', el], pal)],
         ['ไฟล์ส่ง', `\`fx-${el}.aseprite\` + \`fx-${el}_projectile.png\`, \`fx-${el}_impact.png\`, \`fx-${el}_status.png\``],
       ],
-    });
-  }
-  for (const a of items.secretArts.items) {
-    out.push({
-      id: `art-${a.id}`, title: `ไม้ตาย: ${a.nameTh}`, batch: 3, kind: 'VFX เต็มจอ',
-      rows: [['อักษรประจำ', a.glyph], ['ผล', a.effectTh], ['ไอคอนปุ่ม', '16×16 + ตัวอักษรจีนบนตราประทับ'], ['ไฟล์ส่ง', `\`art-${a.id}.aseprite\` + \`art-${a.id}_play.png\` + \`art-${a.id}_icon.png\``]],
     });
   }
   for (const c of sects.comboTechniques.items) {

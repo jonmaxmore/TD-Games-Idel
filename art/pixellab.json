@@ -1,14 +1,10 @@
 {
- "_notes": "PixelLab input for npm run art:pixellab (tools/art/pixellab.mjs, ADR 0009). One entry per asset. kind: character (board figure, 8 directions, create-character-pro-flash), object (board prop, 1 direction, create-object-pro-flash) or card (HUD/lobby/cut-in art, create-image-pro-flash). id: a unit id from sects.json > roster.units, an enemy or boss id from enemies.json (role: enemy), or a prop type from maps.json > propTypes (gate = the sect gate). size: 96 on the board, 128 for cards. palette: groups from effects.json > render.palette; colors: extra palette colours. animations: what each character gets once its figure exists (template mode bills 1 per direction under 100 px; estPerDirection is PixelLab's published price for the others). vfx: one effect per kit and per notable technique (/vfx, lite artist, 1 each), saved to art/vfx/. defaults.styleImage: an approved sprite (path from the repo root) every generation copies outline and shading from; null until one is approved. Output: packages/client/public/sprites/board/<id>/<direction>.png, board/<id>/anim/<name>/<direction>/<n>.png and card/<id>.png. Names in prompts are original; no Jin Yong / Gu Long names.",
+ "_notes": "PixelLab input for npm run art:pixellab (tools/art/pixellab.mjs, ADR 0009). One entry per asset. kind: character (board figure, 8 directions, create-character-pro-flash), object (board prop, 1 direction, create-object-pro-flash) or card (HUD/lobby/cut-in art, create-image-pro-flash). id: a unit id from sects.json > roster.units, or a scenery prop the castle field draws (packages/client/src/board.ts PROP_ART). size: 96 on the board, 128 for cards. palette: groups from effects.json > render.palette; colors: extra palette colours. animations: what each character gets once its figure exists (template mode bills 1 per direction under 100 px; estPerDirection is PixelLab's published price for the others). vfx: one effect per kit and per notable technique (/vfx, lite artist, 1 each), saved to art/vfx/. defaults.styleImage: an approved sprite (path from the repo root) every generation copies outline and shading from; null until one is approved. Output: packages/client/public/sprites/board/<id>/<direction>.png, board/<id>/anim/<name>/<direction>/<n>.png and card/<id>.png. Names in prompts are original; no Jin Yong / Gu Long names.",
  "defaults": {"view": "low top-down", "seed": 7, "outline": ["#120A0C", "#1A1418", "#E9C9A4"], "styleImage": null, "vfxSize": 96},
  "animations": {
   "disciple": [
    {"name": "attack", "template": "attack", "directions": ["south", "east", "north", "west"], "estPerDirection": 1},
    {"name": "cast", "mode": "pixminimax", "action": "raises one hand and releases a burst of inner energy", "frames": 8, "directions": ["south", "east", "north", "west"], "estPerDirection": 2}
-  ],
-  "enemy": [
-   {"name": "walk", "template": "walking", "directions": ["south", "east", "north", "west"], "estPerDirection": 1},
-   {"name": "hurt", "mode": "pixminimax", "action": "flinches back from a heavy hit", "frames": 8, "directions": ["south", "east", "north", "west"], "estPerDirection": 2}
   ]
  },
  "vfx": [
@@ -24,12 +20,7 @@
   {"id": "earth-hit", "prompt": "small earth impact burst when a a spinning brown rock chunk hits, pixel art game effect"},
   {"id": "wood-hit", "prompt": "small wood impact burst when a a green poison leaf dart hits, pixel art game effect"},
   {"id": "yinyang-hit", "prompt": "small yinyang impact burst when a a black and white swirling orb hits, pixel art game effect"},
-  {"id": "execute", "prompt": "a single red diagonal sword slash with a white leading edge, pixel art game effect"},
-  {"id": "wildfire", "prompt": "a ring of fire rolling outward on the ground with embers, pixel art game effect"},
   {"id": "bell", "prompt": "a golden temple bell shockwave, two gold rings expanding on the ground, pixel art game effect"},
-  {"id": "freeze", "prompt": "an enemy frozen in a pale blue ice block with flying ice shards, pixel art game effect"},
-  {"id": "root", "prompt": "green thorny vines bursting out of the ground and closing in, pixel art game effect"},
-  {"id": "phoenix", "prompt": "a flaming orange-red phoenix sweeping across with a trail of fire, pixel art game effect"},
   {"id": "death-puff", "prompt": "a small dark red smoke puff when an enemy falls, pixel art game effect"}
  ],
  "assets": [
@@ -61,27 +52,10 @@
   {"id": "jade_bamboo_banner", "kind": "card", "size": 128, "palette": ["shared", "wood"], "prompt": "young wuxia standard-bearer of a bamboo forest sect carrying a tall bamboo pole with a green leaf banner, pale green tunic, straw sandals, full body standing, original character, seen from a low top-down angle, facing the viewer"},
   {"id": "jade_bamboo_blade", "kind": "character", "size": 96, "palette": ["shared", "wood"], "prompt": "young wuxia swordsman of a bamboo forest sect with a thin sword edged with green thorns, dark green robe, bamboo leaf hairpin, full body standing, original character"},
   {"id": "jade_bamboo_blade", "kind": "card", "size": 128, "palette": ["shared", "wood"], "prompt": "young wuxia swordsman of a bamboo forest sect with a thin sword edged with green thorns, dark green robe, bamboo leaf hairpin, full body standing, original character, seen from a low top-down angle, facing the viewer"},
-  {"id": "cultist", "kind": "character", "size": 96, "palette": ["shared", "enemy"], "prompt": "cult footman enemy of a demonic sect, dark hooded robe with a red sash, masked face, carrying a curved sickle, menacing, full body standing, original character", "role": "enemy"},
-  {"id": "runner", "kind": "character", "size": 96, "palette": ["shared", "enemy"], "prompt": "small agile bandit enemy leaning forward mid dash, dark green tunic, red headband streaming behind, short knife, full body, original character", "role": "enemy"},
-  {"id": "brute", "kind": "character", "size": 96, "palette": ["shared", "enemy", "metal"], "prompt": "huge broad iron shirt brute enemy wearing riveted grey iron armour plates, bare thick arms, heavy fists, full body standing, original character", "role": "enemy"},
-  {"id": "leaper", "kind": "character", "size": 96, "palette": ["shared", "enemy"], "prompt": "rooftop leaper enemy in a dark green hood mid jump, knees tucked, cloak spread like wings, floating above the ground, full body, original character", "role": "enemy"},
-  {"id": "puppet", "kind": "character", "size": 96, "palette": ["shared", "enemy", "water"], "prompt": "corpse puppet enemy with pale grey-blue skin, an official's tall hat, stiff arms held straight forward, tattered dark robe, full body standing, original character", "role": "enemy"},
-  {"id": "assassin", "kind": "character", "size": 96, "palette": ["shared", "enemy"], "prompt": "shadow assassin enemy wrapped in solid black, only the eyes and a short blade showing, crouched ready to strike, full body, original character", "role": "enemy"},
-  {"id": "healer", "kind": "character", "size": 96, "palette": ["shared", "enemy"], "prompt": "blood monk enemy, bald head, dark red monk robe, golden ringed staff, faint red glow around the body, full body standing, original character", "role": "enemy"},
-  {"id": "mimic", "kind": "character", "size": 96, "palette": ["shared", "enemy"], "prompt": "traitor sect disciple enemy in a faded dull grey martial robe like a sect uniform, a cracked hand mirror on the belt, sly pose, full body standing, original character", "role": "enemy"},
-  {"id": "boss_ch1", "kind": "character", "size": 96, "palette": ["shared", "enemy", "wood"], "prompt": "bandit king boss with many arms each holding a hidden throwing weapon, heavy fur-trimmed green and brown coat, broad and tall, full body standing, original character", "role": "enemy"},
-  {"id": "boss_ch1b", "kind": "character", "size": 96, "palette": ["shared", "enemy", "fire"], "prompt": "blood moon envoy boss, tall hooded figure with a golden mask and a red moon halo behind the head, long dark crimson robe, full body standing, original character", "role": "enemy"},
-  {"id": "boss_final", "kind": "character", "size": 96, "palette": ["shared", "enemy", "yinyang"], "prompt": "demon sovereign final boss, towering figure in stark black and white robes, a large dark taiji symbol floating behind, cold glowing eyes, full body standing, original character", "role": "enemy"},
   {"id": "house", "kind": "object", "size": 96, "palette": ["env", "board"], "prompt": "small wooden ancient chinese village house with dark grey tiled roof, paper window with warm light, game map prop"},
   {"id": "tree", "kind": "object", "size": 96, "palette": ["env", "wood"], "prompt": "single tall dark green pine tree with layered branches and a short brown trunk, game map prop"},
-  {"id": "shrine", "kind": "object", "size": 96, "palette": ["env", "board"], "prompt": "small red wooden roadside shrine with a dark tiled roof and a gold ornament, game map prop"},
   {"id": "rock", "kind": "object", "size": 96, "palette": ["env", "board"], "prompt": "large dark grey mountain boulder with a flat lit top, game map prop"},
   {"id": "bamboo", "kind": "object", "size": 96, "palette": ["env-bamboo", "wood"], "prompt": "clump of three tall green bamboo stalks with small leaves, game map prop"},
-  {"id": "ice", "kind": "object", "size": 96, "palette": ["env-ice"], "prompt": "block of pale blue glacier ice with a bright glint, game map prop"},
-  {"id": "stall", "kind": "object", "size": 96, "palette": ["env", "board"], "prompt": "small market stall with a red and white striped awning on wooden posts and fruit on the counter, game map prop"},
-  {"id": "ruin", "kind": "object", "size": 96, "palette": ["env", "board", "yinyang"], "prompt": "broken grey stone temple pillars and rubble, ancient ruin, game map prop"},
-  {"id": "lantern", "kind": "object", "size": 96, "palette": ["env", "board", "shared"], "prompt": "red paper lantern glowing warm orange hanging from a dark wooden post, game map prop"},
-  {"id": "flag", "kind": "object", "size": 96, "palette": ["env", "board", "yinyang"], "prompt": "tall pole with a dark red sect banner and a gold emblem, game map prop"},
-  {"id": "gate", "kind": "object", "size": 96, "palette": ["env", "board"], "prompt": "dark red wooden sect gate shaped like a torii, two posts and a curved top beam with a gold plaque, game map prop"}
+  {"id": "lantern", "kind": "object", "size": 96, "palette": ["env", "board", "shared"], "prompt": "red paper lantern glowing warm orange hanging from a dark wooden post, game map prop"}
  ]
 }
