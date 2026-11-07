@@ -2,7 +2,7 @@
 // calls waves early and one that does not.  npm run sim:measure   (MEASURE_SEEDS, MEASURE_STAGES, MEASURE_LEGACY=0, MEASURE_DETAIL=1,
 // MEASURE_BRANCH=a|b forces that tier-3 branch (MEASURE_BRANCH_KIT=wood: only on that kit, the rest a), MEASURE_EARLY=yes|no plays only that bot,
 // MEASURE_POLICY=greedy,rush,tall,wide,eco plays those bot styles (bot.ts POLICIES; rush overrides MEASURE_EARLY))
-import { playStage, POLICIES } from '../test/bot';
+import { playStage, POLICIES, type PlayOpts } from '../test/bot';
 
 const env = process.env;
 const stagesToRun = env.MEASURE_STAGES ? env.MEASURE_STAGES.split(',') : ['1-1', '1-2', '1-4', '1-6', '1-9', '1-10', '1-12', 'T-1'];
@@ -20,7 +20,7 @@ for (const pol of policies)
 for (const st of stagesToRun)
   for (const sect of sectsToRun)
     for (const early of earlies) {
-      const opts = { earlyCall: early, ...POLICIES[pol], branch, branchKit };
+      const opts: PlayOpts = { earlyCall: early, ...POLICIES[pol], branch, branchKit };
       const runs = seeds.map((seed) => playStage(st, seed, sect, opts));
       if (env.MEASURE_DETAIL === '1') console.log('  ' + runs.map((r, i) => `${seeds[i]}:${r.phase === 'won' ? 'W' : 'L'}${r.wave}`).join(' '));
       const wins = runs.filter((r) => r.phase === 'won').length;
