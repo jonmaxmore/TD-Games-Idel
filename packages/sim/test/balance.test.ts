@@ -4,7 +4,7 @@
 // npm run sim:measure prints the full table these gates were tuned from.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { comboDmgPct, combos, createDefend, isOver, sects, stepDefend, type Command, type SimEvent } from '../src';
-import { bestTiles, playStage } from './bot';
+import { bestTiles, playStage, POLICIES } from './bot';
 import { NEXT, place, up } from './helpers';
 
 const SEEDS = [1, 2, 3, 4];
@@ -116,4 +116,9 @@ describe('balance', () => {
     });
   }
   it('story fire and wood finales are within 15 points', () => expect(Math.abs(finale.fire! - finale.wood!)).toBeLessThanOrEqual(0.15));
+});
+
+describe('bot policies', () => {
+  for (const [name, o] of Object.entries(POLICIES))
+    it(`the ${name} bot wins 1-1 as fire`, () => expect(playStage('1-1', 1, 'fire', o).phase).toBe('won'));
 });

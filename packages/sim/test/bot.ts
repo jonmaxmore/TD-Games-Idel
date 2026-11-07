@@ -1,6 +1,6 @@
 // Simple greedy player used for balance checks and golden replays: builds on the tiles that cover the most path,
 // alternates the unlocked sects, and upgrades once it has enough disciples.
-import { canBuild, createDefend, defOf, grid, hasBranchB, isOver, placeCost, stepDefend, tileRange, tilesOnPath, units, upgradeCost, waveRecipes, type Branch, type Command, type DefendState } from '../src';
+import { canBuild, createDefend, defOf, economy, grid, hasBranchB, isOver, placeCost, stepDefend, tileRange, tilesOnPath, units, upgradeCost, waveRecipes, type Branch, type Command, type DefendState } from '../src';
 
 // A tile scores the path tiles it reaches, counted once per path through them, so the shared stretch every enemy walks
 // beats a pocket that guards a single entrance. Ties go to the tile that reaches furthest up a path (meets enemies first).
@@ -22,7 +22,18 @@ export function bestTiles(s: DefendState, range = 2500, lane: number | null = nu
 // branch: send this tier-3 branch on every upgrade to tier 3 (a kit without branch b gets a). Unset, the upgrade
 // carries no branch and the rules play branch a, so the default bot's commands and the goldens stay as they were.
 // branchKit: force branch only on that kit's disciples, the rest take a.
-export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean; branch?: Branch; branchKit?: string }
+export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean; branch?: Branch; branchKit?: string; eco?: boolean }
+
+// Play styles for balance reviews (game-design-review §3: never conclude balance from one policy).
+// eco: after the first three placements, keep enough silver banked to earn this wave's full interest cap.
+export const POLICIES: Record<string, PlayOpts> = {
+  greedy: {},
+  rush: { earlyCall: true },
+  tall: { maxDisciples: 4 },
+  wide: { maxDisciples: 12 },
+  eco: { eco: true },
+};
+const interestReserve = (s: DefendState) => Math.ceil((economy.interestCap + economy.interestCapPerWave * s.wave) * 100 / economy.interestPct);
 
 // earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
 // One decision per tick; `mem.placed` counts placements so the bot rotates through its sects.
@@ -40,13 +51,14 @@ export function botCommands(s: DefendState, o: PlayOpts = {}, mem = { placed: 0 
   for (const d of s.disciples) if (d.level < lowest!.level) lowest = d;
   // Past the cap, keep spending: once every disciple is maxed, place more instead of hoarding silver.
   const allMaxed = lowest != null && lowest.level >= 3;
+  const silver = s.silver - (o.eco && mem.placed >= 3 && !urgent ? interestReserve(s) : 0);
   const wantPlace = urgent || mem.placed < 3 || ((mem.placed < maxDisciples || allMaxed) && (lowest == null || lowest.level >= 2));
   if (wantPlace) {
     // On separate lanes (paths that meet only at the gate) a player splits the defence: placement n guards lane n mod lanes.
     const lane = separateLanes(s) ? mem.placed % s.layout.paths.length : null;
     const spots = bestTiles(s, tileRange(s, defOf(sect).range, [units.get(sect)?.sect ?? sect], -1, -1), lane); // sees the fog's cap
-    if (spots.length > 0 && s.silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); mem.placed++; }
-  } else if (lowest != null && lowest.level < 3 && s.silver >= upgradeCost(lowest)) {
+    if (spots.length > 0 && silver >= placeCost(sect)) { cmds.push({ t: 'place', sect, tx: spots[0]!.tx, ty: spots[0]!.ty }); mem.placed++; }
+  } else if (lowest != null && lowest.level < 3 && silver >= upgradeCost(lowest)) {
     const up: Command = { t: 'upgrade', id: lowest.id };
     if (o.branch != null && lowest.level === 2) up.branch = o.branch === 'b' && hasBranchB(lowest.els[0]!) && (o.branchKit == null || o.branchKit === lowest.els[0]) ? 'b' : 'a';
     cmds.push(up);
