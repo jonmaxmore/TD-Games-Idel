@@ -1,21 +1,15 @@
-// The decks a player can take into a match: one per sect with a roster (its own cards, topped up to 8 with other sects'
-// guards) and the mixed deck the bots are balanced on. Each names the deck the AI answers with.
-import { battleUnits, sects } from '@five-sects/sim';
+// The decks a player can take into a match: each sect's preset of its own cards (battle.json > sectDecks) and the mixed
+// deck the bots are balanced on. Each names the deck the AI answers with.
+import { battle, battleUnits, sects } from '@five-sects/sim';
 import { DECK } from '../../sim/test/battleBot';
 
 export const DECK_SIZE = 8;
 export interface DeckChoice { id: string; nameTh: string; color: string; cards: string[]; vs: string }
 
-const all = [...battleUnits.values()];
-const sectIds = [...new Set(all.map((u) => u.sect))];
-const sectDeck = (sect: string): string[] => {
-  const own = all.filter((u) => u.sect === sect).map((u) => u.id);
-  const guards = all.filter((u) => u.sect !== sect && u.move === 'guard').map((u) => u.id);
-  return [...own, ...guards].slice(0, DECK_SIZE);
-};
+const sectIds = [...battle.sectDecks.keys()];
 
 export const DECKS: DeckChoice[] = [
-  ...sectIds.map((sect, i) => ({ id: sect, nameTh: sects.get(sect)!.nameTh, color: sects.get(sect)!.color, cards: sectDeck(sect), vs: sectIds[(i + 1) % sectIds.length]! })),
+  ...sectIds.map((sect, i) => ({ id: sect, nameTh: sects.get(sect)!.nameTh, color: sects.get(sect)!.color, cards: [...battle.sectDecks.get(sect)!], vs: sectIds[(i + 1) % sectIds.length]! })),
   { id: 'mixed', nameTh: 'สำรับผสม', color: '#E3B04B', cards: [...DECK], vs: 'mixed' },
 ];
 

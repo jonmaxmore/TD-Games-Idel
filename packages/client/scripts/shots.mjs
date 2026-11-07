@@ -43,6 +43,11 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   await p.locator('.deck-row', { hasText: 'สำรับผสม' }).click();
   await sleep(200);
   await shot(p, '03-deck-mixed');
+  for (const sect of ['metal', 'water', 'earth']) {
+    await p.locator(`.deck-row[data-id=${sect}]`).click();
+    await sleep(150);
+    await shot(p, `03-deck-${sect}`);
+  }
   await p.getByRole('button', { name: 'เข้าสู่ศึก' }).click();
   await p.waitForFunction(() => window.__game?.s);
   await sleep(600);
@@ -57,7 +62,7 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   await sleep(1500);
   await shot(p, '10-early');
   const at = (d) => p.evaluate((d) => window.__pathClient(d), d);
-  await p.keyboard.press('6'); // the banner (1 mana)
+  await p.keyboard.press('1'); // the banner (1 mana)
   const zone = 4000;
   let pt = await at(zone - 1500);
   await p.mouse.move(pt.x, pt.y);
@@ -77,7 +82,7 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   await shot(p, '14-summoned');
   // Drag the blade card (2 mana) onto the road.
   await p.waitForFunction(() => window.__game.s.mana[0] >= 2, null, { timeout: 20000 });
-  const card = await p.locator('.card').nth(6).boundingBox();
+  const card = await p.locator('.card').nth(1).boundingBox();
   await p.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
   await p.mouse.down();
   pt = await at(zone - 2500);
@@ -95,6 +100,19 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   await shot(p, '16-bell-cutin');
   await sleep(400);
   await shot(p, '17-bell-after');
+  // Under siege: an enemy stands on our castle, yet the gate stays tinted and a click there summons.
+  await p.evaluate(() => { for (const u of window.__game.s.units) if (u.side === 1) u.d = 600; });
+  await p.waitForFunction(() => window.__game.s.mana[0] >= 1, null, { timeout: 20000 });
+  await p.keyboard.press('1');
+  pt = await at(1200);
+  await p.mouse.move(pt.x, pt.y);
+  await sleep(250);
+  await shot(p, '18-gate-under-siege');
+  const before = await p.evaluate(() => window.__game.s.units.filter((u) => u.side === 0).length);
+  await p.mouse.click(pt.x, pt.y);
+  await p.waitForFunction((n) => window.__game.s.units.filter((u) => u.side === 0).length > n, before, { timeout: 5000 });
+  await sleep(300);
+  await shot(p, '19-gate-summoned');
   await ctx.close();
 }
 
@@ -128,6 +146,18 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   const vid = readdirSync(dir).find((f) => f.endsWith('.webm'));
   if (vid) renameSync(dir + vid, out + 'bot-match.webm');
   rmSync(dir, { recursive: true, force: true });
+}
+
+// 3b) Sect decks bot vs bot at x4: the first large unit and the first flier on the field.
+for (const [deck, seed] of [['fire', 5], ['earth', 7]]) {
+  const { ctx, p } = await open(`?mode=battle&bot=1&speed=4&seed=${seed}&deck=${deck}`, `sect-${deck}`);
+  await p.waitForFunction(() => window.__game?.s, null, { timeout: 30000 });
+  await p.waitForFunction(() => window.__game.s.units.some((u) => /_(beast|warden|elder|naga|guardian)$/.test(u.card)), null, { timeout: 120000, polling: 'raf' });
+  await sleep(500);
+  await shot(p, `24-large-${deck}`);
+  await sleep(1500);
+  await shot(p, `25-large-${deck}-fight`);
+  await ctx.close();
 }
 
 // 4) Frame rate at x4 without the video recorder, sampled once a second: a busy bot match (seed 12 peaks at 13 units), then a
