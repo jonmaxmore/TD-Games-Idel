@@ -21,7 +21,7 @@ export const ALL: Record<string, () => Golden> = {
   '1-1': () => golden('1-1', 42),
   'T-1': () => golden('T-1', 7),
   'T-1-actions': () => actions(11),
-  // Chapter finale won by the fire sect: both boss waves (disable at 10, seal at 20), healers, stealth, wave recipes.
+  // Chapter finale played by the fire sect through both boss waves (disable at 10, seal at 20; seed 1 falls at the seal), healers, stealth, wave recipes.
   '1-12-bosses': () => golden('1-12', 1, false, 'fire'),
   // Sect games with waves called mid-fight: fire roster (burn ramp, striker burn, phoenix), wood roster (poison
   // spread, poison through armour). Seeds chosen so both reach and win wave 20 (SPEC-core §4).

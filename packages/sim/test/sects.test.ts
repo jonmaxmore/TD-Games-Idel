@@ -47,6 +47,26 @@ describe('rosters', () => {
   };
   it('fire: a burn that keeps going hits harder', () => expect(burnLoss('fire')).toBeGreaterThan(burnLoss(null)));
 
+  // A tier-2 burst (fire kit: burning deaths explode) far from the path, so only the blast touches the neighbour.
+  const blast = (sect: string, unit: string, dot: Partial<Enemy>) => {
+    const s = createDefend('1-12', 1, sect);
+    s.silver = 100000;
+    stepDefend(s, [place(unit, 0, 0), NEXT]);
+    stepDefend(s, [up(s.disciples[0]!.id)]);
+    while (s.enemies.length < 2) stepDefend(s, []);
+    s.disciples[0]!.cd = 100000;
+    const [a, b] = [s.enemies[0]!, s.enemies[1]!];
+    Object.assign(b, { path: a.path, d: a.d, x: a.x, y: a.y, hp: 100000, maxHp: 100000, burnT: 0, poison: 0 });
+    Object.assign(a, dot, { hp: 0 });
+    stepDefend(s, []);
+    return 100000 - b.hp;
+  };
+  it('fire: a burning enemy that dies blasts its neighbours harder than the kit alone', () => {
+    const wood = blast('wood', 'jade_bamboo_burst', { poison: 2, poisonT: 40, poisonDps: 10 });
+    expect(wood).toBeGreaterThan(0);
+    expect(blast('fire', 'crimson_phoenix_burst', { burnT: 40, burnDps: 6 })).toBeGreaterThan(wood);
+  });
+
   it('wood: a poisoned enemy that dies poisons its neighbours', () => {
     const s = createDefend('1-12', 1, 'wood');
     stepDefend(s, [NEXT]);

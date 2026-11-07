@@ -131,6 +131,29 @@ describe('tier-3 branches', () => {
     }
   });
 
+  it('fire b: the wildfire splash burns hotter, so it raises the burn of an enemy already burning', () => {
+    const burnAfter = (branch: Branch, pre: Partial<Enemy>) => {
+      const { s, foe } = tier3('fire', branch);
+      const target = foe(0, 0, pre);
+      run(s, 1);
+      return target.burnDps;
+    };
+    const plain = burnAfter('a', { burnDps: 0 }); // what the fire splash sets on a fresh enemy at tier 3
+    expect(plain).toBeGreaterThan(0);
+    const lit = { burnT: 60, burnDps: plain };
+    expect(burnAfter('a', lit), 'a adds nothing to a burn this hot').toBe(plain);
+    expect(burnAfter('b', lit), 'b raises it').toBeGreaterThan(plain);
+  });
+
+  it('fire a: the phoenix sweep never cuts a longer burn short', () => {
+    const { s, d, foe } = tier3('fire', 'a');
+    const far = foe(20000, 0, { burnT: 200, burnDps: 1 }); // out of the disciple's range: only the sweep reaches it
+    d.pushT = 20 * 20 - 1;
+    expect(run(s, 1).some((e) => e.e === 'phoenix')).toBe(true);
+    expect(far.burnT).toBeGreaterThan(60);
+    expect(far.burnDps).toBeGreaterThan(1);
+  });
+
   it('earth: a widens the bell to r 2 for 1 s; b keeps r 1 and stuns twice as long as the bell', () => {
     for (const branch of ['a', 'b'] as const) {
       const { s, d, foe } = tier3('earth', branch);

@@ -87,7 +87,7 @@ export const branchB = {
   executeBelowPct: ruleB('metal').belowHpPct as number, executeDmgPct: ruleB('metal').dmgPct as number,
   rootEvery: ticks(ruleB('wood').everySec), rootTicks: ticks(ruleB('wood').rootSec), rootTakenPct: ruleB('wood').takenPct as number,
   freezeEvery: ruleB('water').freezeEvery as number,
-  splashPct: ruleB('fire').splashPct as number, burnPct: ruleB('fire').burnPct as number,
+  splashPct: ruleB('fire').splashPct as number, burnPct: ruleB('fire').burnPct as number, dpsPct: ruleB('fire').dpsPct as number,
   bellStunPct: ruleB('earth').stunPct as number,
 };
 
@@ -100,6 +100,7 @@ export const rosterSects: string[] = [];
 export const sectRules = {
   fireRampPctPerSec: J(S.roster.rules.fire.burnRampPctPerSec) as number,
   fireRampMaxPct: J(S.roster.rules.fire.burnRampMaxPct) as number,
+  fireExplodeDmg: J(S.roster.rules.fire.explodeDmg) as number, // the sect's blast when a burning enemy dies (the kit alone: 30)
   woodSpreadRange: Math.round(S.roster.rules.wood.spreadRange * TILE),
   woodSpreadStacks: J(S.roster.rules.wood.spreadStacks) as number,
 };
