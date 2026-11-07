@@ -4,6 +4,7 @@
 // Positions are path distances in milli-tiles from side 0's castle; fwd() turns one into a side's own depth.
 import { battle as B, battleCardIds, battleUnits, type BattleUnitDef } from './data';
 import { div, fnv1a, nextRandom, pathLength, pointAt, rollPct, toMilli, wuxingPct } from './core';
+import { abilityUnlocked, cardStats, progression, townBonus, type Progress } from './progression';
 
 export type Side = 0 | 1;
 // d: depth from the side's own castle. redraw: deal the drawn part of the hand again, only before the first tick.
@@ -13,8 +14,11 @@ export type BattleCommand =
   | { t: 'cannon'; side: Side; d: number }
   | { t: 'redraw'; side: Side };
 // A side's team: the cards it owns (collection), the owned cards kept out of the draw (bench), its leader and sub-leader.
-// hand: a fixed hand used as dealt, with no redraw (unit tests, scripted PvE sides).
-export interface BattleSetup { leader: string; sub: string; collection: readonly string[]; bench: readonly string[]; hand?: readonly string[] }
+// hand: a fixed hand used as dealt, with no redraw (unit tests, scripted PvE sides). progress: the side's card levels, forge
+// items and town tiers (progression.ts); a normalized match ignores it.
+export interface BattleSetup { leader: string; sub: string; collection: readonly string[]; bench: readonly string[]; hand?: readonly string[]; progress?: Progress }
+// normalized: ranked ศึกฝีมือ, every card at its base stats whatever either side's progress says.
+export interface BattleOpts { normalized?: boolean }
 export const fixedHand = (cards: readonly string[], leader = '', sub = ''): BattleSetup => ({ leader, sub, collection: cards, bench: [], hand: cards });
 // What a tick did, for the view and sound (never read back by the rules). x, y: where, in milli-tiles.
 // side: who summoned, captured or won (-1 on end = draw); heal: amount = HP restored; hit on a structure: to = -1,
@@ -26,7 +30,7 @@ export interface BattleEvent {
 }
 
 export interface Fighter {
-  id: number; side: Side; card: string; d: number; hp: number; maxHp: number; cd: number; home: number;
+  id: number; side: Side; card: string; d: number; hp: number; maxHp: number; dmg: number; cd: number; home: number; // dmg: per hit, with progress
   aura: number; ward: number; // % more damage it gives allies near it, % less damage they take
   raise: number; // > 0: it was killed this tick by a raiser and rises for the other side with this % of its HP
   stunT: number; burnT: number; burn: number; poison: number; poisonT: number; rootT: number; slowT: number; // burn, poison: stacks
@@ -37,10 +41,11 @@ export interface Zone { side: Side; d: number; t: number }
 // An on-hit effect waiting for the end of the tick, so every unit acts on the same picture (u null: ground only).
 interface Pending { side: Side; d: number; u: Fighter | null; def: BattleUnitDef }
 export interface Fort { d: number; owner: Side | null; hp: number; cd: number; capSide: Side | null; capT: number }
-export interface Castle { hp: number; cd: number; cannonCd: number } // cannonCd: ticks until the cannon can fire again
+// cannonCd: ticks until the cannon can fire again; maxHp, cannonDmg, cannonPush: with the side's town tiers.
+export interface Castle { hp: number; maxHp: number; cd: number; cannonCd: number; cannonDmg: number; cannonPush: number }
 export interface BattleState {
   tick: number; rng: number; nextId: number;
-  setups: [BattleSetup, BattleSetup]; deal: [{ rng: number }, { rng: number }]; redraws: [number, number];
+  setups: [BattleSetup, BattleSetup]; progress: [Progress | null, Progress | null]; deal: [{ rng: number }, { rng: number }]; redraws: [number, number];
   hands: [string[], string[]]; uses: [number[], number[]]; mana: [number, number]; // uses: summons per hand slot
   castles: [Castle, Castle]; forts: Fort[]; units: Fighter[]; zones: Zone[];
   kills: [number, number]; // enemy units each side has killed
@@ -87,15 +92,19 @@ export function sectSetup(sect: string): BattleSetup {
   return { leader: t.leader, sub: t.sub, collection: sectCards(sect), bench: [] };
 }
 
-export function createBattle(seed: number, setup0: BattleSetup, setup1: BattleSetup): BattleState {
-  const castle = (): Castle => ({ hp: B.castle.hp, cd: 0, cannonCd: 0 });
+export function createBattle(seed: number, setup0: BattleSetup, setup1: BattleSetup, opts: BattleOpts = {}): BattleState {
+  const progress: [Progress | null, Progress | null] = opts.normalized ? [null, null] : [setup0.progress ?? null, setup1.progress ?? null];
+  const castle = (p: Progress | null): Castle => {
+    const t = townBonus(p);
+    return { hp: B.castle.hp + t.castleHp, maxHp: B.castle.hp + t.castleHp, cd: 0, cannonCd: 0, cannonDmg: B.cannon.dmg + t.cannonDmg, cannonPush: B.cannon.push + t.cannonPush };
+  };
   const deal: [{ rng: number }, { rng: number }] = [{ rng: (seed ^ 0x9e3779b9) >>> 0 }, { rng: (seed ^ 0x7f4a7c15) >>> 0 }];
   const hands: [string[], string[]] = [dealHand(setup0, deal[0]), dealHand(setup1, deal[1])];
   return {
     tick: 0, rng: seed >>> 0, nextId: 1,
-    setups: [setup0, setup1], deal, redraws: [0, 0],
+    setups: [setup0, setup1], progress, deal, redraws: [0, 0],
     hands, uses: [hands[0].map(() => 0), hands[1].map(() => 0)], mana: [B.manaStart, B.manaStart],
-    castles: [castle(), castle()],
+    castles: [castle(progress[0]), castle(progress[1])],
     forts: B.forts.atPct.map((p) => ({ d: div(BATTLE_LEN * p, 100), owner: null, hp: B.forts.hp, cd: 0, capSide: null, capT: 0 })),
     units: [], zones: [], kills: [0, 0], winner: null,
   };
@@ -120,8 +129,10 @@ function redraw(s: BattleState, side: Side, ev: BattleEvent[]): void {
   s.uses[side] = s.hands[side].map(() => 0);
 }
 
-// A card's ability level on a team: 3 as the leader, 2 as the sub-leader, 1 otherwise; its value at that level (0: none).
-export const cardLevel = (setup: BattleSetup, card: string) => (card === setup.leader ? 3 : card === setup.sub ? 2 : 1);
+// A card's ability level on a team: 3 as the leader, 2 as the sub-leader, 1 otherwise, and the leader's level for a card at
+// progression abilityAt (never in a normalized match: pass that side's effective progress); its value at that level (0: none).
+export const cardLevel = (setup: BattleSetup, card: string, p: Progress | null = null) =>
+  card === setup.leader ? 3 : abilityUnlocked(p, card) ? progression.abilityLevel : card === setup.sub ? 2 : 1;
 export const abilityValue = (def: BattleUnitDef, level: number) => def.ability?.lv[level - 1] ?? 0;
 // The strongest aura (ward) of an ally, itself too, within reach: the % more damage u deals (less damage u takes).
 function bestNear(s: BattleState, u: Fighter, key: 'aura' | 'ward', radius: number): number {
@@ -130,8 +141,8 @@ function bestNear(s: BattleState, u: Fighter, key: 'aura' | 'ward', radius: numb
   return best;
 }
 
-function addFighter(s: BattleState, side: Side, card: string, d: number, hp: number, aura: number, ward: number, ev: BattleEvent[]): void {
-  const u: Fighter = { id: s.nextId++, side, card, d, hp, maxHp: hp, cd: 0, home: d, aura, ward, raise: 0, stunT: 0, burnT: 0, burn: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0, stunImmT: 0, rootImmT: 0 };
+function addFighter(s: BattleState, side: Side, card: string, d: number, hp: number, dmg: number, aura: number, ward: number, ev: BattleEvent[]): void {
+  const u: Fighter = { id: s.nextId++, side, card, d, hp, maxHp: hp, dmg, cd: 0, home: d, aura, ward, raise: 0, stunT: 0, burnT: 0, burn: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0, stunImmT: 0, rootImmT: 0 };
   s.units.push(u);
   ev.push({ e: 'spawn', id: u.id, type: card, side, ...at(d) });
 }
@@ -146,10 +157,11 @@ function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: 
   if (!Number.isInteger(d) || d < 0 || d > summonZone(s, c.side)) return err(ev, 'outside summon zone');
   s.mana[c.side] -= def.mana;
   s.uses[c.side][slot]!++;
-  const v = abilityValue(def, cardLevel(s.setups[c.side], def.id)), kind = def.ability?.kind;
+  const p = s.progress[c.side], v = abilityValue(def, cardLevel(s.setups[c.side], def.id, p)), kind = def.ability?.kind;
   if (kind === 'refund') s.mana[c.side] = Math.min(B.manaMax, s.mana[c.side] + v);
-  const hp = kind === 'hp' ? div(def.hp * (100 + v), 100) : def.hp;
-  addFighter(s, c.side, def.id, fwd(c.side, d), hp, kind === 'aura' ? v : 0, kind === 'ward' ? v : 0, ev);
+  const st = cardStats(def, p);
+  const hp = kind === 'hp' ? div(st.hp * (100 + v), 100) : st.hp;
+  addFighter(s, c.side, def.id, fwd(c.side, d), hp, st.dmg, kind === 'aura' ? v : 0, kind === 'ward' ? v : 0, ev);
 }
 
 // The castle cannon: every enemy within its radius of the aimed point takes the shot, and the nearest small ones are
@@ -164,9 +176,9 @@ function fireCannon(s: BattleState, side: Side, d: number, ev: BattleEvent[]): v
   const abs = fwd(side, d);
   ev.push({ e: 'cannon', side, ...at(abs) });
   const hit = s.units.filter((u) => u.side !== side && Math.abs(u.d - abs) <= B.cannon.radius);
-  for (const u of hit) damage(s, -1 - side, u, null, B.cannon.dmg, ev);
+  for (const u of hit) damage(s, -1 - side, u, null, c.cannonDmg, ev);
   const light = hit.filter((u) => defOf(u).size === 'small').sort((a, b) => Math.abs(a.d - abs) - Math.abs(b.d - abs) || a.id - b.id);
-  for (const u of light.slice(0, B.cannon.maxPush)) u.d = fwd(u.side, Math.max(0, fwd(u.side, u.d) - B.cannon.push));
+  for (const u of light.slice(0, B.cannon.maxPush)) u.d = fwd(u.side, Math.max(0, fwd(u.side, u.d) - c.cannonPush));
 }
 
 // What each counter tag is strong against (battle.json > counterTags, counterPct); 'structure' means forts and castles.
@@ -270,7 +282,7 @@ function act(s: BattleState, u: Fighter, ev: BattleEvent[], pend: Pending[]): nu
     }
   }
   const enemy = pickEnemy(s, u, def);
-  const dmg = div(def.dmg * (100 + bestNear(s, u, 'aura', B.auraRadius)), 100);
+  const dmg = div(u.dmg * (100 + bestNear(s, u, 'aura', B.auraRadius)), 100);
   if (enemy != null) {
     if (u.cd === 0) {
       u.cd = def.cooldown;
@@ -366,7 +378,7 @@ function resolveDeaths(s: BattleState, ev: BattleEvent[]): void {
     if (u.raise > 0) risen.push(u);
   }
   s.units = alive;
-  for (const u of risen) addFighter(s, other(u.side), u.card, u.d, Math.max(1, div(defOf(u).hp * u.raise, 100)), 0, 0, ev);
+  for (const u of risen) addFighter(s, other(u.side), u.card, u.d, Math.max(1, div(defOf(u).hp * u.raise, 100)), defOf(u).dmg, 0, 0, ev);
   s.forts.forEach((f, i) => {
     if (f.hp > 0) return;
     f.owner = null; f.hp = B.forts.hp; f.cd = 0;

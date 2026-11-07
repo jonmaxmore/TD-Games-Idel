@@ -1,5 +1,5 @@
 {
-  "_notes": "Account level, PvP rank, sect mastery and achievements (docs/design/progression.md). None of these give combat power: they unlock features, show status and give cosmetics. The XP table is generated from time targets (accountLevel.anchors) by tools/progression/check.mjs, which also simulates a ranked season to calibrate the ladder. Run: node tools/progression/check.mjs",
+  "_notes": "Account level, PvP rank, sect mastery and achievements (docs/design/progression.md). None of these give combat power: they unlock features, show status and give cosmetics. The XP table is generated from time targets (accountLevel.anchors) by tools/progression/check.mjs, which also simulates a ranked season to calibrate the ladder. Run: node tools/progression/check.mjs. The castle-battle keys after achievements (cardLevel, realms, castleLevel, forge, town, eggs, matchRewards; deck-and-realms.md §5) are the one exception: they add power in ศึกทั่วไป and PvE, and packages/sim ignores all of them in a normalized (ranked ศึกฝีมือ) match. check.mjs part C prints their pacing.",
   "accountLevel": {
     "cap": 60,
     "capRaisePerExpansion": 10,
@@ -74,5 +74,102 @@
       { "id": "social", "nameTh": "สหาย", "examples": ["win N co-op runs", "join a guild", "watch N replays"] },
       { "id": "hidden", "nameTh": "ลับ", "examples": ["shown only once earned"] }
     ]
+  },
+  "cardLevel": {
+    "_notes": "Character levels for the castle battle (deck-and-realms.md §5, SPEC-castle-battle §12). Every card starts at level 1 and climbs to max with card xp from matches (matchRewards) and duplicates from eggs (eggs.list[].dupeXp). xpToNext[i] is the xp from level i+1 to i+2 (length max - 1). statPctPerLevel: each level above 1 adds this % of the card's sects.json hp and dmg, so level L has (100 + (L - 1) x statPctPerLevel)% (integer, rounded down). abilityAt: from this level a card with an ability uses it at abilityLevel (the leader's level) even when it is not the leader. None of this applies in a normalized (ranked ศึกฝีมือ) match.",
+    "max": 30,
+    "statPctPerLevel": 3,
+    "xpToNext": [30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 115, 130, 145, 165, 190, 210, 240, 270, 305, 345, 390, 440, 500, 565, 635, 720, 815, 920],
+    "abilityAt": 30,
+    "abilityLevel": 3
+  },
+  "realms": {
+    "_notes": "Realm bands over the card level (ขั้นพลัง): from/to are the first and last level of the band, nameTh and descTh the badge and its tooltip, color the badge colour. Names are original. Bands cover 1..cardLevel.max with no gap.",
+    "bands": [
+      { "id": "breath", "from": 1, "to": 9, "nameTh": "ลมปราณ", "descTh": "เพิ่งเดินลมปราณได้ ร่างยังเบา พลังมาจากเพลงยุทธ์ล้วน ๆ", "color": "#8FB3C9" },
+      { "id": "forged", "from": 10, "to": 19, "nameTh": "หลอมกาย", "descTh": "ลมปราณหลอมเข้ากระดูกและเส้นเอ็น ทนขึ้นและตีหนักขึ้นชัดเจน", "color": "#C98F5A" },
+      { "id": "golden", "from": 20, "to": 29, "nameTh": "แก่นทอง", "descTh": "ลมปราณควบแน่นเป็นแก่นทองกลางท้อง พลังไหลไม่ขาดสาย", "color": "#E3B04B" },
+      { "id": "spirit", "from": 30, "to": 30, "nameTh": "จิตก่อรูป", "descTh": "จิตก่อรูปเป็นร่างที่สอง ใช้วิชาประจำตัวเต็มขั้นแม้ไม่ได้เป็นแม่ทัพ", "color": "#C77DDB" }
+    ]
+  },
+  "castleLevel": {
+    "_notes": "The castle level comes from the sum of every owned card's level (all cards are owned for now, so the sum starts at the number of cards). levels[i] is castle level i+1: cardLevels is the sum it needs, eggPoints what reaching it grants (spent in the egg shop), unlockTh what it opens (shown as coming soon until that mode exists). No power in ranked.",
+    "levels": [
+      { "cardLevels": 0, "eggPoints": 0 },
+      { "cardLevels": 70, "eggPoints": 10 },
+      { "cardLevels": 85, "eggPoints": 10, "unlockTh": "ศึกป้องกันเมือง" },
+      { "cardLevels": 105, "eggPoints": 10 },
+      { "cardLevels": 130, "eggPoints": 10, "unlockTh": "ลีกทั่วไป" },
+      { "cardLevels": 160, "eggPoints": 10 },
+      { "cardLevels": 200, "eggPoints": 10 },
+      { "cardLevels": 250, "eggPoints": 10, "unlockTh": "ตำแหน่งยิงบนกำแพง" },
+      { "cardLevels": 310, "eggPoints": 10 },
+      { "cardLevels": 380, "eggPoints": 15, "unlockTh": "ปราสาทสูงขึ้นหนึ่งชั้น" },
+      { "cardLevels": 460, "eggPoints": 15 },
+      { "cardLevels": 560, "eggPoints": 15 },
+      { "cardLevels": 680, "eggPoints": 15 },
+      { "cardLevels": 820, "eggPoints": 15 },
+      { "cardLevels": 1000, "eggPoints": 20, "unlockTh": "ปราสาทเปลี่ยนสีตามสำนัก" },
+      { "cardLevels": 1180, "eggPoints": 20 },
+      { "cardLevels": 1360, "eggPoints": 20 },
+      { "cardLevels": 1500, "eggPoints": 20 },
+      { "cardLevels": 1640, "eggPoints": 20 },
+      { "cardLevels": 1770, "eggPoints": 30, "unlockTh": "ปราสาทจิตก่อรูป" }
+    ]
+  },
+  "forge": {
+    "_notes": "Forge (โรงหลอม): every card has the four slots below. Building a slot's item costs coins (from matches) and takes buildSec of real time; there is no way to pay to skip it. A built item adds hpPct / dmgPct (integer %) to that card's hp and dmg whether it is worn or not (wearing is looks only), on top of the level %. Never in a normalized match.",
+    "slots": [
+      { "id": "weapon", "nameTh": "อาวุธ", "itemTh": "อาวุธเหล็กกล้าเจ็ดไฟ", "coins": 120, "buildSec": 60, "hpPct": 0, "dmgPct": 6 },
+      { "id": "shield", "nameTh": "โล่", "itemTh": "โล่ไม้เหล็กลายเมฆ", "coins": 100, "buildSec": 45, "hpPct": 5, "dmgPct": 0 },
+      { "id": "armor", "nameTh": "เกราะ", "itemTh": "เกราะเกล็ดสำริด", "coins": 150, "buildSec": 90, "hpPct": 8, "dmgPct": 0 },
+      { "id": "helm", "nameTh": "หมวก", "itemTh": "หมวกเหล็กยอดพู่", "coins": 80, "buildSec": 30, "hpPct": 3, "dmgPct": 3 }
+    ]
+  },
+  "town": {
+    "_notes": "Town upgrades bought with gold (from matches). cannon.tiers[i] is tier i+1: dmg and pushTiles added to battle.json castle.cannon; walls.tiers[i]: castleHp added to battle.json castle.hp. Tier 0 is the base game. Values are totals at that tier, not steps; gold is the price of that tier. Never in a normalized match.",
+    "cannon": {
+      "nameTh": "ปืนใหญ่ปราสาท",
+      "tiers": [
+        { "gold": 200, "dmg": 10, "pushTiles": 0.25 },
+        { "gold": 500, "dmg": 20, "pushTiles": 0.5 },
+        { "gold": 1000, "dmg": 35, "pushTiles": 0.75 }
+      ]
+    },
+    "walls": {
+      "nameTh": "กำแพงปราสาท",
+      "tiers": [
+        { "gold": 200, "castleHp": 300 },
+        { "gold": 500, "castleHp": 700 },
+        { "gold": 1000, "castleHp": 1200 }
+      ]
+    }
+  },
+  "eggs": {
+    "_notes": "The egg shop (ร้านไข่). An egg costs cost egg points (castleLevel eggPoints; never sold for money) and rolls one card: first a bucket by pct (the odds shown to the player, summing to 100), then a card of that bucket with equal chance. A bucket matches cards of its kind and, when mana is given, a mana cost in [min, max]; nameTh is its label in the shop. Every card is already owned, so a roll gives that card dupeXp card xp.",
+    "list": [
+      {
+        "id": "mystery", "nameTh": "ไข่ปริศนา", "cost": 10, "dupeXp": 120,
+        "odds": [
+          { "kind": "disciple", "mana": [1, 2], "pct": 30, "nameTh": "ศิษย์ราคา 1–2" },
+          { "kind": "disciple", "mana": [3, 4], "pct": 32, "nameTh": "ศิษย์ราคา 3–4" },
+          { "kind": "disciple", "mana": [5, 7], "pct": 8, "nameTh": "ศิษย์ราคา 5–7" },
+          { "kind": "demon", "pct": 15, "nameTh": "สัตว์ปีศาจ" },
+          { "kind": "divine", "pct": 10, "nameTh": "สัตว์เทพ" },
+          { "kind": "dragon", "pct": 5, "nameTh": "มังกร" }
+        ]
+      }
+    ]
+  },
+  "matchRewards": {
+    "_notes": "What one castle-battle match pays, by result for the player (battle.json results): win.<type> for a win of that type, draw, loss. xp goes to every card in the player's hand that match; coins buy forge items, gold town upgrades. The same in normalized (ศึกฝีมือ) matches: rewards grow the account, they never change a ranked match.",
+    "win": {
+      "total": { "xp": 60, "coins": 60, "gold": 30 },
+      "castle": { "xp": 50, "coins": 50, "gold": 25 },
+      "hp": { "xp": 40, "coins": 40, "gold": 20 },
+      "tiebreak": { "xp": 35, "coins": 35, "gold": 18 }
+    },
+    "draw": { "xp": 30, "coins": 25, "gold": 12 },
+    "loss": { "xp": 20, "coins": 20, "gold": 10 }
   }
 }

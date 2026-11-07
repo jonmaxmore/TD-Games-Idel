@@ -1,0 +1,90 @@
+// Castle-battle progression (progression.json, deck-and-realms.md §5): card levels and realms, castle level, forge, town
+// tiers, eggs and match rewards. The stat formula lives here so a server re-runs it; a normalized (ranked) match never reads
+// a side's progress. Integers only; lookups are Maps, anything iterated is an array in data order.
+import progressionJson from '../../../docs/data/progression.json';
+import { battleCardIds, battleUnits, TILE, type BattleUnitDef } from './data';
+import { div, nextRandom } from './core';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const P = progressionJson as any;
+const CL = P.cardLevel;
+
+export interface Realm { id: string; from: number; to: number; nameTh: string; descTh: string; color: string }
+export interface ForgeSlot { id: string; nameTh: string; itemTh: string; coins: number; buildSec: number; hpPct: number; dmgPct: number }
+export interface EggBucket { kind: string; mana: [number, number] | null; pct: number; nameTh: string; cards: string[] }
+export interface Egg { id: string; nameTh: string; cost: number; dupeXp: number; odds: EggBucket[] }
+export interface Reward { xp: number; coins: number; gold: number }
+
+export const progression = {
+  maxLevel: CL.max as number, statPctPerLevel: CL.statPctPerLevel as number, xpToNext: CL.xpToNext as number[],
+  abilityAt: CL.abilityAt as number, abilityLevel: CL.abilityLevel as number,
+  realms: P.realms.bands as Realm[],
+  castleLevels: (P.castleLevel.levels as any[]).map((l) => ({ cardLevels: l.cardLevels as number, eggPoints: l.eggPoints as number, unlockTh: (l.unlockTh ?? null) as string | null })),
+  forge: P.forge.slots as ForgeSlot[],
+  cannonNameTh: P.town.cannon.nameTh as string, wallNameTh: P.town.walls.nameTh as string,
+  cannonTiers: (P.town.cannon.tiers as any[]).map((t) => ({ gold: t.gold as number, dmg: t.dmg as number, push: Math.round(t.pushTiles * TILE) })),
+  wallTiers: (P.town.walls.tiers as any[]).map((t) => ({ gold: t.gold as number, hp: t.castleHp as number })),
+  eggs: (P.eggs.list as any[]).map((e): Egg => ({
+    id: e.id, nameTh: e.nameTh, cost: e.cost, dupeXp: e.dupeXp,
+    odds: (e.odds as any[]).map((o) => ({
+      kind: o.kind, mana: o.mana ?? null, pct: o.pct, nameTh: o.nameTh,
+      cards: battleCardIds.filter((c) => { const u = battleUnits.get(c)!; return u.kind === o.kind && (o.mana == null || (u.mana >= o.mana[0] && u.mana <= o.mana[1])); }),
+    })),
+  })),
+  rewards: { win: new Map<string, Reward>(Object.entries(P.matchRewards.win as Record<string, Reward>)), draw: P.matchRewards.draw as Reward, loss: P.matchRewards.loss as Reward },
+};
+const forgeSlot = new Map(progression.forge.map((f) => [f.id, f]));
+
+// What one side brings from its account: card levels (missing = 1), the forge items built per card (slot ids) and its town
+// tiers (0 = none). Only ids and counts: the bonuses come from progression.json, so a server re-runs them.
+export interface Progress { levels?: Readonly<Record<string, number>>; gear?: Readonly<Record<string, readonly string[]>>; town?: { cannon: number; wall: number } }
+
+const clampInt = (x: unknown, lo: number, hi: number) => (typeof x === 'number' && Number.isInteger(x) ? Math.min(hi, Math.max(lo, x)) : lo);
+export const levelOf = (p: Progress | null, card: string) => clampInt(p?.levels?.[card] ?? 1, 1, progression.maxLevel);
+export const realmOf = (level: number): Realm => progression.realms.find((r) => level >= r.from && level <= r.to) ?? progression.realms[0]!;
+
+// A card's % of its base hp and dmg: its level, plus every distinct forge item it has built.
+export function statPct(p: Progress | null, card: string): { hp: number; dmg: number } {
+  const lv = (levelOf(p, card) - 1) * progression.statPctPerLevel;
+  let hp = 100 + lv, dmg = 100 + lv;
+  for (const f of progression.forge) if (p?.gear?.[card]?.includes(f.id)) { hp += f.hpPct; dmg += f.dmgPct; }
+  return { hp, dmg };
+}
+export function cardStats(def: BattleUnitDef, p: Progress | null): { hp: number; dmg: number } {
+  const k = statPct(p, def.id);
+  return { hp: div(def.hp * k.hp, 100), dmg: div(def.dmg * k.dmg, 100) };
+}
+export const abilityUnlocked = (p: Progress | null, card: string) => levelOf(p, card) >= progression.abilityAt;
+
+// Town: the cannon's added damage and push (milli-tiles), the walls' added castle HP, for the tiers held.
+export function townBonus(p: Progress | null): { cannonDmg: number; cannonPush: number; castleHp: number } {
+  const c = progression.cannonTiers[clampInt(p?.town?.cannon ?? 0, 0, progression.cannonTiers.length) - 1];
+  const w = progression.wallTiers[clampInt(p?.town?.wall ?? 0, 0, progression.wallTiers.length) - 1];
+  return { cannonDmg: c?.dmg ?? 0, cannonPush: c?.push ?? 0, castleHp: w?.hp ?? 0 };
+}
+
+// Card xp: adds xp to (level, xp) and levels up while it covers xpToNext; at the cap the xp stops.
+export function addXp(level: number, xp: number, gained: number): { level: number; xp: number } {
+  let l = level, x = xp + gained;
+  while (l < progression.maxLevel && x >= progression.xpToNext[l - 1]!) { x -= progression.xpToNext[l - 1]!; l++; }
+  return { level: l, xp: l >= progression.maxLevel ? 0 : x };
+}
+
+// Castle level (1-based) for a sum of card levels.
+export function castleLevelOf(sum: number): number {
+  let lv = 1;
+  progression.castleLevels.forEach((c, i) => { if (sum >= c.cardLevels) lv = i + 1; });
+  return lv;
+}
+
+// One egg roll: a bucket by its shown pct, then a card of that bucket with equal chance.
+export function rollEgg(egg: Egg, r: { rng: number }): string {
+  let roll = Math.floor(nextRandom(r) * 100);
+  const b = egg.odds.find((o) => (roll -= o.pct) < 0) ?? egg.odds[egg.odds.length - 1]!;
+  return b.cards[Math.floor(nextRandom(r) * b.cards.length)]!;
+}
+
+// What a match pays the player: won true/false, null for a draw; type is the battle.json results key of a win.
+export const rewardFor = (won: boolean | null, type: string): Reward =>
+  won === null ? progression.rewards.draw : won ? progression.rewards.win.get(type) ?? progression.rewards.draw : progression.rewards.loss;
+export const forgeOf = (id: string) => forgeSlot.get(id);
