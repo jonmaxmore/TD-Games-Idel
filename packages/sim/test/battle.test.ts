@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  battle, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fwd, stepBattle, summonZone,
+  battle, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fwd, stepBattle, summonZone, TICK_HZ,
   type BattleCommand, type BattleState, type Side,
 } from '../src';
 import { DECK, playBattle, type Policy } from './battleBot';
@@ -26,7 +26,7 @@ describe('castle battle data', () => {
 });
 
 describe('castle battle rules', () => {
-  it('mana regenerates one point per 5 s, then 4 s, then 3 s: 47 over the match on top of the 5 at start', () => {
+  it('mana regenerates one point per 5 s, then 3 s, then 2 s: 62 over the match on top of the 5 at start', () => {
     const s = fresh();
     expect(s.mana).toEqual([battle.manaStart, battle.manaStart]);
     const gainedAt: number[] = [];
@@ -37,10 +37,10 @@ describe('castle battle rules', () => {
     }
     expect(gainedAt[0]).toBe(100);
     expect(gainedAt.filter((t) => t <= 1200).length).toBe(12);
-    expect(gainedAt.filter((t) => t > 1200 && t <= 2400).length).toBe(15);
-    expect(gainedAt.filter((t) => t > 2400).length).toBe(20);
-    expect(gainedAt[13]! - gainedAt[12]!).toBe(80);
-    expect(gainedAt[28]! - gainedAt[27]!).toBe(60);
+    expect(gainedAt.filter((t) => t > 1200 && t <= 2400).length).toBe(20);
+    expect(gainedAt.filter((t) => t > 2400).length).toBe(30);
+    expect(gainedAt[13]! - gainedAt[12]!).toBe(60);
+    expect(gainedAt[33]! - gainedAt[32]!).toBe(40);
     const capped = fresh();
     run(capped, 2000);
     expect(capped.mana[0]).toBe(battle.manaMax);
@@ -112,9 +112,9 @@ describe('castle battle rules', () => {
   it('ties at time break on forts held, deepest fort, mana left, units alive, then draw', () => {
     const s = fresh();
     expect(decision(s)).toEqual({ winner: -1, step: null });
-    s.castles[0].hp = 2999;
+    s.castles[0].hp = battle.castle.hp - 1;
     expect(decision(s)).toEqual({ winner: 1, step: 'castle' });
-    s.castles[0].hp = 3000;
+    s.castles[0].hp = battle.castle.hp;
     s.forts[0]!.owner = 0; s.forts[2]!.owner = 1; // one fort each, at equal depth
     expect(decide(s)).toBe(-1);
     s.forts[1]!.owner = 1;
@@ -184,18 +184,24 @@ describe('castle battle determinism', () => {
 });
 
 describe('castle battle balance', () => {
-  it('rush vs defend on mirror decks, 200 seeds, both side orders: left wins 45-55%, draws at most 10%', () => {
+  it('rush vs defend on mirror decks, 200 seeds, both side orders: left wins 45-55%, draws at most 5%, a castle falls in 40-60%, 120-170 s', () => {
     const SEEDS = 200;
-    let left = 0, draws = 0, games = 0;
+    let left = 0, draws = 0, games = 0, ko = 0, ticks = 0;
     for (const [p0, p1] of [['rush', 'defend'], ['defend', 'rush']] as [Policy, Policy][])
       for (let seed = 1; seed <= SEEDS; seed++) {
-        const w = playBattle(seed, p0, p1).state.winner;
+        const s = playBattle(seed, p0, p1).state, w = s.winner;
         games++;
+        ticks += s.tick;
+        if (s.castles[0].hp <= 0 || s.castles[1].hp <= 0) ko++;
         if (w === 0) left++;
         if (w === -1) draws++;
       }
     expect((left * 100) / games).toBeGreaterThanOrEqual(45);
     expect((left * 100) / games).toBeLessThanOrEqual(55);
-    expect((draws * 100) / games).toBeLessThanOrEqual(10);
+    expect((draws * 100) / games).toBeLessThanOrEqual(5);
+    expect((ko * 100) / games).toBeGreaterThanOrEqual(40);
+    expect((ko * 100) / games).toBeLessThanOrEqual(60);
+    expect(ticks / games / TICK_HZ).toBeGreaterThanOrEqual(120);
+    expect(ticks / games / TICK_HZ).toBeLessThanOrEqual(170);
   });
 });

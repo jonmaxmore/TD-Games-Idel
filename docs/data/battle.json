@@ -10,8 +10,8 @@
     "max": 20,
     "regenSec": [
       { "fromSec": 0, "toSec": 60, "everySec": 5 },
-      { "fromSec": 60, "toSec": 120, "everySec": 4 },
-      { "fromSec": 120, "toSec": 180, "everySec": 3 }
+      { "fromSec": 60, "toSec": 120, "everySec": 3 },
+      { "fromSec": 120, "toSec": 180, "everySec": 2 }
     ]
   },
   "sizes": {
@@ -32,7 +32,7 @@
   "critPct": 15,
   "dot": { "burnDps": 6, "burnSec": 3, "poisonDps": 4, "poisonSec": 3, "poisonMaxStacks": 5 },
   "castle": {
-    "hp": 3000, "dmg": 40, "rate": 0.6667, "range": 4,
+    "hp": 2000, "dmg": 40, "rate": 0.6667, "range": 4,
     "art": { "id": "binding_bell", "nameTh": "ระฆังสะกด", "nameEn": "Binding Bell", "stunSec": 3 }
   },
   "matchSec": 180

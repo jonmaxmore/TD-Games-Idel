@@ -203,15 +203,15 @@
     "d": 6300
    }
   ],
-  "1400": [
+  "1380": [
    {
     "t": "summon",
     "side": 0,
-    "card": "crimson_phoenix_banner",
+    "card": "jade_bamboo_blade",
     "d": 6300
    }
   ],
-  "1490": [
+  "1450": [
    {
     "t": "summon",
     "side": 1,
@@ -219,7 +219,7 @@
     "d": 10500
    }
   ],
-  "1520": [
+  "1460": [
    {
     "t": "summon",
     "side": 0,
@@ -227,15 +227,23 @@
     "d": 6300
    }
   ],
-  "1600": [
+  "1530": [
    {
     "t": "summon",
     "side": 0,
-    "card": "crimson_phoenix_blade",
+    "card": "crimson_phoenix_banner",
     "d": 6300
    }
   ],
-  "1640": [
+  "1590": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "1630": [
    {
     "t": "summon",
     "side": 1,
@@ -251,15 +259,23 @@
     "d": 6300
    }
   ],
-  "1770": [
+  "1740": [
    {
     "t": "summon",
     "side": 0,
     "card": "crimson_phoenix_banner",
-    "d": 6260
+    "d": 6300
    }
   ],
-  "1830": [
+  "1800": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "jade_bamboo_blade",
+    "d": 6300
+   }
+  ],
+  "1810": [
    {
     "t": "summon",
     "side": 1,
@@ -273,9 +289,27 @@
     "side": 0,
     "card": "jade_bamboo_blade",
     "d": 6300
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_burst",
+    "d": 10500
    }
   ],
-  "1970": [
+  "1930": [
+   {
+    "t": "art",
+    "side": 0
+   }
+  ],
+  "1980": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   },
    {
     "t": "summon",
     "side": 1,
@@ -283,7 +317,7 @@
     "d": 10500
    }
   ],
-  "2010": [
+  "2050": [
    {
     "t": "summon",
     "side": 0,
@@ -291,15 +325,15 @@
     "d": 6300
    }
   ],
-  "2090": [
+  "2110": [
    {
     "t": "summon",
     "side": 0,
     "card": "crimson_phoenix_banner",
-    "d": 6300
+    "d": 5900
    }
   ],
-  "2150": [
+  "2180": [
    {
     "t": "summon",
     "side": 1,
@@ -307,7 +341,7 @@
     "d": 10500
    }
   ],
-  "2160": [
+  "2210": [
    {
     "t": "summon",
     "side": 0,
@@ -320,53 +354,15 @@
     "t": "summon",
     "side": 0,
     "card": "crimson_phoenix_banner",
-    "d": 6290
+    "d": 6300
    }
   ],
-  "2320": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "jade_bamboo_blade",
-    "d": 10500
-   }
-  ],
-  "2340": [
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "crimson_phoenix_banner",
-    "d": 10500
-   }
-  ],
-  "2350": [
-   {
-    "t": "art",
-    "side": 0
-   }
-  ],
-  "2360": [
+  "2280": [
    {
     "t": "summon",
     "side": 0,
     "card": "crimson_phoenix_banner",
     "d": 6300
-   }
-  ],
-  "2450": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 6300
-   }
-  ],
-  "2520": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_blade",
-    "d": 5900
    },
    {
     "t": "summon",
@@ -375,29 +371,23 @@
     "d": 10500
    }
   ],
-  "2580": [
+  "2340": [
    {
     "t": "summon",
     "side": 0,
     "card": "crimson_phoenix_banner",
-    "d": 5250
+    "d": 5900
    }
   ],
-  "2650": [
+  "2430": [
    {
     "t": "summon",
     "side": 0,
     "card": "crimson_phoenix_banner",
-    "d": 3450
+    "d": 4600
    }
   ],
-  "2700": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 3500
-   },
+  "2440": [
    {
     "t": "summon",
     "side": 1,
@@ -405,20 +395,98 @@
     "d": 14700
    }
   ],
-  "2760": [
+  "2450": [
    {
     "t": "summon",
     "side": 0,
     "card": "crimson_phoenix_banner",
-    "d": 2300
+    "d": 4500
    }
   ],
-  "2820": [
+  "2500": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 2700
+   }
+  ],
+  "2520": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 2450
+   },
    {
     "t": "summon",
     "side": 1,
     "card": "crimson_phoenix_striker",
     "d": 14700
+   }
+  ],
+  "2560": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1350
+   }
+  ],
+  "2600": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 560
+   }
+  ],
+  "2650": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "2680": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_support",
+    "d": 14700
+   }
+  ],
+  "2690": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "2720": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "2790": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "2820": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
    }
   ],
   "2840": [
@@ -427,6 +495,12 @@
     "side": 0,
     "card": "crimson_phoenix_banner",
     "d": 1700
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_blade",
+    "d": 14700
    }
   ],
   "2880": [
@@ -437,87 +511,33 @@
     "d": 1700
    }
   ],
-  "2950": [
+  "2920": [
    {
     "t": "summon",
     "side": 0,
     "card": "crimson_phoenix_banner",
-    "d": 1700
-   }
-  ],
-  "3010": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 1700
-   }
-  ],
-  "3060": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 1700
+    "d": 1300
    },
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "jade_bamboo_support",
-    "d": 14700
-   }
-  ],
-  "3130": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 1700
-   }
-  ],
-  "3190": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 1700
-   }
-  ],
-  "3260": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 1700
-   }
-  ],
-  "3300": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 1700
-   },
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "jade_bamboo_blade",
-    "d": 14700
-   }
-  ],
-  "3360": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "crimson_phoenix_banner",
-    "d": 1700
-   }
-  ],
-  "3420": [
    {
     "t": "summon",
     "side": 1,
     "card": "crimson_phoenix_striker",
+    "d": 14700
+   }
+  ],
+  "3080": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_blade",
+    "d": 14700
+   }
+  ],
+  "3160": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_blade",
     "d": 14700
    }
   ]
@@ -525,153 +545,133 @@
  "trace": [
   [
    100,
-   "71225185"
+   "aa2e563b"
   ],
   [
    200,
-   "7d0e3156"
+   "335e5cf4"
   ],
   [
    300,
-   "cd9aea70"
+   "769f985e"
   ],
   [
    400,
-   "e827ac16"
+   "909e9da0"
   ],
   [
    500,
-   "540efb30"
+   "0cfb4bde"
   ],
   [
    600,
-   "3093efd6"
+   "793bb140"
   ],
   [
    700,
-   "8dd12150"
+   "050238c6"
   ],
   [
    800,
-   "e236ffc0"
+   "fa449912"
   ],
   [
    900,
-   "266fa48e"
+   "a153d664"
   ],
   [
    1000,
-   "488f2949"
+   "cb8a3e93"
   ],
   [
    1100,
-   "1e513cea"
+   "68784d58"
   ],
   [
    1200,
-   "79aee594"
+   "25aa359a"
   ],
   [
    1300,
-   "722a3a12"
+   "d45b8170"
   ],
   [
    1400,
-   "51c0d31c"
+   "0cbcb9cf"
   ],
   [
    1500,
-   "a8ecb08c"
+   "315e902a"
   ],
   [
    1600,
-   "ea84adc8"
+   "c775df9f"
   ],
   [
    1700,
-   "35ec347f"
+   "2206cb84"
   ],
   [
    1800,
-   "ebec58a8"
+   "2cba216c"
   ],
   [
    1900,
-   "566e0ad6"
+   "7ae58b25"
   ],
   [
    2000,
-   "fb8b241b"
+   "db896081"
   ],
   [
    2100,
-   "a16cf7a7"
+   "24a1ed26"
   ],
   [
    2200,
-   "4eecb8fe"
+   "905c886d"
   ],
   [
    2300,
-   "3b136491"
+   "68c26b4b"
   ],
   [
    2400,
-   "c8dc41f4"
+   "97f7f164"
   ],
   [
    2500,
-   "3a7d3c40"
+   "8a388b56"
   ],
   [
    2600,
-   "34b2262d"
+   "ed63569c"
   ],
   [
    2700,
-   "19702ea9"
+   "37b8a646"
   ],
   [
    2800,
-   "274f997a"
+   "828b51b5"
   ],
   [
    2900,
-   "f4d0051d"
+   "eec46bdc"
   ],
   [
    3000,
-   "56eb80f2"
+   "31f0fa8c"
   ],
   [
    3100,
-   "8325a09d"
-  ],
-  [
-   3200,
-   "1739625d"
-  ],
-  [
-   3300,
-   "da8c2d32"
-  ],
-  [
-   3400,
-   "acf0eef5"
-  ],
-  [
-   3500,
-   "e27e8b35"
-  ],
-  [
-   3600,
-   "734e1ba0"
+   "ad78310f"
   ]
  ],
  "final": {
   "winner": 1,
-  "tick": 3600,
-  "hash": "734e1ba0",
-  "canonical": "3600|1496707229|4,11|1,0,0,36,2,0,0,2/3,0,0,12,1,1,1,4|1503,16,1;3000,0,0;|1,600,0,-,0;1,600,0,-,0;1,600,0,-,0;|u44,1,jade_bamboo_stacker,3200,220,5,0,0,0,0;u50,1,crimson_phoenix_striker,2700,260,4,0,0,0,0;u56,1,jade_bamboo_support,1800,220,8,0,0,0,0;u61,1,jade_bamboo_blade,800,160,12,0,0,0,0;u63,1,crimson_phoenix_striker,2700,260,12,0,0,0,0;|1"
+  "tick": 3179,
+  "hash": "70960960",
+  "canonical": "3179|4151932303|6,10|1,0,0,38,0,0,0,4/3,1,0,11,2,1,1,4|-1,5,1;2000,0,0;|1,600,0,-,0;1,600,0,-,0;1,600,0,-,0;|u35,1,crimson_phoenix_burst,2700,240,2,0,0,0,0;u44,1,jade_bamboo_stacker,3200,220,6,0,0,0,0;u51,1,crimson_phoenix_striker,2700,260,17,0,0,0,0;u55,1,jade_bamboo_support,1800,220,0,0,0,0,0;u61,1,jade_bamboo_blade,800,160,7,0,0,0,0;u64,1,crimson_phoenix_striker,2700,260,1,0,0,0,0;u65,1,crimson_phoenix_blade,1350,160,0,0,0,0,0;u66,1,jade_bamboo_blade,5350,160,0,0,0,0,0;|1"
  }
 }
