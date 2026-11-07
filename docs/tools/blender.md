@@ -2,6 +2,30 @@
 
 > ส่วนหนึ่งของ [GDD §3](../GDD.md) · ข้อมูลภาพ (ขนาด, palette) อยู่ใน `docs/data/effects.json > render`
 
+> **ทางหลักของภาพตอนนี้คือ PixelLab (§0, [ADR 0009](../adr/0009-pixellab-sprites-96-board-128-cards.md))** Blender เป็นทางเลือกสำหรับภาพโปรโมต ฉาก หรือภาพที่ PixelLab ทำไม่ได้
+
+## 0. PixelLab (`npm run art:pixellab`)
+
+```
+art/pixellab.json            รายการ asset (id จาก docs/data), ขนาด, คำบรรยาย, กลุ่มสี, ท่าทางต่อประเภท, VFX
+tools/art/pixellab.mjs       ส่งงาน รอผล ดาวน์โหลด ผ่าน post-process เขียนไฟล์ อัปเดต manifest
+tools/art/stylize.mjs        post-process สไตล์ B: เส้นขอบภายในเป็นเฉดเข้มของสีข้างเส้น, ขอบนอกสุดเป็นโทนเข้มสุดของกลุ่มสีหลัก, snap เข้า palette
+packages/client/public/sprites/
+  board/<id>/<ทิศ>.png        sprite 96x96 บนกระดาน (วาด 1:1)
+  board/<id>/anim/<ท่า>/<ทิศ>/<n>.png   เฟรมท่าทาง (ยังไม่ใช้ในเกม)
+  card/<id>.png              การ์ด 128x128 (HUD, แท็บศิษย์, หน้าสำนัก, cut-in) แสดงที่ 1x เท่านั้น
+  manifest.json              สิ่งที่มีอยู่บนดิสก์ client โหลดครั้งเดียว
+art/vfx/<id>.png|json        VFX ต่อชุดวิชาและต่อท่า (ยังไม่ใช้ในเกม)
+```
+
+- **ดูราคาก่อนเสมอ:** `npm run art:pixellab -- --dry-run` ถาม `GET /v2/pro-flash/cost` (ฟรี ไม่ต้องใช้ token) แผนเต็มตอนนี้ราว 527 generation
+- **สร้างจริง:** ตั้ง `PIXELLAB_TOKEN` แล้วรัน `npm run art:pixellab` (หรือ `-- --only <id>`) งานที่มีไฟล์แล้วข้าม งานที่ส่งไปแล้วเก็บ id ใน `art/pixellab-jobs.json` รันซ้ำไม่จ่ายซ้ำ
+- **นำเข้าไฟล์ที่ได้มาเอง:** `npm run art:pixellab -- --import <png> card/<id>.png` ผ่าน post-process แล้วเขียนลง `public/sprites`
+- **ความสม่ำเสมอของชุดภาพ:** ตั้ง `defaults.styleImage` เป็น sprite ที่อนุมัติแล้ว ทุกงานจะส่งภาพนั้นเป็น `style_image` พร้อม `style_options {outline, shading}` ห้ามส่งภาพอ้างอิงของเกมอื่น
+- **ดาวน์โหลดผ่าน `api.pixellab.ai` เท่านั้น** (zip, spritesheet, `/mcp/images/{job}/download`) ไม่ใช้ `backblaze.pixellab.ai`
+- **ทุกพิกเซลต้องอยู่ใน `effects.json > render.palette`** `npm test` ตรวจทุก PNG ใต้ `public/sprites`
+- **ห้ามย่อภาพ 128 ลงกระดาน** ตัวที่ยังไม่มีภาพ 96 กระดานวาดด้วยโค้ด
+
 ใช้ Blender สองทาง:
 1. **ท่อผลิตภาพ** (`npm run art:build`): ปั้นหรือวางท่าโมเดล 3D แล้วเรนเดอร์ออกมาเป็น sprite pixel art ทุกท่า
    - ได้ไฟล์ PNG และ atlas JSON ที่ใช้ได้ทั้ง Phaser และ Unity

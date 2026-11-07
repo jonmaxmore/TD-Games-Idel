@@ -22,7 +22,7 @@ Installed under `.claude/` (sources in `.claude/THIRD_PARTY.md`). Use them; don'
 | Understanding the codebase | `graphify` once code exists (`/graphify .`); `cavecrew-investigator` for quick "where is X" |
 | Analytics events | `product-tracking-skills:product-tracking-design-tracking-plan` → `product-tracking-skills:product-tracking-implement-tracking` (account plugin, not vendored) |
 | Decisions worth keeping | `documentation-and-adrs` → `docs/adr/` |
-| Art pipeline (Blender → pixel sprites; Claude drives Blender via MCP) | `docs/tools/blender.md`, `npm run art:build`. Keep sprites inside `effects.json > render.palette`. |
+| Art pipeline (PixelLab sprites, ADR 0009; Blender optional, Claude drives it via MCP) | `docs/tools/blender.md`, `npm run art:pixellab` (`-- --dry-run` quotes cost first), `npm run art:build`. Keep sprites inside `effects.json > render.palette`. |
 | Game design / balance / economy review (docs/design, docs/data changes, new sect/hero/enemy/map/mode) | `game-design-review` skill + `game-designer`, `systems-designer`, `economy-designer`, `live-ops-designer` agents. Prove balance with the sim, else NOT ASSESSED. |
 | TD genre checks (waves, targeting, DPS vs HP vs income) | `tower-defense` |
 | Reverse engineering a shipped game/artifact | `reverse-engineer-anything` (REA MCP). Never copy third-party code or assets (e.g. Flash Element TD); mechanics only. |
