@@ -1,5 +1,7 @@
 # รีวิวดีไซน์: สำนักไฟ ขั้น 3 (หงส์เพลิง a / ไฟลามทุ่ง b) กับบอท 5 แบบ
 
+> **ล้าสมัย (superseded):** เอกสารนี้เขียนบน tower defense ซึ่งถูกตัดออกแล้ว ([ADR 0010](../../adr/0010-castle-battle-replaces-td.md)) เก็บไว้เป็นประวัติเท่านั้น
+
 อ้างอิง: `docs/specs/SPEC-pc-v2.md` §5, `docs/data/sects.json`, `packages/sim/src/defend.ts`, `packages/sim/test/bot.ts > POLICIES`
 โหมด: focused (ข้อมูลและกฎของสำนักไฟขั้น 3 กับกฎสำนักไฟ)
 

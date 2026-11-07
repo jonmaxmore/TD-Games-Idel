@@ -1,5 +1,7 @@
 # Monster Design: พรรคมารจันทร์โลหิต
 
+> **ล้าสมัย (superseded):** เอกสารนี้เขียนบน tower defense ซึ่งถูกตัดออกแล้ว ([ADR 0010](../adr/0010-castle-battle-replaces-td.md)) เก็บไว้เป็นประวัติเท่านั้น
+
 > **Monster Design Document.** Enemies, elite overlays and bosses. Each design starts from its gameplay role, then sets the visual rule the player must read in a split second on a phone. Spec and delivery: [art-bible](art-bible.md). Data: `docs/data/enemies.json`.
 
 **กฎร่วม**
