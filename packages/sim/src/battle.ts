@@ -78,10 +78,11 @@ function dealHand(setup: BattleSetup, r: { rng: number }): string[] {
   return hand;
 }
 
-// A sect's whole roster as the collection, with its default leader and sub-leader (battle.json > sectTeams).
+// A sect's disciples as the collection, with its default leader and sub-leader (battle.json > sectTeams).
+export const sectCards = (sect: string) => battleCardIds.filter((c) => battleUnits.get(c)!.kind === 'disciple' && battleUnits.get(c)!.sect === sect);
 export function sectSetup(sect: string): BattleSetup {
   const t = B.sectTeams.get(sect)!;
-  return { leader: t.leader, sub: t.sub, collection: battleCardIds.filter((c) => battleUnits.get(c)!.sect === sect), bench: [] };
+  return { leader: t.leader, sub: t.sub, collection: sectCards(sect), bench: [] };
 }
 
 export function createBattle(seed: number, setup0: BattleSetup, setup1: BattleSetup): BattleState {
@@ -132,8 +133,7 @@ function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: 
   const def = battleUnits.get(c.card ?? '');
   if (slot < 0 || def == null) return err(ev, 'card not in hand');
   if (s.mana[c.side] < def.mana) return err(ev, 'not enough mana');
-  const cap = B.sizes.get(def.size)!.perMatch;
-  if (cap != null && s.uses[c.side][slot]! >= cap) return err(ev, 'card used up');
+  if (def.perMatch != null && s.uses[c.side][slot]! >= def.perMatch) return err(ev, 'card used up');
   const d = c.d ?? -1;
   if (!Number.isInteger(d) || d < 0 || d > summonZone(s, c.side)) return err(ev, 'outside summon zone');
   s.mana[c.side] -= def.mana;
@@ -167,7 +167,7 @@ function fireCannon(s: BattleState, side: Side, d: number, ev: BattleEvent[]): v
 const COUNTER_CLASS: [string, (t: BattleUnitDef) => boolean][] = [
   ['large', (t) => t.size === 'large'], ['air', (t) => t.move === 'fly'], ['swarm', (t) => t.size === 'small'],
   ['guard', (t) => t.move === 'guard'], ['capture', (t) => t.move === 'capture'],
-  ['attacker', (t) => t.size === 'medium' && (t.move === 'march' || t.move === 'fly')],
+  ['attacker', (t) => t.size === 'medium' && (t.move === 'march' || t.move === 'fly')], ['dragon', (t) => t.kind === 'dragon'],
 ];
 export const COUNTER_CLASSES = [...COUNTER_CLASS.map(([k]) => k), 'structure'];
 export const classesOf = (t: BattleUnitDef): string[] => COUNTER_CLASS.filter(([, f]) => f(t)).map(([k]) => k);

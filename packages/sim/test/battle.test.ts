@@ -304,6 +304,16 @@ describe('castle battle rules', () => {
     expect(s.units.filter((u) => u.card === STRIKER).length).toBe(cap);
   });
 
+  it("a card's own perMatch overrides its size's cap", () => {
+    withCard('t_capped', { perMatch: 2 }, () => {
+      const s = createBattle(1, fixedHand(['t_capped']), HAND);
+      s.mana = [99, 99];
+      const errs = [0, 1, 2].map(() => stepBattle(s, [summon(0, 't_capped', 0)]).find((e) => e.e === 'error')?.msg);
+      expect(errs).toEqual([undefined, undefined, 'card used up']);
+    });
+    expect(battleUnits.get(BLADE)!.perMatch).toBe(battle.sizes.get('small')!.perMatch);
+  });
+
   it('rejects summons outside the zone, without mana or off-deck, and the zone stops short of enemies', () => {
     const s = fresh();
     const zone = summonZone(s, 0);

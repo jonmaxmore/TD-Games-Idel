@@ -27,8 +27,11 @@ export const palette = new Map<string, string[]>(Object.entries(FX.render.palett
 // Castle battle (battle.json, SPEC-castle-battle). Path distances in milli-tiles from side 0's castle.
 export type Move = 'march' | 'capture' | 'guard' | 'fly' | 'support';
 export type Size = 'small' | 'medium' | 'large';
+export type Kind = 'disciple' | 'demon' | 'divine' | 'dragon';
 export interface BattleUnitDef {
-  id: string; sect: string; kit: string; nameTh: string; nameEn: string; move: Move; size: Size; mana: number; hp: number;
+  // sect: the card's element (Wu Xing, colour); for a disciple also its sect. kind: what it is (beasts have no sect).
+  // perMatch: times it may be summoned in one match (null = unlimited), the card's own cap or its size's.
+  id: string; sect: string; kind: Kind; kit: string; nameTh: string; nameEn: string; move: Move; size: Size; mana: number; hp: number; perMatch: number | null;
   dmg: number; cooldown: number; range: number; hitsAir: boolean; hitsGround: boolean; dot: string | null;
   // On-hit kit (ticks or milli-tiles, 0 = none): splash hits every enemy it can hit this close to the target too.
   splash: number; slow: number; root: number; stun: number; push: number; ground: number; armor: number; pierce: boolean;
@@ -71,7 +74,8 @@ export const battleUnits = new Map<string, BattleUnitDef>();
 export const battleCardIds: string[] = S.roster.units.map((u: any) => u.id as string); // data order, for anything iterated
 for (const u of S.roster.units) {
   battleUnits.set(u.id, {
-    id: u.id, sect: u.sect, kit: u.kit, nameTh: u.nameTh, nameEn: u.nameEn, move: u.move, size: u.size, mana: u.mana, hp: u.hp,
+    id: u.id, sect: u.sect, kind: u.kind ?? 'disciple', kit: u.kit, nameTh: u.nameTh, nameEn: u.nameEn, move: u.move, size: u.size, mana: u.mana, hp: u.hp,
+    perMatch: 'perMatch' in u ? u.perMatch : BT.sizes[u.size].perMatch,
     dmg: u.dmg, cooldown: ticks(1.0 / u.rate), range: Math.max(tiles(u.range), tiles(BT.meleeRange)),
     hitsAir: u.target.includes('air'), hitsGround: u.target.includes('ground'), dot: u.dot ?? null,
     splash: tiles(u.splash ?? 0), slow: ticks(u.slowSec ?? 0), root: ticks(u.rootSec ?? 0), stun: ticks(u.stunSec ?? 0),

@@ -25,7 +25,7 @@ const TOP_H = 64, BOTTOM_H = 150; // HUD bands over the canvas, in stage pixels
 const OFF_PATH = 0.9; // tiles from the road centre a click still counts as on it
 const sec = (t: number) => Math.ceil(t / TICK_HZ);
 const clock = (t: number) => { const s = Math.max(0, sec(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
-const capOf = (card: string) => battle.sizes.get(battleUnits.get(card)!.size)!.perMatch;
+const capOf = (card: string) => battleUnits.get(card)!.perMatch;
 
 export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResult) => void): () => void {
   let speed = o.speed;

@@ -81,7 +81,7 @@ function teamScreen() {
   let redraws = 0;
   const setTeam = (t: Team) => { profile.team = fixTeam(t); save(profile); redraws = 0; show(); };
   const describe = (c: string) => {
-    const u = battleUnits.get(c)!, cap = battle.sizes.get(u.size)!.perMatch, t = profile.team;
+    const u = battleUnits.get(c)!, cap = u.perMatch, t = profile.team;
     const lv = c === t.leader ? 3 : c === t.sub ? 2 : 1, ab = abilityText(c, lv);
     info.textContent = `${u.nameTh} · ${roleLine(c)} · ${cap == null ? 'ลงได้ไม่จำกัด' : `ลงได้ ${cap} ครั้ง`} · HP ${u.hp} · ตี ${u.dmg}${u.hitsAir ? ' · ตีอากาศได้' : ''} · ${u.tagTh}${ab ? ` · ${ab}` : ''}`;
   };

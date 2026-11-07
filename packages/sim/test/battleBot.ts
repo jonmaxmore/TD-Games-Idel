@@ -25,8 +25,8 @@ export interface BotMind { rng: number; next: string | null }
 
 function playable(s: BattleState, side: Side, moves: string[], anyMana = false): string[] {
   return s.hands[side].filter((c, i) => {
-    const u = def(c), cap = battle.sizes.get(u.size)!.perMatch;
-    return moves.includes(u.move) && (anyMana || u.mana <= s.mana[side]) && (cap == null || s.uses[side][i]! < cap);
+    const u = def(c);
+    return moves.includes(u.move) && (anyMana || u.mana <= s.mana[side]) && (u.perMatch == null || s.uses[side][i]! < u.perMatch);
   });
 }
 
