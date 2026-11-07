@@ -1,6 +1,5 @@
-// Seeded RNG, path math, map layouts, Wu Xing and the canonical state hash.
-import { generates, grid, layouts, overcomeByPct, overcomePct, overcomes, propBlocks, TILE, type MapLayout, type Pt } from './data';
-import type { DefendState } from './defend';
+// Seeded RNG, integer and path math, Wu Xing and the FNV-1a hash the state fingerprints use.
+import { overcomeByPct, overcomePct, overcomes, TILE, type Pt } from './data';
 
 // mulberry32 over a uint32 state kept in the game state, so replays stay identical.
 export function nextRandom(s: { rng: number }): number {
@@ -34,37 +33,17 @@ export function pointAt(path: Pt[], d: number): Pt {
   return path[path.length - 1]!;
 }
 
-export function within(ax: number, ay: number, bx: number, by: number, r: number): boolean {
-  const dx = ax - bx, dy = ay - by;
-  return dx * dx + dy * dy <= r * r;
-}
-
-export const tileKey = (x: number, y: number) => `${x},${y}`;
-
+// Every tile an axis-aligned path in tiles passes through, as "x,y" keys.
 export function tilesOnPath(path: Pt[]): Set<string> {
   const o = new Set<string>();
   for (let i = 1; i < path.length; i++) {
     const a = path[i - 1]!, b = path[i]!;
     const sx = Math.sign(b.x - a.x), sy = Math.sign(b.y - a.y);
     for (let x = a.x, y = a.y; ; x += sx, y += sy) {
-      o.add(tileKey(x, y));
+      o.add(`${x},${y}`);
       if (x === b.x && y === b.y) break;
     }
   }
-  return o;
-}
-
-// The 'mirror' variant flips x.
-export function resolveLayout(name: string, variant: string | null): MapLayout {
-  const l = layouts.get(name)!;
-  if (variant !== 'mirror') return l;
-  const f = (p: Pt): Pt => ({ x: grid.w - 1 - p.x, y: p.y });
-  return { ...l, paths: l.paths.map((p) => p.map(f)), props: l.props.map((p) => ({ type: p.type, at: f(p.at) })) };
-}
-
-export function blockedTiles(l: MapLayout): Set<string> {
-  const o = new Set<string>();
-  for (const p of l.props) if (propBlocks.get(p.type)) o.add(tileKey(p.at.x, p.at.y));
   return o;
 }
 
@@ -82,25 +61,7 @@ export function wuxingPct(attacker: string[], target: string): number {
   return best;
 }
 
-export function isGenerated(own: string[], neighbours: string[][]): boolean {
-  for (const n of neighbours)
-    for (const ne of n)
-      for (const oe of own)
-        if (ne !== 'yinyang' && generates.get(ne) === oe) return true;
-  return false;
-}
-
-// Engine-neutral state fingerprint with a fixed layout:
-//   tick|silver|lives|wave|phase|rng|d<id>,<level>,<cd>,<hits>[,b];...|e<id>,<type>,<hp>,<d>,<elite|->,<stunT>,<slowT>,<burnT>,<poison>;...|<cards,>
-// ([,b]: a tier-3 disciple on branch b.) Hash = FNV-1a 32-bit over UTF-16 code units, lowercase hex.
-export function canonicalString(s: DefendState): string {
-  let o = `${s.tick}|${s.silver}|${s.lives}|${s.wave}|${s.phase}|${s.rng}|`;
-  for (const d of s.disciples) o += `d${d.id},${d.level},${d.cd},${d.hits}${d.branch === 'b' ? ',b' : ''};`; // branch a adds nothing
-  o += '|';
-  for (const e of s.enemies) o += `e${e.id},${e.type},${e.hp},${e.d},${e.elite ?? '-'},${e.stunT},${e.slowT},${e.burnT},${e.poison};`;
-  return o + '|' + s.cards.join(',');
-}
-
+// FNV-1a 32-bit over UTF-16 code units, lowercase hex.
 export function fnv1a(str: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
@@ -109,5 +70,3 @@ export function fnv1a(str: string): string {
   }
   return (h >>> 0).toString(16).padStart(8, '0');
 }
-
-export const canonicalHash = (s: DefendState) => fnv1a(canonicalString(s));
