@@ -12,6 +12,7 @@
     "sim:golden": "vite-node packages/sim/scripts/write-golden.ts",
     "art:build": "node tools/blender/build.mjs",
     "art:brief": "node tools/art/brief.mjs",
+    "art:pixellab": "node tools/art/pixellab.mjs",
     "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py",
     "sim:measure": "vite-node packages/sim/scripts/measure.ts",
     "typecheck": "tsc -p packages/sim && tsc -p packages/client",

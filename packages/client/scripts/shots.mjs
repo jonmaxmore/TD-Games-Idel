@@ -14,7 +14,7 @@ mkdirSync(out, { recursive: true });
 
 const server = await createServer({ root, server: { port: 5199 }, logLevel: 'error' });
 await server.listen();
-const base = 'http://localhost:5199/';
+const base = server.resolvedUrls.local[0]; // the port vite really got, in case 5199 is taken
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const errors = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

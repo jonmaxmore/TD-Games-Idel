@@ -7,6 +7,7 @@ import {
   chapterStars, chapterStarsMax, load, migrate, nextStage, PLAYLIST, recordEnd, route, save, TUTORIAL, type LobbyTab, type Profile, type Screen,
 } from './profile';
 import { initSound } from './sound';
+import { loadSprites } from './sprites';
 import { nowrapWords } from './words';
 
 const app = document.getElementById('app')!;
@@ -365,4 +366,5 @@ function comingSoon(tab: 'hall' | 'shop') {
     : 'ร้าน: หยก แพ็ก บัตรรายเดือน ตั๋วยุทธภพ ของใน PvP เป็นของตกแต่งเท่านั้น', [btn('ปิด', '', () => d.remove())]);
 }
 
-go(jump ? { k: 'battle', stageId: jump } : route(profile));
+// Sprites load first (a few small files listed in a manifest), so the first screen already shows them.
+void loadSprites().then(() => go(jump ? { k: 'battle', stageId: jump } : route(profile)));

@@ -1,10 +1,12 @@
 // The battlefield in 2.5D pixel art with plain Canvas 2D: a 3/4 top-down board (tiles squashed vertically) and
-// upright pixel figures drawn back to front. It draws at low resolution in whole pixels; CSS scales the canvas up
-// with hard edges. It only reads the sim state; it never changes it.
+// upright pixel figures drawn back to front. The canvas buffer is full resolution: the procedural drawing works in
+// low-res board units scaled up K times (setTransform), and PixelLab sprites (sprites.ts) are drawn 1:1 in the same
+// depth pass. It only reads the sim state; it never changes it.
 import {
   bellRadius, biomes, branchA, branchB, discipleStats, enemies as enemyDefs, FIRE_SPLASH, grid, moonPhase, openPath, palette, propBlocks, sects, TILE, units, type DefendState, type Disciple,
   type SimEvent,
 } from '@five-sects/sim';
+import { boardSprite, silhouette, type Frame } from './sprites';
 
 const TOP = 34; // room above the far row for figures standing on it
 const PAD = 6;
@@ -65,7 +67,7 @@ const DIGITS = ['111101101101111', '010110010010111', '111001111100111', '111001
 
 interface Fx { draw: (g: CanvasRenderingContext2D, k: number) => void; from: number; until: number }
 interface Status { burnT: number; poison: number; stunT: number; slowT: number; rootedT: number; id: number }
-interface Seen { x: number; y: number; type: string; flash: number; stunBy: string } // flash: when to draw one white frame (0 = none); stunBy: the last stun's kind
+interface Seen { x: number; y: number; type: string; flash: number; stunBy: string; dir: string } // flash: when to draw one white frame (0 = none); stunBy: the last stun's kind; dir: facing, from its movement
 interface Live { t0: number; t1: number } // visible from t0 until t1 (ms, performance.now)
 
 // A fixed ring of particles: taking one reuses the oldest, so a burst never allocates.
@@ -85,7 +87,13 @@ export class Board {
   private g: CanvasRenderingContext2D;
   private ox = 0;
   private oy = 0;
-  private scale = 1; // CSS pixels per buffer pixel
+  // The buffer is 1920x1080 per 1280x720 of stage: 1.5 buffer pixels per stage pixel, 1:1 on a 1080p screen. The procedural
+  // drawing is in board units of 2 stage pixels (K = 3 buffer pixels each); sprites are drawn 1:1 in buffer pixels.
+  private readonly K = 3;
+  private W = 0; // board units across and down
+  private H = 0;
+  private shx = 0; // this frame's shake, in board units
+  private shy = 0;
   // Tile size in buffer pixels, chosen to fill the canvas: T across, TH deep (TH < T is the 3/4 view).
   private T = 24;
   private TH = 15;
@@ -114,24 +122,23 @@ export class Board {
     this.resize();
   }
 
-  // A whole-number pixel scale (pixels stay square), then tiles sized to fill the canvas.
+  // The board unit is 2 stage pixels whatever the window (CSS scales the stage), so the buffer is a fixed size; tiles fill it.
   resize(): void {
-    const cw = this.canvas.clientWidth, ch = this.canvas.clientHeight;
-    this.scale = Math.max(1, Math.round(ch / 320));
-    this.canvas.width = Math.floor(cw / this.scale);
-    this.canvas.height = Math.floor(ch / this.scale);
-    this.T = Math.floor((this.canvas.width - 2 * PAD) / grid.w);
+    this.W = Math.floor(this.canvas.clientWidth / 2); this.H = Math.floor(this.canvas.clientHeight / 2);
+    this.canvas.width = this.W * this.K;
+    this.canvas.height = this.H * this.K;
+    this.T = Math.floor((this.W - 2 * PAD) / grid.w);
     // Depth per row: fill the height, kept between a steep 0.55 and a top-down 1.0 of the tile width.
-    this.TH = Math.max(Math.round(this.T * 0.55), Math.min(this.T, Math.floor((this.canvas.height - TOP - 2 * PAD - 10) / grid.h)));
-    this.ox = Math.floor((this.canvas.width - this.BW) / 2);
-    this.oy = Math.floor((this.canvas.height - this.BH + TOP - 10) / 2);
+    this.TH = Math.max(Math.round(this.T * 0.55), Math.min(this.T, Math.floor((this.H - TOP - 2 * PAD - 10) / grid.h)));
+    this.ox = Math.floor((this.W - this.BW) / 2);
+    this.oy = Math.floor((this.H - this.BH + TOP - 10) / 2);
     this.paintGround();
   }
 
   // Where coins fly: the silver counter's centre in client pixels.
   silverAt(clientX: number, clientY: number): void {
     const r = this.canvas.getBoundingClientRect();
-    if (r.width) this.silver = { x: Math.round(((clientX - r.left) / r.width) * this.canvas.width), y: Math.round(((clientY - r.top) / r.height) * this.canvas.height) };
+    if (r.width) this.silver = { x: Math.round(((clientX - r.left) / r.width) * this.W), y: Math.round(((clientY - r.top) / r.height) * this.H) };
   }
 
   // Sim milli-tiles to buffer pixels at ground level.
@@ -140,14 +147,14 @@ export class Board {
 
   tileAt(clientX: number, clientY: number): { tx: number; ty: number } | null {
     const r = this.canvas.getBoundingClientRect();
-    const bx = ((clientX - r.left) / r.width) * this.canvas.width, by = ((clientY - r.top) / r.height) * this.canvas.height;
+    const bx = ((clientX - r.left) / r.width) * this.W, by = ((clientY - r.top) / r.height) * this.H;
     const tx = Math.floor((bx - this.ox) / this.T), ty = Math.floor((by - this.oy) / this.TH);
     return tx >= 0 && ty >= 0 && tx < grid.w && ty < grid.h ? { tx, ty } : null;
   }
 
   // World point (milli-tiles) to CSS pixels inside the canvas, for floating text. lift is in tiles above the ground.
   toScreen(x: number, y: number, lift = 0.9): { x: number; y: number } {
-    const r = this.canvas.clientWidth / this.canvas.width;
+    const r = this.canvas.clientWidth / this.W;
     return { x: this.sx(x) * r, y: (this.sy(y) - lift * this.T) * r };
   }
 
@@ -160,8 +167,10 @@ export class Board {
     this.s = s;
     for (const e of s.enemies) {
       const p = this.seen.get(e.id);
-      if (!p) this.seen.set(e.id, { x: e.x, y: e.y, type: e.type, flash: 0, stunBy: '' });
-      else { p.x += (e.x - p.x) * 0.35; p.y += (e.y - p.y) * 0.35; }
+      if (!p) { this.seen.set(e.id, { x: e.x, y: e.y, type: e.type, flash: 0, stunBy: '', dir: 'south' }); continue; }
+      const dx = e.x - p.x, dy = e.y - p.y;
+      if (Math.abs(dx) + Math.abs(dy) > 8) p.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'east' : 'west') : dy > 0 ? 'south' : 'north';
+      p.x += dx * 0.35; p.y += dy * 0.35;
     }
     for (const id of this.seen.keys()) if (!s.enemies.some((e) => e.id === id)) this.seen.delete(id);
     this.fx = this.fx.filter((f) => now < f.until);
@@ -241,7 +250,7 @@ export class Board {
 
   // The static layer: a ridge behind the board, the cliff under it, the tiles, the path and the flat props.
   private paintGround(): void {
-    const { width: w, height: h } = this.canvas;
+    const w = this.W, h = this.H;
     this.bg.width = w; this.bg.height = h;
     const g = this.bg.getContext('2d')!, s = this.s;
     const pal = palette.get(biomes.get(s.layout.biome)?.palette ?? '') ?? palette.get('env')!;
@@ -289,7 +298,7 @@ export class Board {
   // Fog (bamboo rule): mist over the board, drawn above the figures, with each disciple's sight (its range) cut clear.
   private fog(now: number) {
     const m = this.mist, f = m.getContext('2d')!, s = this.s;
-    if (m.width !== this.canvas.width || m.height !== this.canvas.height) { m.width = this.canvas.width; m.height = this.canvas.height; }
+    if (m.width !== this.W || m.height !== this.H) { m.width = this.W; m.height = this.H; }
     f.clearRect(0, 0, m.width, m.height);
     f.fillStyle = '#B8CCC4';
     f.globalAlpha = 0.42;
@@ -311,11 +320,13 @@ export class Board {
 
   // Blood moon in the sky: a red disc with a dark bite that grows one step per phase (0 = full).
   private moon(phase: number) {
-    const g = this.g, x = this.ox + this.BW - 34, y = Math.max(14, this.oy - 36);
-    g.fillStyle = '#5A0E14'; g.beginPath(); g.arc(x, y, 13, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#D2412F'; g.beginPath(); g.arc(x, y, 11, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#FF7A5A'; g.fillRect(x - 6, y - 6, 4, 3); g.fillRect(x + 2, y + 2, 3, 2);
-    if (phase % 5) { g.fillStyle = '#0B0910'; g.beginPath(); g.arc(x + 24 - (phase % 5) * 4, y - 2, 12, 0, Math.PI * 2); g.fill(); }
+    const x = this.ox + this.BW - 34, y = Math.max(14, this.oy - 36);
+    lowres(this.g, x - 14, y - 15, 52, 30, (g) => { // the bite may reach past the disc, as it always has
+      g.fillStyle = '#5A0E14'; g.beginPath(); g.arc(x, y, 13, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#D2412F'; g.beginPath(); g.arc(x, y, 11, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#FF7A5A'; g.fillRect(x - 6, y - 6, 4, 3); g.fillRect(x + 2, y + 2, 3, 2);
+      if (phase % 5) { g.fillStyle = '#0B0910'; g.beginPath(); g.arc(x + 24 - (phase % 5) * 4, y - 2, 12, 0, Math.PI * 2); g.fill(); }
+    });
   }
 
   render(): void {
@@ -325,7 +336,8 @@ export class Board {
     g.fillStyle = '#0B0910';
     g.fillRect(0, 0, this.canvas.width, this.canvas.height);
     const a = this.shake && now < this.shakeT ? this.shakeA : 0;
-    if (a) g.setTransform(1, 0, 0, 1, Math.round((Math.random() * 2 - 1) * a), Math.round((Math.random() * 2 - 1) * a));
+    this.shx = a ? Math.round((Math.random() * 2 - 1) * a) : 0; this.shy = a ? Math.round((Math.random() * 2 - 1) * a) : 0;
+    g.setTransform(this.K, 0, 0, this.K, this.shx * this.K, this.shy * this.K);
     g.drawImage(this.bg, 0, 0);
 
     if (this.cursor) {
@@ -343,7 +355,7 @@ export class Board {
     const things: { depth: number; draw: () => void }[] = [];
     for (const p of s.layout.props) {
       const art = PROP_ART[p.type];
-      if (art) things.push({ depth: p.at.y + 0.5, draw: () => this.prop(art, this.ox + p.at.x * this.T + (this.T >> 1), Math.round(this.oy + (p.at.y + 0.7) * this.TH), !!propBlocks.get(p.type)) });
+      if (art) things.push({ depth: p.at.y + 0.5, draw: () => this.prop(p.type, art, this.ox + p.at.x * this.T + (this.T >> 1), Math.round(this.oy + (p.at.y + 0.7) * this.TH), !!propBlocks.get(p.type)) });
     }
     // A cave mouth at every spawn gate, so each entrance reads at a glance; one sect gate at the shared goal.
     // City gates: a closed road gets bars; the one that opens next wave blinks them.
@@ -365,7 +377,7 @@ export class Board {
       let white = false;
       if (p && p.flash && now >= p.flash) { white = true; p.flash = 0; } // exactly one white frame per landed hit
       const q = p ?? e;
-      things.push({ depth: q.y / TILE, draw: () => this.enemy(e.type, e.hp / e.maxHp, this.sx(q.x), this.sy(q.y), e, p?.stunBy ?? '', now, white) });
+      things.push({ depth: q.y / TILE, draw: () => this.enemy(e.type, e.hp / e.maxHp, this.sx(q.x), this.sy(q.y), e, p?.stunBy ?? '', p?.dir ?? 'south', now, white) });
     }
     things.sort((a, b) => a.depth - b.depth);
     for (const t of things) t.draw();
@@ -456,9 +468,11 @@ export class Board {
     }
   }
 
-  private prop(art: Rect[], x: number, y: number, shadow: boolean) {
+  private prop(type: string, art: Rect[], x: number, y: number, shadow: boolean) {
     const g = this.g;
     if (shadow) this.shadow(x, y, 9);
+    const sp = boardSprite(type);
+    if (sp) { this.blit(sp.f, x, y, sp.flip); return; }
     for (const [dx, dy, w, h, c] of art) { g.fillStyle = c; g.fillRect(x + dx, y + dy, w, h); }
   }
 
@@ -466,6 +480,17 @@ export class Board {
     this.g.fillStyle = '#00000066';
     this.g.fillRect(x - w, y - 1, w * 2, 3);
     this.g.fillRect(x - w + 2, y - 2, w * 2 - 4, 5);
+  }
+
+  // A sprite 1:1 in buffer pixels, its lowest opaque row on the ground point (x, y) in board units; lift raises it.
+  // over: a silhouette colour laid on top at alpha (hit flash, status tint, sealed grey).
+  private blit(f: Frame, x: number, y: number, flip: boolean, lift = 0, over?: [string, number]) {
+    const g = this.g, K = this.K;
+    const X = x * K + this.shx * K - (f.w >> 1), Y = y * K + this.shy * K - lift - 1 - f.foot;
+    g.setTransform(flip ? -1 : 1, 0, 0, 1, flip ? X + f.w : X, Y);
+    g.drawImage(f.img, 0, 0);
+    if (over) { g.globalAlpha *= over[1]; g.drawImage(silhouette(f, over[0]), 0, 0); g.globalAlpha /= over[1]; }
+    g.setTransform(K, 0, 0, K, this.shx * K, this.shy * K);
   }
 
   private cave(x: number, y: number, barred = false, opening = false) {
@@ -477,7 +502,8 @@ export class Board {
   }
 
   private gate(x: number, y: number) {
-    const g = this.g;
+    const g = this.g, sp = boardSprite('gate');
+    if (sp) { this.blit(sp.f, x, y, sp.flip); return; }
     g.fillStyle = '#4A0E0A'; g.fillRect(x - 12, y - 26, 3, 26); g.fillRect(x + 9, y - 26, 3, 26);
     g.fillStyle = '#9A2A1E'; g.fillRect(x - 15, y - 29, 30, 4); g.fillRect(x - 13, y - 22, 26, 2);
     g.fillStyle = '#E3B04B'; g.fillRect(x - 2, y - 28, 4, 2);
@@ -492,6 +518,15 @@ export class Board {
     const role = u?.roleId ?? 'striker';
     const b = Math.round(Math.sin(t / 300)); // idle bob
     this.shadow(x, y, 7);
+    const sp = boardSprite(key);
+    if (sp) { // the sprite, then the tier marks the art does not carry: level pips under the feet, the branch mark over the head
+      this.blit(sp.f, x, y, sp.flip, -b, off ? ['#5A5266', 0.7] : undefined);
+      const head = y - Math.ceil((sp.f.foot - sp.f.top + 1 - b) / this.K);
+      if (level >= 3 && !off) { g.fillStyle = FX.gold; g.fillRect(x - 2, head - 4, 4, 4); g.fillStyle = branch === 'b' ? FX.markB : FX.markA; g.fillRect(x - 1, head - 3, 2, 2); }
+      g.fillStyle = FX.star;
+      for (let i = 1; i < level; i++) g.fillRect(x - 5 + (i - 1) * 4, y + 2, 3, 2);
+      return;
+    }
     g.fillStyle = '#1A1418'; g.fillRect(x - 5, y - 14 + b, 10, 13); // outline
     g.fillStyle = color; g.fillRect(x - 4, y - 13 + b, 8, 12); // robe
     if (!off && (u?.sect ?? key) === 'wood') { g.fillStyle = FX.leaf; g.fillRect(x - 4, y - 13 + b, 8, 1); g.fillRect(x - 4, y - 12 + b, 1, 11); } // light rim: green robe on green grass
@@ -514,22 +549,28 @@ export class Board {
 
   // An enemy: body by type (bosses big, brutes wide, fliers raised with wings), status tint, and an HP bar.
   // Stunned: vines at the feet when rooted, an ice block when frozen, else stars circling the head.
-  private enemy(type: string, hp: number, x: number, y: number, e: Status, stunBy: string, now: number, white: boolean) {
+  // A sprite enemy faces dir and keeps the same overlays, sized from its opaque bounds.
+  private enemy(type: string, hp: number, x: number, y: number, e: Status, stunBy: string, dir: string, now: number, white: boolean) {
     const g = this.g;
     const def = enemyDefs.get(type)!;
     const boss = def.boss != null;
-    const w = boss ? 8 : type === 'brute' ? 6 : 4, h = boss ? 22 : 11;
+    const sp = boardSprite(type, dir);
+    let w = boss ? 8 : type === 'brute' ? 6 : 4, h = boss ? 22 : 11;
     const lift = def.air ? 8 + Math.round(Math.sin(now / 200 + e.id) * 2) : 0;
+    const tint = e.burnT > 0 ? FX.fire : e.poison > 0 ? '#5BC46A' : e.slowT > 0 ? FX.slow : null;
+    if (sp) { w = Math.ceil((sp.f.right - sp.f.left + 1) / 2 / this.K); h = Math.ceil((sp.f.foot - sp.f.top + 1) / this.K) - 5; }
     this.shadow(x, y, w + 2);
     const top = y - h - lift;
-    g.fillStyle = '#120A0C'; g.fillRect(x - w - 1, top - 6, w * 2 + 2, h + 7); // outline
-    g.fillStyle = white ? '#FFFFFF' : boss ? BOSS_COLOR : ENEMY_COLOR[type] ?? '#7A2A2A';
-    g.fillRect(x - w, top, w * 2, h);
-    g.fillStyle = white ? '#FFFFFF' : '#D8C0A8'; g.fillRect(x - 3, top - 5, 6, 5);
-    g.fillStyle = '#120A0C'; g.fillRect(x + 1, top - 3, 1, 1); // eye, facing the gate
-    if (def.air) { g.fillStyle = '#2A3A2A'; g.fillRect(x - w - 5, top + 2, 5, 2); g.fillRect(x + w, top + 2, 5, 2); }
-    const tint = e.burnT > 0 ? FX.fire + '88' : e.poison > 0 ? '#5BC46A88' : e.slowT > 0 ? FX.slow + '88' : null;
-    if (tint && !white) { g.fillStyle = tint; g.fillRect(x - w, top, w * 2, h); }
+    if (sp) this.blit(sp.f, x, y, sp.flip, lift * this.K, white ? ['#FFFFFF', 1] : tint ? [tint, 0.53] : undefined);
+    else {
+      g.fillStyle = '#120A0C'; g.fillRect(x - w - 1, top - 6, w * 2 + 2, h + 7); // outline
+      g.fillStyle = white ? '#FFFFFF' : boss ? BOSS_COLOR : ENEMY_COLOR[type] ?? '#7A2A2A';
+      g.fillRect(x - w, top, w * 2, h);
+      g.fillStyle = white ? '#FFFFFF' : '#D8C0A8'; g.fillRect(x - 3, top - 5, 6, 5);
+      g.fillStyle = '#120A0C'; g.fillRect(x + 1, top - 3, 1, 1); // eye, facing the gate
+      if (def.air) { g.fillStyle = '#2A3A2A'; g.fillRect(x - w - 5, top + 2, 5, 2); g.fillRect(x + w, top + 2, 5, 2); }
+      if (tint && !white) { g.fillStyle = tint + '88'; g.fillRect(x - w, top, w * 2, h); }
+    }
     const bw = boss ? 24 : 12;
     g.fillStyle = '#200808'; g.fillRect(x - bw / 2, top - 9, bw, 2);
     g.fillStyle = '#E23B2E'; g.fillRect(x - bw / 2, top - 9, Math.max(1, Math.round(bw * Math.max(0, hp))), 2);
@@ -574,7 +615,24 @@ function digitSheet(colors: string[]): HTMLCanvasElement[] {
 
 const woodAura = (d: Disciple) => d.els.includes('wood') && d.level >= 3 && d.branch !== 'b' && d.offT <= 0;
 
+// Paths (rings, discs) are drawn at board resolution on a scratch canvas and scaled up, so their anti-aliased pixels come out as
+// whole board pixels like the rest of the procedural drawing. (x0, y0, w, h) is the board-unit box the path fits in.
+const scratch = document.createElement('canvas');
+function lowres(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, paint: (s: CanvasRenderingContext2D) => void) {
+  if (scratch.width < w || scratch.height < h) { scratch.width = Math.max(w, scratch.width); scratch.height = Math.max(h, scratch.height); }
+  const s = scratch.getContext('2d')!;
+  s.clearRect(0, 0, w, h);
+  s.setTransform(1, 0, 0, 1, -x0, -y0);
+  paint(s);
+  s.setTransform(1, 0, 0, 1, 0, 0);
+  g.drawImage(scratch, 0, 0, w, h, x0, y0, w, h);
+}
+
+// A 1-unit ellipse outline.
 function ring(g: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, color: string) {
-  g.strokeStyle = color; g.lineWidth = 1;
-  g.beginPath(); g.ellipse(x + 0.5, y + 0.5, Math.max(0, rx), Math.max(0, ry), 0, 0, Math.PI * 2); g.stroke();
+  rx = Math.max(0, rx); ry = Math.max(0, ry);
+  lowres(g, Math.floor(x - rx) - 1, Math.floor(y - ry) - 1, Math.ceil(2 * rx) + 4, Math.ceil(2 * ry) + 4, (s) => {
+    s.strokeStyle = color; s.lineWidth = 1;
+    s.beginPath(); s.ellipse(x + 0.5, y + 0.5, rx, ry, 0, 0, Math.PI * 2); s.stroke();
+  });
 }
