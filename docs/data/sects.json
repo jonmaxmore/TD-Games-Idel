@@ -53,7 +53,7 @@
         { "lvl": 1, "name": "Flame Fan", "nameTh": "พัดเพลิง", "effect": "cone of fire, burn 6 dps 3s", "effectTh": "ไฟกระจายรอบเป้า (รัศมี 0.8 ช่อง) เผาต่อเนื่อง 3 วินาที" },
         { "lvl": 2, "name": "Phoenix Feathers", "nameTh": "ขนหงส์กระจาย", "effect": "burning enemies explode on death (30 dmg r=1)", "effectTh": "ศัตรูที่ไหม้อยู่ตอนตาย ระเบิดใส่ตัวรอบข้าง 30 ดาเมจ (รัศมี 1 ช่อง)" },
         { "lvl": 3, "branch": "a", "name": "Rebirth Blaze", "nameTh": "เพลิงคืนชีพ", "effect": "every 20s a phoenix sweeps the path: hits every enemy on it and sets it burning", "effectTh": "ทุก 20 วินาที หงส์เพลิงกวาดทั้งเส้นทาง ศัตรูทุกตัวโดนและติดไฟ" },
-        { "lvl": 3, "branch": "b", "name": "Wildfire", "nameTh": "ไฟลามทุ่ง", "effect": "splash 2.5x as wide, burns last twice as long and 3.5x as hot", "effectTh": "วงระเบิดไฟกว้าง 2.5 เท่า ไฟติดนานสองเท่า และแรงขึ้น 3.5 เท่า", "rule": { "splashPct": 250, "burnPct": 200, "dpsPct": 350 } }
+        { "lvl": 3, "branch": "b", "name": "Wildfire", "nameTh": "ไฟลามทุ่ง", "effect": "splash 2.25x as wide, burns last twice as long and 3x as hot", "effectTh": "วงระเบิดไฟกว้าง 2.25 เท่า ไฟติดนานสองเท่า และแรงขึ้น 3 เท่า", "rule": { "splashPct": 225, "burnPct": 200, "dpsPct": 300 } }
       ]
     },
     {
