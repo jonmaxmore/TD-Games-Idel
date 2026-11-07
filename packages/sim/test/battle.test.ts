@@ -98,6 +98,44 @@ describe('castle battle hand', () => {
   });
 });
 
+describe('castle battle leader abilities', () => {
+  const team = (leader: string, sub: string, cards: string[]) => fixedHand(cards, leader, sub);
+  const WARDEN = 'jade_bamboo_warden', NAGA = 'frost_tide_naga', ELDER = 'cloud_sword_elder';
+  it('an ability has three levels: as any card, as the sub-leader, as the leader', () => {
+    const hp = (leader: string, sub: string) => {
+      const s = createBattle(1, team(leader, sub, [WARDEN, BLADE]), HAND);
+      stepBattle(s, [summon(0, WARDEN, 0)]);
+      return s.units[0]!.maxHp;
+    };
+    const base = battleUnits.get(WARDEN)!.hp, lv = battleUnits.get(WARDEN)!.ability!.lv;
+    expect([hp(BLADE, ''), hp(BLADE, WARDEN), hp(WARDEN, BLADE)]).toEqual(lv.map((v) => Math.floor((base * (100 + v)) / 100)));
+    const mana = (leader: string) => {
+      const s = createBattle(1, team(leader, '', [NAGA, BLADE]), HAND);
+      stepBattle(s, [summon(0, NAGA, 0)]);
+      return s.mana[0];
+    };
+    expect(mana(NAGA)).toBe(battle.manaStart - battleUnits.get(NAGA)!.mana + battleUnits.get(NAGA)!.ability!.lv[2]);
+    expect(mana(BLADE)).toBe(battle.manaStart - battleUnits.get(NAGA)!.mana + battleUnits.get(NAGA)!.ability!.lv[0]);
+  });
+
+  it('an aura makes allies near the unit hit harder, not ones out of its radius', () => {
+    withCard('t_hit', { dmg: 100, kit: 'earth', dot: null, range: 1000, cooldown: 1000, move: 'guard', sect: 'yinyang' }, () => {
+      withCard('t_dummy', { dmg: 0, hp: 9999, move: 'guard', sect: 'yinyang' }, () => {
+        const dealt = (elderAt: number) => {
+          const s = createBattle(1, team(ELDER, '', ['t_hit', ELDER]), fixedHand(['t_dummy']));
+          s.mana = [40, 40];
+          stepBattle(s, [summon(0, 't_hit', 0), summon(0, ELDER, 0), summon(1, 't_dummy', 0)]);
+          const [me, elder, dummy] = s.units as [Fighter, Fighter, Fighter];
+          me.d = 6000; elder.d = elderAt; elder.cd = 9999; dummy.d = 6500;
+          return stepBattle(s).find((e) => e.e === 'hit' && e.from === me.id)!.dmg;
+        };
+        expect(dealt(6000 - battle.auraRadius)).toBe(100 + battleUnits.get(ELDER)!.ability!.lv[2]);
+        expect(dealt(6000 - battle.auraRadius - 1)).toBe(100);
+      });
+    });
+  });
+});
+
 describe('castle battle on-hit kits', () => {
   it('splash lands the hit on every enemy near the target, not on ones further off', () => {
     withCard('t_splash', { splash: 1000, range: 3000, cooldown: 1 }, () => {

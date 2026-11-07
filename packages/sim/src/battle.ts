@@ -25,7 +25,7 @@ export interface BattleEvent {
 }
 
 export interface Fighter {
-  id: number; side: Side; card: string; d: number; hp: number; maxHp: number; cd: number; home: number;
+  id: number; side: Side; card: string; d: number; hp: number; maxHp: number; cd: number; home: number; aura: number; // aura: % more damage it gives allies near it
   stunT: number; burnT: number; poison: number; poisonT: number; rootT: number; slowT: number;
 }
 // Burning ground: ground enemies of side within groundRadius of d keep burning while t > 0.
@@ -114,6 +114,16 @@ function redraw(s: BattleState, side: Side, ev: BattleEvent[]): void {
   s.uses[side] = s.hands[side].map(() => 0);
 }
 
+// A card's ability level on a team: 3 as the leader, 2 as the sub-leader, 1 otherwise; its value at that level (0: none).
+export const cardLevel = (setup: BattleSetup, card: string) => (card === setup.leader ? 3 : card === setup.sub ? 2 : 1);
+export const abilityValue = (def: BattleUnitDef, level: number) => def.ability?.lv[level - 1] ?? 0;
+// The strongest aura of an ally (itself too) within reach: the % more damage u deals.
+function auraAt(s: BattleState, u: Fighter): number {
+  let best = 0;
+  for (const a of s.units) if (a.side === u.side && a.aura > best && Math.abs(a.d - u.d) <= B.auraRadius) best = a.aura;
+  return best;
+}
+
 function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: BattleEvent[]): void {
   const slot = s.hands[c.side].indexOf(c.card ?? '');
   const def = battleUnits.get(c.card ?? '');
@@ -125,8 +135,10 @@ function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: 
   if (!Number.isInteger(d) || d < 0 || d > summonZone(s, c.side)) return err(ev, 'outside summon zone');
   s.mana[c.side] -= def.mana;
   s.uses[c.side][slot]!++;
-  const abs = fwd(c.side, d);
-  const u: Fighter = { id: s.nextId++, side: c.side, card: def.id, d: abs, hp: def.hp, maxHp: def.hp, cd: 0, home: abs, stunT: 0, burnT: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0 };
+  const v = abilityValue(def, cardLevel(s.setups[c.side], def.id)), kind = def.ability?.kind;
+  if (kind === 'refund') s.mana[c.side] = Math.min(B.manaMax, s.mana[c.side] + v);
+  const abs = fwd(c.side, d), hp = kind === 'hp' ? div(def.hp * (100 + v), 100) : def.hp;
+  const u: Fighter = { id: s.nextId++, side: c.side, card: def.id, d: abs, hp, maxHp: hp, cd: 0, home: abs, aura: kind === 'aura' ? v : 0, stunT: 0, burnT: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0 };
   s.units.push(u);
   ev.push({ e: 'spawn', id: u.id, type: def.id, side: c.side, ...at(abs) });
 }
@@ -223,12 +235,13 @@ function act(s: BattleState, u: Fighter, ev: BattleEvent[], pend: Pending[]): nu
     }
   }
   const enemy = pickEnemy(s, u, def);
+  const dmg = div(def.dmg * (100 + auraAt(s, u)), 100);
   if (enemy != null) {
     if (u.cd === 0) {
       u.cd = def.cooldown;
       for (const e of s.units)
         if (e === enemy || (def.splash > 0 && e.side !== u.side && Math.abs(e.d - enemy.d) <= def.splash && canHit(def, e))) {
-          damage(s, u.id, e, def, def.dmg, ev);
+          damage(s, u.id, e, def, dmg, ev);
           pend.push({ side: u.side, d: e.d, u: e, def });
         }
     }
@@ -238,10 +251,10 @@ function act(s: BattleState, u: Fighter, ev: BattleEvent[], pend: Pending[]): nu
   if (st != null) {
     if (u.cd === 0) {
       u.cd = def.cooldown;
-      st.hp -= def.dmg;
+      st.hp -= dmg;
       const isFort = 'owner' in st;
       const d = isFort ? st.d : fwd(other(u.side), 0);
-      ev.push({ e: 'hit', from: u.id, to: -1, dmg: def.dmg, type: isFort ? 'fort' : 'castle', id: isFort ? s.forts.indexOf(st) : other(u.side), ...at(d) });
+      ev.push({ e: 'hit', from: u.id, to: -1, dmg, type: isFort ? 'fort' : 'castle', id: isFort ? s.forts.indexOf(st) : other(u.side), ...at(d) });
       pend.push({ side: u.side, d, u: null, def });
     }
     return null;
@@ -387,7 +400,7 @@ export function battleString(s: BattleState): string {
   o += '|';
   for (const f of s.forts) o += `${n(f.owner)},${f.hp},${f.cd},${n(f.capSide)},${f.capT};`;
   o += '|';
-  for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.cd},${u.stunT},${u.burnT},${u.poison},${u.poisonT},${u.rootT},${u.slowT};`;
+  for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.maxHp},${u.aura},${u.cd},${u.stunT},${u.burnT},${u.poison},${u.poisonT},${u.rootT},${u.slowT};`;
   o += '|';
   for (const z of s.zones) o += `${z.side},${z.d},${z.t};`;
   return o + '|' + n(s.winner);
