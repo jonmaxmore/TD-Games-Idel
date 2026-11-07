@@ -4,10 +4,12 @@
 // File layout: { stageId, seed, sect?, commands: {tick: Command[]}, trace: [[tick, hash]], final }
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { arts, canonicalHash, canonicalString, createDefend, isOver, stepDefend, type Command, type DefendState } from '../src';
-import { playStage } from './bot';
-import { battleHash, battleOver, battleString, createBattle, stepBattle, type BattleCommand, type BattleState } from '../src';
+import {
+  arts, battleHash, battleOver, battleString, canonicalHash, canonicalString, createBattle, createDefend, isOver, stepBattle, stepDefend,
+  type BattleCommand, type BattleState, type Command, type DefendState,
+} from '../src';
 import { DECK, playBattle } from './battleBot';
+import { playStage } from './bot';
 
 export const GOLDEN_DIR = fileURLToPath(new URL('../goldens/', import.meta.url));
 export const TARGET_MODES = ['first', 'strong', 'weak', 'close'];
