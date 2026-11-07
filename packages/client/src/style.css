@@ -56,6 +56,29 @@ button.icon { min-width: 40px; margin-left: 4px; }
 .card.poor .cost { color: #d2412f; }
 .card kbd { position: absolute; left: 4px; top: 2px; font: inherit; font-size: 11px; color: var(--dim); }
 .wave { font-size: 17px; font-weight: 700; }
+/* Card art (sprites.ts cardArt): always 1x and pixel-crisp; a window crops it, nothing scales it. */
+img.art { image-rendering: pixelated; display: block; width: 128px; height: 128px; max-width: none; }
+.card .face { display: block; position: relative; width: 100%; height: 44px; overflow: hidden; margin-bottom: 2px; border-bottom: 1px solid var(--line); }
+.card .face img { position: absolute; left: 50%; top: -14px; margin-left: -64px; }
+.unit.has-art { display: grid; grid-template-columns: 96px 1fr; column-gap: 10px; align-content: start; }
+.unit.has-art > * { grid-column: 2; }
+.unit.has-art > .unit-art { grid-column: 1; grid-row: 1 / span 4; width: 96px; height: 96px; overflow: hidden; position: relative; background: #1A1423; border-radius: 4px; }
+.unit-art img { position: absolute; left: -16px; top: -6px; }
+
+/* Skill cut-in (battle.ts cutIn): a slanted band across the board for 0.6 s; it never takes the mouse. */
+.cutin { position: absolute; left: 0; right: 280px; top: 34%; height: 132px; pointer-events: none; overflow: hidden; z-index: 5; }
+.cutin .band {
+  position: absolute; inset: 14px -20px; display: flex; align-items: center; gap: 18px; padding-left: 12%;
+  background: #1A1423; border-top: 3px solid #E3B04B; border-bottom: 3px solid #E3B04B; transform: skewY(-5deg);
+  animation: cutin-band 0.6s linear forwards;
+}
+.cutin .band.art { border-color: #FF5A1F; }
+.cutin .band img { margin: -20px 0; transform: skewY(5deg); animation: cutin-art 0.6s linear forwards; }
+.cutin .band b { transform: skewY(5deg); font-size: 34px; color: #FFE08A; text-shadow: 0 2px 0 #812200, 0 0 2px #1A1423; white-space: nowrap; animation: cutin-name 0.6s linear forwards; }
+@keyframes cutin-band { 0% { clip-path: inset(0 100% 0 0); opacity: 1; } 15% { clip-path: inset(0 0 0 0); } 80% { opacity: 1; } 100% { clip-path: inset(0 0 0 0); opacity: 0; } }
+@keyframes cutin-art { 0% { translate: -200px 0; } 25% { translate: 0 0; } 80% { translate: 12px 0; } 100% { translate: 40px 0; } }
+@keyframes cutin-name { 0% { translate: 120px 0; opacity: 0; } 30% { translate: 0 0; opacity: 1; } 100% { translate: -16px 0; } }
+
 
 .toasts { position: absolute; top: 56px; left: 0; right: 280px; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
 .toast { background: #000c; border: 1px solid var(--gold); border-radius: 6px; padding: 4px 12px; font-size: 14px; }

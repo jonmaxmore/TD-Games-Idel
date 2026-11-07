@@ -6,7 +6,7 @@ import {
   bellRadius, biomes, branchA, branchB, discipleStats, enemies as enemyDefs, FIRE_SPLASH, grid, moonPhase, openPath, palette, propBlocks, sects, TILE, units, type DefendState, type Disciple,
   type SimEvent,
 } from '@five-sects/sim';
-import { boardSprite, silhouette, type Frame } from './sprites';
+import { boardSprite, rim, silhouette, type Frame } from './sprites';
 
 const TOP = 34; // room above the far row for figures standing on it
 const PAD = 6;
@@ -67,8 +67,20 @@ const DIGITS = ['111101101101111', '010110010010111', '111001111100111', '111001
 
 interface Fx { draw: (g: CanvasRenderingContext2D, k: number) => void; from: number; until: number }
 interface Status { burnT: number; poison: number; stunT: number; slowT: number; rootedT: number; id: number }
-interface Seen { x: number; y: number; type: string; flash: number; stunBy: string; dir: string } // flash: when to draw one white frame (0 = none); stunBy: the last stun's kind; dir: facing, from its movement
+// flash: when a hit lands (0 = none), then white for 2 frames; kick: when it landed and from which way (knockback and jitter);
+// stunBy: the last stun's kind; dir: facing, from its movement.
+interface Seen { x: number; y: number; type: string; flash: number; white: number; kickT: number; kx: number; ky: number; stunBy: string; dir: string }
 interface Live { t0: number; t1: number } // visible from t0 until t1 (ms, performance.now)
+
+// Combat feel (client only, from sim events). Times in ms, distances in board units.
+const LUNGE_MS = 170, LUNGE = 4; // an attacker steps this far toward its target and back
+const KICK_MS = 130, KICK = 2; // a struck enemy is knocked back this far and jitters
+const STOP_FRAMES = 3, STOP_GAP = 400; // hit-stop on big hits: frames held, and the least time between two
+const GLOW_CAP = 24; // additive glows per frame; past it the rest are skipped (x16 stays readable and fast)
+const TRAIL: Record<string, string[]> = { // projectile trail colours per kit, newest first (all render.palette)
+  metal: ['#FFFFFF', '#D9E1EA', '#9FB3CA'], fire: ['#FFE08A', '#FF5A1F', '#B12F00'], water: ['#ABDBFF', '#4FB3FF', '#0076CF'],
+  earth: ['#DEC191', '#A97D33', '#5F471C'], wood: ['#9FDCA7', '#3DA94C', '#225F2B'], yinyang: ['#F2F2F2', '#1A1423', '#F2F2F2'],
+};
 
 // A fixed ring of particles: taking one reuses the oldest, so a burst never allocates.
 class Pool<T extends Live> {
@@ -109,6 +121,12 @@ export class Board {
   private marks = new Pool(48, () => ({ t0: 0, t1: 0, x: 0, y: 0, rx: 0, ry: 0, kind: '' }));
   private shards = new Pool(256, () => ({ t0: 0, t1: 0, x: 0, y: 0, vx: 0, vy: 0, c: '' }));
   private coins = new Pool(48, () => ({ t0: 0, t1: 0, x: 0, y: 0 }));
+  private ghosts = new Pool(32, () => ({ t0: 0, t1: 0, x: 0, y: 0, type: '', dir: 'south' })); // a slain enemy fading out in a puff
+  private lunges = new Map<number, { t0: number; ux: number; uy: number }>(); // disciple id: its last attack's step toward the target
+  private stop = 0; // render frames still held for hit-stop
+  private stopAt = 0;
+  private glows = 0; // additive glows drawn this frame
+  private selected: number | null = null; // the selected disciple, rimmed gold
   private font = digitSheet([FX.star, FX.glint, FX.slash]); // normal, crit, execute
   private shakeT = 0;
   private shakeA = 0;
@@ -158,6 +176,8 @@ export class Board {
     return { x: this.sx(x) * r, y: (this.sy(y) - lift * this.T) * r };
   }
 
+  select(id: number | null): void { this.selected = id; }
+
   showRange(x: number, y: number, range: number | null, tile?: { tx: number; ty: number }, ok = true): void {
     this.range = range != null ? { x, y, r: range } : null;
     this.cursor = tile ? { ...tile, ok } : null;
@@ -167,7 +187,7 @@ export class Board {
     this.s = s;
     for (const e of s.enemies) {
       const p = this.seen.get(e.id);
-      if (!p) { this.seen.set(e.id, { x: e.x, y: e.y, type: e.type, flash: 0, stunBy: '', dir: 'south' }); continue; }
+      if (!p) { this.seen.set(e.id, { x: e.x, y: e.y, type: e.type, flash: 0, white: 0, kickT: 0, kx: 0, ky: 0, stunBy: '', dir: 'south' }); continue; }
       const dx = e.x - p.x, dy = e.y - p.y;
       if (Math.abs(dx) + Math.abs(dy) > 8) p.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'east' : 'west') : dy > 0 ? 'south' : 'north';
       p.x += dx * 0.35; p.y += dy * 0.35;
@@ -194,6 +214,12 @@ export class Board {
         if (n) { n.v += e.dmg!; n.crit = false; n.exec ||= exec; n.t1 = Math.max(n.t1, now + fly + (n.exec ? 800 : 550)); }
         else if (big || this.nums.items.filter((p) => now < p.t1).length < 24) Object.assign(this.nums.take(now + fly, now + fly + (big ? 800 : 550)), { x: x1 + ((e.to! * 7) % 7) - 3, y: y1 - (exec ? 24 : 10), v: e.dmg!, crit: !!e.crit, exec, to: e.to! });
         t.flash = now + fly;
+        const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+        Object.assign(t, { kickT: now + fly, kx: (x1 - x0) / len, ky: (y1 - y0) / len });
+        const l = this.lunges.get(d.id);
+        if (!l || now - l.t0 >= LUNGE_MS) this.lunges.set(d.id, { t0: now, ux: (x1 - x0) / len, uy: (y1 - y0) / len });
+        const foe = s.enemies.find((x) => x.id === e.to), boss = enemyDefs.get(t.type)?.boss != null;
+        if (big || (boss && foe && foe.hp <= 0)) this.impact(now + fly, e.dmg! / Math.max(1, foe?.maxHp ?? 100));
         if (exec) this.mark(now + fly, 360, x1, y1, 0, 0, 'execute');
         else if (e.kind === 'wildfire') { const r = (FIRE_SPLASH * branchB.splashPct) / 100 / TILE; this.mark(now + fly, 420, x1, y1 + 6, r * this.T, r * this.TH, 'wildfire'); }
       } else if (e.e === 'stun') {
@@ -206,6 +232,7 @@ export class Board {
         const t = this.seen.get(e.id!);
         const [x, y] = [this.sx(t?.x ?? e.x!), this.sy(t?.y ?? e.y!) - 6];
         const type = t?.type ?? '';
+        if (t) Object.assign(this.ghosts.take(now, now + 260), { x: t.x, y: t.y, type, dir: t.dir });
         const c = enemyDefs.get(type)?.boss != null ? BOSS_COLOR : ENEMY_COLOR[type] ?? '#7A2A2A';
         for (let i = 0; i < 12; i++) {
           const a = (i / 12) * Math.PI * 2 + Math.random() * 0.4, v = 30 + Math.random() * 40;
@@ -223,7 +250,10 @@ export class Board {
         const phoenix = e.e === 'phoenix';
         const [cx, cy] = phoenix || !(e.x || e.y) ? [this.ox + this.BW / 2, this.oy + this.BH / 2] : [this.sx(e.x!), this.sy(e.y!)];
         const [rx, ry] = phoenix ? [this.BW / 2, this.BH / 2] : [3 * this.T, 3 * this.TH];
-        this.fx.push({ from: now, until: now + 450, draw: (g, k) => { g.globalAlpha = 1 - k; ring(g, cx, cy, rx * k, ry * k, phoenix ? FX.fire : '#FFE9A8'); g.globalAlpha = 1; } });
+        this.fx.push({ from: now, until: now + 450, draw: (g, k) => {
+          g.globalAlpha = 1 - k; ring(g, cx, cy, rx * k, ry * k, phoenix ? FX.fire : '#FFE9A8'); g.globalAlpha = 1;
+          for (let i = 0; i < 8; i++) this.glow(cx + Math.cos(i * 0.785) * rx * k, cy + Math.sin(i * 0.785) * ry * k, 10, phoenix ? FX.fire : FX.gold, 1 - k);
+        } });
         this.shakeFor(now, 2, 300);
       }
     }
@@ -241,6 +271,13 @@ export class Board {
       const a = (i / 8) * Math.PI * 2, v = 40 + Math.random() * 20;
       Object.assign(this.shards.take(now, now + 300 + Math.random() * 120), { x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, c: i % 2 ? FX.ice : FX.glint });
     }
+  }
+
+  // A big hit lands: the screen shakes by how much of the target's life it took, and the picture holds for a few frames.
+  // Both follow the shake setting; the sim never waits.
+  private impact(at: number, share: number) {
+    this.shakeFor(at, Math.min(3, 1 + Math.round(share * 4)), 160);
+    if (this.shake && at - this.stopAt >= STOP_GAP) { this.stopAt = at; this.stop = STOP_FRAMES; }
   }
 
   private shakeFor(now: number, amp: number, ms: number) {
@@ -331,6 +368,8 @@ export class Board {
 
   render(): void {
     const g = this.g, s = this.s, now = performance.now();
+    if (this.stop > 0 && now >= this.stopAt) { this.stop--; return; } // hit-stop: the last picture stays up
+    this.glows = 0;
     g.imageSmoothingEnabled = false;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#0B0910';
@@ -369,15 +408,22 @@ export class Board {
     things.push({ depth: goal.y / TILE, draw: () => this.gate(this.sx(goal.x), this.sy(goal.y)) });
     for (const d of s.disciples) {
       const off = d.offT > 0 || (s.sealT > 0 && s.sealEl != null && d.els.includes(s.sealEl));
-      things.push({ depth: d.y / TILE, draw: () => this.disciple(d.unit ?? d.els[0]!, d.level, d.branch, this.sx(d.x), this.sy(d.y), off, now + d.id * 97) });
+      const l = this.lunges.get(d.id), k = l ? (now - l.t0) / LUNGE_MS : 1;
+      const out = k < 0 || k >= 1 ? 0 : k < 0.3 ? Math.sin((k / 0.3) * Math.PI / 2) : 1 - (k - 0.3) / 0.7; // quick step out, slower step back
+      const hover = this.cursor && this.cursor.tx === d.tx && this.cursor.ty === d.ty;
+      things.push({ depth: d.y / TILE, draw: () => this.disciple(d.unit ?? d.els[0]!, d.level, d.branch, this.sx(d.x) + Math.round(l ? l.ux * LUNGE * out : 0),
+        this.sy(d.y) + Math.round(l ? l.uy * LUNGE * out * 0.6 : 0), off, now + d.id * 97, k < 0.3 ? out : -0.6 * out, d.id === this.selected || !!hover) });
     }
     for (const e of s.enemies) {
       if (e.type === 'assassin' && !e.revealed && Math.floor(now / 150) % 4 !== 0) continue; // a hidden assassin only flickers
       const p = this.seen.get(e.id);
-      let white = false;
-      if (p && p.flash && now >= p.flash) { white = true; p.flash = 0; } // exactly one white frame per landed hit
-      const q = p ?? e;
-      things.push({ depth: q.y / TILE, draw: () => this.enemy(e.type, e.hp / e.maxHp, this.sx(q.x), this.sy(q.y), e, p?.stunBy ?? '', p?.dir ?? 'south', now, white) });
+      if (p && p.flash && now >= p.flash) { p.white = 2; p.flash = 0; } // two white frames per landed hit
+      const white = !!p && p.white > 0;
+      if (p && p.white > 0) p.white--;
+      // Knockback away from the attacker, easing back, with a one-pixel shiver that flips every frame.
+      const kk = p && now >= p.kickT ? (now - p.kickT) / KICK_MS : 1, kick = kk < 1 ? (1 - kk) * KICK : 0, jit = kk < 1 ? ((Math.floor(now / 16) & 1) * 2 - 1) : 0;
+      const q = p ?? e, kx = p ? Math.round(p.kx * kick) + jit : 0, ky = p ? Math.round(p.ky * kick * 0.6) : 0;
+      things.push({ depth: q.y / TILE, draw: () => this.enemy(e.type, e.hp / e.maxHp, this.sx(q.x) + kx, this.sy(q.y) + ky, e, p?.stunBy ?? '', p?.dir ?? 'south', now, white) });
     }
     things.sort((a, b) => a.depth - b.depth);
     for (const t of things) t.draw();
@@ -390,11 +436,37 @@ export class Board {
 
   private particles(now: number) {
     const g = this.g;
+    // Slain enemies: the body fades (white on the first frames), a puff of smoke spreads and thins.
+    for (const p of this.ghosts.items) {
+      if (now < p.t0 || now >= p.t1) continue;
+      const k = (now - p.t0) / (p.t1 - p.t0), x = this.sx(p.x), y = this.sy(p.y);
+      g.globalAlpha = 1 - k;
+      this.enemy(p.type, 0, x, y, DEAD, '', p.dir, now, k < 0.15, true);
+      for (let i = 0; i < 5; i++) {
+        const a = i * 1.2566 + p.t0, r = 2 + Math.round(3 * k);
+        g.drawImage(disc(PUFF[i % 3]!, r), Math.round(x + Math.cos(a) * (2 + 6 * k)) - r, Math.round(y - 6 + Math.sin(a) * (1 + 3 * k) - 4 * k) - r);
+      }
+    }
+    g.globalAlpha = 1;
+    // Burning enemies glow.
+    for (const e of this.s.enemies) {
+      const q = e.burnT > 0 ? this.seen.get(e.id) : undefined;
+      if (q) this.glow(this.sx(q.x), this.sy(q.y) - 6, 6, FX.fire, 0.45 + 0.15 * Math.sin(now / 60 + e.id));
+    }
     for (const p of this.shots.items) {
       if (now < p.t0 || now >= p.t1) continue;
       const k = (now - p.t0) / (p.t1 - p.t0);
-      const x = Math.round(p.x0 + (p.x1 - p.x0) * k), y = Math.round(p.y0 + (p.y1 - p.y0) * k);
       const len = Math.hypot(p.x1 - p.x0, p.y1 - p.y0) || 1, ux = (p.x1 - p.x0) / len, uy = (p.y1 - p.y0) / len;
+      const trail = TRAIL[p.kit] ?? TRAIL.metal!, step = 4 / len; // a trail dot every 4 units back along the flight
+      if (!p.fan) for (let i = 3; i >= 1; i--) {
+        const kt = k - i * step;
+        if (kt <= 0) continue;
+        g.globalAlpha = 1 - i * 0.25; g.fillStyle = trail[i - 1]!;
+        g.fillRect(Math.round(p.x0 + (p.x1 - p.x0) * kt), Math.round(p.y0 + (p.y1 - p.y0) * kt), i === 1 ? 2 : 1, i === 1 ? 2 : 1);
+      }
+      g.globalAlpha = 1;
+      const x = Math.round(p.x0 + (p.x1 - p.x0) * k), y = Math.round(p.y0 + (p.y1 - p.y0) * k);
+      if (p.kit === 'fire' || p.crit) this.glow(x, y, 4, p.crit ? FX.star : FX.fire, 0.7);
       this.projectile(x, y, ux, uy, p.kit, p.fan, p.crit);
     }
     for (const p of this.shards.items) {
@@ -415,6 +487,8 @@ export class Board {
       if (now < m.t0 || now >= m.t1) continue;
       const k = (now - m.t0) / (m.t1 - m.t0);
       g.globalAlpha = 1 - k * k;
+      const hot = m.kind === 'wildfire' ? FX.fire : m.kind === 'bell' ? FX.gold : m.kind === 'execute' ? FX.slash : null;
+      if (hot) this.glow(m.x, m.y - 4, m.kind === 'execute' ? 8 : 12, hot, 1 - k);
       if (m.kind === 'execute') { // a red stroke cut down across the target, its white edge leading
         const n = Math.min(16, Math.round(k * 48));
         for (let i = 0; i < n; i++) { g.fillStyle = i >= n - 2 ? FX.glint : FX.slash; g.fillRect(m.x - 8 + i, m.y - 10 + i, 2, 2); }
@@ -438,6 +512,17 @@ export class Board {
       this.number(p.v, p.x, Math.round(p.y - k * (p.crit || p.exec ? 14 : 10)), p.exec ? 2 : p.crit ? 1 : 0);
     }
     g.globalAlpha = 1;
+  }
+
+  // Additive light (canvas 'lighter') in a palette colour: three stepped discs. Capped per frame.
+  private glow(x: number, y: number, r: number, color: string, a: number) {
+    if (this.glows++ >= GLOW_CAP || a <= 0) return;
+    const g = this.g, prev = g.globalAlpha;
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = prev * Math.min(1, a);
+    g.drawImage(halo(color, r), Math.round(x) - r, Math.round(y) - r);
+    g.globalAlpha = prev;
+    g.globalCompositeOperation = 'source-over';
   }
 
   // One pixel projectile at (x, y) heading (ux, uy).
@@ -482,14 +567,27 @@ export class Board {
     this.g.fillRect(x - w + 2, y - 2, w * 2 - 4, 5);
   }
 
-  // A sprite 1:1 in buffer pixels, its lowest opaque row on the ground point (x, y) in board units; lift raises it.
-  // over: a silhouette colour laid on top at alpha (hit flash, status tint, sealed grey).
-  private blit(f: Frame, x: number, y: number, flip: boolean, lift = 0, over?: [string, number]) {
-    const g = this.g, K = this.K;
-    const X = x * K + this.shx * K - (f.w >> 1), Y = y * K + this.shy * K - lift - 1 - f.foot;
-    g.setTransform(flip ? -1 : 1, 0, 0, 1, flip ? X + f.w : X, Y);
-    g.drawImage(f.img, 0, 0);
-    if (over) { g.globalAlpha *= over[1]; g.drawImage(silhouette(f, over[0]), 0, 0); g.globalAlpha /= over[1]; }
+  // A sprite 1:1 in buffer pixels (scaled sx, sy about its feet for squash and stretch), its lowest opaque row on the ground
+  // point (x, y) in board units; lift raises it. edge: the 1 px rim colour around its silhouette. over: a silhouette colour laid
+  // on top at alpha (hit flash, status tint, sealed grey).
+  private blit(f: Frame, x: number, y: number, flip: boolean, lift = 0, over?: [string, number], edge?: string, sx = 1, sy = 1) {
+    const g = this.g, K = this.K, X = (x + this.shx) * K, Y = (y + this.shy) * K - lift - 1, l = -(f.w >> 1), t = -f.foot;
+    g.setTransform(flip ? -sx : sx, 0, 0, sy, X, Y);
+    if (edge) g.drawImage(rim(f, edge), l - 1, t - 1);
+    g.drawImage(f.img, l, t);
+    if (over) { g.globalAlpha *= over[1]; g.drawImage(silhouette(f, over[0]), l, t); g.globalAlpha /= over[1]; }
+    g.setTransform(K, 0, 0, K, this.shx * K, this.shy * K);
+  }
+
+  // Squash and stretch for a procedural figure: drawn at board resolution on a scratch canvas with its feet at a fixed point,
+  // then scaled onto the board in whole buffer pixels, feet kept on (x, y).
+  private squash(x: number, y: number, sx: number, sy: number, draw: (x: number, y: number) => void) {
+    if (Math.abs(sx - 1) < 0.02 && Math.abs(sy - 1) < 0.02) return draw(x, y);
+    const f = FIG.getContext('2d')!, g = this.g, K = this.K, fx = FIG.width >> 1, fy = FIG.height - 6;
+    f.clearRect(0, 0, FIG.width, FIG.height);
+    this.g = f; draw(fx, fy); this.g = g;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.drawImage(FIG, (x + this.shx) * K - Math.round(fx * K * sx), (y + this.shy) * K - Math.round(fy * K * sy), Math.round(FIG.width * K * sx), Math.round(FIG.height * K * sy));
     g.setTransform(K, 0, 0, K, this.shx * K, this.shy * K);
   }
 
@@ -511,22 +609,29 @@ export class Board {
 
   // A disciple: sect-coloured robe, dark hat, and what its role carries; one gold pip per level above 1.
   // Tier 3 adds a gold hem, belt and hat band, and a mark on the hat: white jade for branch a, red for branch b.
-  private disciple(key: string, level: number, branch: string | null, x: number, y: number, off: boolean, t: number) {
+  // sq: its attack's squash and stretch, from 1 (stretched, stepping in) through 0 to -1 (squashed); lit: selected or hovered.
+  private disciple(key: string, level: number, branch: string | null, x: number, y: number, off: boolean, t: number, sq = 0, lit = false) {
     const g = this.g;
     const u = units.get(key);
-    const color = off ? '#5A5266' : u?.color ?? sects.get(key)?.color ?? '#ffffff';
-    const role = u?.roleId ?? 'striker';
     const b = Math.round(Math.sin(t / 300)); // idle bob
+    const sx = 1 - 0.12 * sq, sy = 1 + 0.12 * sq;
     this.shadow(x, y, 7);
     const sp = boardSprite(key);
     if (sp) { // the sprite, then the tier marks the art does not carry: level pips under the feet, the branch mark over the head
-      this.blit(sp.f, x, y, sp.flip, -b, off ? ['#5A5266', 0.7] : undefined);
+      this.blit(sp.f, x, y, sp.flip, -b, off ? ['#5A5266', 0.7] : undefined, lit ? FX.gold : u?.color ?? sects.get(key)?.color, sx, sy);
       const head = y - Math.ceil((sp.f.foot - sp.f.top + 1 - b) / this.K);
       if (level >= 3 && !off) { g.fillStyle = FX.gold; g.fillRect(x - 2, head - 4, 4, 4); g.fillStyle = branch === 'b' ? FX.markB : FX.markA; g.fillRect(x - 1, head - 3, 2, 2); }
       g.fillStyle = FX.star;
       for (let i = 1; i < level; i++) g.fillRect(x - 5 + (i - 1) * 4, y + 2, 3, 2);
       return;
     }
+    this.squash(x, y, sx, sy, (x, y) => this.figure(key, level, branch, x, y, off, b));
+  }
+
+  private figure(key: string, level: number, branch: string | null, x: number, y: number, off: boolean, b: number) {
+    const g = this.g, u = units.get(key);
+    const color = off ? '#5A5266' : u?.color ?? sects.get(key)?.color ?? '#ffffff';
+    const role = u?.roleId ?? 'striker';
     g.fillStyle = '#1A1418'; g.fillRect(x - 5, y - 14 + b, 10, 13); // outline
     g.fillStyle = color; g.fillRect(x - 4, y - 13 + b, 8, 12); // robe
     if (!off && (u?.sect ?? key) === 'wood') { g.fillStyle = FX.leaf; g.fillRect(x - 4, y - 13 + b, 8, 1); g.fillRect(x - 4, y - 12 + b, 1, 11); } // light rim: green robe on green grass
@@ -550,7 +655,8 @@ export class Board {
   // An enemy: body by type (bosses big, brutes wide, fliers raised with wings), status tint, and an HP bar.
   // Stunned: vines at the feet when rooted, an ice block when frozen, else stars circling the head.
   // A sprite enemy faces dir and keeps the same overlays, sized from its opaque bounds.
-  private enemy(type: string, hp: number, x: number, y: number, e: Status, stunBy: string, dir: string, now: number, white: boolean) {
+  // ghost: only the body, for a slain enemy fading out.
+  private enemy(type: string, hp: number, x: number, y: number, e: Status, stunBy: string, dir: string, now: number, white: boolean, ghost = false) {
     const g = this.g;
     const def = enemyDefs.get(type)!;
     const boss = def.boss != null;
@@ -559,9 +665,9 @@ export class Board {
     const lift = def.air ? 8 + Math.round(Math.sin(now / 200 + e.id) * 2) : 0;
     const tint = e.burnT > 0 ? FX.fire : e.poison > 0 ? '#5BC46A' : e.slowT > 0 ? FX.slow : null;
     if (sp) { w = Math.ceil((sp.f.right - sp.f.left + 1) / 2 / this.K); h = Math.ceil((sp.f.foot - sp.f.top + 1) / this.K) - 5; }
-    this.shadow(x, y, w + 2);
+    if (!ghost) this.shadow(x, y, w + 2);
     const top = y - h - lift;
-    if (sp) this.blit(sp.f, x, y, sp.flip, lift * this.K, white ? ['#FFFFFF', 1] : tint ? [tint, 0.53] : undefined);
+    if (sp) this.blit(sp.f, x, y, sp.flip, lift * this.K, white ? ['#FFFFFF', 1] : tint ? [tint, 0.53] : undefined, ghost ? undefined : FX.slash);
     else {
       g.fillStyle = '#120A0C'; g.fillRect(x - w - 1, top - 6, w * 2 + 2, h + 7); // outline
       g.fillStyle = white ? '#FFFFFF' : boss ? BOSS_COLOR : ENEMY_COLOR[type] ?? '#7A2A2A';
@@ -571,6 +677,7 @@ export class Board {
       if (def.air) { g.fillStyle = '#2A3A2A'; g.fillRect(x - w - 5, top + 2, 5, 2); g.fillRect(x + w, top + 2, 5, 2); }
       if (tint && !white) { g.fillStyle = tint + '88'; g.fillRect(x - w, top, w * 2, h); }
     }
+    if (ghost) return;
     const bw = boss ? 24 : 12;
     g.fillStyle = '#200808'; g.fillRect(x - bw / 2, top - 9, bw, 2);
     g.fillStyle = '#E23B2E'; g.fillRect(x - bw / 2, top - 9, Math.max(1, Math.round(bw * Math.max(0, hp))), 2);
@@ -613,11 +720,42 @@ function digitSheet(colors: string[]): HTMLCanvasElement[] {
   });
 }
 
+const DEAD: Status = { burnT: 0, poison: 0, stunT: 0, slowT: 0, rootedT: 0, id: 0 };
+const PUFF = ['#6E6A78', '#5A1820', '#C8C4CC']; // death puff greys and blood
+
+// A filled disc of radius r in board pixels, and a glow of three stepped discs; each made once per colour and size.
+const discs = new Map<string, HTMLCanvasElement>();
+function disc(color: string, r: number, alpha = 1): HTMLCanvasElement {
+  const k = `${color}|${r}|${alpha}`;
+  let c = discs.get(k);
+  if (!c) {
+    c = Object.assign(document.createElement('canvas'), { width: 2 * r + 1, height: 2 * r + 1 });
+    const g = c.getContext('2d')!;
+    g.fillStyle = color; g.globalAlpha = alpha;
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r + r) g.fillRect(x + r, y + r, 1, 1);
+    discs.set(k, c);
+  }
+  return c;
+}
+function halo(color: string, r: number): HTMLCanvasElement {
+  const k = `halo|${color}|${r}`;
+  let c = discs.get(k);
+  if (!c) {
+    c = Object.assign(document.createElement('canvas'), { width: 2 * r + 1, height: 2 * r + 1 });
+    const g = c.getContext('2d')!;
+    g.globalCompositeOperation = 'lighter';
+    for (const [f, a] of [[1, 0.16], [0.66, 0.2], [0.33, 0.28]] as const) { const q = Math.max(1, Math.round(r * f)); g.drawImage(disc(color, q, a), r - q, r - q); }
+    discs.set(k, c);
+  }
+  return c;
+}
+
 const woodAura = (d: Disciple) => d.els.includes('wood') && d.level >= 3 && d.branch !== 'b' && d.offT <= 0;
 
 // Paths (rings, discs) are drawn at board resolution on a scratch canvas and scaled up, so their anti-aliased pixels come out as
 // whole board pixels like the rest of the procedural drawing. (x0, y0, w, h) is the board-unit box the path fits in.
 const scratch = document.createElement('canvas');
+const FIG = Object.assign(document.createElement('canvas'), { width: 40, height: 40 }); // one procedural figure, for squash and stretch
 function lowres(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, paint: (s: CanvasRenderingContext2D) => void) {
   if (scratch.width < w || scratch.height < h) { scratch.width = Math.max(w, scratch.width); scratch.height = Math.max(h, scratch.height); }
   const s = scratch.getContext('2d')!;

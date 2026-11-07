@@ -94,7 +94,36 @@ async function page(url, video) {
     }
     await ctx.close();
   }
-  if (process.env.SHOTS_ONLY === 'kits') {
+  // 0b) Combat feel on a paused board, at 1x: a tier-3 fire striker attacks (lunge, white flash, knockback, trail), a secret
+  //     art is cast through its real button and the phoenix fires, each with its cut-in (feel-*.png, feel-cutin-*.png).
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+    const p = await ctx.newPage();
+    p.on('console', (m) => { if (m.type() === 'error') errors.push(`feel: ${m.text()}`); });
+    p.on('pageerror', (e) => errors.push(`feel: ${e.message}`));
+    await p.goto(base + '?stage=1-1&sect=fire&seed=1');
+    await p.waitForFunction(() => window.__game);
+    await p.keyboard.press('p');
+    await setup(p, [[UNIT.fire + 'striker', 'fire', 'metal', 3, 'a', 8, 6], [UNIT.fire + 'burst', 'fire', 'fire', 3, 'a', 8, 9]],
+      [[13, 6, { hp: 60 }], [14, 7, { hp: 90, burnT: 60 }], [12, 9, { hp: 40, type: 'brute' }]]);
+    await sleep(400);
+    const hits = [{ e: 'hit', from: 100, to: 500, dmg: 48, crit: true }, { e: 'hit', from: 101, to: 502, dmg: 22 }];
+    await p.evaluate((ev) => window.__fx(ev), hits);
+    for (const [i, ms] of [[0, 30], [1, 60], [2, 120], [3, 220]]) { await sleep(ms - (i ? [30, 60, 120][i - 1] : 0)); await p.screenshot({ path: out + `feel-attack-${i}.png` }); }
+    await p.evaluate(() => window.__fx([{ e: 'kill', id: 502, x: 12500, y: 9500, amount: 5 }]));
+    await sleep(90);
+    await p.screenshot({ path: out + 'feel-death.png' });
+    await p.keyboard.press('p'); // run: the art button casts through the sim
+    await p.locator('.arts button').first().click();
+    await sleep(160);
+    await p.screenshot({ path: out + 'feel-cutin-art.png' });
+    await p.keyboard.press('p');
+    await sleep(3200); // past the cut-in throttle
+    await p.evaluate(() => window.__fx([{ e: 'phoenix', from: 101 }]));
+    for (const [i, ms] of [[0, 120], [1, 250]]) { await sleep(i ? 130 : 120); await p.screenshot({ path: out + `feel-cutin-phoenix-${i}.png` }); }
+    await ctx.close();
+  }
+  if (process.env.SHOTS_ONLY === 'kits' || process.env.SHOTS_ONLY === 'feel') {
     await browser.close(); await server.close();
     console.log('saved to', out);
     if (errors.length) { console.error('console errors:\n' + errors.join('\n')); process.exit(1); }

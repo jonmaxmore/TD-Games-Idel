@@ -66,6 +66,25 @@ export function silhouette(f: Frame, color: string): HTMLCanvasElement {
   return c;
 }
 
+// A 1 px rim around the frame's silhouette in one colour, on a canvas 1 px bigger on every side; made once per frame and
+// colour (sect colour for disciples, red for enemies, gold when selected or hovered), never per draw.
+export function rim(f: Frame, color: string): HTMLCanvasElement {
+  const k = `rim|${f.img.src}|${color}`;
+  let c = tints.get(k);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = f.w + 2; c.height = f.h + 2;
+    const g = c.getContext('2d')!, s = silhouette(f, color);
+    for (const [x, y] of [[0, 1], [2, 1], [1, 0], [1, 2]] as const) g.drawImage(s, x, y);
+    g.globalCompositeOperation = 'destination-out';
+    g.drawImage(f.img, 1, 1);
+    tints.set(k, c);
+  }
+  return c;
+}
+
+export const hasCard = (id: string) => cards.has(id);
+
 // The 128x128 card art for a unit, shown pixel-crisp at 1x (style.css .art); null when there is none yet.
 export function cardArt(id: string): HTMLImageElement | null {
   if (!cards.has(id)) return null;

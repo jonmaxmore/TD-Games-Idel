@@ -7,7 +7,7 @@ import {
   chapterStars, chapterStarsMax, load, migrate, nextStage, PLAYLIST, recordEnd, route, save, TUTORIAL, type LobbyTab, type Profile, type Screen,
 } from './profile';
 import { initSound } from './sound';
-import { loadSprites } from './sprites';
+import { cardArt, loadSprites } from './sprites';
 import { nowrapWords } from './words';
 
 const app = document.getElementById('app')!;
@@ -208,6 +208,7 @@ function sectDetail(sect: string, confirm: boolean) {
     const head = el('b', '', `${roleDefs.get(u.roleId)?.nameTh ?? ''} · ${u.nameTh}`);
     head.style.color = ROLE_COLOR[u.roleId] ?? '';
     const item = el('div', 'unit');
+    withArt(item, u.id);
     item.append(head, el('p', '', u.descTh));
     r.append(item);
   }
@@ -354,9 +355,20 @@ function disciples(r: HTMLElement) {
     const head = nowrapWords(el('b'), `${u.nameTh} · ${roleDefs.get(u.roleId)?.nameTh ?? ''}${have ? '' : `  (ปลดที่ ${at})`}`);
     if (have) head.style.color = ROLE_COLOR[u.roleId] ?? '';
     card.style.borderLeftColor = u.color;
+    withArt(card, u.id);
     card.append(head, el('p', '', u.descTh), el('p', 'skill', `ท่าตามขั้น: ${tierNames(u.element)}`));
     r.append(card);
   }
+}
+
+// The unit's card art beside its text, a 96 px window on the 128 art at 1x (cropped, never scaled); nothing when there is none.
+function withArt(item: HTMLElement, unit: string) {
+  const img = cardArt(unit);
+  if (!img) return;
+  const box = el('span', 'unit-art');
+  box.append(img);
+  item.classList.add('has-art');
+  item.append(box);
 }
 
 // Tabs whose systems come later say what they will hold instead of doing nothing.

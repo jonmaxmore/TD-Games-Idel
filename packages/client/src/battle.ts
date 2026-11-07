@@ -6,6 +6,7 @@ import {
 } from '@five-sects/sim';
 import { botCommands } from '../../sim/test/bot';
 import { Board } from './board';
+import { cardArt, hasCard } from './sprites';
 import type { Settings } from './profile';
 import { applyVolume, play } from './sound';
 import { nowrapWords } from './words';
@@ -49,7 +50,8 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     bar.append(duelFill, ...(def.boss?.phasesPct ?? []).map((p) => { const n = el('em'); n.style.left = `${p}%`; return n; }));
     duelBar.append(el('b', '', `ดวล: ${def.nameTh}`), bar, duelText, el('small', '', 'ล้มบอสเพื่อชนะ · ถ้าถึงวิหารจะแพ้ทันที'));
   }
-  root.append(top, canvas, floats, bottom, duelBar, toastBox);
+  const cutin = el('div', 'cutin');
+  root.append(top, canvas, floats, cutin, bottom, duelBar, toastBox);
   app.append(root);
   const board = new Board(canvas, s);
   const set = o.settings;
@@ -107,6 +109,8 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     const u = units.get(key);
     const b = el('button', 'card');
     b.style.borderColor = defOf(key).color;
+    const art = cardArt(key);
+    if (art) { const face = el('span', 'face'); face.append(art); b.append(face); } // head and shoulders of the 128 art, at 1x
     b.append(el('kbd', '', String(cardEls.size + 1)), nowrapWords(el('b'), name(key)), el('small', '', u ? roleDefs.get(u.roleId)!.nameTh : ''), el('span', 'cost', `${defOf(key).cost}`));
     b.onclick = () => { selectedKey = key; selectedId = null; refresh(); };
     cardsRow.append(b);
@@ -266,10 +270,36 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
     return o;
   }
 
+  // Skill cut-in: a slanted band across the board with the card art and the technique's name for 0.6 s, the game running on.
+  // A secret art always shows (it is the player's own move); a tier-3 technique shows at most once every 3 s.
+  let cutAt = -Infinity;
+  function cutIn(nameTh: string, unit: string | null, art: boolean) {
+    const now = performance.now();
+    if (!art && now - cutAt < 3000) return;
+    cutAt = now;
+    const band = el('div', `band${art ? ' art' : ''}`), img = unit ? cardArt(unit) : null;
+    if (img) band.append(img);
+    band.append(nowrapWords(el('b'), nameTh));
+    cutin.replaceChildren(band);
+  }
+  const TIER3_EVENTS = new Set(['execute', 'wildfire', 'root', 'freeze', 'bell']);
+  function technique(e: SimEvent) {
+    const d = s.disciples.find((x) => x.id === e.from);
+    if (!d || d.level < upgradeLevels) return;
+    const k = (skills.get(d.els[0]!) ?? []).find((x) => x.lvl === d.level && (x.branch == null || x.branch === (d.branch ?? 'a')));
+    if (k) cutIn(k.nameTh, d.unit, false);
+  }
+
   function onEvents(ev: SimEvent[]) {
     for (const e of ev) {
       if (e.e === 'error') toast(ERRORS[e.msg!] ?? e.msg!);
-      else if (e.e === 'hit') { play('shoot'); play('hit', 0.1); }
+      else if (e.e === 'hit') { play('shoot'); play('hit', 0.1); if (e.kind && TIER3_EVENTS.has(e.kind)) technique(e); }
+      else if (e.e === 'phoenix') technique(e);
+      else if (e.e === 'stun' && e.kind && TIER3_EVENTS.has(e.kind)) technique(e);
+      else if (e.e === 'art') {
+        const a = arts.find((x) => x.id === e.name);
+        if (a) cutIn(a.nameTh, s.unlocked.find(hasCard) ?? null, true);
+      }
       else if (e.e === 'kill') {
         float(e.x!, e.y!, `+${e.amount}`, 'silver');
         play('death'); play('silver', 0.5);
@@ -296,7 +326,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
   // Hooks for scripts/shots.mjs (visual proof in a real browser).
   Object.assign(window, {
     __game: { s, fps: 0 }, __toScreen: (tx: number, ty: number) => board.toScreen(tx * 1000 + 500, ty * 1000 + 500, 0),
-    __fx: (ev: SimEvent[]) => { board.sync(s, performance.now()); board.events(s, ev, performance.now()); },
+    __fx: (ev: SimEvent[]) => { board.sync(s, performance.now()); board.events(s, ev, performance.now()); onEvents(ev); },
   });
   function frame(now: number) {
     const dt = Math.min(250, now - last); last = now;
@@ -320,6 +350,7 @@ export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleRe
       board.showRange(hover.tx * 1000 + 500, hover.ty * 1000 + 500, r, hover, canBuild(s, hover.tx, hover.ty));
     }
     else board.showRange(0, 0, null);
+    board.select(selectedId);
     board.sync(s, now);
     board.render();
     frames++;
