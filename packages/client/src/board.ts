@@ -73,7 +73,8 @@ const at = (d: number) => pointAt(BATTLE_PATH, d);
 const hash = (a: number, b: number) => (((a * 73856093) ^ (b * 19349663)) >>> 0) % 997;
 
 // Where the player aims a card: a path distance (from side 0's castle) and whether a summon there would be accepted.
-export interface Aim { d: number; ok: boolean; card: string }
+// card null: the castle cannon, drawn as its blast radius.
+export interface Aim { d: number; ok: boolean; card: string | null }
 
 export class Board {
   private g: CanvasRenderingContext2D;
@@ -95,11 +96,11 @@ export class Board {
   private stop = 0; private stopAt = -Infinity;
   private glows = 0;
   private shakeT = 0; private shakeA = 0;
-  private flashT = 0; // the bell's gold wash over the board
   private font = digitSheet([FX.star, FX.glint, FX.heal]); // normal, crit, heal
   shake = true;
   aim: Aim | null = null;
   armed = false; // a card is picked: the summon zone shows bright
+  reach: number | null = null; // the cannon is picked: how far it reaches from our castle
 
   constructor(private canvas: HTMLCanvasElement, private s: BattleState, private inset: { top: number; bottom: number }) {
     this.g = canvas.getContext('2d')!;
@@ -217,14 +218,16 @@ export class Board {
           Object.assign(this.shards.take(now, now + 600), { x, y: y - 20, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, c: i % 2 ? c : e.e === 'capture' ? FX.star : '#7A4A2A' });
         }
         this.shakeFor(now, 2, 220);
-      } else if (e.e === 'art') {
-        this.flashT = now;
-        const [x, y] = this.castleAt(e.side as Side), r = (BATTLE_LEN / 2 / TILE) * this.T;
-        this.ring(now, 700, x, y - 10, r, r * 0.45, FX.gold); this.ring(now + 150, 700, x, y - 10, r * 0.7, r * 0.3, FX.star);
-        this.shakeFor(now, 3, 450);
-      } else if (e.e === 'stun') {
-        const q = this.seen.get(e.id!);
-        if (q) { const [x, y] = this.spot(e.id!, q); this.ring(now, 300, x, y - 24, 6, 2, FX.star); }
+      } else if (e.e === 'cannon') { // a ball lobbed from the castle, then the blast where it lands
+        const [cx, cy] = this.castleAt(e.side as Side), x = this.sx(e.x!), y = this.sy(e.y!), r = (battle.cannon.radius / TILE) * this.T;
+        const fly = 160;
+        Object.assign(this.shots.take(now, now + fly), { x0: cx, y0: cy - 50, x1: x, y1: y - 4, kit: 'earth', big: true, crit: false });
+        this.ring(now + fly, 420, x, y, r, r * 0.5, FX.star); this.ring(now + fly + 80, 420, x, y, r * 0.6, r * 0.3, FX.fire);
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * Math.PI * 2, v = 40 + (i % 3) * 20;
+          Object.assign(this.shards.take(now + fly, now + fly + 420), { x, y: y - 4, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.5 - 60, c: i % 2 ? FX.fire : '#5A5266' });
+        }
+        this.shakeFor(now + fly, 3, 260);
       } else if (e.e === 'end' && (this.s.castles[0].hp <= 0 || this.s.castles[1].hp <= 0)) this.shakeFor(now, 4, 700);
     }
   }
@@ -339,7 +342,8 @@ export class Board {
 
     // Summon zones: ours from the castle to its edge (bright while a card is picked), the enemy's faint red.
     const pulse = this.armed ? 0.34 + 0.1 * Math.sin(now / 160) : 0.22;
-    this.strip(0, zones[0], '#FFE9A8', pulse);
+    if (this.reach != null) this.strip(0, this.reach, '#F2A23A', 0.3 + 0.08 * Math.sin(now / 160));
+    else this.strip(0, zones[0], '#FFE9A8', pulse);
     this.strip(BATTLE_LEN - zones[1], BATTLE_LEN, '#D2412F', 0.2);
     for (const z of this.s.zones) { // burning ground: flickering embers across its radius on the road
       const p = at(z.d), cx = this.sx(p.x), cy = this.sy(p.y), r = Math.max(2, Math.round((battle.groundRadius / TILE) * this.T));
@@ -368,7 +372,6 @@ export class Board {
     things.sort((x, y) => x.depth - y.depth);
     for (const t of things) t.draw();
     this.drawAim(now);
-    if (now - this.flashT < 400) { g.globalAlpha = 0.25 * (1 - (now - this.flashT) / 400); g.fillStyle = '#FFE9A8'; g.fillRect(0, 0, this.W, this.H); g.globalAlpha = 1; }
     this.particles(now);
     g.setTransform(1, 0, 0, 1, 0, 0);
   }
@@ -377,6 +380,12 @@ export class Board {
     const m = this.aim;
     if (!m) return;
     const p = at(m.d), x = this.sx(p.x), y = this.sy(p.y), g = this.g;
+    if (m.card == null) { // the cannon: its blast radius, with a cross at the centre
+      const r = (battle.cannon.radius / TILE) * this.T, c = m.ok ? '#F2A23A' : '#FF3B2E';
+      ring(g, x, y - 2, r, r * 0.5, c); ring(g, x, y - 2, r - 1, r * 0.5 - 1, c);
+      g.fillStyle = c; g.fillRect(x - 4, y - 2, 9, 1); g.fillRect(x, y - 6, 1, 9);
+      return;
+    }
     if (m.ok) {
       g.globalAlpha = 0.55;
       g.drawImage(figure(m.card, 0, false, 0, null), x - FIG_X, y - 3 - FIG_Y);
@@ -680,16 +689,17 @@ export function portrait(card: string, side: Side = 0, flip = false): HTMLCanvas
   return c;
 }
 
-// The castle bell for its button and the cut-in.
-export function bellIcon(scale = 3): HTMLCanvasElement {
+// The castle cannon for its button.
+export function cannonIcon(scale = 3): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = 16 * scale; c.height = 16 * scale;
   c.className = 'portrait';
   const g = c.getContext('2d')!;
   g.scale(scale, scale);
   const R = (x: number, y: number, w: number, h: number, col: string) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
-  R(7, 0, 2, 2, '#6E4A30'); R(5, 2, 6, 1, '#8A6A1E'); R(4, 3, 8, 7, '#E3B04B'); R(3, 10, 10, 2, '#E3B04B'); R(2, 12, 12, 1, '#8A6A1E');
-  R(5, 4, 1, 5, '#FFF2B0'); R(4, 6, 8, 1, '#8A6A1E'); R(7, 13, 2, 2, '#8A6A1E');
+  R(3, 5, 10, 4, '#3A3442'); R(12, 4, 3, 6, '#5A5266'); R(4, 5, 8, 1, '#8F8A96'); R(2, 6, 1, 2, '#1A1423');
+  R(6, 9, 4, 2, '#6E4A30'); R(3, 10, 4, 4, '#836127'); R(9, 10, 4, 4, '#836127'); R(4, 11, 2, 2, '#DEC191'); R(10, 11, 2, 2, '#DEC191');
+  R(0, 4, 2, 1, '#FFE08A'); R(0, 9, 2, 1, '#FFE08A'); R(0, 6, 1, 2, '#FF5A1F');
   return c;
 }
 

@@ -24,14 +24,30 @@ function playable(s: BattleState, side: Side, moves: string[], anyMana = false):
   });
 }
 
+// Where the cannon would hit the most enemies (at least min of them, or any at the castle gate), aimed at one of them;
+// null when it is reloading, unaffordable or not worth it.
+function cannonAim(s: BattleState, side: Side, min: number): number | null {
+  const C = battle.cannon;
+  if (s.castles[side].cannonCd > 0 || s.mana[side] < C.mana) return null;
+  let best: number | null = null, most = 0;
+  for (const e of s.units) {
+    const d = fwd(side, e.d);
+    if (e.side === side || d > C.reach) continue;
+    const n = s.units.filter((x) => x.side !== side && Math.abs(x.d - e.d) <= C.radius).length;
+    if (n > most || (n === most && best != null && d < best)) { most = n; best = d; }
+  }
+  return best != null && (most >= min || best <= battle.homeZone) ? best : null;
+}
+
 function decide(s: BattleState, side: Side, policy: Policy, rng: BotMind): BattleCommand[] {
   const out: BattleCommand[] = [];
   const zone = summonZone(s, side);
   const threats = s.units.filter((u) => u.side !== side && fwd(side, u.d) <= BATTLE_LEN / 2).length;
-  if (threats >= 3 && !s.castles[side].artUsed) out.push({ t: 'art', side });
   const pick = (cards: string[]) => cards[Math.floor(nextRandom(rng) * cards.length)]!;
   const summon = (card: string, d: number) => { out.push({ t: 'summon', side, card, d }); s.mana[side] -= def(card).mana; };
   const mana0 = s.mana[side];
+  const shot = cannonAim(s, side, policy === 'rush' ? 3 : 2);
+  if (shot != null) { out.push({ t: 'cannon', side, d: shot }); s.mana[side] -= battle.cannon.mana; }
   const capturing = s.units.some((u) => u.side === side && def(u.card).move === 'capture');
   const openFort = s.forts.some((f) => f.owner !== side);
   if (!capturing && openFort && nextRandom(rng) < 0.5) {

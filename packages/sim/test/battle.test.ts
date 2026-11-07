@@ -356,14 +356,29 @@ describe('castle battle rules', () => {
     expect(s.winner).toBe(0);
   });
 
-  it('the castle bell stuns every enemy in our half, once a match', () => {
-    const s = fresh();
-    s.mana = [20, 20];
-    stepBattle(s, [summon(1, BLADE, 0), summon(1, STRIKER, 0)]);
-    s.units[0]!.d = BATTLE_LEN / 2; s.units[1]!.d = BATTLE_LEN / 2 + 1;
-    const ev = stepBattle(s, [{ t: 'art', side: 0 }]);
-    expect(ev.filter((e) => e.e === 'stun').map((e) => e.id)).toEqual([s.units[0]!.id]);
-    expect(stepBattle(s, [{ t: 'art', side: 0 }]).find((e) => e.e === 'error')?.msg).toBe('art used');
+  it('the cannon hits every enemy near the aimed point for its mana, knocks back only the nearest small ones, then reloads', () => {
+    const C = battle.cannon;
+    const s = createBattle(1, HAND, fixedHand([BLADE, STRIKER, 'jade_bamboo_warden']));
+    s.mana = [40, 40];
+    stepBattle(s, [...Array.from({ length: C.maxPush + 1 }, () => summon(1, BLADE, 0)), summon(1, STRIKER, 0), summon(1, 'jade_bamboo_warden', 0), summon(1, BLADE, 0)]);
+    const aim = 6000, abs = fwd(0, aim);
+    const units = [...s.units];
+    units.forEach((u, i) => { u.d = abs + (i === units.length - 1 ? C.radius + 1 : i * 100); u.cd = 9999; });
+    const before = units.map((u) => [u.d, u.hp]);
+    s.mana[0] = 10;
+    const ev = stepBattle(s, [{ t: 'cannon', side: 0, d: aim }]);
+    expect(s.mana[0]).toBe(10 - C.mana);
+    expect(ev.filter((e) => e.e === 'cannon').length).toBe(1);
+    const hit = units.map((u, i) => u.hp < before[i]![1]!);
+    expect(hit).toEqual(units.map((_, i) => i < units.length - 1)); // the last one stands just outside the radius
+    const pushed = units.map((u, i) => fwd(1, before[i]![0]!) - fwd(1, u.d) >= C.push - 100); // then it walks one tick
+    expect(pushed).toEqual(units.map((u, i) => battleUnits.get(u.card)!.size === 'small' && i < C.maxPush));
+    const msg = (d: number) => stepBattle(s, [{ t: 'cannon', side: 0, d }]).find((e) => e.e === 'error')?.msg;
+    expect(msg(aim)).toBe('cannon reloading');
+    run(s, C.cooldown);
+    expect(msg(C.reach + 1)).toBe('out of cannon reach');
+    s.mana[0] = C.mana - 1;
+    expect(msg(aim)).toBe('not enough mana');
   });
 
   it('a flier walks over ground enemies and only units that hit air can hit it', () => {

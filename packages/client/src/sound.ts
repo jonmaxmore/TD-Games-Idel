@@ -2,7 +2,7 @@
 // Each kind has a minimum gap, so thirty hits in one tick play as one.
 import type { Settings } from './profile';
 
-export type Sfx = 'shoot' | 'hit' | 'death' | 'summon' | 'capture' | 'bell' | 'castle';
+export type Sfx = 'shoot' | 'hit' | 'death' | 'summon' | 'capture' | 'cannon' | 'castle';
 // wave: an oscillator, or band-passed noise; the pitch (or filter) sweeps f0 to f1 over dur seconds.
 interface Voice { wave: OscillatorType | 'noise'; f0: number; f1: number; dur: number; gain: number; gap: number }
 const VOICES: Record<Sfx, Voice> = {
@@ -11,7 +11,7 @@ const VOICES: Record<Sfx, Voice> = {
   death: { wave: 'noise', f0: 1200, f1: 150, dur: 0.2, gain: 0.35, gap: 0.09 },
   summon: { wave: 'triangle', f0: 660, f1: 1320, dur: 0.12, gain: 0.08, gap: 0.08 },
   capture: { wave: 'sawtooth', f0: 196, f1: 392, dur: 0.45, gain: 0.07, gap: 0.5 },
-  bell: { wave: 'triangle', f0: 523, f1: 392, dur: 1.2, gain: 0.16, gap: 1.2 },
+  cannon: { wave: 'square', f0: 140, f1: 40, dur: 0.35, gain: 0.18, gap: 0.2 },
   castle: { wave: 'noise', f0: 500, f1: 90, dur: 0.25, gain: 0.3, gap: 0.2 },
 };
 

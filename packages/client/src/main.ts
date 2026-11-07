@@ -58,7 +58,7 @@ function title() {
   face.append(side(a, 0), el('span', 'vs', 'ปะทะ'), side(b, 1));
   r.append(
     el('div', 'grow'), el('h1', '', 'ศึกห้าสำนัก'), el('p', 'sub', 'ศึกชิงเมือง · อัญเชิญศิษย์ ยึดป้อม ทลายปราสาทศัตรูให้ได้ใน 3 นาที'), face,
-    btn('เริ่มศึก', 'primary big start', () => go({ k: 'deck' })), el('div', 'grow'), el('p', 'dim center', 'คลิกการ์ดแล้วคลิกบนเส้นทาง หรือลากการ์ดลงสนาม · ปุ่ม 1–8 เลือกการ์ด · Space ตีระฆัง · F เต็มจอ'),
+    btn('เริ่มศึก', 'primary big start', () => go({ k: 'deck' })), el('div', 'grow'), el('p', 'dim center', 'คลิกการ์ดแล้วคลิกบนเส้นทาง หรือลากการ์ดลงสนาม · ปุ่ม 1–7 เลือกการ์ด · Space เล็งปืนใหญ่แล้วคลิกยิง · F เต็มจอ'),
   );
   app.append(r);
 }

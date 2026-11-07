@@ -7,10 +7,11 @@ import { div, fnv1a, nextRandom, pathLength, pointAt, rollPct, toMilli, wuxingPc
 
 export type Side = 0 | 1;
 // d: depth from the side's own castle. redraw: deal the drawn part of the hand again, only before the first tick.
+// cannon: the castle's own shot at depth d.
 export type BattleCommand =
   | { t: 'summon'; side: Side; card: string; d: number }
-  | { t: 'redraw'; side: Side }
-  | { t: 'art'; side: Side };
+  | { t: 'cannon'; side: Side; d: number }
+  | { t: 'redraw'; side: Side };
 // A side's team: the cards it owns (collection), the owned cards kept out of the draw (bench), its leader and sub-leader.
 // hand: a fixed hand used as dealt, with no redraw (unit tests, scripted PvE sides).
 export interface BattleSetup { leader: string; sub: string; collection: readonly string[]; bench: readonly string[]; hand?: readonly string[] }
@@ -19,7 +20,7 @@ export const fixedHand = (cards: readonly string[], leader = '', sub = ''): Batt
 // side: who summoned, captured or won (-1 on end = draw); heal: amount = HP restored; hit on a structure: to = -1,
 // type 'fort' | 'castle' and id = fort index or castle side; from < 0 is a structure shooting (-1 - side castle, -10 - i fort).
 export interface BattleEvent {
-  e: 'spawn' | 'hit' | 'heal' | 'kill' | 'stun' | 'art' | 'capture' | 'neutral' | 'end' | 'error';
+  e: 'spawn' | 'hit' | 'heal' | 'kill' | 'cannon' | 'capture' | 'neutral' | 'end' | 'error';
   id?: number; from?: number; to?: number; dmg?: number; amount?: number; crit?: boolean; el?: string | null;
   type?: string; side?: number; name?: string; msg?: string; won?: boolean; x?: number; y?: number;
 }
@@ -33,7 +34,7 @@ export interface Zone { side: Side; d: number; t: number }
 // An on-hit effect waiting for the end of the tick, so every unit acts on the same picture (u null: ground only).
 interface Pending { side: Side; d: number; u: Fighter | null; def: BattleUnitDef }
 export interface Fort { d: number; owner: Side | null; hp: number; cd: number; capSide: Side | null; capT: number }
-export interface Castle { hp: number; cd: number; artUsed: boolean }
+export interface Castle { hp: number; cd: number; cannonCd: number } // cannonCd: ticks until the cannon can fire again
 export interface BattleState {
   tick: number; rng: number; nextId: number;
   setups: [BattleSetup, BattleSetup]; deal: [{ rng: number }, { rng: number }]; redraws: [number, number];
@@ -82,7 +83,7 @@ export function sectSetup(sect: string): BattleSetup {
 }
 
 export function createBattle(seed: number, setup0: BattleSetup, setup1: BattleSetup): BattleState {
-  const castle = (): Castle => ({ hp: B.castle.hp, cd: 0, artUsed: false });
+  const castle = (): Castle => ({ hp: B.castle.hp, cd: 0, cannonCd: 0 });
   const deal: [{ rng: number }, { rng: number }] = [{ rng: (seed ^ 0x9e3779b9) >>> 0 }, { rng: (seed ^ 0x7f4a7c15) >>> 0 }];
   const hands: [string[], string[]] = [dealHand(setup0, deal[0]), dealHand(setup1, deal[1])];
   return {
@@ -143,16 +144,21 @@ function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: 
   ev.push({ e: 'spawn', id: u.id, type: def.id, side: c.side, ...at(abs) });
 }
 
-function castArt(s: BattleState, side: Side, ev: BattleEvent[]): void {
+// The castle cannon: every enemy within its radius of the aimed point takes the shot, and the nearest small ones are
+// knocked back toward their own castle (larger units stand). Lands at once, before anyone acts this tick.
+function fireCannon(s: BattleState, side: Side, d: number, ev: BattleEvent[]): void {
   const c = s.castles[side];
-  if (c.artUsed) return err(ev, 'art used');
-  c.artUsed = true;
-  ev.push({ e: 'art', side, name: 'binding_bell' });
-  for (const u of s.units)
-    if (u.side !== side && fwd(side, u.d) <= div(BATTLE_LEN, 2)) {
-      u.stunT = B.castle.artStunTicks;
-      ev.push({ e: 'stun', id: u.id, ...at(u.d) });
-    }
+  if (c.cannonCd > 0) return err(ev, 'cannon reloading');
+  if (s.mana[side] < B.cannon.mana) return err(ev, 'not enough mana');
+  if (!Number.isInteger(d) || d < 0 || d > B.cannon.reach) return err(ev, 'out of cannon reach');
+  s.mana[side] -= B.cannon.mana;
+  c.cannonCd = B.cannon.cooldown;
+  const abs = fwd(side, d);
+  ev.push({ e: 'cannon', side, ...at(abs) });
+  const hit = s.units.filter((u) => u.side !== side && Math.abs(u.d - abs) <= B.cannon.radius);
+  for (const u of hit) damage(s, -1 - side, u, null, B.cannon.dmg, ev);
+  const light = hit.filter((u) => defOf(u).size === 'small').sort((a, b) => Math.abs(a.d - abs) - Math.abs(b.d - abs) || a.id - b.id);
+  for (const u of light.slice(0, B.cannon.maxPush)) u.d = fwd(u.side, Math.max(0, fwd(u.side, u.d) - B.cannon.push));
 }
 
 const canHit = (a: BattleUnitDef, t: Fighter) => (defOf(t).move === 'fly' ? a.hitsAir : a.hitsGround);
@@ -370,7 +376,7 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
     if (c.side !== 0 && c.side !== 1) err(ev, 'bad side');
     else if (c.t === 'redraw') redraw(s, c.side, ev);
     else if (c.t === 'summon') summon(s, c, ev);
-    else if (c.t === 'art') castArt(s, c.side, ev);
+    else if (c.t === 'cannon') fireCannon(s, c.side, c.d, ev);
     else err(ev, 'unknown command');
   }
   dots(s, ev);
@@ -379,6 +385,7 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
   const wants = s.units.map((u) => act(s, u, ev, pend));
   s.forts.forEach((f, i) => { if (f.owner !== null) shoot(s, f.owner, f.d, f, B.forts, -10 - i, ev); });
   s.castles.forEach((c, side) => shoot(s, side as Side, fwd(side as Side, 0), c, B.castle, -1 - side, ev));
+  for (const c of s.castles) if (c.cannonCd > 0) c.cannonCd--;
   s.units.forEach((u, i) => { const w = wants[i]; if (w != null) u.d = fwd(u.side, w); });
   applyPending(s, pend);
   captures(s, ev);
@@ -392,11 +399,11 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
   return ev;
 }
 
-// Engine-neutral fingerprint: tick|rng|mana|hands|redraws|uses|castles hp,cd,art|forts owner,hp,cd,capSide,capT|units|zones|winner.
+// Engine-neutral fingerprint: tick|rng|mana|hands|redraws|uses|castles hp,cd,cannonCd|forts owner,hp,cd,capSide,capT|units|zones|winner.
 export function battleString(s: BattleState): string {
   const n = (x: number | null) => (x === null ? '-' : String(x));
   let o = `${s.tick}|${s.rng}|${s.mana.join(',')}|${s.hands[0].join(',')}/${s.hands[1].join(',')}|${s.redraws.join(',')}|${s.uses[0].join(',')}/${s.uses[1].join(',')}|`;
-  for (const c of s.castles) o += `${c.hp},${c.cd},${c.artUsed ? 1 : 0};`;
+  for (const c of s.castles) o += `${c.hp},${c.cd},${c.cannonCd};`;
   o += '|';
   for (const f of s.forts) o += `${n(f.owner)},${f.hp},${f.cd},${n(f.capSide)},${f.capT};`;
   o += '|';

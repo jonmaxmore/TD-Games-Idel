@@ -6,7 +6,7 @@ import {
   type BattleCommand, type BattleEvent, type BattleState, type DecideStep, type Side,
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
-import { bellIcon, Board, portrait } from './board';
+import { Board, cannonIcon, portrait } from './board';
 import { collectionOf, teamSetup, type Team } from './decks';
 import type { Settings } from './profile';
 import { cardArt } from './sprites';
@@ -38,9 +38,8 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const canvas = el('canvas', 'field');
   const top = el('div', 'hud-top');
   const bottom = el('div', 'hud-bottom');
-  const cutin = el('div', 'cutin');
   const toastBox = el('div', 'toasts');
-  root.append(canvas, top, cutin, toastBox, bottom);
+  root.append(canvas, top, toastBox, bottom);
   app.append(root);
   const board = new Board(canvas, s, { top: TOP_H, bottom: BOTTOM_H });
   const set = o.settings;
@@ -73,7 +72,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   ctl.append(muteBtn, shakeBtn, speedBtn, pauseBtn);
   top.append(bars[0]!.box, clockBox, bars[1]!.box, ctl);
 
-  // ---- bottom: mana, the eight cards, the bell ----
+  // ---- bottom: mana, the hand, the cannon ----
   const manaBox = el('div', 'mana'), manaNum = el('b'), manaFill = el('i'), manaBar = el('div', 'bar');
   manaBar.append(manaFill);
   manaBox.append(el('span', '', 'ปราณ'), manaNum, manaBar);
@@ -92,15 +91,14 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     cardRow.append(b);
     return { b, uses, card };
   });
-  const bellBtn = el('button', 'bell');
-  const bellState = el('small');
-  bellBtn.append(bellIcon(3), nowrapWords(el('b'), battle.castle.artNameTh), bellState, el('kbd', '', 'Space'));
-  bellBtn.onclick = () => { if (human && !s.castles[0].artUsed) pending.push({ t: 'art', side: 0 }); };
-  bottom.append(manaBox, cardRow, bellBtn);
+  const cannonBtn = el('button', 'cannon'), cannonState = el('small'), reload = el('i', 'reload');
+  cannonBtn.append(reload, cannonIcon(3), el('span', 'cost', String(battle.cannon.mana)), nowrapWords(el('b'), battle.cannon.nameTh), cannonState, el('kbd', '', 'Space'));
+  cannonBtn.addEventListener('pointerdown', (ev) => { if (human) { ev.preventDefault(); pick('cannon'); } });
+  bottom.append(manaBox, cardRow, cannonBtn);
 
   const game = { s, fps: 0, fights: 0 };
   let pending: BattleCommand[] = [];
-  let sel: number | null = null; // the deck slot picked
+  let sel: number | 'cannon' | null = null; // the hand slot picked, or the cannon
   let drag: { x: number; y: number; moved: boolean } | null = null;
   let paused = false;
   let lastPointer: { x: number; y: number } | null = null;
@@ -119,8 +117,14 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     if (s.mana[0] < battleUnits.get(card)!.mana) return 'ปราณไม่พอ';
     return null;
   }
-  function pick(slot: number | null) {
+  function cannonProblem(): string | null {
+    if (s.castles[0].cannonCd > 0) return 'ปืนใหญ่กำลังบรรจุ';
+    if (s.mana[0] < battle.cannon.mana) return 'ปราณไม่พอ';
+    return null;
+  }
+  function pick(slot: number | 'cannon' | null) {
     sel = slot === sel ? null : slot;
+    board.reach = sel === 'cannon' ? battle.cannon.reach : null;
     aimAt(lastPointer);
     refresh();
   }
@@ -130,8 +134,11 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     const hit = p && sel != null ? board.pathAt(p.x, p.y) : null;
     if (!hit || sel == null) { board.aim = null; return null; }
     const d = Math.max(0, Math.min(BATTLE_LEN, hit.d));
-    const why = cardProblem(sel) ?? (hit.off > OFF_PATH ? 'ลงได้บนเส้นทางเท่านั้น' : d > summonZone(s, 0) ? 'ลงได้เฉพาะในเขตอัญเชิญ' : null);
-    board.aim = { d, ok: why == null, card: s.hands[0][sel]! };
+    const off = hit.off > OFF_PATH ? (sel === 'cannon' ? 'ยิงได้บนเส้นทางเท่านั้น' : 'ลงได้บนเส้นทางเท่านั้น') : null;
+    const why = sel === 'cannon'
+      ? cannonProblem() ?? off ?? (d > battle.cannon.reach ? 'เกินระยะปืนใหญ่' : null)
+      : cardProblem(sel) ?? off ?? (d > summonZone(s, 0) ? 'ลงได้เฉพาะในเขตอัญเชิญ' : null);
+    board.aim = { d, ok: why == null, card: sel === 'cannon' ? null : s.hands[0][sel]! };
     return { d, ok: why == null, why };
   }
   function summonAt(p: { x: number; y: number }) {
@@ -139,8 +146,9 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     const a = aimAt(p);
     if (!a) return;
     if (!a.ok) { toast(a.why!, 'bad'); return; }
-    pending.push({ t: 'summon', side: 0, card: s.hands[0][sel]!, d: a.d });
+    pending.push(sel === 'cannon' ? { t: 'cannon', side: 0, d: a.d } : { t: 'summon', side: 0, card: s.hands[0][sel]!, d: a.d });
     sel = null;
+    board.reach = null;
     aimAt(p);
     refresh();
   }
@@ -162,12 +170,12 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
 
   pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'เล่น' : 'หยุด'; };
   speedBtn.onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; speedBtn.textContent = `x${speed}`; };
-  // Keyboard: 1-8 pick a card, Space rings the bell, Esc drops the card, P pauses.
+  // Keyboard: 1-7 pick a card, Space picks the cannon, Esc drops the pick, P pauses.
   const onKey = (ev: KeyboardEvent) => {
     if (ev.repeat || battleOver(s)) return;
     const n = Number(ev.key);
     if (human && n >= 1 && n <= cards.length) pick(n - 1);
-    else if (ev.code === 'Space') { ev.preventDefault(); bellBtn.click(); }
+    else if (ev.code === 'Space') { ev.preventDefault(); if (human) pick('cannon'); }
     else if (ev.key === 'Escape') pick(null);
     else if (ev.key === 'p') pauseBtn.click();
   };
@@ -203,20 +211,20 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
         b.classList.toggle('spent', problem === 'ใบนี้ใช้ครบแล้ว');
       });
     });
-    put('bell', String(s.castles[0].artUsed), (v) => { bellState.textContent = v === 'true' ? 'ใช้แล้ว' : '×1'; bellBtn.disabled = v === 'true' || !human; });
+    const cd = s.castles[0].cannonCd, problem = human ? cannonProblem() : null;
+    put('cannon', `${sec(cd)}|${problem ?? ''}|${sel === 'cannon'}`, () => {
+      cannonState.textContent = cd > 0 ? `บรรจุ ${sec(cd)} วิ` : 'พร้อมยิง';
+      cannonBtn.classList.toggle('sel', sel === 'cannon');
+      cannonBtn.classList.toggle('poor', problem != null);
+      cannonBtn.disabled = !human;
+    });
+    reload.style.height = `${(100 * cd) / battle.cannon.cooldown}%`;
   }
   // The mana bar fills toward the next point between ticks (the sim only adds whole points).
   function manaProgress(): number {
     if (s.mana[0] >= battle.manaMax) return 1;
     const r = battle.regen[regenPhase()];
     return r ? ((s.tick - r.from) % r.every) / r.every : 0;
-  }
-
-  // The bell's cut-in: a slanted band across the field with the bell and its name for 0.6 s; the game runs on.
-  function cutIn(side: Side) {
-    const band = el('div', `band side${side}`);
-    band.append(bellIcon(6), nowrapWords(el('b'), `${battle.castle.artNameTh}${side === 0 ? '' : ' · ศัตรู'}`));
-    cutin.replaceChildren(band);
   }
 
   let lastPhase = 0;
@@ -229,7 +237,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
       }
       else if (e.e === 'spawn') play('summon');
       else if (e.e === 'kill') play('death');
-      else if (e.e === 'art') { play('bell'); cutIn(e.side as Side); toast(e.side === 0 ? 'ระฆังสะกด! ศัตรูในครึ่งสนามเราหยุดนิ่ง' : 'ศัตรูตีระฆังสะกด!', e.side === 0 ? '' : 'bad'); }
+      else if (e.e === 'cannon') play('cannon');
       else if (e.e === 'capture') { play('capture'); toast(e.side === 0 ? 'ยึดป้อมได้! เขตอัญเชิญขยาย' : 'ศัตรูยึดป้อม', e.side === 0 ? '' : 'bad'); }
       else if (e.e === 'neutral') toast('ป้อมแตก กลับเป็นป้อมกลาง');
     }

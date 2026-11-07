@@ -68,7 +68,7 @@ kbd { font: inherit; }
 .mana b { font-size: 34px; color: #abdbff; line-height: 1; text-shadow: 0 0 8px #0c96ff88; }
 .mana .bar { width: 100%; height: 10px; background: #003964; border: 1px solid #1a1423; position: relative; overflow: hidden; }
 .mana .bar i { position: absolute; inset: 0 auto 0 0; background: #4fb3ff; }
-.cards { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; padding-top: 10px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding-top: 10px; min-width: 0; }
 .card {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 2px 3px 4px;
   border: 2px solid var(--sect); background: #17111a; line-height: 1.15; overflow: hidden; touch-action: none;
@@ -87,24 +87,18 @@ kbd { font: inherit; }
 .card.poor { filter: grayscale(0.7) brightness(0.7); }
 .card.poor .cost { background: #3a3442; border-color: #8f8a96; }
 .card.spent { filter: grayscale(1) brightness(0.45); }
-.bell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; margin-top: 10px; padding: 2px 4px; position: relative; }
-.bell b { font-size: 14px; color: var(--gold); }
-.bell small { font-size: 12px; color: var(--ink); }
-.bell kbd { position: absolute; top: 3px; right: 5px; font-size: 10px; color: var(--dim); }
-
-/* The bell's cut-in (battle.ts cutIn): a slanted band across the field for 0.6 s; it never takes the mouse. */
-.cutin { position: absolute; left: 0; right: 0; top: 30%; height: 132px; pointer-events: none; overflow: hidden; z-index: 5; }
-.cutin .band {
-  position: absolute; inset: 14px -20px; display: flex; align-items: center; gap: 18px; padding-left: 22%;
-  background: #1a1423; border-top: 3px solid var(--me); border-bottom: 3px solid var(--me); transform: skewY(-5deg);
-  animation: cutin-band 0.6s linear forwards;
+.cannon { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; margin-top: 10px; padding: 2px 4px; position: relative; overflow: hidden; }
+.cannon b { position: relative; font-size: 14px; color: var(--gold); }
+.cannon small { position: relative; font-size: 12px; color: var(--ink); }
+.cannon kbd { position: absolute; top: 3px; right: 5px; font-size: 10px; color: var(--dim); }
+.cannon canvas { position: relative; }
+.cannon .cost {
+  position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  background: #0076cf; border: 2px solid #abdbff; color: #fff; font-weight: 700; font-size: 14px;
 }
-.cutin .band.side1 { border-color: var(--foe); padding-left: 48%; }
-.cutin .band canvas { transform: skewY(5deg); animation: cutin-art 0.6s linear forwards; }
-.cutin .band b { transform: skewY(5deg); font-size: 38px; color: #ffe08a; text-shadow: 0 2px 0 #812200, 0 0 2px #1a1423; white-space: nowrap; animation: cutin-name 0.6s linear forwards; }
-@keyframes cutin-band { 0% { clip-path: inset(0 100% 0 0); opacity: 1; } 15% { clip-path: inset(0 0 0 0); } 80% { opacity: 1; } 100% { clip-path: inset(0 0 0 0); opacity: 0; } }
-@keyframes cutin-art { 0% { translate: -200px 0; } 25% { translate: 0 0; } 80% { translate: 12px 0; } 100% { translate: 40px 0; } }
-@keyframes cutin-name { 0% { translate: 120px 0; opacity: 0; } 30% { translate: 0 0; opacity: 1; } 100% { translate: -16px 0; } }
+.cannon .reload { position: absolute; left: 0; right: 0; bottom: 0; background: #f2a23a33; border-top: 1px solid #f2a23a; }
+.cannon.sel { background: #3a1410; box-shadow: 0 0 0 2px #f2a23a, 0 0 14px #f2a23a88; transform: translateY(-8px); }
+.cannon.poor canvas { filter: grayscale(0.7) brightness(0.7); }
 
 .toasts { position: absolute; top: 72px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; z-index: 6; }
 .toast { background: #000c; border: 1px solid var(--gold); border-radius: 6px; padding: 4px 14px; font-size: 15px; white-space: nowrap; }
