@@ -41,9 +41,9 @@ Do not use `caveman` for design docs or user-facing explanations; it is fine for
 
 ## Running
 
-- Game: `npm run dev` → http://localhost:5173 opens on the title (title → deck pick → battle → result). `?mode=battle&seed=2&deck=wood` jumps into a match (`deck` = `fire`, `wood`, `metal`, `water`, `earth`, `mixed` or a comma list of card ids); `&bot=1&speed=4` lets bots play both sides.
+- Game: `npm run dev` → http://localhost:5173 opens on the title (title → team setup → battle → result). `?mode=battle&seed=2&deck=wood` jumps into a match (`deck` = the collection: `fire`, `wood`, `metal`, `water`, `earth` or `all`; `&leader=<card>&sub=<card>` override the sect's default leaders); `&bot=1&speed=4` lets bots play both sides.
 - Tests (castle battle rules, balance, golden, determinism, client data): `npm test`. One file: `npx vitest run packages/sim/test/battle.test.ts`.
-- Visual proof: `npm run shots` → `shots/` (title, deck pick, a hand-played match, the bell cut-in, a recorded bot-vs-bot match, the result, fps at x4).
-- Balance table: `npm run sim:battle` (`BATTLE_SEEDS=200`): rush vs defend bots on mirror decks, both side orders.
+- Visual proof: `npm run shots` → `shots/` (title, team setup with a redraw, a hand-played match with counter highlights and a cannon shot, burn/poison and stun-resistance marks, a recorded bot-vs-bot match, the result, fps at x4).
+- Balance table: `npm run sim:battle` (`BATTLE_SEEDS=200`): rush vs defend bots on the mirror team, both side orders, the 5x5 sect matrix and a per-card usage table; `CONTROL=1` adds the earth and water control-stack teams with control resistance off and on.
 - Rewrite the battle golden (`packages/sim/goldens/battle-1.json`) after an intended outcome change: `npm run sim:golden`.
 - Backend locally (from M1): `docker compose -f infra/docker-compose.yml up`, then `npm run dev:server`.
