@@ -5,7 +5,7 @@ import {
   battle, battleCardIds, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fixedHand, fwd, sectSetup, stepBattle,
   summonZone, TICK_HZ, sects, COUNTER_CLASSES, classesOf, counterPct, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
 } from '../src';
-import { MIXED, playBattle, type Policy } from './battleBot';
+import { bandOf, cardTable, MIXED, playBattle, type Policy } from './battleBot';
 import { BATTLE_GOLDEN, battleGolden, replayBattle, type BattleGolden } from './goldens';
 
 const STRIKER = 'crimson_phoenix_striker', BANNER = 'crimson_phoenix_banner', BLADE = 'jade_bamboo_blade';
@@ -525,8 +525,43 @@ describe('cheap counters expensive (reference §1c)', () => {
   it('a 3-mana guard that hits air takes more than half off what the 8-mana phoenix does to the castle', () => {
     expect(castleLoss('crimson_phoenix_beast', 'crimson_phoenix_control') * 2).toBeLessThan(castleLoss('crimson_phoenix_beast', null));
   });
-  it('a 4-mana striker that counters large takes more than half off what the 8-mana bamboo warden does to the castle', () => {
+  it('a 4-mana striker that counters large takes more than half off what the 7-mana bamboo warden does to the castle', () => {
     expect(castleLoss('jade_bamboo_warden', 'crimson_phoenix_striker') * 2).toBeLessThan(castleLoss('jade_bamboo_warden', null));
+  });
+
+  // The dragons' one hard counter (reference: the cost-1 archer answers the cost-7 dragons).
+  const ARCHER = 'wandering_archer';
+  it('every dragon costs 7, and the 1-mana archer is the only card that counters dragons', () => {
+    const dragons = [...battleUnits.values()].filter((u) => u.kind === 'dragon');
+    expect(dragons.map((u) => [u.mana, u.size])).toEqual([[7, 'large'], [7, 'large']]);
+    expect([...battleUnits.values()].filter((u) => u.counters.includes('dragon')).map((u) => [u.id, u.mana, u.perMatch])).toEqual([[ARCHER, 1, 10]]);
+  });
+  it('two archers summoned at the gate take more than half off what the flying dragon does to the castle', () => {
+    const loss = (n: number) => {
+      const s = createBattle(1, fixedHand(['storm_dragon']), fixedHand([ARCHER]));
+      s.mana = [20, 20];
+      stepBattle(s, [summon(0, 'storm_dragon', 4000)]);
+      for (let i = 0, sent = n === 0; i < 1200; i++) {
+        const near = s.units.some((u) => u.side === 0 && BATTLE_LEN - u.d <= 6000);
+        stepBattle(s, !sent && near ? Array.from({ length: n }, () => summon(1, ARCHER, 0)) : []);
+        if (near) sent = true;
+      }
+      return battle.castle.hp - s.castles[1].hp;
+    };
+    expect(loss(2) * 2).toBeLessThan(loss(0));
+  });
+  it('per mana, archers take more off the guarding lava dragon than anti-large strikers or blades do', () => {
+    const dealt = (card: string, n: number) => {
+      const s = createBattle(1, fixedHand(['lava_dragon']), fixedHand([card]));
+      s.mana = [20, 40];
+      stepBattle(s, [summon(0, 'lava_dragon', 5000), ...Array.from({ length: n }, () => summon(1, card, 5000))]);
+      run(s, 1200);
+      const dragon = s.units.find((u) => u.side === 0);
+      return (battleUnits.get('lava_dragon')!.hp - (dragon?.hp ?? 0)) / (n * battleUnits.get(card)!.mana);
+    };
+    const archers = dealt(ARCHER, 5);
+    expect(archers).toBeGreaterThan(dealt('crimson_phoenix_striker', 2));
+    expect(archers).toBeGreaterThan(dealt('jade_bamboo_blade', 5));
   });
 });
 
@@ -578,6 +613,15 @@ describe('castle battle determinism', () => {
 });
 
 describe('castle battle balance', () => {
+  // The per-card table (battleBot.ts > cardTable) over 1200 random-team games: no card this roster step added (the beasts,
+  // the dragons and the archer) wins more than 8 points over its band's average when it is summoned.
+  it('per card over random teams: no beast, dragon or the archer is more than 8 points over its band', () => {
+    const t = cardTable(1200);
+    const added = t.rows.filter((r) => battleUnits.get(r.card)!.kind !== 'disciple' || r.card === 'wandering_archer');
+    expect(added.length).toBe(14);
+    for (const r of added) expect(r.winPct - t.band.get(bandOf(r.card))!, r.card).toBeLessThanOrEqual(8);
+  });
+
   it('rush vs defend on mirror decks, 200 seeds, both side orders: left wins 45-55%, draws at most 5%, a castle falls in 40-60%, 120-170 s', () => {
     const SEEDS = 200;
     let left = 0, draws = 0, games = 0, ko = 0, ticks = 0;

@@ -15,6 +15,51 @@ export const CONTROL_TEAMS: Record<string, BattleSetup> = {
   earth: { leader: 'vajra_stone_guardian', sub: 'vajra_stone_control', collection: CONTROL_CARDS, bench: ['frost_tide_naga'] },
   water: { leader: 'frost_tide_naga', sub: 'frost_tide_stacker', collection: CONTROL_CARDS, bench: ['vajra_stone_guardian'] },
 };
+// A random team over every card for the per-card table: a seeded leader and a different sub-leader, never a basic capturer.
+const BASICS = new Set(battle.hand.basic.values());
+export function randomTeam(seed: number, side: Side): BattleSetup {
+  const r = { rng: (seed * 7919 + 17 + side * 104729) >>> 0 };
+  const ok = battleCardIds.filter((c) => !BASICS.has(c));
+  const leader = ok[Math.floor(nextRandom(r) * ok.length)]!, rest = ok.filter((c) => c !== leader);
+  return { leader, sub: rest[Math.floor(nextRandom(r) * rest.length)]!, collection: battleCardIds, bench: [] };
+}
+
+// Per card over random-team games (one seed per game, so every game deals new teams and hands; the four bot pairings
+// in turn): win % (draws half) of the side in the side-games it summoned the card at least once (winPct) or held it in the
+// dealt hand (handPct), and the plain average of winPct over the cards of each band (bandOf).
+export interface CardRow { card: string; games: number; winPct: number; handPct: number }
+const PAIRS: [Policy, Policy][] = [['rush', 'defend'], ['defend', 'rush'], ['rush', 'rush'], ['defend', 'defend']];
+export function cardTable(games: number): { rows: CardRow[]; band: Map<string, number>; games: number } {
+  const pts = new Map<string, [number, number]>(), held = new Map<string, [number, number]>(); // lookups; rows come out in data order
+  for (let seed = 1; seed <= games; seed++) {
+    const [p0, p1] = PAIRS[seed % 4]!;
+    const { state: s, commands } = playBattle(seed, p0, p1, randomTeam(seed, 0), randomTeam(seed, 1));
+    const w0 = s.winner === 0 ? 2 : s.winner === -1 ? 1 : 0;
+    const sent: [Set<string>, Set<string>] = [new Set(), new Set()];
+    for (const cs of Object.values(commands)) for (const c of cs) if (c.t === 'summon') sent[c.side].add(c.card);
+    for (const side of [0, 1] as const) for (const c of sent[side]) {
+      const x = pts.get(c) ?? [0, 0];
+      pts.set(c, [x[0] + (side === 0 ? w0 : 2 - w0), x[1] + 2]);
+    }
+    for (const side of [0, 1] as const) for (const c of s.hands[side]) {
+      const x = held.get(c) ?? [0, 0];
+      held.set(c, [x[0] + (side === 0 ? w0 : 2 - w0), x[1] + 2]);
+    }
+    }
+  const rows = battleCardIds.filter((c) => pts.has(c)).map((c) => ({ card: c, games: pts.get(c)![1] / 2, winPct: (100 * pts.get(c)![0]) / pts.get(c)![1], handPct: (100 * held.get(c)![0]) / held.get(c)![1] }));
+  const band = new Map<string, number>();
+  for (const key of BANDS) {
+    const r = rows.filter((x) => bandOf(x.card) === key);
+    if (r.length > 0) band.set(key, r.reduce((a, x) => a + x.winPct, 0) / r.length);
+  }
+  return { rows, band, games };
+}
+// A card's band in the table: its size, split into interceptors and attackers. The defend bot summons interceptors only
+// when enemies cross into its half, so they are played mostly by the side that is behind and read low on winPct whatever
+// their numbers (their handPct stays near 50); a shared band would make every attacker look strong.
+const BANDS = ['small', 'medium', 'large'].flatMap((z) => [`${z} attack`, `${z} guard`]);
+export const bandOf = (card: string) => `${def(card).size} ${def(card).move === 'guard' ? 'guard' : 'attack'}`;
+
 const DECIDE_EVERY = 10;
 const HOLD_MANA = 12;
 
