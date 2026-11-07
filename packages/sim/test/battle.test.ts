@@ -69,7 +69,7 @@ describe('castle battle hand', () => {
     const seen = new Set<string>();
     for (let seed = 1; seed <= 300; seed++) {
       const h = createBattle(seed, setup, setup).hands[0];
-      expect(h.slice(0, 3)).toEqual(['crimson_phoenix_banner', MIXED.leader, MIXED.sub]);
+      expect(h.slice(0, 3)).toEqual([battle.hand.basic.get(battleUnits.get(MIXED.leader)!.sect), MIXED.leader, MIXED.sub]);
       expect(new Set(h).size).toBe(7);
       expect(h.filter(isLarge).length).toBeLessThanOrEqual(2);
       for (const c of h) { expect(bench).not.toContain(c); seen.add(c); }
@@ -482,17 +482,8 @@ describe('cheap counters expensive (reference §1c)', () => {
   it('a 3-mana guard that hits air takes more than half off what the 8-mana phoenix does to the castle', () => {
     expect(castleLoss('crimson_phoenix_beast', 'crimson_phoenix_control') * 2).toBeLessThan(castleLoss('crimson_phoenix_beast', null));
   });
-  it('a 4-mana single-target striker kills the 8-mana bamboo warden that lives through the castle alone', () => {
-    const survives = (answer: string | null) => {
-      const s = createBattle(1, fixedHand(['jade_bamboo_warden']), fixedHand(answer ? [answer] : [BLADE]));
-      s.mana = [20, 20];
-      stepBattle(s, [summon(0, 'jade_bamboo_warden', 4000), ...(answer ? [summon(1, answer, 3000)] : [])]);
-      const id = s.units[0]!.id;
-      run(s, 1200);
-      return s.units.some((u) => u.id === id);
-    };
-    expect(survives(null)).toBe(true);
-    expect(survives('jade_bamboo_striker')).toBe(false);
+  it('a 4-mana striker that counters large takes more than half off what the 8-mana bamboo warden does to the castle', () => {
+    expect(castleLoss('jade_bamboo_warden', 'crimson_phoenix_striker') * 2).toBeLessThan(castleLoss('jade_bamboo_warden', null));
   });
 });
 

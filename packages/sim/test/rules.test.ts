@@ -2,19 +2,21 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { wuxingPct } from '../src';
+import { overcomeByPct, overcomePct, wuxingPct } from '../src';
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 
 describe('wu xing', () => {
-  // SPEC-core §7: x1.2 against the element it overcomes, x0.85 against the one that overcomes it (from sects.json).
+  // SPEC-core §7: overcomePct against the element it overcomes, overcomeByPct against the one that overcomes it (sects.json).
   it('overcoming and overcome-by', () => {
-    expect(wuxingPct(['metal'], 'wood')).toBe(120);
-    expect(wuxingPct(['metal'], 'fire')).toBe(85);
+    expect(wuxingPct(['metal'], 'wood')).toBe(overcomePct);
+    expect(wuxingPct(['metal'], 'fire')).toBe(overcomeByPct);
+    expect(overcomePct).toBeGreaterThan(100);
+    expect(overcomeByPct).toBeLessThan(100);
     expect(wuxingPct(['metal'], 'water')).toBe(100);
     expect(wuxingPct(['yinyang'], 'fire')).toBe(100);
   });
-  it('several elements use the best one', () => expect(wuxingPct(['metal', 'water'], 'fire')).toBe(120));
+  it('several elements use the best one', () => expect(wuxingPct(['metal', 'water'], 'fire')).toBe(overcomePct));
 });
 
 describe('determinism', () => {

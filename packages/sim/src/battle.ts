@@ -27,7 +27,7 @@ export interface BattleEvent {
 
 export interface Fighter {
   id: number; side: Side; card: string; d: number; hp: number; maxHp: number; cd: number; home: number; aura: number; // aura: % more damage it gives allies near it
-  stunT: number; burnT: number; poison: number; poisonT: number; rootT: number; slowT: number;
+  stunT: number; burnT: number; burn: number; poison: number; poisonT: number; rootT: number; slowT: number; // burn, poison: stacks
   stunImmT: number; rootImmT: number; // ticks left of control resistance after a stun or a root ended
 }
 // Burning ground: ground enemies of side within groundRadius of d keep burning while t > 0.
@@ -141,7 +141,7 @@ function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: 
   const v = abilityValue(def, cardLevel(s.setups[c.side], def.id)), kind = def.ability?.kind;
   if (kind === 'refund') s.mana[c.side] = Math.min(B.manaMax, s.mana[c.side] + v);
   const abs = fwd(c.side, d), hp = kind === 'hp' ? div(def.hp * (100 + v), 100) : def.hp;
-  const u: Fighter = { id: s.nextId++, side: c.side, card: def.id, d: abs, hp, maxHp: hp, cd: 0, home: abs, aura: kind === 'aura' ? v : 0, stunT: 0, burnT: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0, stunImmT: 0, rootImmT: 0 };
+  const u: Fighter = { id: s.nextId++, side: c.side, card: def.id, d: abs, hp, maxHp: hp, cd: 0, home: abs, aura: kind === 'aura' ? v : 0, stunT: 0, burnT: 0, burn: 0, poison: 0, poisonT: 0, rootT: 0, slowT: 0, stunImmT: 0, rootImmT: 0 };
   s.units.push(u);
   ev.push({ e: 'spawn', id: u.id, type: def.id, side: c.side, ...at(abs) });
 }
@@ -198,7 +198,7 @@ function damage(s: BattleState, from: number, u: Fighter, def: BattleUnitDef | n
   if (crit) dmg *= 2;
   if (!def?.pierce) dmg = Math.max(1, dmg - defOf(u).armor);
   u.hp -= dmg;
-  if (def?.dot === 'burn') u.burnT = B.burnTicks;
+  if (def?.dot === 'burn') { u.burn = Math.min(B.burnMax, u.burn + 1); u.burnT = B.burnTicks; }
   if (def?.dot === 'poison') { u.poison = Math.min(B.poisonMax, u.poison + 1); u.poisonT = B.poisonTicks; }
   ev.push({ e: 'hit', from, to: u.id, dmg, crit, el: def?.sect ?? null, ...at(u.d) });
 }
@@ -333,15 +333,15 @@ function captures(s: BattleState, ev: BattleEvent[]): void {
 function dots(s: BattleState, ev: BattleEvent[]): void {
   const zones: Zone[] = [];
   for (const z of s.zones) {
-    for (const u of s.units) if (u.side !== z.side && defOf(u).move !== 'fly' && Math.abs(u.d - z.d) <= B.groundRadius) u.burnT = B.burnTicks;
+    for (const u of s.units) if (u.side !== z.side && defOf(u).move !== 'fly' && Math.abs(u.d - z.d) <= B.groundRadius) { u.burn = Math.max(u.burn, 1); u.burnT = B.burnTicks; }
     if (--z.t > 0) zones.push(z);
   }
   s.zones = zones;
   for (const u of s.units) {
-    if (u.burnT > 0) u.burnT--;
+    if (u.burnT > 0 && --u.burnT === 0) u.burn = 0;
     if (u.poisonT > 0 && --u.poisonT === 0) u.poison = 0;
     if (s.tick % DOT_EVERY !== 0) continue;
-    const burn = u.burnT > 0 ? div(B.burnDps, 2) : 0, poison = div(u.poison * B.poisonDps, 2);
+    const burn = div(u.burn * B.burnDps, 2), poison = div(u.poison * B.poisonDps, 2);
     u.hp -= burn + poison;
     if (burn > 0) ev.push({ e: 'hit', to: u.id, dmg: burn, type: 'burn', ...at(u.d) });
     if (poison > 0) ev.push({ e: 'hit', to: u.id, dmg: poison, type: 'poison', ...at(u.d) });
@@ -445,7 +445,7 @@ export function battleString(s: BattleState): string {
   o += '|';
   for (const f of s.forts) o += `${n(f.owner)},${f.hp},${f.cd},${n(f.capSide)},${f.capT};`;
   o += '|';
-  for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.maxHp},${u.aura},${u.cd},${u.stunT},${u.burnT},${u.poison},${u.poisonT},${u.rootT},${u.slowT},${u.stunImmT},${u.rootImmT};`;
+  for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.maxHp},${u.aura},${u.cd},${u.stunT},${u.burnT},${u.burn},${u.poison},${u.poisonT},${u.rootT},${u.slowT},${u.stunImmT},${u.rootImmT};`;
   o += '|';
   for (const z of s.zones) o += `${z.side},${z.d},${z.t};`;
   return o + `|${s.kills.join(',')}|` + n(s.winner);

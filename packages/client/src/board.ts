@@ -371,7 +371,7 @@ export class Board {
     for (const u of s.units) {
       const q = this.seen.get(u.id);
       if (!q) continue;
-      things.push({ depth: q.y / TILE + (u.side === 0 ? -0.1 : 0.1), draw: () => this.unit(u.id, q, u.hp / u.maxHp, u.stunT > 0, u.burnT > 0 ? FX.fire : u.poison > 0 ? FX.poison : null, now, u.stunImmT > 0 || u.rootImmT > 0, u.burnT > 0, u.poison) });
+      things.push({ depth: q.y / TILE + (u.side === 0 ? -0.1 : 0.1), draw: () => this.unit(u.id, q, u.hp / u.maxHp, u.stunT > 0, u.burnT > 0 ? FX.fire : u.poison > 0 ? FX.poison : null, now, u.stunImmT > 0 || u.rootImmT > 0, u.burn, u.poison) });
     }
     things.sort((x, y) => x.depth - y.depth);
     for (const t of things) t.draw();
@@ -588,7 +588,7 @@ export class Board {
   }
 
   // A unit: its eased spot, the attack lunge, knockback and two white frames on a hit, a status tint, stars when stunned, HP.
-  private unit(id: number, q: Seen, hp: number, stunned: boolean, tint: string | null, now: number, immune = false, burning = false, poison = 0) {
+  private unit(id: number, q: Seen, hp: number, stunned: boolean, tint: string | null, now: number, immune = false, burn = 0, poison = 0) {
     const g = this.g;
     let [x, y] = this.spot(id, q);
     const l = this.lunges.get(id), k = l ? (now - l.t0) / LUNGE_MS : 1;
@@ -620,7 +620,7 @@ export class Board {
     this.bar(x, top, 12 * big, hp, HP_BAR[q.side]);
     // Damage over time: a flame and/or a poison drop with its stack count beside the HP bar, flickering.
     let mx = x + 6 * big + 3;
-    if (burning) { this.flame(mx, top + 1, now + id * 37); mx += 5; }
+    if (burn > 0) { this.flame(mx, top + 1, now + id * 37); mx += 5; if (burn > 1) { this.digits(burn, mx + 1, top - 2, 3, false); mx += 5; } }
     if (poison > 0) { this.drop(mx, top + 1); if (poison > 1) this.digits(poison, mx + 6, top - 2, 4, false); }
     if (immune) { // control resistance: an ice-white halo over the head while stuns and roots cannot land
       ring(g, x, top - 4, 6, 2, FX.ice);
