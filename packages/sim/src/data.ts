@@ -64,6 +64,7 @@ export const battle = {
   abilities: new Map<string, { nameTh: string; doesTh: string }>(Object.keys(BT.abilities).map((k) => [k, { nameTh: BT.abilities[k].nameTh, doesTh: BT.abilities[k].doesTh.replace('{r}', String(BT.abilities.aura.radiusTiles)) }])),
   sectTeams: new Map<string, { leader: string; sub: string }>(Object.entries(BT.sectTeams as Record<string, { leader: string; sub: string }>)),
   matchTicks: ticks(BT.matchSec),
+  results: new Map<string, string>(Object.entries(BT.results as Record<string, string>)),
 };
 export const battleUnits = new Map<string, BattleUnitDef>();
 export const battleCardIds: string[] = S.roster.units.map((u: any) => u.id as string); // data order, for anything iterated

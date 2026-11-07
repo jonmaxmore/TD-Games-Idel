@@ -334,30 +334,43 @@ describe('castle battle rules', () => {
     expect(s.tick).toBe(tick);
   });
 
-  it('ties at time break on forts held, deepest fort, mana left, units alive, then draw', () => {
+  it('results: a castle falls (total when the winner holds every fort), both fall (draw), HP at time, then the tiebreak', () => {
     const s = fresh();
-    expect(decision(s)).toEqual({ winner: -1, step: null });
+    expect(decision(s)).toEqual({ winner: -1, type: 'draw', step: null });
     s.castles[0].hp = battle.castle.hp - 1;
-    expect(decision(s)).toEqual({ winner: 1, step: 'castle' });
-    s.castles[0].hp = battle.castle.hp;
-    s.forts[0]!.owner = 0; s.forts[2]!.owner = 1; // one fort each, at equal depth
+    expect(decision(s)).toEqual({ winner: 1, type: 'hp', step: null });
+    s.castles[0].hp = 0;
+    expect(decision(s)).toEqual({ winner: 1, type: 'castle', step: null });
+    for (const f of s.forts) f.owner = 1;
+    expect(decision(s)).toEqual({ winner: 1, type: 'total', step: null });
+    s.castles[1].hp = -5;
+    expect(decision(s)).toEqual({ winner: -1, type: 'draw', step: null });
+    s.castles[0].hp = s.castles[1].hp = battle.castle.hp;
+    s.forts[0]!.owner = 0; s.forts[1]!.owner = null; s.forts[2]!.owner = 1; // one fort each
     expect(decide(s)).toBe(-1);
     s.forts[1]!.owner = 1;
-    expect(decision(s)).toEqual({ winner: 1, step: 'forts' });
-    s.forts[1]!.owner = 0; s.forts[0]!.owner = 1; // 1 holds forts 0 and 2, 0 holds the middle: 2 vs 1
-    expect(decide(s)).toBe(1);
-    s.forts[0]!.owner = null; // 0: middle (depth 50%), 1: fort 2 (depth 30%)
-    expect(decision(s)).toEqual({ winner: 0, step: 'deepest' });
-    s.forts[1]!.owner = null; s.forts[2]!.owner = null;
+    expect(decision(s)).toEqual({ winner: 1, type: 'tiebreak', step: 'forts' });
+    s.forts[1]!.owner = null;
     s.mana = [5, 6];
-    expect(decision(s)).toEqual({ winner: 1, step: 'mana' });
+    expect(decision(s)).toEqual({ winner: 1, type: 'tiebreak', step: 'mana' });
     s.mana[1] = s.mana[0];
     stepBattle(s, [summon(0, BLADE, 0)]);
     s.mana = [5, 5];
-    expect(decision(s)).toEqual({ winner: 0, step: 'units' });
+    expect(decision(s)).toEqual({ winner: 0, type: 'tiebreak', step: 'units' });
+    s.units = [];
+    s.kills = [0, 2];
+    expect(decision(s)).toEqual({ winner: 1, type: 'tiebreak', step: 'kills' });
     s.tick = battle.matchTicks - 1;
     stepBattle(s);
-    expect(s.winner).toBe(0);
+    expect(s.winner).toBe(1);
+  });
+
+  it('a kill counts for the side that made it', () => {
+    const s = createBattle(1, fixedHand([STRIKER]), fixedHand([BANNER]));
+    stepBattle(s, [summon(0, STRIKER, 0), summon(1, BANNER, 0)]);
+    s.units[1]!.d = s.units[0]!.d + 1000; s.units[1]!.hp = 1;
+    run(s, 30);
+    expect(s.kills).toEqual([1, 0]);
   });
 
   it('the cannon hits every enemy near the aimed point for its mana, knocks back only the nearest small ones, then reloads', () => {

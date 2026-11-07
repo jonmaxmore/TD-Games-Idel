@@ -112,6 +112,9 @@ kbd { font: inherit; }
 .modal h2.lost { color: var(--foe); text-shadow: 0 3px 0 #2a0a10; }
 .modal h2.draw { color: var(--ink); text-shadow: 0 3px 0 #3a3442; }
 .modal .why { font-size: 24px; margin: 0; }
+.modal .type { font-size: 30px; margin: 0; color: #ffe08a; font-weight: 700; }
+.modal .type.lost { color: #ff9e7b; }
+.modal .type.draw { color: var(--ink); }
 .modal p { margin: 0; }
 .modal .row { margin-top: 14px; width: 560px; }
 

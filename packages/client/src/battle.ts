@@ -3,7 +3,7 @@
 // BattleCommand handed to stepBattle, exactly like a replay. It owns its root until dispose(); main.ts decides what follows.
 import {
   battle, BATTLE_LEN, battleOver, battleUnits, createBattle, decision, sects, stepBattle, summonZone, TICK_HZ,
-  type BattleCommand, type BattleEvent, type BattleState, type DecideStep, type Side,
+  type BattleCommand, type BattleEvent, type BattleState, type ResultType, type Side, type TiebreakStep,
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { Board, cannonIcon, portrait } from './board';
@@ -19,7 +19,7 @@ export interface MatchOpts {
   seed: number; team: Team; vs: Team; redraws: number; speed: number; settings: Settings; saveSettings: () => void;
   bots: [Policy | null, Policy]; // who plays each side: null = the player
 }
-export interface MatchResult { winner: Side | -1; step: DecideStep | null; broken: boolean; castles: [number, number]; tick: number }
+export interface MatchResult { winner: Side | -1; type: ResultType; step: TiebreakStep | null; castles: [number, number]; tick: number }
 
 const TOP_H = 64, BOTTOM_H = 150; // HUD bands over the canvas, in stage pixels
 const OFF_PATH = 0.9; // tiles from the road centre a click still counts as on it
@@ -274,7 +274,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     if (battleOver(s) && !ended) {
       ended = true;
       const d = decision(s);
-      const r: MatchResult = { winner: s.winner!, step: d.step, broken: s.castles[0].hp <= 0 || s.castles[1].hp <= 0, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick };
+      const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick };
       setTimeout(() => onEnd(r), 1200); // the last blow lands before the result covers the field
     }
     manaFill.style.width = `${(100 * Math.min(battle.manaMax, s.mana[0] + manaProgress())) / battle.manaMax}%`;

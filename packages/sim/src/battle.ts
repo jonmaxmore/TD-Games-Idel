@@ -40,6 +40,7 @@ export interface BattleState {
   setups: [BattleSetup, BattleSetup]; deal: [{ rng: number }, { rng: number }]; redraws: [number, number];
   hands: [string[], string[]]; uses: [number[], number[]]; mana: [number, number]; // uses: summons per hand slot
   castles: [Castle, Castle]; forts: Fort[]; units: Fighter[]; zones: Zone[];
+  kills: [number, number]; // enemy units each side has killed
   winner: Side | -1 | null; // null while the match runs, -1 = draw
 }
 
@@ -92,7 +93,7 @@ export function createBattle(seed: number, setup0: BattleSetup, setup1: BattleSe
     hands, uses: [hands[0].map(() => 0), hands[1].map(() => 0)], mana: [B.manaStart, B.manaStart],
     castles: [castle(), castle()],
     forts: B.forts.atPct.map((p) => ({ d: div(BATTLE_LEN * p, 100), owner: null, hp: B.forts.hp, cd: 0, capSide: null, capT: 0 })),
-    units: [], zones: [], winner: null,
+    units: [], zones: [], kills: [0, 0], winner: null,
   };
 }
 
@@ -346,7 +347,7 @@ function resolveDeaths(s: BattleState, ev: BattleEvent[]): void {
   const alive: Fighter[] = [];
   for (const u of s.units) {
     if (u.hp > 0) alive.push(u);
-    else ev.push({ e: 'kill', id: u.id, type: u.card, ...at(u.d) });
+    else { s.kills[other(u.side)]++; ev.push({ e: 'kill', id: u.id, type: u.card, ...at(u.d) }); }
   }
   s.units = alive;
   s.forts.forEach((f, i) => {
@@ -356,20 +357,28 @@ function resolveDeaths(s: BattleState, ev: BattleEvent[]): void {
   });
 }
 
-// Spec §7: castle HP, then forts held, deepest fort, mana left, units alive; else a draw.
-// step names the key that decided it (null on a draw), so a result screen can say why.
-export const DECIDE_STEPS = ['castle', 'forts', 'deepest', 'mana', 'units'] as const;
-export type DecideStep = (typeof DECIDE_STEPS)[number];
-export function decision(s: BattleState): { winner: Side | -1; step: DecideStep | null } {
+// Spec §7: a fallen castle (a draw if both fall together; a total win when the winner also holds every fort), then castle
+// HP at time, then the tiebreak keys in order; else a draw. step names the tiebreak key that decided it.
+export type ResultType = 'total' | 'castle' | 'hp' | 'tiebreak' | 'draw';
+export const TIEBREAK_STEPS = ['forts', 'mana', 'units', 'kills'] as const;
+export type TiebreakStep = (typeof TIEBREAK_STEPS)[number];
+export function decision(s: BattleState): { winner: Side | -1; type: ResultType; step: TiebreakStep | null } {
+  const broken = [s.castles[0].hp <= 0, s.castles[1].hp <= 0];
+  if (broken[0] && broken[1]) return { winner: -1, type: 'draw', step: null };
+  if (broken[0] || broken[1]) {
+    const w: Side = broken[1] ? 0 : 1;
+    return { winner: w, type: s.forts.every((f) => f.owner === w) ? 'total' : 'castle', step: null };
+  }
+  if (s.castles[0].hp !== s.castles[1].hp) return { winner: s.castles[0].hp > s.castles[1].hp ? 0 : 1, type: 'hp', step: null };
   const key = (side: Side): number[] => {
-    let forts = 0, deepest = -1, units = 0;
-    for (const f of s.forts) if (f.owner === side) { forts++; deepest = Math.max(deepest, fwd(side, f.d)); }
+    let forts = 0, units = 0;
+    for (const f of s.forts) if (f.owner === side) forts++;
     for (const u of s.units) if (u.side === side) units++;
-    return [Math.max(0, s.castles[side].hp), forts, deepest, s.mana[side], units];
+    return [forts, s.mana[side], units, s.kills[side]];
   };
   const a = key(0), b = key(1);
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return { winner: a[i]! > b[i]! ? 0 : 1, step: DECIDE_STEPS[i]! };
-  return { winner: -1, step: null };
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return { winner: a[i]! > b[i]! ? 0 : 1, type: 'tiebreak', step: TIEBREAK_STEPS[i]! };
+  return { winner: -1, type: 'draw', step: null };
 }
 export const decide = (s: BattleState): Side | -1 => decision(s).winner;
 
@@ -422,7 +431,7 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
   return ev;
 }
 
-// Engine-neutral fingerprint: tick|rng|mana|hands|redraws|uses|castles hp,cd,cannonCd|forts owner,hp,cd,capSide,capT|units|zones|winner.
+// Engine-neutral fingerprint: tick|rng|mana|hands|redraws|uses|castles hp,cd,cannonCd|forts owner,hp,cd,capSide,capT|units|zones|kills|winner.
 export function battleString(s: BattleState): string {
   const n = (x: number | null) => (x === null ? '-' : String(x));
   let o = `${s.tick}|${s.rng}|${s.mana.join(',')}|${s.hands[0].join(',')}/${s.hands[1].join(',')}|${s.redraws.join(',')}|${s.uses[0].join(',')}/${s.uses[1].join(',')}|`;
@@ -433,6 +442,6 @@ export function battleString(s: BattleState): string {
   for (const u of s.units) o += `u${u.id},${u.side},${u.card},${u.d},${u.hp},${u.maxHp},${u.aura},${u.cd},${u.stunT},${u.burnT},${u.poison},${u.poisonT},${u.rootT},${u.slowT};`;
   o += '|';
   for (const z of s.zones) o += `${z.side},${z.d},${z.t};`;
-  return o + '|' + n(s.winner);
+  return o + `|${s.kills.join(',')}|` + n(s.winner);
 }
 export const battleHash = (s: BattleState) => fnv1a(battleString(s));

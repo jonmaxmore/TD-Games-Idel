@@ -110,20 +110,23 @@ function match(team: Team, seed: number, redraws: number) {
   }, (r) => result(team, seed, r));
 }
 
-const STEP_TH: Record<string, string> = { forts: 'จำนวนป้อมที่ถือ', deepest: 'ป้อมที่ลึกที่สุด', mana: 'ปราณที่เหลือ', units: 'ศิษย์ที่ยังรอด' };
-function reason(r: MatchResult): string {
-  const we = r.winner === 0;
-  if (r.broken) return we ? 'ทลายปราสาทศัตรูได้' : 'ปราสาทเราแตก';
-  if (r.step === 'castle') return `หมดเวลา: HP ปราสาท${we ? 'เรา' : 'ศัตรู'}เหลือมากกว่า`;
-  if (r.step) return `หมดเวลา HP ปราสาทเท่ากัน: ตัดสินที่${STEP_TH[r.step]}`;
-  return 'หมดเวลา และเท่ากันทุกข้อ';
+const STEP_TH: Record<string, string> = { forts: 'จำนวนป้อมที่ถือ', mana: 'ปราณที่เหลือ', units: 'ศิษย์ที่ยังรอด', kills: 'จำนวนที่ฆ่าได้' };
+// The result type in Thai (battle.json > results) as the headline, and why in one line.
+function verdict(r: MatchResult): { head: string; why: string } {
+  const we = r.winner === 0, name = battle.results.get(r.type)!;
+  if (r.type === 'draw') return { head: name, why: r.castles[0] <= 0 ? 'ปราสาทแตกพร้อมกันทั้งสองฝ่าย' : 'หมดเวลา และเท่ากันทุกข้อ' };
+  const head = we ? name : `ศัตรู${name}`;
+  if (r.type === 'total') return { head, why: we ? 'ทลายปราสาทศัตรู และยึดป้อมได้ครบ' : 'ปราสาทเราแตก และศัตรูยึดป้อมได้ครบ' };
+  if (r.type === 'castle') return { head, why: we ? 'ทลายปราสาทศัตรูได้' : 'ปราสาทเราแตก' };
+  if (r.type === 'hp') return { head, why: `หมดเวลา: HP ปราสาท${we ? 'เรา' : 'ศัตรู'}เหลือมากกว่า` };
+  return { head, why: `หมดเวลา HP ปราสาทเท่ากัน: ตัดสินที่${STEP_TH[r.step!]}` };
 }
 
 function result(team: Team, seed: number, r: MatchResult) {
   const box = el('div', 'modal result');
   const head = r.winner === 0 ? ['won', 'ชนะ!'] : r.winner === 1 ? ['lost', 'พ่ายแพ้'] : ['draw', 'เสมอ'];
-  const t = Math.floor(r.tick / TICK_HZ);
-  box.append(el('h2', head[0], head[1]), el('p', 'why', reason(r)),
+  const t = Math.floor(r.tick / TICK_HZ), v = verdict(r);
+  box.append(el('h2', head[0], head[1]), el('p', `type ${head[0]}`, v.head), el('p', 'why', v.why),
     el('p', 'dim', `ปราสาทเรา ${Math.max(0, r.castles[0])} · ปราสาทศัตรู ${Math.max(0, r.castles[1])} · เวลา ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`));
   const row = el('div', 'row');
   row.append(btn('เล่นอีกครั้ง', 'primary', () => go({ k: 'match', team, seed: seed + 1, redraws: 0 })), btn('เปลี่ยนสำรับ', '', () => go({ k: 'deck' })), btn('หน้าแรก', '', () => go({ k: 'title' })));
