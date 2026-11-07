@@ -34,7 +34,9 @@ export const POLICIES: Record<string, PlayOpts> = {
   eco: { eco: true },
 };
 // The base cap only: chasing the cap as it grows each wave starves the build (measured: 0/48 on 1-9, 1-10, 1-12).
-const interestReserve = (_s: DefendState) => Math.ceil(economy.interestCap * 100 / economy.interestPct);
+// Released in the last 3 waves and while a duel boss is alive: interest banked then cannot pay back within the stage.
+const interestReserve = (s: DefendState) =>
+  s.wave > s.totalWaves - 3 || (s.duel != null && s.enemies.some((e) => e.type === s.duel && e.hp > 0)) ? 0 : Math.ceil(economy.interestCap * 100 / economy.interestPct);
 
 // earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
 // One decision per tick; `mem.placed` counts placements so the bot rotates through its sects.

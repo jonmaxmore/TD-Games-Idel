@@ -20,8 +20,9 @@ for (const pol of policies)
 for (const st of stagesToRun)
   for (const sect of sectsToRun)
     for (const early of earlies) {
-      const runs = seeds.map((seed) => playStage(st, seed, sect, { earlyCall: early, ...POLICIES[pol], branch, branchKit }));
+      const opts = { earlyCall: early, ...POLICIES[pol], branch, branchKit };
+      const runs = seeds.map((seed) => playStage(st, seed, sect, opts));
       if (env.MEASURE_DETAIL === '1') console.log('  ' + runs.map((r, i) => `${seeds[i]}:${r.phase === 'won' ? 'W' : 'L'}${r.wave}`).join(' '));
       const wins = runs.filter((r) => r.phase === 'won').length;
-      console.log(`${pol.padEnd(7)} ${st.padEnd(6)} ${(sect ?? 'legacy').padEnd(7)} ${(early ? 'yes' : 'no').padEnd(6)} ${wins}/${n}  ${avg(runs.map((r) => r.livesLost)).toFixed(1).padStart(5)}     ${avg(runs.map((r) => r.tick / 20 / 60)).toFixed(1).padStart(4)}  ${avg(runs.map((r) => r.stars?.filter(Boolean).length ?? 0)).toFixed(1)}`);
+      console.log(`${pol.padEnd(7)} ${st.padEnd(6)} ${(sect ?? 'legacy').padEnd(7)} ${(opts.earlyCall ? 'yes' : 'no').padEnd(6)} ${wins}/${n}  ${avg(runs.map((r) => r.livesLost)).toFixed(1).padStart(5)}     ${avg(runs.map((r) => r.tick / 20 / 60)).toFixed(1).padStart(4)}  ${avg(runs.map((r) => r.stars?.filter(Boolean).length ?? 0)).toFixed(1)}`);
     }
