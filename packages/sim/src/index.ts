@@ -2,3 +2,4 @@
 export * from './data';
 export * from './core';
 export * from './defend';
+export * from './battle';
