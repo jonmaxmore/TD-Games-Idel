@@ -1,8 +1,6 @@
-// Thai has no spaces between words, so a browser may wrap a name like กระบี่ในใจ mid-word. Each word goes in a
-// no-wrap span; lines then break only between words.
-const seg = new Intl.Segmenter('th', { granularity: 'word' });
-
-export const wordRuns = (text: string) => [...seg.segment(text)].map((s) => ({ text: s.segment, word: !!s.isWordLike }));
+// Thai writes a name with no spaces, so a browser may break กระบี่ในใจ anywhere inside it. Each space-separated
+// chunk (a whole name or label) goes in a no-wrap span; lines then break only at spaces.
+export const wordRuns = (text: string) => text.split(/(\s+)/).filter(Boolean).map((t) => ({ text: t, word: !/^\s+$/.test(t) }));
 
 export function nowrapWords<T extends HTMLElement>(e: T, text: string): T {
   e.append(...wordRuns(text).map((r) => {
