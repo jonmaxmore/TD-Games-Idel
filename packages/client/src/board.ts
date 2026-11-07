@@ -341,6 +341,15 @@ export class Board {
     const pulse = this.armed ? 0.34 + 0.1 * Math.sin(now / 160) : 0.22;
     this.strip(0, zones[0], '#FFE9A8', pulse);
     this.strip(BATTLE_LEN - zones[1], BATTLE_LEN, '#D2412F', 0.2);
+    for (const z of this.s.zones) { // burning ground: flickering embers across its radius on the road
+      const p = at(z.d), cx = this.sx(p.x), cy = this.sy(p.y), r = Math.max(2, Math.round((battle.groundRadius / TILE) * this.T));
+      g.globalAlpha = 0.35; g.fillStyle = FX.fire; g.fillRect(cx - r, cy - 2, r * 2, 4); g.globalAlpha = 1;
+      for (let i = 0; i < 8; i++) {
+        const k = (Math.floor(now / 90) + i * 7) % 11;
+        g.fillStyle = k & 1 ? FX.fire : FX.star;
+        g.fillRect(cx - r + ((i * 37 + k * 3) % (2 * r)), cy - 3 - (k % 4), 1, 2);
+      }
+    }
     const edge = at(Math.max(0, zones[0]));
     g.fillStyle = FX.gold; g.fillRect(this.sx(edge.x) - 1, this.sy(edge.y) - (this.TH >> 1) - 2, 2, this.TH + 4);
 
@@ -566,15 +575,16 @@ export class Board {
     const def = defOf(q.card), fly = def.move === 'fly' ? 8 + Math.round(Math.sin(now / 200 + id) * 2) : 0;
     const walking = now - q.walk < 200 && !stunned;
     const b = walking ? ((Math.floor(now / 140 + id) & 1) ? -1 : 0) : Math.round(Math.sin(now / 300 + id));
-    shadow(g, x, y, def.size === 'small' ? 5 : 6);
+    const big = def.size === 'large' ? 2 : 1; // a large card's procedural figure is drawn twice the size
+    shadow(g, x, y, def.size === 'small' ? 5 : 6 * big);
     const over = white ? 'white' : stunned ? 'stun' : tint;
     const sp = boardSprite(q.card, q.side === 0 ? 'east' : 'west');
-    let top = y - (def.size === 'small' ? 25 : 27) - fly;
+    let top = y - (def.size === 'small' ? 25 : 27) * big - fly;
     if (sp) { // a PixelLab figure 1:1 with the same rim and overlays; the procedural one otherwise
       this.blit(sp.f, x, y - fly - b, sp.flip, over === 'white' ? ['#FFFFFF', 1] : over === 'stun' ? ['#5A5266', 0.6] : over ? [over, 0.5] : undefined, SIDE[q.side]);
       top = y - fly - Math.ceil((sp.f.foot - sp.f.top + 1) / this.K) - 4;
-    } else g.drawImage(figure(q.card, q.side, q.side === 1, b, over), x - FIG_X, y - FIG_Y - fly);
-    this.bar(x, top, 12, hp, HP_BAR[q.side]);
+    } else g.drawImage(figure(q.card, q.side, q.side === 1, b, over), x - FIG_X * big, y - FIG_Y * big - fly, FIG_W * big, FIG_H * big);
+    this.bar(x, top, 12 * big, hp, HP_BAR[q.side]);
     if (stunned) {
       g.fillStyle = FX.star;
       for (let i = 0; i < 3; i++) {

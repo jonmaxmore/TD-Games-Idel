@@ -102,7 +102,7 @@
 | earth | `vajra_stone_banner` | ศิษย์ถือธงศิลา | small/capture | 1 | 120 | 6×1.0 | 0.8 | ground | armor 2 | - |
 | earth | `vajra_stone_blade` | ศิษย์พลองหินฝึกหัด | small/march | 2 | 160 | 15×1.0 | 0.8 | ground | armor 2 | ไล่ตัวยึด |
 | earth | `vajra_stone_striker` | ศิษย์ฝ่ามือวัชระ | medium/march | 4 | 280 | 32×1.0 | 1.6 | ground | stun 0.5, armor 3 | ต้านใหญ่ |
-| earth | `vajra_stone_burst` | ศิษย์พลองสะเทือนขุนเขา | medium/march | 4 | 260 | 26×0.9 | 1.2 | ground | splash 1.0, stun 0.3 | ต้านฝูง |
+| earth | `vajra_stone_burst` | ศิษย์พลองสะท้านภู | medium/march | 4 | 260 | 26×0.9 | 1.2 | ground | splash 1.0, stun 0.3 | ต้านฝูง |
 | earth | `vajra_stone_control` | ศิษย์ระฆังทอง | medium/guard | 3 | 400 | 14×1.0 | 2.4 | ground+air | stun 0.5, armor 4 | ไล่ตัวยึด, ต้านบิน |
 | earth | `vajra_stone_stacker` | ศิษย์กายเหล็ก | medium/march | 3 | 450 | 16×1.0 | 0.8 | ground | armor 5 | ต้านฝูง |
 | earth | `vajra_stone_support` | ศิษย์สวดมนต์ | medium/support | 4 | 240 | 6×2.0 | 3.3 | ground+air | - | - |
