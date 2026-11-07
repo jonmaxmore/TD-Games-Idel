@@ -8,6 +8,7 @@ import economyJson from '../../../docs/data/economy.json';
 import itemsJson from '../../../docs/data/items.json';
 import mapsJson from '../../../docs/data/maps.json';
 import effectsJson from '../../../docs/data/effects.json';
+import battleJson from '../../../docs/data/battle.json';
 
 export const TICK_HZ = 20;
 export const TILE = 1000;
@@ -110,6 +111,7 @@ for (const r of S.roster.roles) {
 }
 for (const k of Object.keys(S.roster.roleUnlocks)) roleUnlocks.push([k, S.roster.roleUnlocks[k]]);
 for (const u of S.roster.units) {
+  if (u.battleOnly) continue; // castle-battle cards (battleUnits below) have no defend role
   const def: UnitDef = {
     ...sectDef({ ...u, name: u.nameEn }, u.kit, sects.get(u.sect)!.color),
     id: u.id, sect: u.sect, roleId: u.role, dot: u.dot ?? null, descTh: u.descTh, descEn: u.descEn,
@@ -215,4 +217,36 @@ export function waveHp(baseHp: number, wave: number): number {
   let bp = 10000 + 1800 * wave;
   for (let i = 10; i < wave; i++) bp = Math.floor((bp * 106) / 100);
   return Math.floor((baseHp * bp) / 10000);
+}
+
+// Castle battle (battle.json, SPEC-castle-battle). Path distances in milli-tiles from side 0's castle.
+export type Move = 'march' | 'capture' | 'guard' | 'fly' | 'support';
+export type Size = 'small' | 'medium' | 'large';
+export interface BattleUnitDef {
+  id: string; sect: string; kit: string; nameTh: string; nameEn: string; move: Move; size: Size; mana: number; hp: number;
+  dmg: number; cooldown: number; range: number; hitsAir: boolean; hitsGround: boolean; dot: string | null;
+}
+const BT = J(battleJson);
+const tiles = (t: number) => Math.round(t * TILE);
+const structure = (x: any) => ({ hp: x.hp as number, dmg: x.dmg as number, cooldown: ticks(1 / x.rate), range: tiles(x.range) });
+export const battle = {
+  path: (BT.path as [number, number][]).map(P), // tiles; battle.ts converts with toMilli
+  forts: { ...structure(BT.forts), atPct: BT.forts.atPct as number[], captureTicks: ticks(BT.forts.captureSec), captureRadius: tiles(BT.forts.captureRadius) },
+  castle: { ...structure(BT.castle), artStunTicks: ticks(BT.castle.art.stunSec) },
+  summonBasePct: BT.summonBasePct as number, summonGap: tiles(BT.summonGapTiles),
+  manaStart: BT.mana.start as number, manaMax: BT.mana.max as number,
+  regen: (BT.mana.regenSec as any[]).map((r) => ({ from: ticks(r.fromSec), to: ticks(r.toSec), every: ticks(r.everySec) })),
+  sizes: new Map<string, { min: number; max: number; perMatch: number | null }>(Object.keys(BT.sizes).map((k) => [k, { min: BT.sizes[k].mana[0], max: BT.sizes[k].mana[1], perMatch: BT.sizes[k].perMatch }])),
+  speed: new Map<string, number>(Object.keys(BT.moves).map((k) => [k, Math.round((BT.moves[k].speed * TILE) / TICK_HZ)])),
+  meleeRange: tiles(BT.meleeRange), supportHeal: BT.supportHeal as number, supportGap: tiles(BT.supportGapTiles), critPct: BT.critPct as number,
+  burnDps: BT.dot.burnDps as number, burnTicks: ticks(BT.dot.burnSec), poisonDps: BT.dot.poisonDps as number, poisonTicks: ticks(BT.dot.poisonSec), poisonMax: BT.dot.poisonMaxStacks as number,
+  matchTicks: ticks(BT.matchSec),
+};
+export const battleUnits = new Map<string, BattleUnitDef>();
+for (const u of S.roster.units) {
+  battleUnits.set(u.id, {
+    id: u.id, sect: u.sect, kit: u.kit, nameTh: u.nameTh, nameEn: u.nameEn, move: u.move, size: u.size, mana: u.mana, hp: u.hp,
+    dmg: u.dmg, cooldown: ticks(1.0 / u.rate), range: Math.max(tiles(u.range), tiles(BT.meleeRange)),
+    hitsAir: u.target.includes('air'), hitsGround: u.target.includes('ground'), dot: u.dot ?? null,
+  });
 }

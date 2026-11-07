@@ -15,6 +15,7 @@
     "art:pixellab": "node tools/art/pixellab.mjs",
     "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py",
     "sim:measure": "vite-node packages/sim/scripts/measure.ts",
+    "sim:battle": "vite-node packages/sim/scripts/battle-measure.ts",
     "typecheck": "tsc -p packages/sim && tsc -p packages/client",
     "dev": "npm run dev -w @five-sects/client",
     "build": "npm run build -w @five-sects/client",
