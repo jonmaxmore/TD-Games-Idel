@@ -25,7 +25,7 @@ export function bestTiles(s: DefendState, range = 2500, lane: number | null = nu
 export interface PlayOpts { maxDisciples?: number; sects?: string[]; record?: Record<number, Command[]>; earlyCall?: boolean; branch?: Branch; branchKit?: string; eco?: boolean }
 
 // Play styles for balance reviews (game-design-review §3: never conclude balance from one policy).
-// eco: after the first three placements, keep enough silver banked to earn this wave's full interest cap.
+// eco: after the first three placements, keep enough silver banked to earn the base interest cap every wave.
 export const POLICIES: Record<string, PlayOpts> = {
   greedy: {},
   rush: { earlyCall: true },
@@ -33,7 +33,8 @@ export const POLICIES: Record<string, PlayOpts> = {
   wide: { maxDisciples: 12 },
   eco: { eco: true },
 };
-const interestReserve = (s: DefendState) => Math.ceil((economy.interestCap + economy.interestCapPerWave * s.wave) * 100 / economy.interestPct);
+// The base cap only: chasing the cap as it grows each wave starves the build (measured: 0/48 on 1-9, 1-10, 1-12).
+const interestReserve = (_s: DefendState) => Math.ceil(economy.interestCap * 100 / economy.interestPct);
 
 // earlyCall: also calls the next wave once the current one has fully spawned and at most 3 enemies remain.
 // One decision per tick; `mem.placed` counts placements so the bot rotates through its sects.
