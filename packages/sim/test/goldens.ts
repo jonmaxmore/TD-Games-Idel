@@ -6,6 +6,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { arts, canonicalHash, canonicalString, createDefend, isOver, stepDefend, type Command, type DefendState } from '../src';
 import { playStage } from './bot';
+import { battleHash, battleOver, battleString, createBattle, stepBattle, type BattleCommand, type BattleState } from '../src';
+import { DECK, playBattle } from './battleBot';
 
 export const GOLDEN_DIR = fileURLToPath(new URL('../goldens/', import.meta.url));
 export const TARGET_MODES = ['first', 'strong', 'weak', 'close'];
@@ -104,10 +106,38 @@ export const goldenPath = (name: string) => `${GOLDEN_DIR}golden-${name}.json`;
 export const serialize = (g: Golden) => JSON.stringify(g, null, 1) + '\n';
 export const readGolden = (file: string) => JSON.parse(readFileSync(file, 'utf8')) as Golden;
 
+// Castle battle (SPEC-castle-battle §11): rush bot (left) vs defend bot (right) on the mirror deck, seed 1.
+// Its own file name (battle-*) so the defend replay above never picks it up.
+export interface BattleGolden {
+  seed: number; decks: [string[], string[]]; commands: Record<number, BattleCommand[]>; trace: [number, string][];
+  final: { winner: number; tick: number; hash: string; canonical: string };
+}
+export const BATTLE_GOLDEN = `${GOLDEN_DIR}battle-1.json`;
+
+export function replayBattle(seed: number, decks: [string[], string[]], commands: Record<number, BattleCommand[]>, onTick?: (s: BattleState) => void): BattleState {
+  const s = createBattle(seed, decks[0], decks[1]);
+  while (!battleOver(s)) {
+    stepBattle(s, commands[s.tick] ?? []);
+    onTick?.(s);
+  }
+  return s;
+}
+
+export function battleGolden(seed = 1): BattleGolden {
+  const decks: [string[], string[]] = [DECK, DECK];
+  const { commands } = playBattle(seed, 'rush', 'defend');
+  const trace: [number, string][] = [];
+  const end = replayBattle(seed, decks, commands, (s) => { if (s.tick % 100 === 0) trace.push([s.tick, battleHash(s)]); });
+  return { seed, decks, commands, trace, final: { winner: end.winner!, tick: end.tick, hash: battleHash(end), canonical: battleString(end) } };
+}
+
 export function writeAll(): void {
   for (const [name, make] of Object.entries(ALL)) {
     const g = make();
     writeFileSync(goldenPath(name), serialize(g));
     console.log(`${name} ${g.final.phase} ticks ${g.final.tick} trace ${g.trace.length} hash ${g.final.hash}`);
   }
+  const b = battleGolden();
+  writeFileSync(BATTLE_GOLDEN, JSON.stringify(b, null, 1) + '\n');
+  console.log(`battle-1 winner ${b.final.winner} ticks ${b.final.tick} trace ${b.trace.length} hash ${b.final.hash}`);
 }

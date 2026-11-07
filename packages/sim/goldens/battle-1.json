@@ -1,0 +1,677 @@
+{
+ "seed": 1,
+ "decks": [
+  [
+   "crimson_phoenix_striker",
+   "crimson_phoenix_burst",
+   "crimson_phoenix_control",
+   "crimson_phoenix_banner",
+   "crimson_phoenix_blade",
+   "jade_bamboo_stacker",
+   "jade_bamboo_support",
+   "jade_bamboo_blade"
+  ],
+  [
+   "crimson_phoenix_striker",
+   "crimson_phoenix_burst",
+   "crimson_phoenix_control",
+   "crimson_phoenix_banner",
+   "crimson_phoenix_blade",
+   "jade_bamboo_stacker",
+   "jade_bamboo_support",
+   "jade_bamboo_blade"
+  ]
+ ],
+ "commands": {
+  "0": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_striker",
+    "d": 5250
+   }
+  ],
+  "10": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 5250
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 5250
+   }
+  ],
+  "110": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_striker",
+    "d": 6300
+   }
+  ],
+  "170": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "200": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "jade_bamboo_blade",
+    "d": 6300
+   }
+  ],
+  "270": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "310": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "400": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_blade",
+    "d": 6300
+   }
+  ],
+  "420": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "500": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 10300
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "610": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 10400
+   }
+  ],
+  "710": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 10100
+   }
+  ],
+  "750": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_blade",
+    "d": 6300
+   }
+  ],
+  "800": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "820": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "910": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 10300
+   }
+  ],
+  "1040": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 10100
+   }
+  ],
+  "1110": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "1160": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "1240": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "1320": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "1400": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "1490": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "1520": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "1600": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_blade",
+    "d": 6300
+   }
+  ],
+  "1640": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "1680": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "1770": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6260
+   }
+  ],
+  "1830": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "1920": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "jade_bamboo_blade",
+    "d": 6300
+   }
+  ],
+  "1970": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "2010": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "2090": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "2150": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "2160": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "2260": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6290
+   }
+  ],
+  "2320": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_blade",
+    "d": 10500
+   }
+  ],
+  "2340": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_banner",
+    "d": 10500
+   }
+  ],
+  "2350": [
+   {
+    "t": "art",
+    "side": 0
+   }
+  ],
+  "2360": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "2450": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 6300
+   }
+  ],
+  "2520": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_blade",
+    "d": 5900
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_stacker",
+    "d": 10500
+   }
+  ],
+  "2580": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 5250
+   }
+  ],
+  "2650": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 3450
+   }
+  ],
+  "2700": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 3500
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_blade",
+    "d": 14700
+   }
+  ],
+  "2760": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 2300
+   }
+  ],
+  "2820": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_striker",
+    "d": 14700
+   }
+  ],
+  "2840": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "2880": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "2950": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "3010": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "3060": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_support",
+    "d": 14700
+   }
+  ],
+  "3130": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "3190": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "3260": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "3300": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   },
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_blade",
+    "d": 14700
+   }
+  ],
+  "3360": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "crimson_phoenix_banner",
+    "d": 1700
+   }
+  ],
+  "3420": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "crimson_phoenix_striker",
+    "d": 14700
+   }
+  ]
+ },
+ "trace": [
+  [
+   100,
+   "71225185"
+  ],
+  [
+   200,
+   "7d0e3156"
+  ],
+  [
+   300,
+   "cd9aea70"
+  ],
+  [
+   400,
+   "e827ac16"
+  ],
+  [
+   500,
+   "540efb30"
+  ],
+  [
+   600,
+   "3093efd6"
+  ],
+  [
+   700,
+   "8dd12150"
+  ],
+  [
+   800,
+   "e236ffc0"
+  ],
+  [
+   900,
+   "266fa48e"
+  ],
+  [
+   1000,
+   "488f2949"
+  ],
+  [
+   1100,
+   "1e513cea"
+  ],
+  [
+   1200,
+   "79aee594"
+  ],
+  [
+   1300,
+   "722a3a12"
+  ],
+  [
+   1400,
+   "51c0d31c"
+  ],
+  [
+   1500,
+   "a8ecb08c"
+  ],
+  [
+   1600,
+   "ea84adc8"
+  ],
+  [
+   1700,
+   "35ec347f"
+  ],
+  [
+   1800,
+   "ebec58a8"
+  ],
+  [
+   1900,
+   "566e0ad6"
+  ],
+  [
+   2000,
+   "fb8b241b"
+  ],
+  [
+   2100,
+   "a16cf7a7"
+  ],
+  [
+   2200,
+   "4eecb8fe"
+  ],
+  [
+   2300,
+   "3b136491"
+  ],
+  [
+   2400,
+   "c8dc41f4"
+  ],
+  [
+   2500,
+   "3a7d3c40"
+  ],
+  [
+   2600,
+   "34b2262d"
+  ],
+  [
+   2700,
+   "19702ea9"
+  ],
+  [
+   2800,
+   "274f997a"
+  ],
+  [
+   2900,
+   "f4d0051d"
+  ],
+  [
+   3000,
+   "56eb80f2"
+  ],
+  [
+   3100,
+   "8325a09d"
+  ],
+  [
+   3200,
+   "1739625d"
+  ],
+  [
+   3300,
+   "da8c2d32"
+  ],
+  [
+   3400,
+   "acf0eef5"
+  ],
+  [
+   3500,
+   "e27e8b35"
+  ],
+  [
+   3600,
+   "734e1ba0"
+  ]
+ ],
+ "final": {
+  "winner": 1,
+  "tick": 3600,
+  "hash": "734e1ba0",
+  "canonical": "3600|1496707229|4,11|1,0,0,36,2,0,0,2/3,0,0,12,1,1,1,4|1503,16,1;3000,0,0;|1,600,0,-,0;1,600,0,-,0;1,600,0,-,0;|u44,1,jade_bamboo_stacker,3200,220,5,0,0,0,0;u50,1,crimson_phoenix_striker,2700,260,4,0,0,0,0;u56,1,jade_bamboo_support,1800,220,8,0,0,0,0;u61,1,jade_bamboo_blade,800,160,12,0,0,0,0;u63,1,crimson_phoenix_striker,2700,260,12,0,0,0,0;|1"
+ }
+}
