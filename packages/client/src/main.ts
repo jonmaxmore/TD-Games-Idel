@@ -7,7 +7,7 @@ import { portrait } from './board';
 import { DECKS, resolveDeck, type DeckChoice } from './decks';
 import { load, save, type Profile } from './profile';
 import { initSound } from './sound';
-import { loadSprites } from './sprites';
+import { cardArt, loadSprites } from './sprites';
 import { nowrapWords } from './words';
 
 const app = document.getElementById('app')!;
@@ -79,7 +79,9 @@ function deckPick() {
       const u = battleUnits.get(c)!, cap = battle.sizes.get(u.size)!.perMatch;
       const t = el('div', 'deck-card');
       t.style.borderColor = deckColor(u.sect);
-      t.append(portrait(c), el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh),
+      const face = el('span', 'face');
+      face.append(cardArt(c) ?? portrait(c));
+      t.append(face, el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh),
         nowrapWords(el('small'), `${battle.moves.get(u.move)!.nameTh} · ${battle.sizes.get(u.size)!.nameTh} · ${cap == null ? 'ลงได้ไม่จำกัด' : `ลงได้ ${cap} ครั้ง`}`),
         nowrapWords(el('small', 'does'), battle.moves.get(u.move)!.doesTh),
         nowrapWords(el('small', 'stats'), `HP ${u.hp} · ตี ${u.dmg} · ระยะ ${(u.range / 1000).toFixed(1)}${u.hitsAir ? ' · ตีอากาศได้' : ''}`));

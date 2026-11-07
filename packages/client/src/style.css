@@ -19,6 +19,12 @@ button {
 button:disabled { opacity: 0.45; border-color: transparent; cursor: default; }
 button.primary { background: var(--red); }
 canvas.portrait { image-rendering: pixelated; display: block; }
+/* Card art (sprites.ts cardArt): always 1x and pixel-crisp; a window crops it, nothing scales it. */
+img.art { image-rendering: pixelated; display: block; width: 128px; height: 128px; max-width: none; }
+.card .face img.art { position: absolute; left: 50%; top: -10px; margin-left: -64px; }
+.deck-card .face { position: relative; display: block; width: 100px; height: 90px; overflow: hidden; }
+.deck-card .face canvas { margin: 0 auto; }
+.deck-card .face img.art { position: absolute; left: 50%; top: -12px; margin-left: -64px; }
 kbd { font: inherit; }
 
 /* ---- the match: the field fills the stage, the HUD bands sit over it ---- */

@@ -9,6 +9,7 @@ import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { bellIcon, Board, portrait } from './board';
 import type { DeckChoice } from './decks';
 import type { Settings } from './profile';
+import { cardArt } from './sprites';
 import { applyVolume, play } from './sound';
 import { nowrapWords } from './words';
 
@@ -81,7 +82,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     const b = el('button', 'card');
     b.style.setProperty('--sect', sects.get(def.sect)?.color ?? '#E3B04B');
     const face = el('span', 'face');
-    face.append(portrait(card));
+    face.append(cardArt(card) ?? portrait(card));
     const uses = el('span', 'uses');
     b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses,
       nowrapWords(el('b', 'name'), def.nameTh), nowrapWords(el('small'), `${battle.moves.get(def.move)?.nameTh ?? def.move} · ${battle.sizes.get(def.size)?.nameTh ?? def.size}`));

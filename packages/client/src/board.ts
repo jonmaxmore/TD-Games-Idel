@@ -6,6 +6,7 @@ import {
   battle, BATTLE_LEN, BATTLE_PATH, battleUnits, palette, pointAt, sects, TILE, tilesOnPath,
   type BattleEvent, type BattleState, type BattleUnitDef, type Side,
 } from '@five-sects/sim';
+import { boardSprite, rim, silhouette, type Frame } from './sprites';
 
 const PAD = 6;
 const GRID = battle.grid;
@@ -566,8 +567,13 @@ export class Board {
     const walking = now - q.walk < 200 && !stunned;
     const b = walking ? ((Math.floor(now / 140 + id) & 1) ? -1 : 0) : Math.round(Math.sin(now / 300 + id));
     shadow(g, x, y, def.size === 'small' ? 5 : 6);
-    g.drawImage(figure(q.card, q.side, q.side === 1, b, white ? 'white' : stunned ? 'stun' : tint), x - FIG_X, y - FIG_Y - fly);
-    const top = y - (def.size === 'small' ? 25 : 27) - fly;
+    const over = white ? 'white' : stunned ? 'stun' : tint;
+    const sp = boardSprite(q.card, q.side === 0 ? 'east' : 'west');
+    let top = y - (def.size === 'small' ? 25 : 27) - fly;
+    if (sp) { // a PixelLab figure 1:1 with the same rim and overlays; the procedural one otherwise
+      this.blit(sp.f, x, y - fly - b, sp.flip, over === 'white' ? ['#FFFFFF', 1] : over === 'stun' ? ['#5A5266', 0.6] : over ? [over, 0.5] : undefined, SIDE[q.side]);
+      top = y - fly - Math.ceil((sp.f.foot - sp.f.top + 1) / this.K) - 4;
+    } else g.drawImage(figure(q.card, q.side, q.side === 1, b, over), x - FIG_X, y - FIG_Y - fly);
     this.bar(x, top, 12, hp, HP_BAR[q.side]);
     if (stunned) {
       g.fillStyle = FX.star;
@@ -576,6 +582,17 @@ export class Board {
         g.fillRect(sx, sy - 1, 1, 3); g.fillRect(sx - 1, sy, 3, 1);
       }
     }
+  }
+
+  // A sprite 1:1 in buffer pixels, its lowest opaque row on the ground point (x, y) in board units. edge: the 1 px rim colour;
+  // over: a silhouette colour laid on top at alpha (hit flash, status tint, stun grey).
+  private blit(f: Frame, x: number, y: number, flip: boolean, over?: [string, number], edge?: string) {
+    const g = this.g, K = this.K, l = -(f.w >> 1), t = -f.foot;
+    g.setTransform(flip ? -1 : 1, 0, 0, 1, (x + this.shx) * K, (y + this.shy) * K - 1);
+    if (edge) g.drawImage(rim(f, edge), l - 1, t - 1);
+    g.drawImage(f.img, l, t);
+    if (over) { g.globalAlpha *= over[1]; g.drawImage(silhouette(f, over[0]), l, t); g.globalAlpha /= over[1]; }
+    g.setTransform(K, 0, 0, K, this.shx * K, this.shy * K);
   }
 
   dispose(): void { this.seen.clear(); this.lunges.clear(); }

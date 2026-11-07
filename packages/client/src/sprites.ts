@@ -83,7 +83,6 @@ export function rim(f: Frame, color: string): HTMLCanvasElement {
   return c;
 }
 
-export const hasCard = (id: string) => cards.has(id);
 
 // The 128x128 card art for a unit, shown pixel-crisp at 1x (style.css .art); null when there is none yet.
 export function cardArt(id: string): HTMLImageElement | null {
