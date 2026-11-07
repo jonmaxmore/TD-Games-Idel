@@ -52,7 +52,7 @@
     "water": { "leader": "frost_tide_naga", "sub": "frost_tide_striker" },
     "earth": { "leader": "vajra_stone_guardian", "sub": "vajra_stone_striker" }
   },
-  "dot": { "burnDps": 8, "burnSec": 3, "burnMaxStacks": 3, "poisonDps": 3, "poisonSec": 3, "poisonMaxStacks": 5 },
+  "dot": { "burnDps": 7, "burnSec": 3, "burnMaxStacks": 3, "poisonDps": 3, "poisonSec": 3, "poisonMaxStacks": 5 },
   "castle": {
     "hp": 5000, "dmg": 75, "rate": 0.6667, "range": 4,
     "cannon": { "nameTh": "ปืนใหญ่ปราสาท", "nameEn": "Castle Cannon", "mana": 2, "cooldownSec": 3, "reachTiles": 10, "radiusTiles": 1.0, "dmg": 50, "pushTiles": 1.5, "maxPush": 4 }
