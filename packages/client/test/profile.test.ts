@@ -1,39 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { migrate, recordEnd, route } from '../src/profile';
+import { DECKS, resolveDeck } from '../src/decks';
+import { migrate } from '../src/profile';
 
-describe('profile and route', () => {
-  it('walks a first run step by step to the lobby', () => {
-    const p = migrate(null);
-    const seen: string[] = [];
-    const steps: Partial<typeof p>[] = [{ consented: true, birthYear: 2000 }, { introSeen: true }, {}, { sect: 'fire' }, { name: 'หลิวอวิ๋น' }];
-    for (const change of steps) {
-      const s = route(p);
-      seen.push(s.k === 'battle' ? s.stageId : s.k);
-      if (s.k === 'battle') recordEnd(p, s.stageId, false, [false]);
-      Object.assign(p, change);
+describe('profile', () => {
+  it('starts with the first deck and default settings, and keeps a known deck', () => {
+    expect(migrate(null)).toEqual({ v: 2, deck: DECKS[0]!.id, settings: { volume: 70, muted: false, shake: true } });
+    expect(migrate({ deck: 'mixed' }).deck).toBe('mixed');
+  });
+
+  it('turns an old TD save or an unknown deck into a valid profile, keeping its settings', () => {
+    expect(migrate({ v: 1, consented: true, sect: 'fire', cleared: ['1-1'], settings: { volume: 30, muted: true, shake: false } }))
+      .toEqual({ v: 2, deck: DECKS[0]!.id, settings: { volume: 30, muted: true, shake: false } });
+    expect(migrate({ deck: 'gone', settings: { volume: 500, muted: 'yes' } }).settings).toEqual({ volume: 70, muted: false, shake: true });
+    expect(migrate('garbage').v).toBe(2);
+  });
+});
+
+describe('decks', () => {
+  it('every deck holds 8 known cards and names an opponent deck that exists', () => {
+    for (const d of DECKS) {
+      expect(d.cards).toHaveLength(8);
+      expect(DECKS.some((x) => x.id === d.vs)).toBe(true);
     }
-    seen.push(route(p).k);
-    expect(seen).toEqual(['consent', 'intro', 'T-0', 'sectPick', 'name', 'lobby']);
   });
 
-  it('drops sects and stages that are not in the data, and sects without a roster', () => {
-    expect(migrate({ consented: true, sect: 'metal', cleared: ['1-1', 'nope', '1-1'], stars: { '1-1': 2, x: 3 } })).toMatchObject({ sect: null, cleared: ['1-1'], stars: { '1-1': 2 } });
-    expect(migrate({ sect: 'gone' }).sect).toBeNull();
-    expect(migrate('garbage').consented).toBe(false);
-  });
-
-  it('keeps the best stars and ignores losses', () => {
-    const p = migrate(null);
-    recordEnd(p, '1-1', true, [true, true, false]);
-    recordEnd(p, '1-1', true, [true, false, false]);
-    recordEnd(p, '1-2', false, [false, false, false]);
-    expect(p.stars).toEqual({ '1-1': 2 });
-    expect(p.cleared).toEqual(['1-1']);
-  });
-
-  it('keeps valid sound and shake settings and resets bad ones', () => {
-    expect(migrate(null).settings).toEqual({ volume: 70, muted: false, shake: true });
-    expect(migrate({ settings: { volume: 30, muted: true, shake: false } }).settings).toEqual({ volume: 30, muted: true, shake: false });
-    expect(migrate({ settings: { volume: 500, muted: 'yes' } }).settings).toEqual({ volume: 70, muted: false, shake: true });
+  it('a URL deck is a choice id or a card list; unknown cards are dropped', () => {
+    expect(resolveDeck('wood')?.id).toBe('wood');
+    expect(resolveDeck('crimson_phoenix_blade,nope')?.cards).toEqual(['crimson_phoenix_blade']);
+    expect(resolveDeck('nope')).toBeNull();
+    expect(resolveDeck(null)).toBeNull();
   });
 });

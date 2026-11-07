@@ -4,12 +4,17 @@
 // Positions are path distances in milli-tiles from side 0's castle; fwd() turns one into a side's own depth.
 import { battle as B, battleUnits, type BattleUnitDef } from './data';
 import { div, fnv1a, pathLength, pointAt, rollPct, toMilli, wuxingPct } from './core';
-import type { SimEvent } from './defend';
 
 export type Side = 0 | 1;
 export interface BattleCommand { t: 'summon' | 'art'; side: Side; card?: string; d?: number } // d: depth from the side's own castle
-// side: who summoned, captured or won (-1 on end = draw); heal: amount = HP restored.
-export type BattleEvent = SimEvent & { side?: number };
+// What a tick did, for the view and sound (never read back by the rules). x, y: where, in milli-tiles.
+// side: who summoned, captured or won (-1 on end = draw); heal: amount = HP restored; hit on a structure: to = -1,
+// type 'fort' | 'castle' and id = fort index or castle side; from < 0 is a structure shooting (-1 - side castle, -10 - i fort).
+export interface BattleEvent {
+  e: 'spawn' | 'hit' | 'heal' | 'kill' | 'stun' | 'art' | 'capture' | 'neutral' | 'end' | 'error';
+  id?: number; from?: number; to?: number; dmg?: number; amount?: number; crit?: boolean; el?: string | null;
+  type?: string; side?: number; name?: string; msg?: string; won?: boolean; x?: number; y?: number;
+}
 
 export interface Fighter {
   id: number; side: Side; card: string; d: number; hp: number; maxHp: number; cd: number; home: number;

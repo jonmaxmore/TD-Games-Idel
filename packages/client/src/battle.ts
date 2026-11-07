@@ -1,363 +1,279 @@
-// Battle screen: runs the sim at a fixed 20 Hz, draws it on a Canvas 2D board and puts the HUD in plain DOM.
-// It owns `root` until dispose(); the front flow decides what happens after onEnd.
+// The castle-battle screen: runs the sim at a fixed 20 Hz, draws it on the Canvas 2D field and puts the HUD in plain DOM.
+// The player is side 0 (left); the AI plays side 1 through the same bot the balance tests use. Every input becomes a
+// BattleCommand handed to stepBattle, exactly like a replay. It owns its root until dispose(); main.ts decides what follows.
 import {
-  arts, cards, createDefend, defOf, discipleStats, enemies as enemyDefs, evaluateStars, isOver, recipeById, roleDefs, sellValue,
-  skills, stepDefend, TICK_HZ, tileRange, units, upgradeCost, upgradeLevels, AUTO_START_TICKS, canBuild, moonPhase, openPath, type Command, type DefendState, type SimEvent,
+  battle, BATTLE_LEN, battleOver, battleUnits, createBattle, decision, sects, stepBattle, summonZone, TICK_HZ,
+  type BattleCommand, type BattleEvent, type BattleState, type DecideStep, type Side,
 } from '@five-sects/sim';
-import { botCommands } from '../../sim/test/bot';
-import { Board } from './board';
-import { cardArt, hasCard } from './sprites';
+import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
+import { bellIcon, Board, portrait } from './board';
+import type { DeckChoice } from './decks';
 import type { Settings } from './profile';
 import { applyVolume, play } from './sound';
 import { nowrapWords } from './words';
 
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
 
-const ERRORS: Record<string, string> = {
-  'not enough silver': 'ตำลึงไม่พอ', 'cannot build here': 'วางตรงนี้ไม่ได้', 'sect locked': 'ยังไม่ปลดศิษย์นี้', 'cannot upgrade': 'อัปเกรดไม่ได้แล้ว',
-  'no such branch': 'ไม่มีสายนี้', 'no more waves': 'ไม่มีระลอกเหลือ', 'art on cooldown': 'วิชายังไม่พร้อม', 'no enemies': 'ยังไม่มีศัตรู', 'cannot call a wave now': 'เรียกระลอกตอนนี้ไม่ได้',
-};
-export const STARS: Record<string, string> = {
-  clear: 'ผ่านด่าน', no_life_lost: 'ไม่เสียชีวิต', under_3min: 'จบใน 3 นาที', hold_200_silver: 'เหลือตำลึง 200 ขึ้นไป',
-  max_6_disciples: 'ใช้ศิษย์ไม่เกิน 6', max_2_sects: 'ไม่เกิน 2 สำนัก', use_combo: 'ใช้ท่าผสาน',
-};
-const TARGETS: [string, string][] = [['first', 'ตัวแรก'], ['strong', 'แรงสุด'], ['weak', 'อ่อนสุด'], ['close', 'ใกล้สุด']];
-const name = (key: string) => units.get(key)?.nameTh ?? defOf(key).nameTh;
+export interface MatchOpts {
+  seed: number; deck: DeckChoice; vs: DeckChoice; speed: number; settings: Settings; saveSettings: () => void;
+  bots: [Policy | null, Policy]; // who plays each side: null = the player
+}
+export interface MatchResult { winner: Side | -1; step: DecideStep | null; broken: boolean; castles: [number, number]; tick: number }
 
-export interface BattleOpts { stageId: string; sect: string | null; seed: number; bot: boolean; speed: number; settings: Settings; saveSettings: () => void }
-export interface BattleResult { won: boolean; stars: boolean[]; tick: number; livesLost: number }
+const TOP_H = 64, BOTTOM_H = 150; // HUD bands over the canvas, in stage pixels
+const OFF_PATH = 0.9; // tiles from the road centre a click still counts as on it
+const sec = (t: number) => Math.ceil(t / TICK_HZ);
+const clock = (t: number) => { const s = Math.max(0, sec(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const capOf = (card: string) => battle.sizes.get(battleUnits.get(card)!.size)!.perMatch;
 
-export function startBattle(app: HTMLElement, o: BattleOpts, onEnd: (r: BattleResult) => void): () => void {
-  const { stageId, seed } = o;
+export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResult) => void): () => void {
   let speed = o.speed;
-  const useBot = o.bot;
-  const s: DefendState = createDefend(stageId, seed, o.sect);
+  const s: BattleState = createBattle(o.seed, o.deck.cards, o.vs.cards);
+  const rngs = [botRng(o.seed, 0), botRng(o.seed, 1)];
+  const human = o.bots[0] == null;
 
-  // ---- layout: top bar across, board on the left, side panel on the right ----
-  const root = el('div', 'battle');
-  const top = el('div', 'top');
-  const canvas = el('canvas', 'board');
-  const floats = el('div', 'floats');
-  const bottom = el('div', 'bottom');
-  const toastBox = el('div', 'toasts');
-  // Boss duel (SPEC-pc-v2 §4): the boss's HP across the board, with a notch at each threshold where it disables disciples.
-  const duelBar = el('div', 'duel hidden');
-  const duelFill = el('i');
-  const duelText = el('span');
-  if (s.duel != null) {
-    const def = enemyDefs.get(s.duel)!;
-    const bar = el('div', 'bar');
-    bar.append(duelFill, ...(def.boss?.phasesPct ?? []).map((p) => { const n = el('em'); n.style.left = `${p}%`; return n; }));
-    duelBar.append(el('b', '', `ดวล: ${def.nameTh}`), bar, duelText, el('small', '', 'ล้มบอสเพื่อชนะ · ถ้าถึงวิหารจะแพ้ทันที'));
-  }
+  const root = el('div', 'match');
+  const canvas = el('canvas', 'field');
+  const top = el('div', 'hud-top');
+  const bottom = el('div', 'hud-bottom');
   const cutin = el('div', 'cutin');
-  root.append(top, canvas, floats, cutin, bottom, duelBar, toastBox);
+  const toastBox = el('div', 'toasts');
+  root.append(canvas, top, cutin, toastBox, bottom);
   app.append(root);
-  const board = new Board(canvas, s);
+  const board = new Board(canvas, s, { top: TOP_H, bottom: BOTTOM_H });
   const set = o.settings;
   board.shake = set.shake;
+  const onResize = () => board.resize();
+  addEventListener('resize', onResize);
 
-  const hud = { silver: el('b'), lives: el('b'), wave: el('b'), next: el('span', 'next') };
+  // ---- top: our castle, the clock and forts, theirs, then the small controls ----
+  const castleBar = (side: Side, name: string) => {
+    const box = el('div', `castle-hp side${side}`), fill = el('i'), num = el('b');
+    const bar = el('div', 'bar');
+    bar.append(fill);
+    box.append(nowrapWords(el('span', 'who'), name), bar, num);
+    return { box, fill, num, last: -1 };
+  };
+  const bars = [castleBar(0, `ปราสาทเรา · ${o.deck.nameTh}`), castleBar(1, `ปราสาทศัตรู · ${o.vs.nameTh}`)];
+  const clockBox = el('div', 'clock'), time = el('b', 'time'), fortRow = el('div', 'forts'), regenHint = el('small');
+  const fortDots = s.forts.map(() => fortRow.appendChild(el('i')));
+  clockBox.append(time, fortRow, regenHint);
+  const ctl = el('div', 'ctl');
   const pauseBtn = el('button', 'icon', 'หยุด');
   const speedBtn = el('button', 'icon', `x${speed}`);
-  // Sound and shake settings live in the top bar and are saved with the profile.
-  const muteBtn = el('button', 'icon', '');
-  const vol = el('input', 'vol');
-  Object.assign(vol, { type: 'range', min: '0', max: '100', step: '10', title: 'ระดับเสียง' });
-  vol.value = String(set.volume);
-  const shakeBtn = el('button', 'icon', '');
-  const showSettings = () => { muteBtn.textContent = set.muted ? 'เสียง: ปิด' : 'เสียง'; shakeBtn.textContent = set.shake ? 'จอสั่น' : 'จอนิ่ง'; };
+  const muteBtn = el('button', 'icon');
+  const shakeBtn = el('button', 'icon');
+  const showSettings = () => { muteBtn.textContent = set.muted ? 'เสียงปิด' : 'เสียง'; shakeBtn.textContent = set.shake ? 'จอสั่น' : 'จอนิ่ง'; };
   const changed = () => { board.shake = set.shake; applyVolume(); showSettings(); o.saveSettings(); };
   muteBtn.onclick = () => { set.muted = !set.muted; changed(); };
-  vol.oninput = () => { set.volume = Number(vol.value); set.muted = false; changed(); };
   shakeBtn.onclick = () => { set.shake = !set.shake; changed(); };
   showSettings();
-  top.append(el('span', '', 'ตำลึง '), hud.silver, el('span', '', ' ชีวิต '), hud.lives, el('span', '', ' ระลอก '), hud.wave, hud.next, muteBtn, vol, shakeBtn, speedBtn, pauseBtn);
-  const onResize = () => { board.resize(); const r = hud.silver.getBoundingClientRect(); board.silverAt(r.left + r.width / 2, r.top + r.height / 2); };
-  addEventListener('resize', onResize);
-  onResize();
+  ctl.append(muteBtn, shakeBtn, speedBtn, pauseBtn);
+  top.append(bars[0]!.box, clockBox, bars[1]!.box, ctl);
 
-  const artsRow = el('div', 'arts');
-  const panel = el('div', 'panel');
-  const cardsRow = el('div', 'cards');
-  const waveBtn = el('button', 'primary wave');
-  bottom.append(cardsRow, panel, artsRow, waveBtn);
+  // ---- bottom: mana, the eight cards, the bell ----
+  const manaBox = el('div', 'mana'), manaNum = el('b'), manaFill = el('i'), manaBar = el('div', 'bar');
+  manaBar.append(manaFill);
+  manaBox.append(el('span', '', 'ปราณ'), manaNum, manaBar);
+  const cardRow = el('div', 'cards');
+  const cards = s.decks[0].map((card, slot) => {
+    const def = battleUnits.get(card)!;
+    const b = el('button', 'card');
+    b.style.setProperty('--sect', sects.get(def.sect)?.color ?? '#E3B04B');
+    const face = el('span', 'face');
+    face.append(portrait(card));
+    const uses = el('span', 'uses');
+    b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses,
+      nowrapWords(el('b', 'name'), def.nameTh), nowrapWords(el('small'), `${battle.moves.get(def.move)?.nameTh ?? def.move} · ${battle.sizes.get(def.size)?.nameTh ?? def.size}`));
+    b.addEventListener('pointerdown', (ev) => { if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
+    cardRow.append(b);
+    return { b, uses, card };
+  });
+  const bellBtn = el('button', 'bell');
+  const bellState = el('small');
+  bellBtn.append(bellIcon(3), nowrapWords(el('b'), battle.castle.artNameTh), bellState, el('kbd', '', 'Space'));
+  bellBtn.onclick = () => { if (human && !s.castles[0].artUsed) pending.push({ t: 'art', side: 0 }); };
+  bottom.append(manaBox, cardRow, bellBtn);
 
-  let pending: Command[] = [];
-  let selectedKey: string | null = s.unlocked[0] ?? null; // card to place
-  let selectedId: number | null = null; // placed disciple
+  const game = { s, fps: 0, fights: 0 };
+  let pending: BattleCommand[] = [];
+  let sel: number | null = null; // the deck slot picked
+  let drag: { x: number; y: number; moved: boolean } | null = null;
   let paused = false;
-  let sellArmed = false;
+  let lastPointer: { x: number; y: number } | null = null;
 
-  function toast(msg: string) {
-    const t = el('div', 'toast', msg);
+  function toast(msg: string, cls = '') {
+    const t = el('div', `toast ${cls}`, msg);
     toastBox.append(t);
+    while (toastBox.children.length > 3) toastBox.firstChild!.remove();
     setTimeout(() => t.remove(), 1800);
   }
 
-  function float(x: number, y: number, text: string, cls: string) {
-    const p = board.toScreen(x, y);
-    const f = el('div', `float ${cls}`, text);
-    f.style.left = `${p.x + canvas.offsetLeft}px`; f.style.top = `${p.y + canvas.offsetTop}px`;
-    floats.append(f);
-    setTimeout(() => f.remove(), 900);
+  // Why the player's slot cannot be summoned right now (any spot), or null.
+  function cardProblem(slot: number): string | null {
+    const card = s.decks[0][slot]!, cap = capOf(card);
+    if (cap != null && s.uses[0][slot]! >= cap) return 'ใบนี้ใช้ครบแล้ว';
+    if (s.mana[0] < battleUnits.get(card)!.mana) return 'ปราณไม่พอ';
+    return null;
+  }
+  function pick(slot: number | null) {
+    sel = slot === sel ? null : slot;
+    aimAt(lastPointer);
+    refresh();
+  }
+  // The aim marker follows the pointer onto the road; it is gold where the summon would be accepted, red elsewhere.
+  function aimAt(p: { x: number; y: number } | null): { d: number; ok: boolean; why: string | null } | null {
+    board.armed = sel != null;
+    const hit = p && sel != null ? board.pathAt(p.x, p.y) : null;
+    if (!hit || sel == null) { board.aim = null; return null; }
+    const d = Math.max(0, Math.min(BATTLE_LEN, hit.d));
+    const why = cardProblem(sel) ?? (hit.off > OFF_PATH ? 'ลงได้บนเส้นทางเท่านั้น' : d > summonZone(s, 0) ? 'ลงได้เฉพาะในเขตอัญเชิญ' : null);
+    board.aim = { d, ok: why == null, card: s.decks[0][sel]! };
+    return { d, ok: why == null, why };
+  }
+  function summonAt(p: { x: number; y: number }) {
+    if (sel == null || battleOver(s)) return;
+    const a = aimAt(p);
+    if (!a) return;
+    if (!a.ok) { toast(a.why!, 'bad'); return; }
+    pending.push({ t: 'summon', side: 0, card: s.decks[0][sel]!, d: a.d });
+    sel = null;
+    aimAt(p);
+    refresh();
   }
 
-  // ---- cards (place) ----
-  const cardEls = new Map<string, HTMLButtonElement>();
-  for (const key of s.unlocked) {
-    const u = units.get(key);
-    const b = el('button', 'card');
-    b.style.borderColor = defOf(key).color;
-    const art = cardArt(key);
-    if (art) { const face = el('span', 'face'); face.append(art); b.append(face); } // head and shoulders of the 128 art, at 1x
-    b.append(el('kbd', '', String(cardEls.size + 1)), nowrapWords(el('b'), name(key)), el('small', '', u ? roleDefs.get(u.roleId)!.nameTh : ''), el('span', 'cost', `${defOf(key).cost}`));
-    b.onclick = () => { selectedKey = key; selectedId = null; refresh(); };
-    cardsRow.append(b);
-    cardEls.set(key, b);
-  }
+  const onMove = (ev: PointerEvent) => {
+    lastPointer = { x: ev.clientX, y: ev.clientY };
+    if (drag && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) > 8) drag.moved = true;
+    const over = document.elementFromPoint(ev.clientX, ev.clientY) === canvas;
+    aimAt(over ? lastPointer : null);
+  };
+  const onUp = (ev: PointerEvent) => {
+    if (drag?.moved && document.elementFromPoint(ev.clientX, ev.clientY) === canvas) summonAt({ x: ev.clientX, y: ev.clientY });
+    drag = null;
+  };
+  addEventListener('pointermove', onMove);
+  addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointerdown', (ev) => { if (human && !drag) summonAt({ x: ev.clientX, y: ev.clientY }); });
+  canvas.addEventListener('pointerleave', () => { board.aim = null; });
 
-  // ---- arts ----
-  const artEls = arts.map((a) => {
-    const b = el('button', 'art');
-    b.onclick = () => pending.push({ t: 'cast', art: a.id });
-    artsRow.append(b);
-    return b;
-  });
-
-  waveBtn.onclick = () => pending.push({ t: 'nextWave' });
   pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'เล่น' : 'หยุด'; };
-  speedBtn.onclick = () => { speed = speed === 1 ? 2 : 1; speedBtn.textContent = `x${speed}`; };
-
-  // The upgrade to tier 3 picks a branch (SPEC-pc-v2 §5); a kit with one tier 3 upgrades straight to it.
-  const branchesOf = (d: { els: string[]; level: number }) => (d.level === upgradeLevels - 1 ? (skills.get(d.els[0]!) ?? []).filter((k) => k.branch != null) : []);
-  const upgrade = (id: number, branch?: 'a' | 'b') => pending.push(branch ? { t: 'upgrade', id, branch } : { t: 'upgrade', id });
-
-  // Keyboard: 1-9 pick a disciple card, Space calls the next wave, U upgrades, A / B pick the tier-3 branch, P pauses, Esc clears the selection.
+  speedBtn.onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; speedBtn.textContent = `x${speed}`; };
+  // Keyboard: 1-8 pick a card, Space rings the bell, Esc drops the card, P pauses.
   const onKey = (ev: KeyboardEvent) => {
-    if (ev.repeat || isOver(s)) return;
-    const card = [...cardEls.values()][Number(ev.key) - 1];
-    if (card) card.click();
-    else if (ev.code === 'Space') { ev.preventDefault(); waveBtn.click(); }
-    else if ((ev.key === 'u' || ev.key === 'a' || ev.key === 'b') && selectedId != null) {
-      const d = s.disciples.find((x) => x.id === selectedId);
-      if (!d) return;
-      const two = branchesOf(d).length === 2;
-      if (ev.key === 'u') { if (two) toast('เลือกสาย: กด A หรือ B'); else upgrade(d.id); }
-      else if (two) upgrade(d.id, ev.key);
-    }
+    if (ev.repeat || battleOver(s)) return;
+    const n = Number(ev.key);
+    if (human && n >= 1 && n <= cards.length) pick(n - 1);
+    else if (ev.code === 'Space') { ev.preventDefault(); bellBtn.click(); }
+    else if (ev.key === 'Escape') pick(null);
     else if (ev.key === 'p') pauseBtn.click();
-    else if (ev.key === 'Escape') { selectedKey = null; selectedId = null; refresh(); }
   };
   addEventListener('keydown', onKey);
 
-  canvas.addEventListener('pointerdown', (ev) => {
-    if (isOver(s)) return;
-    const t = board.tileAt(ev.clientX, ev.clientY);
-    if (!t) return;
-    const d = s.disciples.find((x) => x.tx === t.tx && x.ty === t.ty);
-    if (d) { selectedId = d.id; selectedKey = null; sellArmed = false; refresh(); return; }
-    if (selectedKey) pending.push({ t: 'place', sect: selectedKey, tx: t.tx, ty: t.ty });
-    else { selectedId = null; refresh(); }
-  });
-  canvas.addEventListener('pointermove', (ev) => { hover = board.tileAt(ev.clientX, ev.clientY); });
-  let hover: { tx: number; ty: number } | null = null;
-
-  // ---- the selected disciple: stats, next technique, upgrade / sell / target ----
-  function drawPanel() {
-    panel.replaceChildren();
-    const d = s.disciples.find((x) => x.id === selectedId);
-    if (!d) {
-      if (selectedKey) {
-        const u = units.get(selectedKey);
-        panel.append(el('b', '', name(selectedKey)), el('p', '', u?.descTh ?? 'คลิกช่องว่างบนกระดานเพื่อวาง'));
-      }
-      return;
-    }
-    const key = d.unit ?? d.els[0]!;
-    const st = discipleStats(s, d);
-    const tiers = skills.get(d.els[0]!) ?? [];
-    const next = tiers.find((k) => k.lvl === d.level + 1);
-    const chosen = tiers.find((k) => k.lvl === d.level && (k.branch == null || k.branch === (d.branch ?? 'a')));
-    const upCost = upgradeCost(d);
-    const branches = branchesOf(d);
-    panel.append(
-      el('b', '', `${name(key)} · ขั้น ${d.level}/${upgradeLevels}`),
-      el('p', '', `ดาเมจ ${st.dmg} · ระยะ ${(st.range / 1000).toFixed(1)} · ${(TICK_HZ / st.cooldown).toFixed(1)} ครั้ง/วิ`),
-      el('p', 'skill', d.level >= upgradeLevels
-        ? `${chosen?.branch ? `สาย ${chosen.branch.toUpperCase()}: ` : ''}${chosen?.nameTh ?? ''} — เต็มขั้นแล้ว`
-        : branches.length === 2 ? 'ขั้น 3 เลือกได้ 1 สาย เลือกแล้วเปลี่ยนไม่ได้' : `ขั้นถัดไป: ${next!.nameTh} — ${next!.effectTh}`),
-    );
-    // Two branch cards side by side, each with the data's own text; picking one is the upgrade.
-    if (branches.length === 2) {
-      const pick = el('div', 'branches');
-      for (const k of branches) {
-        const b = el('button', 'branch');
-        b.append(el('kbd', '', k.branch!.toUpperCase()), nowrapWords(el('b'), `สาย ${k.branch!.toUpperCase()} · ${k.nameTh}`), el('p', '', k.effectTh), el('span', 'cost', `${upCost}`));
-        b.disabled = s.silver < upCost;
-        b.onclick = () => upgrade(d.id, k.branch!);
-        pick.append(b);
-      }
-      panel.append(pick);
-    }
-    const row = el('div', 'row');
-    const upB = el('button', 'primary', d.level >= upgradeLevels ? 'เต็มขั้น' : `อัปเกรด ${upCost}`);
-    upB.disabled = d.level >= upgradeLevels || s.silver < upCost;
-    upB.onclick = () => upgrade(d.id);
-    if (branches.length === 2) upB.hidden = true;
-    const sellB = el('button', '', sellArmed ? `ยืนยันขาย +${sellValue(d, s)}` : `ขาย +${sellValue(d, s)}`);
-    sellB.onclick = () => { if (sellArmed) { pending.push({ t: 'sell', id: d.id }); selectedId = null; } sellArmed = !sellArmed; refresh(); };
-    const tgt = el('button', '', `เป้า: ${TARGETS.find(([k]) => k === d.target)![1]}`);
-    tgt.onclick = () => { const i = TARGETS.findIndex(([k]) => k === d.target); pending.push({ t: 'target', id: d.id, mode: TARGETS[(i + 1) % TARGETS.length]![0] }); };
-    row.append(upB, sellB, tgt);
-    panel.append(row);
-  }
-
-  // ---- offer (pick a manual every 5 waves) ----
-  const offerBox = el('div', 'modal hidden');
-  app.append(offerBox);
-  let offerShown: string[] | null = null;
-  function drawOffer() {
-    if (s.offer === offerShown) return;
-    offerShown = s.offer;
-    offerBox.classList.toggle('hidden', !s.offer);
-    if (!s.offer) return;
-    offerBox.replaceChildren(el('h2', '', 'เลือกคัมภีร์'));
-    for (const id of s.offer) {
-      const c = cards.find((x) => x.id === id)!;
-      const b = el('button', 'offer');
-      b.append(el('b', '', c.nameTh), el('p', '', c.effectTh));
-      b.onclick = () => pending.push({ t: 'pick', card: id });
-      offerBox.append(b);
-    }
-    offerBox.append(el('p', 'timer'));
-  }
-
-  let lastSilver = -1, lastPhase = '';
+  // ---- HUD refresh: only what changed is written ----
+  const view: Record<string, string> = {};
+  const put = (k: string, v: string, f: (v: string) => void) => { if (view[k] !== v) { view[k] = v; f(v); } };
+  const regenPhase = () => battle.regen.findIndex((r) => s.tick >= r.from && s.tick < r.to);
   function refresh() {
-    hud.silver.textContent = String(s.silver);
-    hud.lives.textContent = String(s.lives);
-    hud.wave.textContent = `${s.wave}/${s.totalWaves}`;
-    const boss = s.duel != null ? s.enemies.find((e) => e.type === s.duel && e.hp > 0) : undefined;
-    duelBar.classList.toggle('hidden', boss == null);
-    if (boss) { duelFill.style.width = `${(100 * boss.hp) / boss.maxHp}%`; duelText.textContent = `${boss.hp} / ${boss.maxHp}`; }
-    const nextIn = s.phase === 'build' ? AUTO_START_TICKS - s.tick : s.phase === 'break' ? s.breakT : 0;
-    const nextName = s.wave < s.totalWaves ? recipeById(s.nextRecipe).nameTh : '';
-    hud.next.textContent = nextName ? ` · ถัดไป: ${nextName}${nextIn > 0 ? ` (${Math.ceil(nextIn / TICK_HZ)} วิ)` : ''}${biomeHint()}` : '';
-    waveBtn.textContent = s.phase === 'build' ? 'เริ่มบุก' : 'เรียกระลอกถัดไป';
-    waveBtn.disabled = s.wave >= s.totalWaves || s.phase === 'picking';
-    for (const [key, b] of cardEls) { b.classList.toggle('sel', key === selectedKey); b.classList.toggle('poor', s.silver < defOf(key).cost); }
-    arts.forEach((a, i) => {
-      const cd = s.artCd[i]!, ch = s.artCharges[i]!;
-      artEls[i]!.textContent = `${a.glyph} ${a.nameTh}${cd > 0 ? ` ${Math.ceil(cd / TICK_HZ)}` : ch > 0 ? ` ×${ch}` : ` ${a.rechargeSilver}`}`;
-      artEls[i]!.disabled = cd > 0 || (ch === 0 && s.silver < a.rechargeSilver);
+    const left = battle.matchTicks - s.tick;
+    put('time', clock(left), (v) => { time.textContent = v; });
+    put('late', String(left <= 30 * TICK_HZ), (v) => time.classList.toggle('late', v === 'true'));
+    const r = battle.regen[regenPhase()];
+    put('regen', r ? `ปราณ +1 ทุก ${r.every / TICK_HZ} วิ` : '', (v) => { regenHint.textContent = v; });
+    s.forts.forEach((f, i) => put(`fort${i}`, String(f.owner), (v) => { fortDots[i]!.className = v === 'null' ? '' : `side${v}`; }));
+    ([0, 1] as Side[]).forEach((side) => {
+      const b = bars[side]!, hp = Math.max(0, s.castles[side].hp);
+      if (hp === b.last) return;
+      if (b.last >= 0 && hp < b.last) b.box.animate([{ filter: 'brightness(2)' }, { filter: 'none' }], { duration: 200 });
+      b.last = hp;
+      b.fill.style.width = `${(100 * hp) / battle.castle.hp}%`;
+      b.num.textContent = String(hp);
     });
-    drawPanel();
-    drawOffer();
-    if (s.offer) offerBox.querySelector('.timer')!.textContent = `เลือกเองใน ${Math.ceil(s.offerT / TICK_HZ)} วิ`;
+    put('mana', `${s.mana[0]}`, (v) => { manaNum.textContent = `${v}/${battle.manaMax}`; });
+    cards.forEach(({ b, uses, card }, slot) => {
+      const cap = capOf(card), left = cap == null ? '∞' : String(cap - s.uses[0][slot]!);
+      put(`uses${slot}`, left, (v) => { uses.textContent = v; });
+      const problem = human ? cardProblem(slot) : null;
+      put(`card${slot}`, `${problem ?? ''}|${sel === slot}`, () => {
+        b.classList.toggle('sel', sel === slot);
+        b.classList.toggle('poor', problem === 'ปราณไม่พอ');
+        b.classList.toggle('spent', problem === 'ใบนี้ใช้ครบแล้ว');
+      });
+    });
+    put('bell', String(s.castles[0].artUsed), (v) => { bellState.textContent = v === 'true' ? 'ใช้แล้ว' : '×1'; bellBtn.disabled = v === 'true' || !human; });
+  }
+  // The mana bar fills toward the next point between ticks (the sim only adds whole points).
+  function manaProgress(): number {
+    if (s.mana[0] >= battle.manaMax) return 1;
+    const r = battle.regen[regenPhase()];
+    return r ? ((s.tick - r.from) % r.every) / r.every : 0;
   }
 
-  // Next-wave warnings for the biome rule: which city gate opens, and the blood moon's phase (SPEC-pc-v2 §7).
-  function biomeHint(): string {
-    const w = s.wave + 1;
-    let o = '';
-    const road = openPath(stageId, w);
-    if (road != null) o += ` · ${s.rule.gateEveryWaves > 0 ? 'ประตูเปิด' : 'มาทางเดียว'}: ทาง ${road + 1}${s.wave > 0 && road !== openPath(stageId, s.wave) ? ' (สลับ!)' : ''}`;
-    if (s.rule.moonEveryWaves > 0) {
-      const ph = moonPhase(s.rule, w);
-      o += ` · จันทร์โลหิต เฟส ${ph}${s.wave > 0 && ph !== moonPhase(s.rule, s.wave) ? ' (ธาตุศัตรูเลื่อน!)' : ''}`;
-    }
-    return o;
-  }
-
-  // Skill cut-in: a slanted band across the board with the card art and the technique's name for 0.6 s, the game running on.
-  // A secret art always shows (it is the player's own move); a tier-3 technique shows at most once every 3 s.
-  let cutAt = -Infinity;
-  function cutIn(nameTh: string, unit: string | null, art: boolean) {
-    const now = performance.now();
-    if (!art && now - cutAt < 3000) return;
-    cutAt = now;
-    const band = el('div', `band${art ? ' art' : ''}`), img = unit ? cardArt(unit) : null;
-    if (img) band.append(img);
-    band.append(nowrapWords(el('b'), nameTh));
+  // The bell's cut-in: a slanted band across the field with the bell and its name for 0.6 s; the game runs on.
+  function cutIn(side: Side) {
+    const band = el('div', `band side${side}`);
+    band.append(bellIcon(6), nowrapWords(el('b'), `${battle.castle.artNameTh}${side === 0 ? '' : ' · ศัตรู'}`));
     cutin.replaceChildren(band);
   }
-  const TIER3_EVENTS = new Set(['execute', 'wildfire', 'root', 'freeze', 'bell']);
-  function technique(e: SimEvent) {
-    const d = s.disciples.find((x) => x.id === e.from);
-    if (!d || d.level < upgradeLevels) return;
-    const k = (skills.get(d.els[0]!) ?? []).find((x) => x.lvl === d.level && (x.branch == null || x.branch === (d.branch ?? 'a')));
-    if (k) cutIn(k.nameTh, d.unit, false);
-  }
 
-  function onEvents(ev: SimEvent[]) {
+  let lastPhase = 0;
+  function onEvents(ev: BattleEvent[]) {
     for (const e of ev) {
-      if (e.e === 'error') toast(ERRORS[e.msg!] ?? e.msg!);
-      else if (e.e === 'hit') { play('shoot'); play('hit', 0.1); if (e.kind && TIER3_EVENTS.has(e.kind)) technique(e); }
-      else if (e.e === 'phoenix') technique(e);
-      else if (e.e === 'stun' && e.kind && TIER3_EVENTS.has(e.kind)) technique(e);
-      else if (e.e === 'art') {
-        const a = arts.find((x) => x.id === e.name);
-        if (a) cutIn(a.nameTh, s.unlocked.find(hasCard) ?? null, true);
+      if (e.e === 'hit') {
+        play(e.from != null && e.from < 0 ? 'shoot' : 'hit', 0.08);
+        if (e.type === 'castle') play('castle', 0.1);
+        if ((e.from ?? 0) >= 1 && (e.to ?? 0) >= 1) game.fights++;
       }
-      else if (e.e === 'kill') {
-        float(e.x!, e.y!, `+${e.amount}`, 'silver');
-        play('death'); play('silver', 0.5);
-        hud.silver.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 200, delay: 550 });
-      } else if (e.e === 'wave') {
-        play('wave');
-        const road = openPath(stageId, s.wave);
-        if (road != null && s.wave > 1 && road !== openPath(stageId, s.wave - 1)) toast(s.rule.gateEveryWaves > 0 ? `ประตูเมืองสลับ: เปิดทาง ${road + 1}` : `ระลอกนี้มาทาง ${road + 1} ทางเดียว`);
-        if (s.rule.moonEveryWaves > 0 && s.wave > 1 && moonPhase(s.rule, s.wave) !== moonPhase(s.rule, s.wave - 1)) toast('จันทร์โลหิตเปลี่ยนเฟส: ธาตุศัตรูเลื่อน');
-      }
-      else if (e.e === 'spawn' && enemyDefs.get(s.enemies.find((x) => x.id === e.id)?.type ?? '')?.boss != null) { play('boss'); toast('บอสมาถึง!'); }
-      else if (e.e === 'interest' && e.amount! > 0) toast(`ดอกเบี้ย +${e.amount}`);
-      else if (e.e === 'leak') toast('ศัตรูหลุดเข้าประตู!');
-      else if (e.e === 'newEnemy') toast(`ศัตรูใหม่: ${enemyDefs.get(e.type!)!.nameTh}`);
-      else if (e.e === 'picked') toast(`ได้คัมภีร์: ${cards.find((c) => c.id === e.name)!.nameTh}`);
-      else if (e.e === 'seal') toast('บอสผนึกศิษย์!');
-      else if (e.e === 'placed') { selectedId = null; }
+      else if (e.e === 'spawn') play('summon');
+      else if (e.e === 'kill') play('death');
+      else if (e.e === 'art') { play('bell'); cutIn(e.side as Side); toast(e.side === 0 ? 'ระฆังสะกด! ศัตรูในครึ่งสนามเราหยุดนิ่ง' : 'ศัตรูตีระฆังสะกด!', e.side === 0 ? '' : 'bad'); }
+      else if (e.e === 'capture') { play('capture'); toast(e.side === 0 ? 'ยึดป้อมได้! เขตอัญเชิญขยาย' : 'ศัตรูยึดป้อม', e.side === 0 ? '' : 'bad'); }
+      else if (e.e === 'neutral') toast('ป้อมแตก กลับเป็นป้อมกลาง');
     }
+    const ph = regenPhase();
+    if (ph > lastPhase) toast('ปราณไหลเร็วขึ้น!');
+    lastPhase = Math.max(lastPhase, ph);
   }
 
   // ---- loop ----
-  const mem = { placed: 0 };
-  let acc = 0, last = performance.now(), frames = 0, fpsAt = last;
-  // Hooks for scripts/shots.mjs (visual proof in a real browser).
-  Object.assign(window, {
-    __game: { s, fps: 0 }, __toScreen: (tx: number, ty: number) => board.toScreen(tx * 1000 + 500, ty * 1000 + 500, 0),
-    __fx: (ev: SimEvent[]) => { board.sync(s, performance.now()); board.events(s, ev, performance.now()); onEvents(ev); },
-  });
+  let acc = 0, last = performance.now(), frames = 0, fpsAt = last, ended = false;
+  // Hooks for scripts/shots.mjs: the state, fps, unit-on-unit hits so far, and where a path distance is on screen.
+  Object.assign(window, { __game: game, __pathClient: (d: number) => { const r = canvas.getBoundingClientRect(), p = board.toClient(d); return { x: r.left + p.x, y: r.top + p.y }; } });
   function frame(now: number) {
     const dt = Math.min(250, now - last); last = now;
-    if (!paused && !isOver(s)) {
+    if (!paused && !battleOver(s)) {
       acc += dt * speed;
-      while (acc >= 1000 / TICK_HZ && !isOver(s)) {
+      while (acc >= 1000 / TICK_HZ && !battleOver(s)) {
         acc -= 1000 / TICK_HZ;
-        const cmds = useBot ? botCommands(s, {}, mem) : pending;
+        const cmds = [...(human ? pending : botCommands(s, 0, o.bots[0]!, rngs[0]!)), ...botCommands(s, 1, o.bots[1], rngs[1]!)];
         pending = [];
-        const ev = stepDefend(s, cmds);
+        const ev = stepBattle(s, cmds);
+        board.sync(s, now);
+        board.events(ev, now, speed);
         onEvents(ev);
-        board.events(s, ev, now, speed);
-        if (isOver(s)) onEnd({ won: s.phase === 'won', stars: s.stars ?? evaluateStars(s, s.phase === 'won'), tick: s.tick, livesLost: s.livesLost });
       }
+      refresh();
+      if (board.aim) aimAt(lastPointer);
     }
-    if (s.silver !== lastSilver || s.phase !== lastPhase || s.tick % 10 === 0) { refresh(); lastSilver = s.silver; lastPhase = s.phase; }
-    const d = s.disciples.find((x) => x.id === selectedId);
-    if (d) board.showRange(d.x, d.y, discipleStats(s, d).range);
-    else if (selectedKey && hover) {
-      const r = tileRange(s, defOf(selectedKey).range, [units.get(selectedKey)?.sect ?? selectedKey], hover.tx, hover.ty); // roof reach, fog cap
-      board.showRange(hover.tx * 1000 + 500, hover.ty * 1000 + 500, r, hover, canBuild(s, hover.tx, hover.ty));
+    if (battleOver(s) && !ended) {
+      ended = true;
+      const d = decision(s);
+      const r: MatchResult = { winner: s.winner!, step: d.step, broken: s.castles[0].hp <= 0 || s.castles[1].hp <= 0, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick };
+      setTimeout(() => onEnd(r), 1200); // the last blow lands before the result covers the field
     }
-    else board.showRange(0, 0, null);
-    board.select(selectedId);
+    manaFill.style.width = `${(100 * Math.min(battle.manaMax, s.mana[0] + manaProgress())) / battle.manaMax}%`;
     board.sync(s, now);
-    board.render();
+    board.render([summonZone(s, 0), summonZone(s, 1)]);
     frames++;
-    if (now - fpsAt >= 1000) { (window as unknown as { __game: { fps: number } }).__game.fps = frames; frames = 0; fpsAt = now; }
+    if (now - fpsAt >= 1000) { game.fps = frames; frames = 0; fpsAt = now; }
     raf = requestAnimationFrame(frame);
   }
   refresh();
   let raf = requestAnimationFrame(frame);
-  return () => { cancelAnimationFrame(raf); removeEventListener('resize', onResize); removeEventListener('keydown', onKey); board.dispose(); };
+  return () => {
+    cancelAnimationFrame(raf);
+    removeEventListener('resize', onResize); removeEventListener('keydown', onKey);
+    removeEventListener('pointermove', onMove); removeEventListener('pointerup', onUp);
+    board.dispose(); root.remove();
+  };
 }
