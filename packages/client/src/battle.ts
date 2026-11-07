@@ -2,8 +2,8 @@
 // The player is side 0 (left); the AI plays side 1 through the same bot the balance tests use. Every input becomes a
 // BattleCommand handed to stepBattle, exactly like a replay. It owns its root until dispose(); main.ts decides what follows.
 import {
-  battle, BATTLE_LEN, battleOver, battleUnits, createBattle, decision, sects, stepBattle, summonZone, TICK_HZ,
-  type BattleCommand, type BattleEvent, type BattleState, type ResultType, type Side, type TiebreakStep,
+  battle, BATTLE_LEN, battleOver, battleUnits, createBattle, decision, levelOf, realmOf, sects, stepBattle, summonZone, TICK_HZ,
+  type BattleCommand, type Progress, type BattleEvent, type BattleState, type ResultType, type Side, type TiebreakStep,
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { Board, cannonIcon, portrait } from './board';
@@ -14,12 +14,20 @@ import { applyVolume, play } from './sound';
 import { nowrapWords } from './words';
 
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
+// A card's level and realm (progression.json realms) as a small badge in the realm's colour; the tooltip says what it is.
+export function realmBadge(level: number): HTMLElement {
+  const r = realmOf(level), b = el('i', `realm realm-${r.id}`, `Lv${level} ${r.nameTh}`);
+  b.style.setProperty('--realm', r.color);
+  b.title = `ขั้น${r.nameTh}: ${r.descTh}`;
+  return b;
+}
 
 export interface MatchOpts {
   seed: number; team: Team; vs: Team; redraws: number; speed: number; settings: Settings; saveSettings: () => void;
   bots: [Policy | null, Policy]; // who plays each side: null = the player
+  progress: [Progress | null, Progress | null]; normalized: boolean; // each side's account; normalized: ranked ศึกฝีมือ
 }
-export interface MatchResult { winner: Side | -1; type: ResultType; step: TiebreakStep | null; castles: [number, number]; tick: number }
+export interface MatchResult { winner: Side | -1; type: ResultType; step: TiebreakStep | null; castles: [number, number]; tick: number; hand: string[] }
 
 const TOP_H = 64, BOTTOM_H = 150; // HUD bands over the canvas, in stage pixels
 const OFF_PATH = 0.9; // tiles from the road centre a click still counts as on it
@@ -29,7 +37,8 @@ const capOf = (card: string) => battleUnits.get(card)!.perMatch;
 
 export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResult) => void): () => void {
   let speed = o.speed;
-  const s: BattleState = createBattle(o.seed, teamSetup(o.team), teamSetup(o.vs));
+  const setup = (t: Team, p: Progress | null) => (p ? { ...teamSetup(t), progress: p } : teamSetup(t));
+  const s: BattleState = createBattle(o.seed, setup(o.team, o.progress[0]), setup(o.vs, o.progress[1]), { normalized: o.normalized });
   const firstTick: BattleCommand[] = Array.from({ length: o.redraws }, () => ({ t: 'redraw', side: 0 })); // the team screen's redraws, as the replay has them
   const rngs = [botRng(o.seed, 0), botRng(o.seed, 1)];
   const human = o.bots[0] == null;
@@ -55,7 +64,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     box.append(nowrapWords(el('span', 'who'), name), bar, num);
     return { box, fill, num, last: -1 };
   };
-  const bars = [castleBar(0, `ปราสาทเรา · ${teamName(o.team)}`), castleBar(1, `ปราสาทศัตรู · ${teamName(o.vs)}`)];
+  const bars = [castleBar(0, `ปราสาทเรา · ${teamName(o.team)} · ${o.normalized ? 'ศึกฝีมือ' : 'ศึกทั่วไป'}`), castleBar(1, `ปราสาทศัตรู · ${teamName(o.vs)}`)];
   const clockBox = el('div', 'clock'), time = el('b', 'time'), fortRow = el('div', 'forts'), regenHint = el('small');
   const fortDots = s.forts.map(() => fortRow.appendChild(el('i')));
   clockBox.append(time, fortRow, regenHint);
@@ -88,6 +97,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     const rank = card === o.team.leader ? 'แม่ทัพ' : card === o.team.sub ? 'รอง' : null;
     b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses);
     if (rank) b.append(el('em', 'rank', rank));
+    if (!o.normalized) b.append(realmBadge(levelOf(o.progress[0], card)));
     b.append(nowrapWords(el('b', 'name'), def.nameTh), nowrapWords(el('small', 'role'), `${m.roleTh} · ${m.nameTh} · ${battle.sizes.get(def.size)?.nameTh ?? def.size}`));
     b.title = def.tagTh;
     b.addEventListener('pointerdown', (ev) => { if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
@@ -203,7 +213,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
       if (hp === b.last) return;
       if (b.last >= 0 && hp < b.last) b.box.animate([{ filter: 'brightness(2)' }, { filter: 'none' }], { duration: 200 });
       b.last = hp;
-      b.fill.style.width = `${(100 * hp) / battle.castle.hp}%`;
+      b.fill.style.width = `${(100 * hp) / s.castles[side].maxHp}%`;
       b.num.textContent = String(hp);
     });
     put('mana', `${s.mana[0]}`, (v) => { manaNum.textContent = `${v}/${battle.manaMax}`; });
@@ -277,7 +287,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     if (battleOver(s) && !ended) {
       ended = true;
       const d = decision(s);
-      const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick };
+      const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick, hand: [...s.hands[0]] };
       setTimeout(() => onEnd(r), 1200); // the last blow lands before the result covers the field
     }
     manaFill.style.width = `${(100 * Math.min(battle.manaMax, s.mana[0] + manaProgress())) / battle.manaMax}%`;

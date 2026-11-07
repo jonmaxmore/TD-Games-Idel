@@ -3,7 +3,8 @@
 //                    zone, a click summon, a drag summon, counter highlights, the cannon aimed and fired); then a bot-vs-bot
 //                    match at x4, recorded, with frames of an early field, a fight, a fort capture and the result screen;
 //                    burn/poison marks, burning ground and the stun-resistance halo; the collection filters, a hand led
-//                    by beasts and a dragon match.
+//                    by beasts and a dragon match; ค่ายฝึก (a level-up, a forge slot building, a town upgrade, the egg odds
+//                    and a roll), hand cards with realm badges in ศึกทั่วไป and without them in ศึกฝีมือ.
 // Exits non-zero on any console error or page crash.
 import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -22,8 +23,9 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? 
 const errors = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function open(url, name, videoDir) {
+async function open(url, name, videoDir, profile) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, ...(videoDir ? { recordVideo: { dir: videoDir, size: { width: 1280, height: 720 } } } : {}) });
+  if (profile) await ctx.addInitScript((t) => localStorage.setItem('five-sects.profile', t), JSON.stringify(profile));
   const p = await ctx.newPage();
   p.on('console', (m) => { if (m.type() === 'error') errors.push(`${name}: ${m.text()}`); });
   p.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
@@ -38,7 +40,7 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
   await p.waitForSelector('.title');
   await sleep(300);
   await shot(p, '01-title');
-  await p.getByRole('button', { name: 'เริ่มศึก' }).click();
+  await p.locator('.mode[data-mode=casual]').click();
   await p.waitForSelector('.team-card');
   await p.locator('.deck-row[data-id=fire]').click();
   await sleep(200);
@@ -251,6 +253,45 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   if (stress) await shot(p, '30-stress');
   console.log(`fps x4 ${name} (no video):`, fps.join(','), 'units on field:', units.join(','));
   await ctx.close();
+}
+
+// 5) ค่ายฝึก from a played-in save: fire cards across the realms, xp for a level-up, coins, gold and egg points.
+{
+  const LV = { crimson_phoenix_banner: 9, crimson_phoenix_striker: 15, crimson_phoenix_burst: 24, crimson_phoenix_beast: 30, crimson_phoenix_kite: 12, ember_imp: 3 };
+  const cards = Object.fromEntries(Object.entries(LV).map(([id, level]) => [id, { level, xp: 0, dupes: 0 }]));
+  cards.crimson_phoenix_striker.xp = 170;
+  const save = { v: 5, mode: 'casual', team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_kite', bench: [] }, cards, coins: 520, gold: 640, eggPoints: 30, castleLevel: 1 };
+  const { ctx, p } = await open('', 'camp', null, save);
+  await p.waitForSelector('.title');
+  await p.locator('.camp-btn').click();
+  await p.waitForSelector('.camp-card');
+  await sleep(300);
+  await shot(p, '40-camp');
+  await p.locator('.level-up').click();
+  await sleep(200);
+  await shot(p, '41-level-up');
+  await p.locator('.slot[data-slot=weapon]').click();
+  await p.locator('.slot[data-slot=helm]').click();
+  await sleep(1200);
+  await shot(p, '42-forge-building');
+  await p.locator('[data-town=cannon]').click();
+  await p.locator('[data-town=wall]').click();
+  await sleep(200);
+  await shot(p, '43-town-upgraded');
+  await p.locator('[data-egg=mystery]').click();
+  await sleep(300);
+  await shot(p, '44-egg-odds-roll');
+  console.log('camp note:', await p.locator('.camp-note').textContent());
+  await ctx.close();
+  // The same save in a match: realm badges on the hand in ศึกทั่วไป, none in ศึกฝีมือ.
+  for (const [mode, name] of [['casual', '45-hand-realms'], ['ranked', '46-hand-ranked']]) {
+    const m = await open('?mode=battle&seed=3&deck=fire', name, null, { ...save, mode });
+    await m.p.waitForFunction(() => window.__game?.s);
+    await sleep(800);
+    await shot(m.p, name);
+    console.log(name, 'castle hp', await m.p.evaluate(() => window.__game.s.castles.map((c) => c.maxHp).join('/')));
+    await m.ctx.close();
+  }
 }
 
 await browser.close();

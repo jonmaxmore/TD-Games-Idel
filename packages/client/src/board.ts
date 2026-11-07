@@ -577,7 +577,7 @@ export class Board {
     R(-1, -68, 2, 5, FX.gold); R(-2, -66, 4, 1, FX.gold);
     const wave = Math.floor(now / 220 + side) & 1;
     for (const bx of [-31, 29]) { R(bx, -46, 1, 22, '#C8C4CC'); R(bx + (bx < 0 ? 1 : -7), -46, 7, 6 + wave, trim); }
-    const frac = Math.max(0, c.hp) / battle.castle.hp;
+    const frac = Math.max(0, c.hp) / c.maxHp;
     if (frac < 0.6) { g.fillStyle = '#1A1210'; g.fillRect(x - 24, y - 20, 1, 6); g.fillRect(x - 23, y - 14, 1, 4); g.fillRect(x + 18, y - 22, 1, 5); g.fillRect(x + 19, y - 17, 2, 1); }
     if (frac < 0.3) {
       g.fillRect(x - 14, y - 40, 1, 6); g.fillRect(x + 9, y - 36, 1, 5);

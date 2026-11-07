@@ -215,3 +215,68 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .team-card.kind-divine { background: #1c1a10; }
 .team-card.kind-dragon { background: #2a1408; }
 .team-cards.many .team-card:not(.kind-disciple) .face canvas { height: 46px; width: auto; image-rendering: pixelated; }
+
+/* ---- progression (campScreen.ts, battle.ts realmBadge): realm badges, the mode pick, ค่ายฝึก, match rewards ---- */
+.realm { font-style: normal; font-size: 10px; font-weight: 700; line-height: 1.3; padding: 0 4px; border-radius: 3px; white-space: nowrap; background: var(--realm); color: #1a1423; }
+.team-card .realm, .hand-card .realm { position: relative; margin: 1px 0; }
+.card .realm { position: absolute; top: 46px; right: 3px; font-size: 9px; opacity: 0.95; }
+.modes { display: grid; grid-template-columns: repeat(3, 260px); gap: 10px; margin-top: 8px; }
+.mode { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 66px; }
+.mode b { font-size: 20px; }
+.mode small { font-size: 13px; color: var(--ink); opacity: 0.85; }
+.mode.on { box-shadow: 0 0 0 2px var(--gold); }
+.mode.camp-btn { border-color: var(--line); }
+.mode.camp-btn b { color: var(--gold); }
+
+.screen.camp { max-width: none; padding: 12px 20px; gap: 8px; }
+.camp-head { display: grid; grid-template-columns: 120px auto 1fr; align-items: center; gap: 16px; }
+.camp-head h1 { font-size: 28px; }
+.purse { display: flex; align-items: baseline; justify-content: flex-end; gap: 16px; font-size: 16px; }
+.purse .castle-lv { color: var(--gold); font-weight: 700; font-size: 20px; }
+.purse small { font-size: 13px; }
+.coin { color: #ffe08a; } .gold { color: #f2a23a; } .egg { color: #abdbff; }
+.camp-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 300px 300px; gap: 12px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; min-height: 0; }
+.panel h2, .panel h3 { margin: 0; color: var(--gold); }
+.panel h2 { font-size: 22px; } .panel h3 { font-size: 16px; margin-top: 4px; }
+.panel p { margin: 0; }
+.small { font-size: 12px; }
+.camp-cards { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); align-content: start; gap: 5px; overflow-y: auto; min-height: 0; padding-right: 4px; }
+.camp-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 2px 4px; min-height: auto; border: 2px solid; background: var(--panel); line-height: 1.2; min-width: 0; }
+.camp-card .face { position: relative; display: block; width: 84px; height: 52px; overflow: hidden; }
+.camp-card .face img.art { position: absolute; left: 50%; top: -22px; margin-left: -64px; }
+.camp-card .face canvas { margin: -14px auto 0; }
+.camp-card b { font-size: 12px; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.camp-card.sel { background: #3a1410; box-shadow: 0 0 0 2px var(--gold); }
+.camp-card.ready::after { content: 'เลื่อนขั้นได้'; position: absolute; top: 2px; right: 2px; font-size: 9px; font-weight: 700; background: #4fb3ff; color: #0b0910; padding: 0 3px; border-radius: 3px; }
+.xp { display: block; width: 90%; height: 4px; background: #2a2030; position: relative; overflow: hidden; }
+.xp i { position: absolute; inset: 0 auto 0 0; background: #4fb3ff; }
+.camp-detail { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.camp-detail .face.big { position: relative; display: block; width: 128px; height: 100px; overflow: hidden; }
+.camp-detail .face.big canvas { margin: 6px auto 0; }
+.camp-detail .stats { color: #ffe08a; font-size: 14px; }
+.camp-detail .level-up { width: 100%; min-height: 40px; font-weight: 700; }
+.slots { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+.slot { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 4px; min-height: 0; border-color: var(--line); line-height: 1.25; }
+.slot b { color: var(--gold); font-size: 14px; }
+.slot small { font-size: 11px; color: var(--dim); }
+.slot .bonus { color: #ffe08a; }
+.slot .state { font-size: 12px; }
+.slot.built { border-color: var(--gold); opacity: 1; background: #2a1612; }
+.slot.building { border-color: #4fb3ff; opacity: 1; }
+.slot.building .state { color: #abdbff; }
+.camp-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.town { display: flex; flex-direction: column; gap: 6px; }
+.town-row { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 0 8px; align-items: center; }
+.town-row small { color: var(--dim); font-size: 12px; }
+.town-row .up { grid-row: 1 / 3; grid-column: 2; min-height: 34px; font-size: 13px; }
+.eggs { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.odds { width: 100%; border-collapse: collapse; font-size: 14px; }
+.odds td { padding: 2px 4px; border-bottom: 1px solid var(--line); }
+.odds .pct { text-align: right; color: var(--gold); font-weight: 700; }
+.eggs .buy { min-height: 40px; font-weight: 700; }
+.egg-got { color: #abdbff; font-size: 14px; }
+.camp-note { margin: 0; min-height: 22px; font-size: 15px; color: #abdbff; text-align: center; }
+.camp-note.bad { color: #ff9e7b; }
+.modal .rewards { display: flex; gap: 18px; align-items: baseline; font-size: 20px; padding: 8px 18px; border: 1px solid var(--gold); border-radius: 6px; background: #17111a; }
+.modal .rewards b { color: var(--gold); }

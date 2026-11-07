@@ -1,12 +1,14 @@
-// The player's path through the app: title → team setup → castle battle → result → back.
+// The player's path through the app: title (mode pick, ค่ายฝึก) → team setup → castle battle → result (rewards) → back.
 // Dev and shots shortcut: ?mode=battle jumps straight into a match; &bot=1 lets bots play both sides, &speed=4 fast-forwards,
 // &seed=N picks the match, &deck=fire|wood|metal|water|earth (a sect preset), all|mixed (every card) or a comma list of
 // card ids to draw from (&leader=, &sub= the leaders).
 import { battle, battleUnits, createBattle, sects, stepBattle, TICK_HZ, type Side } from '@five-sects/sim';
-import { el, startMatch, type MatchResult } from './battle';
+import { el, realmBadge, startMatch, type MatchResult } from './battle';
+import { aiProgress, canLevel, payMatch, progressOf } from './camp';
+import { campScreen } from './campScreen';
 import { portrait } from './board';
 import { aiTeam, ALL_NAME, COLLECTION, fixTeam, isBasic, PRESETS, presetMatch, presetTeam, resolveTeam, teamSetup, type Team } from './decks';
-import { load, save, type Profile } from './profile';
+import { load, save, type Mode, type Profile } from './profile';
 import { initSound } from './sound';
 import { cardArt, loadSprites } from './sprites';
 import { nowrapWords } from './words';
@@ -31,7 +33,7 @@ const dev = { battle: q.get('mode') === 'battle', bot: q.get('bot') === '1', spe
 const profile: Profile = load();
 initSound(profile.settings);
 
-type Screen = { k: 'title' } | { k: 'deck' } | { k: 'match'; team: Team; seed: number; redraws: number };
+type Screen = { k: 'title' } | { k: 'deck' } | { k: 'camp' } | { k: 'match'; team: Team; seed: number; redraws: number };
 let dispose: (() => void) | void;
 
 function go(next: Screen) {
@@ -41,6 +43,7 @@ function go(next: Screen) {
   Object.assign(window, { __flow: { screen: next.k } });
   if (next.k === 'title') title();
   else if (next.k === 'deck') teamScreen();
+  else if (next.k === 'camp') dispose = campScreen(app, profile, () => save(profile), () => go({ k: 'title' }));
   else dispose = match(next.team, next.seed, next.redraws);
 }
 
@@ -59,9 +62,29 @@ function title() {
   face.append(side(PRESETS[0]!.cards.slice(0, 4), 0), el('span', 'vs', 'ปะทะ'), side(beasts, 1));
   r.append(
     el('div', 'grow'), el('h1', '', 'ศึกห้าสำนัก'), el('p', 'sub', 'ศึกชิงเมือง · อัญเชิญศิษย์และสัตว์เทพ ยึดป้อม ทลายปราสาทศัตรูให้ได้ใน 3 นาที'), face,
-    btn('เริ่มศึก', 'primary big start', () => go({ k: 'deck' })), el('div', 'grow'), el('p', 'dim center', 'คลิกการ์ดแล้วคลิกบนเส้นทาง หรือลากการ์ดลงสนาม · ปุ่ม 1–7 เลือกการ์ด · Space เล็งปืนใหญ่แล้วคลิกยิง · F เต็มจอ'),
+    modes(), el('div', 'grow'), el('p', 'dim center', 'คลิกการ์ดแล้วคลิกบนเส้นทาง หรือลากการ์ดลงสนาม · ปุ่ม 1–7 เลือกการ์ด · Space เล็งปืนใหญ่แล้วคลิกยิง · F เต็มจอ'),
   );
   app.append(r);
+}
+
+// The two ways into a match: ศึกทั่วไป (levels, forge and town count) and ศึกฝีมือ (every card at base stats), and the camp.
+const MODES: [Mode, string, string][] = [
+  ['casual', 'ศึกทั่วไป', 'เลเวล อุปกรณ์ และเมืองมีผล'],
+  ['ranked', 'ศึกฝีมือ (เลเวลเท่ากัน)', 'ทุกตัวใช้ค่าพื้นฐานเท่ากัน วัดกันที่ฝีมือ'],
+];
+const modeName = (m: Mode) => MODES.find((x) => x[0] === m)![1];
+function modes(): HTMLElement {
+  const row = el('div', 'modes');
+  for (const [m, name, what] of MODES) {
+    const b = btn('', `mode primary${profile.mode === m ? ' on' : ''}`, () => { profile.mode = m; save(profile); go({ k: 'deck' }); });
+    b.dataset.mode = m;
+    b.append(el('b', '', name), el('small', '', what));
+    row.append(b);
+  }
+  const camp = btn('', 'mode camp-btn', () => go({ k: 'camp' }));
+  camp.append(el('b', '', 'ค่ายฝึก'), el('small', '', 'เลื่อนขั้น โรงหลอม เมือง ร้านไข่'));
+  row.append(camp);
+  return row;
 }
 
 // ---- team setup: every card, filtered by kind, cost and role; leader, sub-leader and bench; presets; the dealt hand ----
@@ -83,7 +106,8 @@ const FILTERS: { key: keyof Filter; label: string; opts: [string, string][]; tes
 ];
 function teamScreen() {
   const r = el('div', 'screen team');
-  r.append(el('h1', '', 'จัดทัพ'));
+  r.append(el('h1', '', `จัดทัพ · ${modeName(profile.mode)}`));
+  const lv = (c: string) => realmBadge(profile.cards[c]!.level);
   const body = el('div', 'team-body'), list = el('div', 'deck-list'), main = el('div', 'team-main'), bar = el('div', 'filters'), grid = el('div', 'team-cards many');
   main.append(bar, grid);
   body.append(list, main);
@@ -124,7 +148,7 @@ function teamScreen() {
       const face = el('span', 'face');
       face.append(cardArt(id) ?? portrait(id));
       const badge = { leader: 'แม่ทัพ', sub: 'รองแม่ทัพ', bench: 'สำรอง', basic: 'ยึดป้อม', '': '' }[role];
-      tile.append(face, el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh), el('small', '', roleLine(id)));
+      tile.append(face, el('span', 'cost', String(u.mana)), lv(id), nowrapWords(el('b'), u.nameTh), el('small', '', roleLine(id)));
       if (badge) tile.append(el('em', '', badge));
       if (!isBasic(id)) {
         const acts = el('div', 'acts');
@@ -147,7 +171,7 @@ function teamScreen() {
       m.style.borderColor = colorOf(id);
       const face = el('span', 'face');
       face.append(cardArt(id) ?? portrait(id));
-      m.append(face, el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh), el('small', '', i === 0 ? 'ยึดป้อม' : i === 1 ? 'แม่ทัพ' : i === 2 ? 'รอง' : `สุ่ม · ${kindOf(id)}`));
+      m.append(face, el('span', 'cost', String(u.mana)), lv(id), nowrapWords(el('b'), u.nameTh), el('small', '', i === 0 ? 'ยึดป้อม' : i === 1 ? 'แม่ทัพ' : i === 2 ? 'รอง' : `สุ่ม · ${kindOf(id)}`));
       m.addEventListener('pointerenter', () => describe(id));
       return m;
     }));
@@ -176,6 +200,7 @@ function match(team: Team, seed: number, redraws: number) {
   return startMatch(app, {
     seed, team, vs: aiTeam(team), redraws, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
     bots: [dev.bot ? 'rush' : null, 'rush'],
+    normalized: profile.mode === 'ranked', progress: profile.mode === 'ranked' ? [null, null] : [progressOf(profile, Date.now()), aiProgress(profile)],
   }, (r) => result(team, seed, r));
 }
 
@@ -197,8 +222,15 @@ function result(team: Team, seed: number, r: MatchResult) {
   const t = Math.floor(r.tick / TICK_HZ), v = verdict(r);
   box.append(el('h2', head[0], head[1]), el('p', `type ${head[0]}`, v.head), el('p', 'why', v.why),
     el('p', 'dim', `ปราสาทเรา ${Math.max(0, r.castles[0])} · ปราสาทศัตรู ${Math.max(0, r.castles[1])} · เวลา ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`));
+  // The rewards, paid into the save once as the result shows.
+  const pay = payMatch(profile, r.hand, r.winner === -1 ? null : r.winner === 0, r.type);
+  save(profile);
+  const ready = r.hand.filter((c, i) => r.hand.indexOf(c) === i && canLevel(profile, c)).map((c) => battleUnits.get(c)!.nameTh);
+  const gains = el('div', 'rewards');
+  gains.append(el('b', '', 'รางวัล'), el('span', '', `แต้มฝึก +${pay.xp} ให้ทุกใบในมือ`), el('span', 'coin', `เหรียญ +${pay.coins}`), el('span', 'gold', `ทองคำ +${pay.gold}`));
+  box.append(gains, el('p', 'dim', ready.length > 0 ? `เลื่อนขั้นได้ที่ค่ายฝึก: ${ready.join(' · ')}` : `${modeName(profile.mode)} · ไปค่ายฝึกเพื่อเลื่อนขั้นและหลอมอุปกรณ์`));
   const row = el('div', 'row');
-  row.append(btn('เล่นอีกครั้ง', 'primary', () => go({ k: 'match', team, seed: seed + 1, redraws: 0 })), btn('จัดทัพใหม่', '', () => go({ k: 'deck' })), btn('หน้าแรก', '', () => go({ k: 'title' })));
+  row.append(btn('เล่นอีกครั้ง', 'primary', () => go({ k: 'match', team, seed: seed + 1, redraws: 0 })), btn('จัดทัพใหม่', '', () => go({ k: 'deck' })), btn('ค่ายฝึก', '', () => go({ k: 'camp' })), btn('หน้าแรก', '', () => go({ k: 'title' })));
   box.append(row);
   app.append(box);
 }
