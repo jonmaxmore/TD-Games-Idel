@@ -1,5 +1,5 @@
 // Account XP table and ranked-ladder calibration from docs/data/progression.json (docs/design/progression.md).
-//   node tools/progression/check.mjs           print the XP table and a simulated ranked season
+//   node tools/progression/check.mjs           print the XP table, a simulated ranked season and castle-battle pacing
 // Part A turns time targets ("level 30 by day 10") into XP-to-next-level per level: the reference player's
 // XP income gives cumulative XP per anchor, and each span between anchors grows geometrically from the
 // previous level's requirement so the table never dips. Part B plays a season of matches between players of
@@ -118,3 +118,33 @@ const reset = (p) => {
   return divStarts[Math.max(0, div - R.seasonResetDivisions)];
 };
 show(`Season 2 (reset ${R.seasonResetDivisions} divisions)`, season(players, games, reset));
+
+// ---------- C. castle-battle card levels and castle level (cardLevel, castleLevel, matchRewards) ----------
+// Reference player: plays one sect preset (its basic capturer, leader and sub-leader in every hand, 4 of its other 7
+// disciples drawn), wins half, wins split like the bot sect matrix (total 55%, hp 40%, tiebreak 5%), levels up a card as
+// soon as its xp allows, about 4 minutes a match with the menus. Eggs are left out, so this is the slow side.
+{
+  const C = P.cardLevel, W = P.matchRewards.win;
+  const xp = 0.5 * (0.55 * W.total.xp + 0.4 * W.hp.xp + 0.05 * W.tiebreak.xp) + 0.5 * P.matchRewards.loss.xp;
+  const coins = 0.5 * (0.55 * W.total.coins + 0.4 * W.hp.coins + 0.05 * W.tiebreak.coins) + 0.5 * P.matchRewards.loss.coins;
+  const gold = 0.5 * (0.55 * W.total.gold + 0.4 * W.hp.gold + 0.05 * W.tiebreak.gold) + 0.5 * P.matchRewards.loss.gold;
+  const cum = (lv) => C.xpToNext.slice(0, lv - 1).reduce((a, x) => a + x, 0);
+  console.log(`\ncastle battle: ${xp.toFixed(1)} card xp to each hand card, ${coins.toFixed(1)} coins, ${gold.toFixed(1)} gold per match`);
+  console.log('card level  total xp  matches (in every hand)  matches (drawn 4 of 7)');
+  for (const lv of [10, 20, 30]) console.log(String(lv).padStart(10), String(cum(lv)).padStart(9), (cum(lv) / xp).toFixed(0).padStart(24), (cum(lv) / (xp * 4 / 7)).toFixed(0).padStart(23));
+  const CARDS = 59, levels = Array(CARDS).fill(1), pool = Array(CARDS).fill(0);
+  const castleOf = (sum) => P.castleLevel.levels.reduce((lv, l, i) => (sum >= l.cardLevels ? i + 1 : lv), 1);
+  const reached = new Map();
+  for (let m = 1; m <= 2000 && reached.size < 8; m++) {
+    for (let i = 0; i < 10; i++) { // the sect's 10 disciples: 3 in every hand, 7 drawn 4 at a time
+      pool[i] += i < 3 ? xp : (xp * 4) / 7;
+      while (levels[i] < C.max && pool[i] >= C.xpToNext[levels[i] - 1]) { pool[i] -= C.xpToNext[levels[i] - 1]; levels[i]++; }
+    }
+    const cl = castleOf(levels.reduce((a, x) => a + x, 0));
+    if (cl > 1 && !reached.has(cl)) reached.set(cl, m);
+  }
+  console.log('castle level  matches  hours (4 min a match)');
+  for (const [cl, m] of reached) console.log(String(cl).padStart(12), String(m).padStart(8), (m * 4 / 60).toFixed(1).padStart(22));
+  const forge = P.forge.slots.reduce((a, f) => a + f.coins, 0), town = (k) => P.town[k].tiers.reduce((a, t) => a + t.gold, 0);
+  console.log(`forge: all 4 items of one card ${forge} coins = ${(forge / coins).toFixed(0)} matches; town: cannon tiers ${town('cannon')} gold, walls ${town('walls')} gold = ${((town('cannon') + town('walls')) / gold).toFixed(0)} matches`);
+}
