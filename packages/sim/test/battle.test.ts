@@ -146,21 +146,21 @@ describe('castle battle on-hit kits', () => {
 });
 
 describe('castle battle rules', () => {
-  it('mana regenerates one point per 5 s, then 4 s, then 2 s: 57 over the match on top of the 5 at start', () => {
+  it('mana starts at 30 and regenerates faster in each phase: about 70 usable over the match', () => {
     const s = fresh();
-    expect(s.mana).toEqual([battle.manaStart, battle.manaStart]);
+    expect(s.mana).toEqual([30, 30]);
     const gainedAt: number[] = [];
     s.mana = [0, 0];
     while (s.winner === null) {
       stepBattle(s);
       if (s.mana[0] > 0) { gainedAt.push(s.tick); s.mana = [0, 0]; }
     }
-    expect(gainedAt[0]).toBe(100);
-    expect(gainedAt.filter((t) => t <= 1200).length).toBe(12);
-    expect(gainedAt.filter((t) => t > 1200 && t <= 2400).length).toBe(15);
-    expect(gainedAt.filter((t) => t > 2400).length).toBe(30);
-    expect(gainedAt[13]! - gainedAt[12]!).toBe(80);
-    expect(gainedAt[28]! - gainedAt[27]!).toBe(40);
+    expect(gainedAt[0]).toBe(6 * TICK_HZ);
+    for (const r of battle.regen) expect(gainedAt.filter((t) => t > r.from && t <= r.to).length).toBe(Math.floor((r.to - r.from) / r.every));
+    expect([gainedAt[11]! - gainedAt[10]!, gainedAt[23]! - gainedAt[22]!, gainedAt[30]! - gainedAt[29]!]).toEqual([5 * TICK_HZ, 4 * TICK_HZ, 3 * TICK_HZ]);
+    const total = battle.manaStart + gainedAt.length;
+    expect(total).toBeGreaterThanOrEqual(65);
+    expect(total).toBeLessThanOrEqual(75);
     const capped = fresh();
     run(capped, 2000);
     expect(capped.mana[0]).toBe(battle.manaMax);
@@ -259,9 +259,9 @@ describe('castle battle rules', () => {
     s.forts[0]!.owner = null; // 0: middle (depth 50%), 1: fort 2 (depth 30%)
     expect(decision(s)).toEqual({ winner: 0, step: 'deepest' });
     s.forts[1]!.owner = null; s.forts[2]!.owner = null;
-    s.mana[1] = 6;
+    s.mana = [5, 6];
     expect(decision(s)).toEqual({ winner: 1, step: 'mana' });
-    s.mana[1] = 5;
+    s.mana[1] = s.mana[0];
     stepBattle(s, [summon(0, BLADE, 0)]);
     s.mana = [5, 5];
     expect(decision(s)).toEqual({ winner: 0, step: 'units' });
