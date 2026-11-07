@@ -41,7 +41,7 @@ Do not use `caveman` for design docs or user-facing explanations; it is fine for
 
 ## Running
 
-- Game: `npm run dev` → http://localhost:5173 opens on the title (title → deck pick → battle → result). `?mode=battle&seed=2&deck=wood` jumps into a match (`deck` = `fire`, `wood`, `mixed` or a comma list of card ids); `&bot=1&speed=4` lets bots play both sides.
+- Game: `npm run dev` → http://localhost:5173 opens on the title (title → deck pick → battle → result). `?mode=battle&seed=2&deck=wood` jumps into a match (`deck` = `fire`, `wood`, `metal`, `water`, `earth`, `mixed` or a comma list of card ids); `&bot=1&speed=4` lets bots play both sides.
 - Tests (castle battle rules, balance, golden, determinism, client data): `npm test`. One file: `npx vitest run packages/sim/test/battle.test.ts`.
 - Visual proof: `npm run shots` → `shots/` (title, deck pick, a hand-played match, the bell cut-in, a recorded bot-vs-bot match, the result, fps at x4).
 - Balance table: `npm run sim:battle` (`BATTLE_SEEDS=200`): rush vs defend bots on mirror decks, both side orders.
