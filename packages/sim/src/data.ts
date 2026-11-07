@@ -53,10 +53,12 @@ export const battle = {
   burnDps: BT.dot.burnDps as number, burnTicks: ticks(BT.dot.burnSec), poisonDps: BT.dot.poisonDps as number, poisonTicks: ticks(BT.dot.poisonSec), poisonMax: BT.dot.poisonMaxStacks as number,
   slowPct: BT.status.slowPct as number, groundRadius: tiles(BT.status.groundRadius),
   counterTags: new Map<string, string>(Object.entries(BT.counterTags as Record<string, string>)),
-  sectDecks: new Map<string, string[]>(Object.entries(BT.sectDecks as Record<string, string[]>)),
+  hand: { size: BT.hand.size as number, maxLarge: BT.hand.maxLarge as number, redraws: BT.hand.redraws as number, basic: new Map<string, string>(Object.entries(BT.hand.basic as Record<string, string>)) },
+  sectTeams: new Map<string, { leader: string; sub: string }>(Object.entries(BT.sectTeams as Record<string, { leader: string; sub: string }>)),
   matchTicks: ticks(BT.matchSec),
 };
 export const battleUnits = new Map<string, BattleUnitDef>();
+export const battleCardIds: string[] = S.roster.units.map((u: any) => u.id as string); // data order, for anything iterated
 for (const u of S.roster.units) {
   battleUnits.set(u.id, {
     id: u.id, sect: u.sect, kit: u.kit, nameTh: u.nameTh, nameEn: u.nameEn, move: u.move, size: u.size, mana: u.mana, hp: u.hp,

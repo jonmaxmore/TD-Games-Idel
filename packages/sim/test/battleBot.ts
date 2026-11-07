@@ -1,13 +1,14 @@
 // Castle-battle bots for the balance test and the golden: rush (pick the next push card from the deck, summon it at the
 // front of its zone once it is affordable) and defend (bank mana, answer what crosses into its half, at the castle gate
 // once it is under siege, push like rush when rich). Each side has its own seeded RNG.
-import { battle, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, stepBattle, summonZone, type BattleCommand, type BattleState, type Side } from '../src';
+import {
+  battle, battleCardIds, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, stepBattle, summonZone,
+  type BattleCommand, type BattleSetup, type BattleState, type Side,
+} from '../src';
 
 export type Policy = 'rush' | 'defend';
-export const DECK = [
-  'crimson_phoenix_striker', 'crimson_phoenix_burst', 'crimson_phoenix_control', 'crimson_phoenix_banner',
-  'crimson_phoenix_blade', 'jade_bamboo_stacker', 'jade_bamboo_support', 'jade_bamboo_blade',
-];
+// The mirror team of the balance gate: every card in the collection, a fire leader and a wood sub-leader.
+export const MIXED: BattleSetup = { leader: 'crimson_phoenix_striker', sub: 'jade_bamboo_stacker', collection: battleCardIds, bench: [] };
 const DECIDE_EVERY = 10;
 const HOLD_MANA = 12;
 
@@ -17,7 +18,7 @@ const def = (card: string) => battleUnits.get(card)!;
 export interface BotMind { rng: number; next: string | null }
 
 function playable(s: BattleState, side: Side, moves: string[], anyMana = false): string[] {
-  return s.decks[side].filter((c, i) => {
+  return s.hands[side].filter((c, i) => {
     const u = def(c), cap = battle.sizes.get(u.size)!.perMatch;
     return moves.includes(u.move) && (anyMana || u.mana <= s.mana[side]) && (cap == null || s.uses[side][i]! < cap);
   });
@@ -57,8 +58,8 @@ export const botRng = (seed: number, side: Side): BotMind => ({ rng: (seed * 2 +
 
 export interface BattleResult { state: BattleState; commands: Record<number, BattleCommand[]> }
 
-export function playBattle(seed: number, p0: Policy, p1: Policy, deck0 = DECK, deck1 = DECK): BattleResult {
-  const s = createBattle(seed, deck0, deck1);
+export function playBattle(seed: number, p0: Policy, p1: Policy, setup0 = MIXED, setup1 = MIXED): BattleResult {
+  const s = createBattle(seed, setup0, setup1);
   const rngs = [botRng(seed, 0), botRng(seed, 1)];
   const commands: Record<number, BattleCommand[]> = {};
   while (!battleOver(s)) {

@@ -1,10 +1,10 @@
-// The player's save: sound and shake settings and the last deck picked. Anything stored that no longer fits the data
-// (an old TD save, a renamed card) falls back to defaults instead of a broken screen.
-import { DECKS } from './decks';
+// The player's save: sound and shake settings and the last team set up. Anything stored that no longer fits the data
+// (an old TD save, an old deck save, a renamed card) falls back to defaults instead of a broken screen.
+import { fixTeam, type Team } from './decks';
 
 export interface Profile {
-  v: 2;
-  deck: string; // a deck choice id (decks.ts)
+  v: 3;
+  team: Team;
   settings: Settings;
 }
 
@@ -14,10 +14,9 @@ export function migrate(raw: unknown): Profile {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const st = (r.settings && typeof r.settings === 'object' ? r.settings : {}) as Record<string, unknown>;
   const vol = st.volume;
-  const deck = DECKS.some((d) => d.id === r.deck) ? (r.deck as string) : DECKS[0]!.id;
   return {
-    v: 2,
-    deck,
+    v: 3,
+    team: fixTeam(r.team ?? { collection: r.deck }), // a v2 save named its deck by collection id
     settings: { volume: typeof vol === 'number' && vol >= 0 && vol <= 100 ? Math.round(vol) : 70, muted: st.muted === true, shake: st.shake !== false },
   };
 }

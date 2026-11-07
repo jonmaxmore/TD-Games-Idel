@@ -1,10 +1,10 @@
 // The player's path through the app: title → deck pick → castle battle → result → back.
 // Dev and shots shortcut: ?mode=battle jumps straight into a match; &bot=1 lets bots play both sides, &speed=4 fast-forwards,
-// &seed=N picks the match, &deck=fire|wood|mixed|card,card,... the player's deck.
+// &seed=N picks the match, &deck=fire|wood|metal|water|earth|all the player's collection (&leader=, &sub= its leaders).
 import { battle, battleUnits, TICK_HZ, type Side } from '@five-sects/sim';
 import { el, startMatch, type MatchResult } from './battle';
 import { portrait } from './board';
-import { DECKS, resolveDeck, type DeckChoice } from './decks';
+import { aiTeam, collectionOf, COLLECTIONS, fixTeam, resolveTeam, type Team } from './decks';
 import { load, save, type Profile } from './profile';
 import { initSound } from './sound';
 import { cardArt, loadSprites } from './sprites';
@@ -26,11 +26,11 @@ addEventListener('keydown', (e) => {
   if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen();
 });
 const q = new URLSearchParams(location.search);
-const dev = { battle: q.get('mode') === 'battle', bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), deck: resolveDeck(q.get('deck')) };
+const dev = { battle: q.get('mode') === 'battle', bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), team: resolveTeam(q) };
 const profile: Profile = load();
 initSound(profile.settings);
 
-type Screen = { k: 'title' } | { k: 'deck' } | { k: 'match'; deck: DeckChoice; seed: number };
+type Screen = { k: 'title' } | { k: 'deck' } | { k: 'match'; team: Team; seed: number; redraws: number };
 let dispose: (() => void) | void;
 
 function go(next: Screen) {
@@ -40,7 +40,7 @@ function go(next: Screen) {
   Object.assign(window, { __flow: { screen: next.k } });
   if (next.k === 'title') title();
   else if (next.k === 'deck') deckPick();
-  else dispose = match(next.deck, next.seed);
+  else dispose = match(next.team, next.seed, next.redraws);
 }
 
 function btn(text: string, cls: string, onclick: () => void): HTMLButtonElement {
@@ -48,14 +48,13 @@ function btn(text: string, cls: string, onclick: () => void): HTMLButtonElement 
   b.onclick = onclick;
   return b;
 }
-const deckOf = (id: string) => DECKS.find((d) => d.id === id) ?? DECKS[0]!;
 
 // ---- title: the name, two lines of disciples facing off, start ----
 function title() {
   const r = el('div', 'screen title');
   const face = el('div', 'faceoff');
-  const [a, b] = [deckOf(DECKS[0]!.id), deckOf(DECKS[0]!.vs)];
-  const side = (d: DeckChoice, s: Side) => { const row = el('div', `line side${s}`); for (const c of d.cards.slice(0, 4)) row.append(portrait(c, s, s === 1)); return row; };
+  const [a, b] = [COLLECTIONS[0]!, collectionOf(COLLECTIONS[0]!.vs)];
+  const side = (d: typeof a, s: Side) => { const row = el('div', `line side${s}`); for (const c of d.cards.slice(0, 4)) row.append(portrait(c, s, s === 1)); return row; };
   face.append(side(a, 0), el('span', 'vs', 'ปะทะ'), side(b, 1));
   r.append(
     el('div', 'grow'), el('h1', '', 'ศึกห้าสำนัก'), el('p', 'sub', 'ศึกชิงเมือง · อัญเชิญศิษย์ ยึดป้อม ทลายปราสาทศัตรูให้ได้ใน 3 นาที'), face,
@@ -73,7 +72,7 @@ function deckPick() {
   const cards = el('div', 'deck-cards');
   body.append(list, cards);
   const show = () => {
-    const d = deckOf(profile.deck);
+    const d = collectionOf(profile.team.collection);
     for (const b of Array.from(list.children)) b.classList.toggle('sel', (b as HTMLElement).dataset.id === d.id);
     cards.replaceChildren(...d.cards.map((c) => {
       const u = battleUnits.get(c)!, cap = battle.sizes.get(u.size)!.perMatch;
@@ -88,28 +87,27 @@ function deckPick() {
       return t;
     }));
   };
-  for (const d of DECKS) {
-    const b = btn('', 'deck-row', () => { profile.deck = d.id; save(profile); show(); });
+  for (const d of COLLECTIONS) {
+    const b = btn('', 'deck-row', () => { profile.team = fixTeam({ collection: d.id }); save(profile); show(); });
     b.dataset.id = d.id;
     b.style.borderLeftColor = d.color;
-    b.append(el('b', '', d.nameTh), el('small', '', `คู่ต่อสู้ AI: ${deckOf(d.vs).nameTh}`));
+    b.append(el('b', '', d.nameTh), el('small', '', `คู่ต่อสู้ AI: ${collectionOf(d.vs).nameTh}`));
     list.append(b);
   }
   const row = el('div', 'row actions');
-  row.append(btn('กลับ', '', () => go({ k: 'title' })), btn('เข้าสู่ศึก', 'primary', () => go({ k: 'match', deck: deckOf(profile.deck), seed: (Date.now() % 100000) + 1 })));
+  row.append(btn('กลับ', '', () => go({ k: 'title' })), btn('เข้าสู่ศึก', 'primary', () => go({ k: 'match', team: profile.team, seed: (Date.now() % 100000) + 1, redraws: 0 })));
   r.append(body, row);
   app.append(r);
   show();
 }
-const deckColor = (sect: string) => DECKS.find((d) => d.id === sect)?.color ?? '#E3B04B';
+const deckColor = (sect: string) => collectionOf(sect).color;
 
 // ---- match → result ----
-function match(deck: DeckChoice, seed: number) {
-  const vs = deckOf(deck.vs);
+function match(team: Team, seed: number, redraws: number) {
   return startMatch(app, {
-    seed, deck, vs, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
+    seed, team, vs: aiTeam(team), redraws, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
     bots: [dev.bot ? 'rush' : null, 'rush'],
-  }, (r) => result(deck, seed, r));
+  }, (r) => result(team, seed, r));
 }
 
 const STEP_TH: Record<string, string> = { forts: 'จำนวนป้อมที่ถือ', deepest: 'ป้อมที่ลึกที่สุด', mana: 'ปราณที่เหลือ', units: 'ศิษย์ที่ยังรอด' };
@@ -121,16 +119,16 @@ function reason(r: MatchResult): string {
   return 'หมดเวลา และเท่ากันทุกข้อ';
 }
 
-function result(deck: DeckChoice, seed: number, r: MatchResult) {
+function result(team: Team, seed: number, r: MatchResult) {
   const box = el('div', 'modal result');
   const head = r.winner === 0 ? ['won', 'ชนะ!'] : r.winner === 1 ? ['lost', 'พ่ายแพ้'] : ['draw', 'เสมอ'];
   const t = Math.floor(r.tick / TICK_HZ);
   box.append(el('h2', head[0], head[1]), el('p', 'why', reason(r)),
     el('p', 'dim', `ปราสาทเรา ${Math.max(0, r.castles[0])} · ปราสาทศัตรู ${Math.max(0, r.castles[1])} · เวลา ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`));
   const row = el('div', 'row');
-  row.append(btn('เล่นอีกครั้ง', 'primary', () => go({ k: 'match', deck, seed: seed + 1 })), btn('เปลี่ยนสำรับ', '', () => go({ k: 'deck' })), btn('หน้าแรก', '', () => go({ k: 'title' })));
+  row.append(btn('เล่นอีกครั้ง', 'primary', () => go({ k: 'match', team, seed: seed + 1, redraws: 0 })), btn('เปลี่ยนสำรับ', '', () => go({ k: 'deck' })), btn('หน้าแรก', '', () => go({ k: 'title' })));
   box.append(row);
   app.append(box);
 }
 
-void loadSprites().then(() => go(dev.battle ? { k: 'match', deck: dev.deck ?? deckOf(profile.deck), seed: dev.seed } : { k: 'title' }));
+void loadSprites().then(() => go(dev.battle ? { k: 'match', team: dev.team ?? profile.team, seed: dev.seed, redraws: 0 } : { k: 'title' }));

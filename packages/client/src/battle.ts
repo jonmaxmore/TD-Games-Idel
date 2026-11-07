@@ -7,7 +7,7 @@ import {
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { bellIcon, Board, portrait } from './board';
-import type { DeckChoice } from './decks';
+import { collectionOf, teamSetup, type Team } from './decks';
 import type { Settings } from './profile';
 import { cardArt } from './sprites';
 import { applyVolume, play } from './sound';
@@ -16,7 +16,7 @@ import { nowrapWords } from './words';
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
 
 export interface MatchOpts {
-  seed: number; deck: DeckChoice; vs: DeckChoice; speed: number; settings: Settings; saveSettings: () => void;
+  seed: number; team: Team; vs: Team; redraws: number; speed: number; settings: Settings; saveSettings: () => void;
   bots: [Policy | null, Policy]; // who plays each side: null = the player
 }
 export interface MatchResult { winner: Side | -1; step: DecideStep | null; broken: boolean; castles: [number, number]; tick: number }
@@ -29,7 +29,8 @@ const capOf = (card: string) => battle.sizes.get(battleUnits.get(card)!.size)!.p
 
 export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResult) => void): () => void {
   let speed = o.speed;
-  const s: BattleState = createBattle(o.seed, o.deck.cards, o.vs.cards);
+  const s: BattleState = createBattle(o.seed, teamSetup(o.team), teamSetup(o.vs));
+  const firstTick: BattleCommand[] = Array.from({ length: o.redraws }, () => ({ t: 'redraw', side: 0 })); // the team screen's redraws, as the replay has them
   const rngs = [botRng(o.seed, 0), botRng(o.seed, 1)];
   const human = o.bots[0] == null;
 
@@ -55,7 +56,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     box.append(nowrapWords(el('span', 'who'), name), bar, num);
     return { box, fill, num, last: -1 };
   };
-  const bars = [castleBar(0, `ปราสาทเรา · ${o.deck.nameTh}`), castleBar(1, `ปราสาทศัตรู · ${o.vs.nameTh}`)];
+  const bars = [castleBar(0, `ปราสาทเรา · ${collectionOf(o.team.collection).nameTh}`), castleBar(1, `ปราสาทศัตรู · ${collectionOf(o.vs.collection).nameTh}`)];
   const clockBox = el('div', 'clock'), time = el('b', 'time'), fortRow = el('div', 'forts'), regenHint = el('small');
   const fortDots = s.forts.map(() => fortRow.appendChild(el('i')));
   clockBox.append(time, fortRow, regenHint);
@@ -77,7 +78,8 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   manaBar.append(manaFill);
   manaBox.append(el('span', '', 'ปราณ'), manaNum, manaBar);
   const cardRow = el('div', 'cards');
-  const cards = s.decks[0].map((card, slot) => {
+  stepBattle(s, firstTick); // tick 0 before the hand is shown, so the cards are the redrawn ones
+  const cards = s.hands[0].map((card, slot) => {
     const def = battleUnits.get(card)!;
     const b = el('button', 'card');
     b.style.setProperty('--sect', sects.get(def.sect)?.color ?? '#E3B04B');
@@ -112,7 +114,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
 
   // Why the player's slot cannot be summoned right now (any spot), or null.
   function cardProblem(slot: number): string | null {
-    const card = s.decks[0][slot]!, cap = capOf(card);
+    const card = s.hands[0][slot]!, cap = capOf(card);
     if (cap != null && s.uses[0][slot]! >= cap) return 'ใบนี้ใช้ครบแล้ว';
     if (s.mana[0] < battleUnits.get(card)!.mana) return 'ปราณไม่พอ';
     return null;
@@ -129,7 +131,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     if (!hit || sel == null) { board.aim = null; return null; }
     const d = Math.max(0, Math.min(BATTLE_LEN, hit.d));
     const why = cardProblem(sel) ?? (hit.off > OFF_PATH ? 'ลงได้บนเส้นทางเท่านั้น' : d > summonZone(s, 0) ? 'ลงได้เฉพาะในเขตอัญเชิญ' : null);
-    board.aim = { d, ok: why == null, card: s.decks[0][sel]! };
+    board.aim = { d, ok: why == null, card: s.hands[0][sel]! };
     return { d, ok: why == null, why };
   }
   function summonAt(p: { x: number; y: number }) {
@@ -137,7 +139,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     const a = aimAt(p);
     if (!a) return;
     if (!a.ok) { toast(a.why!, 'bad'); return; }
-    pending.push({ t: 'summon', side: 0, card: s.decks[0][sel]!, d: a.d });
+    pending.push({ t: 'summon', side: 0, card: s.hands[0][sel]!, d: a.d });
     sel = null;
     aimAt(p);
     refresh();

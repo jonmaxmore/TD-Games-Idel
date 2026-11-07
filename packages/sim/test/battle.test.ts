@@ -2,14 +2,18 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  battle, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fwd, stepBattle, summonZone, TICK_HZ,
-  sects, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
+  battle, battleCardIds, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fixedHand, fwd, sectSetup, stepBattle,
+  summonZone, TICK_HZ, sects, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
 } from '../src';
-import { DECK, playBattle, type Policy } from './battleBot';
+import { MIXED, playBattle, type Policy } from './battleBot';
 import { BATTLE_GOLDEN, battleGolden, replayBattle, type BattleGolden } from './goldens';
 
 const STRIKER = 'crimson_phoenix_striker', BANNER = 'crimson_phoenix_banner', BLADE = 'jade_bamboo_blade';
-const fresh = () => createBattle(1, DECK, DECK);
+const HAND = fixedHand([
+  'crimson_phoenix_striker', 'crimson_phoenix_burst', 'crimson_phoenix_control', 'crimson_phoenix_banner',
+  'crimson_phoenix_blade', 'jade_bamboo_stacker', 'jade_bamboo_support', 'jade_bamboo_blade',
+]);
+const fresh = () => createBattle(1, HAND, HAND);
 const summon = (side: Side, card: string, d: number): BattleCommand => ({ t: 'summon', side, card, d });
 const run = (s: BattleState, n: number) => { for (let i = 0; i < n; i++) stepBattle(s); };
 
@@ -27,10 +31,13 @@ describe('castle battle data', () => {
     }
   });
 
-  it('each preset sect deck is 8 distinct cards of that sect only', () => {
-    for (const [sect, deck] of battle.sectDecks) {
-      expect(new Set(deck).size, sect).toBe(8);
-      for (const c of deck) expect(battleUnits.get(c)?.sect, `${sect} deck has ${c}`).toBe(sect);
+  it('each sect has a basic capturer and a default leader and sub-leader of its own', () => {
+    for (const [sect, t] of battle.sectTeams) {
+      const basic = battleUnits.get(battle.hand.basic.get(sect)!)!;
+      expect([basic.sect, basic.move, basic.mana, battle.sizes.get(basic.size)!.perMatch], sect).toEqual([sect, 'capture', 1, null]);
+      expect(battleUnits.get(t.leader)?.sect, `${sect} leader`).toBe(sect);
+      expect(battleUnits.get(t.sub)?.sect, `${sect} sub`).toBe(sect);
+      expect(new Set([basic.id, t.leader, t.sub]).size, sect).toBe(3);
     }
   });
 });
@@ -42,7 +49,7 @@ function withCard(id: string, fields: Partial<BattleUnitDef>, fn: () => void): v
 }
 // Side 0's card at depth a, side 1's at depth b (own depths), both with plenty of mana.
 function duel(c0: string, a: number, c1: string, b: number): BattleState {
-  const s = createBattle(1, [c0], [c1]);
+  const s = createBattle(1, fixedHand([c0]), fixedHand([c1]));
   s.mana = [20, 20];
   stepBattle(s, [summon(0, c0, 0), summon(1, c1, 0)]);
   s.units[0]!.d = fwd(0, a); s.units[1]!.d = fwd(1, b);
@@ -50,10 +57,51 @@ function duel(c0: string, a: number, c1: string, b: number): BattleState {
 }
 const hitIds = (ev: BattleEvent[], from: number) => ev.filter((e) => e.e === 'hit' && e.from === from).map((e) => e.to);
 
+describe('castle battle hand', () => {
+  const isLarge = (c: string) => battleUnits.get(c)!.size === 'large';
+  it('deals the basic capturer, the leader, the sub-leader and 4 drawn cards, never the bench, at most 2 large', () => {
+    const bench = ['cloud_sword_rider', 'frost_tide_naga', 'vajra_stone_hawk'];
+    const setup = { ...MIXED, bench };
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 300; seed++) {
+      const h = createBattle(seed, setup, setup).hands[0];
+      expect(h.slice(0, 3)).toEqual(['crimson_phoenix_banner', MIXED.leader, MIXED.sub]);
+      expect(new Set(h).size).toBe(7);
+      expect(h.filter(isLarge).length).toBeLessThanOrEqual(2);
+      for (const c of h) { expect(bench).not.toContain(c); seen.add(c); }
+    }
+    expect(seen.size).toBe(battleCardIds.length - bench.length); // every other card comes up
+    const sect = sectSetup('wood');
+    expect(createBattle(9, sect, sect).hands[0].every((c) => battleUnits.get(c)!.sect === 'wood')).toBe(true);
+  });
+
+  it('a large leader and sub-leader leave no room for a drawn large card', () => {
+    const setup = { ...MIXED, leader: 'crimson_phoenix_beast', sub: 'jade_bamboo_warden' };
+    for (let seed = 1; seed <= 100; seed++) expect(createBattle(seed, setup, setup).hands[1].filter(isLarge)).toEqual(['crimson_phoenix_beast', 'jade_bamboo_warden']);
+  });
+
+  it('redraws deal the drawn cards again, the same way every replay, only before the first tick and only so often', () => {
+    const a = createBattle(4, MIXED, MIXED), b = createBattle(4, MIXED, MIXED);
+    expect(a.hands).toEqual(b.hands);
+    const first = [...a.hands[0]];
+    const redraw = (side: Side): BattleCommand => ({ t: 'redraw', side });
+    const ev = stepBattle(a, Array.from({ length: battle.hand.redraws + 1 }, () => redraw(0)));
+    stepBattle(b, Array.from({ length: battle.hand.redraws }, () => redraw(0)));
+    expect(ev.filter((e) => e.e === 'error').map((e) => e.msg)).toEqual(['no redraws left']);
+    expect(a.hands).toEqual(b.hands);
+    expect(a.hands[0].slice(0, 3)).toEqual(first.slice(0, 3));
+    expect(a.hands[0]).not.toEqual(first);
+    expect(a.hands[1]).toEqual(createBattle(4, MIXED, MIXED).hands[1]);
+    expect(stepBattle(createBattle(4, MIXED, MIXED), [redraw(1)]).some((e) => e.e === 'error')).toBe(false);
+    expect(stepBattle(a, [redraw(1)]).find((e) => e.e === 'error')?.msg).toBe('redraw only before the match');
+    expect(stepBattle(fresh(), [redraw(0)]).find((e) => e.e === 'error')?.msg).toBe('no redraws left'); // a fixed hand
+  });
+});
+
 describe('castle battle on-hit kits', () => {
   it('splash lands the hit on every enemy near the target, not on ones further off', () => {
     withCard('t_splash', { splash: 1000, range: 3000, cooldown: 1 }, () => {
-      const s = createBattle(1, ['t_splash'], [BLADE]);
+      const s = createBattle(1, fixedHand(['t_splash']), fixedHand([BLADE]));
       s.mana = [20, 20];
       stepBattle(s, [summon(0, 't_splash', 0), summon(1, BLADE, 0), summon(1, BLADE, 0), summon(1, BLADE, 0)]);
       const [me, a, b, c] = s.units as [Fighter, Fighter, Fighter, Fighter];
@@ -115,7 +163,7 @@ describe('castle battle on-hit kits', () => {
   it('burning ground sets ground walkers on it burning, not fliers, and goes out', () => {
     withCard('t_fire', { ground: 20, range: 1000, cooldown: 1000, move: 'guard', dmg: 1, dot: null }, () => {
       withCard('t_fly', { move: 'fly', dmg: 0, hp: 500 }, () => {
-        const s = createBattle(1, ['t_fire'], [BLADE, 't_fly']);
+        const s = createBattle(1, fixedHand(['t_fire']), fixedHand([BLADE, 't_fly']));
         s.mana = [20, 20];
         stepBattle(s, [summon(0, 't_fire', 0), summon(1, BLADE, 0), summon(1, 't_fly', 0)]);
         const [me, blade, fly] = s.units as [Fighter, Fighter, Fighter];
@@ -184,7 +232,7 @@ describe('castle battle rules', () => {
     const msgs = (c: BattleCommand) => stepBattle(s, [c]).filter((e) => e.e === 'error').map((e) => e.msg);
     expect(msgs(summon(0, BLADE, zone + 1))).toEqual(['outside summon zone']);
     expect(msgs(summon(1, BLADE, -1))).toEqual(['outside summon zone']);
-    expect(msgs(summon(0, 'not_a_card', 0))).toEqual(['card not in deck']);
+    expect(msgs(summon(0, 'not_a_card', 0))).toEqual(['card not in hand']);
     s.mana[0] = 0;
     expect(msgs(summon(0, BLADE, 0))).toEqual(['not enough mana']);
     s.mana = [20, 20];
@@ -197,7 +245,7 @@ describe('castle battle rules', () => {
   });
 
   it('the castle gate stays open with enemies on it: a summon at depth 0 lands and fights', () => {
-    const s = createBattle(1, [BLADE], [BLADE]);
+    const s = createBattle(1, fixedHand([BLADE]), fixedHand([BLADE]));
     s.mana = [20, 20];
     stepBattle(s, [summon(1, BLADE, 0), summon(1, BLADE, 0)]);
     for (const u of s.units) u.d = 300; // at side 0's castle
@@ -283,7 +331,7 @@ describe('castle battle rules', () => {
   it('a flier walks over ground enemies and only units that hit air can hit it', () => {
     battleUnits.set('test_fly', { ...battleUnits.get(BLADE)!, id: 'test_fly', move: 'fly', hp: 500 });
     try {
-      const s = createBattle(1, ['test_fly'], ['jade_bamboo_control']); // control: ground only
+      const s = createBattle(1, fixedHand(['test_fly']), fixedHand(['jade_bamboo_control'])); // control: ground only
       s.mana = [20, 20];
       stepBattle(s, [summon(0, 'test_fly', 0), summon(1, 'jade_bamboo_control', 2000)]);
       const [fly, guard] = [s.units[0]!, s.units[1]!];
@@ -300,7 +348,7 @@ describe('castle battle rules', () => {
 describe('cheap counters expensive (reference §1c)', () => {
   // Side 0 sends one large card from the front of its base zone; side 1 answers with one cheap card. 60 s, no forts held.
   const castleLoss = (big: string, answer: string | null) => {
-    const s = createBattle(1, [big], answer ? [answer] : [BLADE]);
+    const s = createBattle(1, fixedHand([big]), fixedHand(answer ? [answer] : [BLADE]));
     s.mana = [20, 20];
     stepBattle(s, [summon(0, big, 4000), ...(answer ? [summon(1, answer, 3000)] : [])]);
     run(s, 1200);
@@ -311,7 +359,7 @@ describe('cheap counters expensive (reference §1c)', () => {
   });
   it('a 4-mana single-target striker kills the 8-mana bamboo warden that lives through the castle alone', () => {
     const survives = (answer: string | null) => {
-      const s = createBattle(1, ['jade_bamboo_warden'], answer ? [answer] : [BLADE]);
+      const s = createBattle(1, fixedHand(['jade_bamboo_warden']), fixedHand(answer ? [answer] : [BLADE]));
       s.mana = [20, 20];
       stepBattle(s, [summon(0, 'jade_bamboo_warden', 4000), ...(answer ? [summon(1, answer, 3000)] : [])]);
       const id = s.units[0]!.id;
@@ -327,8 +375,8 @@ describe('castle battle determinism', () => {
   it('two runs of the same seed and commands hash the same every tick', () => {
     const { commands } = playBattle(3, 'rush', 'defend');
     const a: string[] = [], b: string[] = [];
-    replayBattle(3, [DECK, DECK], commands, (s) => a.push(battleHash(s)));
-    replayBattle(3, [DECK, DECK], commands, (s) => b.push(battleHash(s)));
+    replayBattle(3, [MIXED, MIXED], commands, (s) => a.push(battleHash(s)));
+    replayBattle(3, [MIXED, MIXED], commands, (s) => b.push(battleHash(s)));
     expect(a.length).toBeGreaterThan(1000);
     expect(a).toEqual(b);
   });
@@ -337,7 +385,7 @@ describe('castle battle determinism', () => {
     const g = JSON.parse(readFileSync(BATTLE_GOLDEN, 'utf8')) as BattleGolden;
     expect(JSON.stringify(battleGolden(g.seed), null, 1) + '\n' === readFileSync(BATTLE_GOLDEN, 'utf8'), 'battle-1.json is stale: run npm run sim:golden').toBe(true);
     let i = 0;
-    const end = replayBattle(g.seed, g.decks, g.commands, (s) => {
+    const end = replayBattle(g.seed, g.setups, g.commands, (s) => {
       if (s.tick % 100 === 0) expect(battleHash(s), `tick ${s.tick}`).toBe(g.trace[i++]![1]);
     });
     expect(battleHash(end)).toBe(g.final.hash);

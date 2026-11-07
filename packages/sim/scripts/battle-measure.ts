@@ -1,9 +1,9 @@
 // Castle-battle balance tables (BATTLE_SEEDS, default 200).
-// 1. rush vs defend on the mixed mirror deck, both side orders: left wins, draws, castle falls, length.
-// 2. every preset sect deck vs every other (battle.json > sectDecks), both side orders, all four bot pairings:
+// 1. rush vs defend on the mixed mirror team (battleBot.ts > MIXED), both side orders: left wins, draws, castle falls, length.
+// 2. every sect team vs every other (its whole roster, battle.json > sectTeams leader and sub), both side orders, all four bot pairings:
 //    row sect's win % over its games (draws count half), and each sect's overall average. The diagonal is the mirror
 //    match's left-side win %.
-import { battle } from '../src';
+import { battle, sectSetup } from '../src';
 import { playBattle, type Policy } from '../test/battleBot';
 
 const seeds = Number(process.env.BATTLE_SEEDS ?? 200);
@@ -22,7 +22,7 @@ for (const [a, b] of pairs) {
 }
 
 if (process.env.SECTS !== '0') {
-  const ids = [...battle.sectDecks.keys()];
+  const ids = [...battle.sectTeams.keys()];
   const win = ids.map(() => ids.map(() => 0)), games = ids.map(() => ids.map(() => 0));
   const mirrorLeft = ids.map(() => 0), mirrorN = ids.map(() => 0);
   let left = 0, draw = 0, ko = 0, ticks = 0, n = 0;
@@ -30,7 +30,7 @@ if (process.env.SECTS !== '0') {
     for (let j = 0; j < ids.length; j++)
       for (const [p0, p1] of pairs)
         for (let seed = 1; seed <= seeds; seed++) {
-          const s = playBattle(seed, p0, p1, battle.sectDecks.get(ids[i]!)!, battle.sectDecks.get(ids[j]!)!).state;
+          const s = playBattle(seed, p0, p1, sectSetup(ids[i]!), sectSetup(ids[j]!)).state;
           const w = s.winner === 0 ? 2 : s.winner === -1 ? 1 : 0; // half-points for side 0
           if (i === j) { mirrorLeft[i]! += s.winner === 0 ? 1 : 0; mirrorN[i]!++; }
           else { win[i]![j]! += w; games[i]![j]! += 2; win[j]![i]! += 2 - w; games[j]![i]! += 2; }
