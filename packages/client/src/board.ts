@@ -219,7 +219,7 @@ export class Board {
         const l = this.lunges.get(d.id);
         if (!l || now - l.t0 >= LUNGE_MS) this.lunges.set(d.id, { t0: now, ux: (x1 - x0) / len, uy: (y1 - y0) / len });
         const foe = s.enemies.find((x) => x.id === e.to), boss = enemyDefs.get(t.type)?.boss != null;
-        if (big || (boss && foe && foe.hp <= 0)) this.impact(now + fly, e.dmg! / Math.max(1, foe?.maxHp ?? 100));
+        if (big || (boss && foe && foe.hp <= 0)) this.impact(now + fly, e.dmg! / Math.max(1, foe?.maxHp ?? 100), speed);
         if (exec) this.mark(now + fly, 360, x1, y1, 0, 0, 'execute');
         else if (e.kind === 'wildfire') { const r = (FIRE_SPLASH * branchB.splashPct) / 100 / TILE; this.mark(now + fly, 420, x1, y1 + 6, r * this.T, r * this.TH, 'wildfire'); }
       } else if (e.e === 'stun') {
@@ -274,10 +274,12 @@ export class Board {
   }
 
   // A big hit lands: the screen shakes by how much of the target's life it took, and the picture holds for a few frames.
-  // Both follow the shake setting; the sim never waits.
-  private impact(at: number, share: number) {
+  // Both follow the shake setting; the sim never waits. At most one per STOP_GAP of game time, so fast play does not judder.
+  private impact(at: number, share: number, speed: number) {
+    if (at - this.stopAt < STOP_GAP * speed) return;
+    this.stopAt = at;
     this.shakeFor(at, Math.min(3, 1 + Math.round(share * 4)), 160);
-    if (this.shake && at - this.stopAt >= STOP_GAP) { this.stopAt = at; this.stop = STOP_FRAMES; }
+    if (this.shake) this.stop = STOP_FRAMES;
   }
 
   private shakeFor(now: number, amp: number, ms: number) {
