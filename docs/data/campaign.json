@@ -1,0 +1,60 @@
+{
+  "_notes": "ศึกปราบ บทที่ 1 (SPEC-castle-battle §13, deck-and-realms.md §7). Side 1 is the stage's enemy, played by the paced bot (packages/sim/test/battleBot.ts). enemy.cards: a sect id (its disciples) or a list of card ids; enemy.level: every enemy card at that level (casual stats, never normalized). mana: the enemy's start and its regen as % of the normal rate (the player keeps battle.json mana). fortsAtPct: the fort layout. gimmick.kind: castle (enemy castle at hpPct of its HP, over 100 = reinforced) | waves (free enemy units at sec, tiles = own depth from its castle) | noCannon (neither castle may fire) | bloodMoon (enemy units deal dmgPct of their damage). stars: three goals, each needs the win. rewards: what the stage pays; rewards.win replaces progression.json matchRewards.win, a loss or draw pays matchRewards (later reward kinds, such as a card on first clear, go in this object). Stage i opens once stage i-1 is won. Balance: npm run sim:campaign.",
+  "chapter": { "id": "ch1", "nameTh": "บทที่ 1 · ศึกปราบชายแดน" },
+  "stars": { "castleHpPct": 50, "winUnderSec": 120, "namesTh": ["ชนะ", "ปราสาทเราเหลือ HP อย่างน้อย 50%", "ชนะภายใน 2 นาที"] },
+  "stages": [
+    {
+      "id": "1-1", "nameTh": "ด่านหินแตก", "briefTh": "กองลาดตระเวนสำนักกระบี่เมฆตั้งค่ายบนซากด่านเก่า กำแพงยังร้าวจากศึกครั้งก่อน บุกให้ถึงก่อนพวกมันซ่อมเสร็จ",
+      "enemy": { "leader": "cloud_sword_elder", "sub": "cloud_sword_striker", "cards": "metal", "level": 1 },
+      "mana": { "start": 15, "regenPct": 70 }, "fortsAtPct": [30, 50, 70],
+      "gimmick": { "kind": "castle", "hpPct": 60, "nameTh": "กำแพงร้าว", "descTh": "ปราสาทศัตรูเริ่มที่ HP 60%" },
+      "rewards": { "win": { "xp": 50, "coins": 50, "gold": 25 } }
+    },
+    {
+      "id": "1-2", "nameTh": "ป่าไผ่เงาหมาป่า", "briefTh": "ศิษย์หยกไผ่ปล่อยฝูงหมาเงาออกล่าทุกระยะ ตั้งรับให้มั่นก่อนค่อยดันขึ้น",
+      "enemy": { "leader": "jade_bamboo_warden", "sub": "jade_bamboo_striker", "cards": "wood", "level": 1 },
+      "mana": { "start": 20, "regenPct": 80 }, "fortsAtPct": [30, 50, 70],
+      "gimmick": {
+        "kind": "waves", "nameTh": "ฝูงหมาเงา", "descTh": "หมาเงา 2 ตัวออกจากปราสาทศัตรูเองที่วินาที 20, 50, 80 และ 110",
+        "waves": [
+          { "sec": 20, "card": "shade_hound", "tiles": 1 }, { "sec": 20, "card": "shade_hound", "tiles": 2 },
+          { "sec": 50, "card": "shade_hound", "tiles": 1 }, { "sec": 50, "card": "shade_hound", "tiles": 2 },
+          { "sec": 80, "card": "shade_hound", "tiles": 1 }, { "sec": 80, "card": "shade_hound", "tiles": 2 },
+          { "sec": 110, "card": "shade_hound", "tiles": 1 }, { "sec": 110, "card": "shade_hound", "tiles": 2 }
+        ]
+      },
+      "rewards": { "win": { "xp": 55, "coins": 55, "gold": 28 } }
+    },
+    {
+      "id": "1-3", "nameTh": "ค่ายโจรผาวัชระ", "briefTh": "โจรภูเขาขโมยดินปืนจากทั้งสองปราสาทไปหมด ศึกนี้ไม่มีปืนใหญ่ ต้องสู้กันด้วยศิษย์ล้วน",
+      "enemy": { "leader": "vajra_stone_guardian", "sub": "vajra_stone_striker", "cards": "earth", "level": 2 },
+      "mana": { "start": 25, "regenPct": 90 }, "fortsAtPct": [30, 50, 70],
+      "gimmick": { "kind": "noCannon", "nameTh": "ไร้ดินปืน", "descTh": "ปืนใหญ่ของทั้งสองฝ่ายใช้ไม่ได้" },
+      "rewards": { "win": { "xp": 60, "coins": 60, "gold": 30 } }
+    },
+    {
+      "id": "1-4", "nameTh": "ศาลเจ้าจันทร์เลือด", "briefTh": "คืนจันทร์เลือด ปีศาจรอบศาลเจ้าร้างคลั่งกว่าทุกคืน แต่ละตัวตีแรงขึ้นมาก อย่าปล่อยให้เข้าใกล้ปราสาท",
+      "enemy": { "leader": "corpse_puppeteer", "sub": "venom_toad", "cards": ["ember_imp", "shade_hound", "blood_bat", "mirage_fox", "corpse_puppeteer", "venom_toad", "earth_wyrm", "vajra_stone_banner"], "level": 3 },
+      "mana": { "start": 25, "regenPct": 100 }, "fortsAtPct": [30, 50, 70],
+      "gimmick": { "kind": "bloodMoon", "dmgPct": 125, "nameTh": "จันทร์เลือด", "descTh": "ตัวละครฝ่ายศัตรูตีแรงขึ้น 25%" },
+      "rewards": { "win": { "xp": 65, "coins": 65, "gold": 33 } }
+    },
+    {
+      "id": "1-5", "nameTh": "ป้อมธารน้ำแข็ง", "briefTh": "สำนักธารเยือกเสริมกำแพงด้วยน้ำแข็งหนา และย้ายป้อมให้ห่างกันขึ้น ธาตุน้ำข่มไฟ ต้องเลือกจังหวะบุกให้ดี",
+      "enemy": { "leader": "frost_tide_naga", "sub": "frost_tide_striker", "cards": "water", "level": 3 },
+      "mana": { "start": 30, "regenPct": 100 }, "fortsAtPct": [25, 50, 75],
+      "gimmick": { "kind": "castle", "hpPct": 120, "nameTh": "กำแพงน้ำแข็ง", "descTh": "ปราสาทศัตรูแข็งแรงขึ้น HP 120%" },
+      "rewards": { "win": { "xp": 70, "coins": 70, "gold": 35 } }
+    },
+    {
+      "id": "1-6", "nameTh": "ปากถ้ำมังกรลาวา", "briefTh": "มังกรลาวาเฝ้าปากถ้ำ สัตว์เทพที่มันกักไว้ถูกปล่อยออกมาเป็นระลอก นี่คือศึกสุดท้ายของบทนี้",
+      "enemy": { "leader": "lava_dragon", "sub": "golden_lion", "cards": ["lava_dragon", "golden_lion", "cloud_crane", "jade_tortoise", "wandering_archer", "ember_imp", "blood_bat", "cloud_sword_banner"], "level": 4 },
+      "mana": { "start": 25, "regenPct": 100 }, "fortsAtPct": [30, 50, 70],
+      "gimmick": {
+        "kind": "waves", "nameTh": "ระลอกสัตว์เทพ", "descTh": "นกกระเรียนเมฆบินออกมาเองที่วินาที 45 และ 105 สิงโตทองที่วินาที 75",
+        "waves": [{ "sec": 45, "card": "cloud_crane", "tiles": 1 }, { "sec": 75, "card": "golden_lion", "tiles": 1 }, { "sec": 105, "card": "cloud_crane", "tiles": 1 }]
+      },
+      "rewards": { "win": { "xp": 80, "coins": 80, "gold": 40 } }
+    }
+  ]
+}
