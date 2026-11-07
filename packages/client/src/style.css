@@ -4,7 +4,7 @@
 :root {
   --bg: #0b0910; --panel: #17111a; --line: #3a2a1e; --gold: #e3b04b; --ink: #ece3cf; --dim: #9a92ae; --red: #8a1a12;
   --me: #e3b04b; --foe: #d2412f; --me-hp: #4fb3ff; --foe-hp: #e23b2e;
-  font-family: 'Sarabun', system-ui, sans-serif; color: var(--ink); background: var(--bg);
+  font-family: 'Sukhumvit Set', 'Sarabun', system-ui, sans-serif; color: var(--ink); background: var(--bg);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
