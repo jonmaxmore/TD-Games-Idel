@@ -138,9 +138,42 @@ describe('castle battle leader abilities', () => {
       });
     });
   });
+
+  it('a ward makes allies near the unit take less damage from hits, not ones out of its radius', () => {
+    withCard('t_hit', { dmg: 100, kit: 'earth', dot: null, range: 1000, cooldown: 1000, move: 'guard', sect: 'yinyang', counters: [] }, () => {
+      withCard('t_dummy', { dmg: 0, hp: 9999, armor: 0, move: 'guard', sect: 'yinyang' }, () => {
+        withCard('t_ward', { dmg: 0, hp: 9999, move: 'guard', sect: 'yinyang', ability: { kind: 'ward', lv: [10, 20, 30] } }, () => {
+          const taken = (wardAt: number) => {
+            const s = createBattle(1, fixedHand(['t_hit']), team('t_ward', '', ['t_dummy', 't_ward']));
+            s.mana = [40, 40];
+            stepBattle(s, [summon(0, 't_hit', 0), summon(1, 't_dummy', 0), summon(1, 't_ward', 0)]);
+            const [me, dummy, ward] = s.units as [Fighter, Fighter, Fighter];
+            me.d = 6000; dummy.d = 6500; ward.d = 6500 + wardAt; ward.cd = 9999;
+            return stepBattle(s).find((e) => e.e === 'hit' && e.from === me.id)!.dmg;
+          };
+          expect(taken(battle.wardRadius)).toBe(70);
+          expect(taken(battle.wardRadius + 1)).toBe(100);
+        });
+      });
+    });
+  });
 });
 
 describe('castle battle on-hit kits', () => {
+  it('raise: a small enemy the raiser kills rises on its side with raisePct of its HP; a medium one does not', () => {
+    withCard('t_raiser', { dmg: 9999, range: 1000, cooldown: 1000, move: 'guard', raise: 50 }, () => {
+      for (const [victim, rises] of [[BLADE, true], [STRIKER, false]] as const) {
+        const s = duel('t_raiser', 6000, victim, BATTLE_LEN - 6500);
+        const foe = s.units[1]!.id;
+        const ev = stepBattle(s);
+        expect(ev.some((e) => e.e === 'kill' && e.id === foe), victim).toBe(true);
+        const risen = s.units.filter((u) => u.side === 0 && u.card === victim);
+        expect(risen.map((u) => u.hp), victim).toEqual(rises ? [Math.floor(battleUnits.get(victim)!.hp / 2)] : []);
+        expect(s.kills[0]).toBe(1);
+      }
+    });
+  });
+
   it('splash lands the hit on every enemy near the target, not on ones further off', () => {
     withCard('t_splash', { splash: 1000, range: 3000, cooldown: 1 }, () => {
       const s = createBattle(1, fixedHand(['t_splash']), fixedHand([BLADE]));

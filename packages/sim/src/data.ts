@@ -35,8 +35,9 @@ export interface BattleUnitDef {
   dmg: number; cooldown: number; range: number; hitsAir: boolean; hitsGround: boolean; dot: string | null;
   // On-hit kit (ticks or milli-tiles, 0 = none): splash hits every enemy it can hit this close to the target too.
   splash: number; slow: number; root: number; stun: number; push: number; ground: number; armor: number; pierce: boolean;
+  raise: number; // a small enemy this card's hit kills rises on its side with this % of its HP (0 = none)
   tagTh: string; counters: string[];
-  ability: { kind: 'aura' | 'hp' | 'refund'; lv: [number, number, number] } | null; // lv: value as a normal card, sub-leader, leader
+  ability: { kind: 'aura' | 'ward' | 'hp' | 'refund'; lv: [number, number, number] } | null; // lv: value as a normal card, sub-leader, leader
 }
 const BT = J(battleJson);
 const P = (t: [number, number]): Pt => ({ x: t[0], y: t[1] });
@@ -64,8 +65,8 @@ export const battle = {
   counterTags: new Map<string, string>(Object.entries(BT.counterTags as Record<string, string>)),
   counterPct: new Map<string, number>(Object.entries(BT.counterPct as Record<string, number>)),
   hand: { size: BT.hand.size as number, maxLarge: BT.hand.maxLarge as number, redraws: BT.hand.redraws as number, basic: new Map<string, string>(Object.entries(BT.hand.basic as Record<string, string>)) },
-  auraRadius: tiles(BT.abilities.aura.radiusTiles),
-  abilities: new Map<string, { nameTh: string; doesTh: string }>(Object.keys(BT.abilities).map((k) => [k, { nameTh: BT.abilities[k].nameTh, doesTh: BT.abilities[k].doesTh.replace('{r}', String(BT.abilities.aura.radiusTiles)) }])),
+  auraRadius: tiles(BT.abilities.aura.radiusTiles), wardRadius: tiles(BT.abilities.ward.radiusTiles),
+  abilities: new Map<string, { nameTh: string; doesTh: string }>(Object.keys(BT.abilities).map((k) => [k, { nameTh: BT.abilities[k].nameTh, doesTh: BT.abilities[k].doesTh.replace('{r}', String(BT.abilities[k].radiusTiles)) }])),
   sectTeams: new Map<string, { leader: string; sub: string }>(Object.entries(BT.sectTeams as Record<string, { leader: string; sub: string }>)),
   matchTicks: ticks(BT.matchSec),
   results: new Map<string, string>(Object.entries(BT.results as Record<string, string>)),
@@ -79,7 +80,7 @@ for (const u of S.roster.units) {
     dmg: u.dmg, cooldown: ticks(1.0 / u.rate), range: Math.max(tiles(u.range), tiles(BT.meleeRange)),
     hitsAir: u.target.includes('air'), hitsGround: u.target.includes('ground'), dot: u.dot ?? null,
     splash: tiles(u.splash ?? 0), slow: ticks(u.slowSec ?? 0), root: ticks(u.rootSec ?? 0), stun: ticks(u.stunSec ?? 0),
-    push: tiles(u.pushTiles ?? 0), ground: ticks(u.groundSec ?? 0), armor: u.armor ?? 0, pierce: u.pierce === true,
+    push: tiles(u.pushTiles ?? 0), ground: ticks(u.groundSec ?? 0), armor: u.armor ?? 0, pierce: u.pierce === true, raise: u.raisePct ?? 0,
     tagTh: u.tagTh ?? '', counters: u.counters ?? [], ability: u.ability ?? null,
   });
 }

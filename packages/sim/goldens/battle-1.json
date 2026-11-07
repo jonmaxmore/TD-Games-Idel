@@ -588,153 +588,153 @@
  "trace": [
   [
    100,
-   "09e5cc08"
+   "56a6bf28"
   ],
   [
    200,
-   "2d289d97"
+   "bb0f8dd7"
   ],
   [
    300,
-   "668b7fa7"
+   "7c1899c7"
   ],
   [
    400,
-   "e34b298c"
+   "0d01ed6c"
   ],
   [
    500,
-   "03a7a3d7"
+   "3af63257"
   ],
   [
    600,
-   "88c26065"
+   "b821af05"
   ],
   [
    700,
-   "a3dfd9be"
+   "d2dbe71e"
   ],
   [
    800,
-   "3f94111a"
+   "7ea0fe5a"
   ],
   [
    900,
-   "8e1fd696"
+   "21b44db6"
   ],
   [
    1000,
-   "f2c0ff3f"
+   "914d21bf"
   ],
   [
    1100,
-   "5ffd9166"
+   "4c839566"
   ],
   [
    1200,
-   "c3c52bc3"
+   "78fb3383"
   ],
   [
    1300,
-   "8a5ed334"
+   "fd6ce5f4"
   ],
   [
    1400,
-   "75d08e78"
+   "bd338e98"
   ],
   [
    1500,
-   "5c940c63"
+   "4ec8f083"
   ],
   [
    1600,
-   "0c72d362"
+   "b7ee2122"
   ],
   [
    1700,
-   "829b9590"
+   "02537df0"
   ],
   [
    1800,
-   "23d9815e"
+   "e1ce5b7e"
   ],
   [
    1900,
-   "06a475e1"
+   "d7b2d401"
   ],
   [
    2000,
-   "60bd9a96"
+   "e58ba136"
   ],
   [
    2100,
-   "f70aef55"
+   "5942e8d5"
   ],
   [
    2200,
-   "17089260"
+   "673f7e00"
   ],
   [
    2300,
-   "057c56a6"
+   "5191c606"
   ],
   [
    2400,
-   "98f65371"
+   "48373fd1"
   ],
   [
    2500,
-   "708a4d3f"
+   "36b5495f"
   ],
   [
    2600,
-   "05116c98"
+   "a1994d18"
   ],
   [
    2700,
-   "f4548567"
+   "d08b80a7"
   ],
   [
    2800,
-   "ee0098eb"
+   "27464d2b"
   ],
   [
    2900,
-   "dbb14b9f"
+   "7e000e9f"
   ],
   [
    3000,
-   "48e32ee7"
+   "ca7ba7a7"
   ],
   [
    3100,
-   "94c99245"
+   "7b6d3205"
   ],
   [
    3200,
-   "2f537765"
+   "36895d85"
   ],
   [
    3300,
-   "029bf0c5"
+   "062ec225"
   ],
   [
    3400,
-   "29273378"
+   "ec8c0518"
   ],
   [
    3500,
-   "46b12755"
+   "dbbe8635"
   ],
   [
    3600,
-   "8fd6befb"
+   "7aad621b"
   ]
  ],
  "final": {
   "winner": 1,
   "tick": 3600,
-  "hash": "8fd6befb",
-  "canonical": "3600|1177001244|2,1|jade_bamboo_banner,jade_bamboo_warden,crimson_phoenix_striker,cloud_sword_banner,crimson_phoenix_blade,jade_bamboo_crane,cloud_sword_support/jade_bamboo_banner,jade_bamboo_warden,crimson_phoenix_striker,cloud_sword_stacker,cloud_sword_banner,frost_tide_striker,jade_bamboo_crane|0,0|6,1,4,12,5,1,3/9,1,3,4,6,3,1|2934,0,0;4820,20,0;|0,600,0,-,0;0,600,0,-,0;0,600,0,-,0;|u32,0,crimson_phoenix_striker,18300,312,312,0,12,0,0,0,0,0,0,0,0,0;u43,0,cloud_sword_support,18950,220,220,0,2,0,0,0,0,0,0,0,0,0;u46,0,crimson_phoenix_striker,18300,312,312,0,12,0,0,0,0,0,0,0,0,0;u52,0,jade_bamboo_banner,16830,120,120,0,0,0,0,0,0,0,0,0,0,0;u55,0,cloud_sword_support,19000,220,220,0,2,0,0,0,0,0,0,0,0,0;u56,0,crimson_phoenix_blade,20150,157,192,0,0,0,0,0,0,0,0,0,0,0;u57,0,crimson_phoenix_blade,16500,192,192,0,0,0,0,0,0,0,0,0,0,0;||27,25|1"
+  "hash": "7aad621b",
+  "canonical": "3600|1177001244|2,1|jade_bamboo_banner,jade_bamboo_warden,crimson_phoenix_striker,cloud_sword_banner,crimson_phoenix_blade,jade_bamboo_crane,cloud_sword_support/jade_bamboo_banner,jade_bamboo_warden,crimson_phoenix_striker,cloud_sword_stacker,cloud_sword_banner,frost_tide_striker,jade_bamboo_crane|0,0|6,1,4,12,5,1,3/9,1,3,4,6,3,1|2934,0,0;4820,20,0;|0,600,0,-,0;0,600,0,-,0;0,600,0,-,0;|u32,0,crimson_phoenix_striker,18300,312,312,0,0,0,12,0,0,0,0,0,0,0,0,0;u43,0,cloud_sword_support,18950,220,220,0,0,0,2,0,0,0,0,0,0,0,0,0;u46,0,crimson_phoenix_striker,18300,312,312,0,0,0,12,0,0,0,0,0,0,0,0,0;u52,0,jade_bamboo_banner,16830,120,120,0,0,0,0,0,0,0,0,0,0,0,0,0;u55,0,cloud_sword_support,19000,220,220,0,0,0,2,0,0,0,0,0,0,0,0,0;u56,0,crimson_phoenix_blade,20150,157,192,0,0,0,0,0,0,0,0,0,0,0,0,0;u57,0,crimson_phoenix_blade,16500,192,192,0,0,0,0,0,0,0,0,0,0,0,0,0;||27,25|1"
  }
 }
