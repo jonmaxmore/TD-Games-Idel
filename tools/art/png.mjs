@@ -1,6 +1,6 @@
 // A small PNG and ZIP reader on node:zlib, so the art tools and tests need no image or archive dependency.
 // decodePng handles 8-bit greyscale, RGB, palette, grey+alpha and RGBA without interlace, which covers PixelLab output.
-import { inflateRawSync, inflateSync } from 'node:zlib';
+import { crc32, deflateSync, inflateRawSync, inflateSync } from 'node:zlib';
 
 const CHANNELS = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
 
@@ -39,6 +39,21 @@ export function decodePng(buf) {
     else { rgba[d] = rgba[d + 1] = rgba[d + 2] = px[s]; rgba[d + 3] = type === 4 ? px[s + 1] : 255; }
   }
   return { width, height, rgba };
+}
+
+/** An 8-bit RGBA PNG, rows unfiltered. */
+export function encodePng({ width, height, rgba }) {
+  const chunk = (name, body) => {
+    const b = Buffer.alloc(12 + body.length);
+    b.writeUInt32BE(body.length, 0); b.write(name, 4, 'latin1'); body.copy(b, 8);
+    b.writeUInt32BE(crc32(b.subarray(4, 8 + body.length)), 8 + body.length);
+    return b;
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 6;
+  const raw = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y++) Buffer.from(rgba.buffer, rgba.byteOffset + y * width * 4, width * 4).copy(raw, y * (width * 4 + 1) + 1);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
 
 /** Colours of the opaque pixels as '#RRGGBB', and how many pixels are neither opaque nor fully clear. */
