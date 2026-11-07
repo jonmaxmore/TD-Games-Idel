@@ -381,6 +381,24 @@ describe('castle battle rules', () => {
     expect(msg(aim)).toBe('not enough mana');
   });
 
+  it('a guard walks out to an enemy that comes near its post, never past its leash, and walks back when it is gone', () => {
+    withCard('t_dummy', { dmg: 0, hp: 9999, move: 'guard', range: 800 }, () => {
+      const GUARD = 'jade_bamboo_control';
+      const s = createBattle(1, fixedHand([GUARD]), fixedHand(['t_dummy']));
+      stepBattle(s, [summon(0, GUARD, 4000), summon(1, 't_dummy', 0)]);
+      const [guard, foe] = s.units as [Fighter, Fighter];
+      const post = guard.home;
+      foe.d = post + battle.guardLeash; foe.home = foe.d;
+      run(s, 40);
+      expect(guard.d).toBeGreaterThan(post);
+      expect(guard.d).toBeLessThan(foe.d);
+      expect(s.units.find((u) => u === foe)!.hp).toBeLessThan(9999); // it reached and fights
+      foe.d = foe.home = post + battle.guardLeash + 3000; // out of its leash: back to the post
+      run(s, 80);
+      expect(guard.d).toBe(post);
+    });
+  });
+
   it('a flier walks over ground enemies and only units that hit air can hit it', () => {
     battleUnits.set('test_fly', { ...battleUnits.get(BLADE)!, id: 'test_fly', move: 'fly', hp: 500 });
     try {

@@ -54,7 +54,7 @@ export const battle = {
   sizes: new Map<string, { min: number; max: number; perMatch: number | null; nameTh: string }>(Object.keys(BT.sizes).map((k) => [k, { min: BT.sizes[k].mana[0], max: BT.sizes[k].mana[1], perMatch: BT.sizes[k].perMatch, nameTh: BT.sizes[k].nameTh }])),
   moves: new Map<string, { nameTh: string; doesTh: string }>(Object.keys(BT.moves).map((k) => [k, { nameTh: BT.moves[k].nameTh, doesTh: BT.moves[k].doesTh }])),
   speed: new Map<string, number>(Object.keys(BT.moves).map((k) => [k, Math.round((BT.moves[k].speed * TILE) / TICK_HZ)])),
-  meleeRange: tiles(BT.meleeRange), supportHeal: BT.supportHeal as number, supportGap: tiles(BT.supportGapTiles), critPct: BT.critPct as number,
+  guardLeash: tiles(BT.guardLeashTiles), meleeRange: tiles(BT.meleeRange), supportHeal: BT.supportHeal as number, supportGap: tiles(BT.supportGapTiles), critPct: BT.critPct as number,
   burnDps: BT.dot.burnDps as number, burnTicks: ticks(BT.dot.burnSec), poisonDps: BT.dot.poisonDps as number, poisonTicks: ticks(BT.dot.poisonSec), poisonMax: BT.dot.poisonMaxStacks as number,
   slowPct: BT.status.slowPct as number, groundRadius: tiles(BT.status.groundRadius),
   counterTags: new Map<string, string>(Object.entries(BT.counterTags as Record<string, string>)),

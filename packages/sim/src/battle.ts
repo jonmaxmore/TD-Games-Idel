@@ -269,6 +269,12 @@ function act(s: BattleState, u: Fighter, ev: BattleEvent[], pend: Pending[]): nu
   if (rooted) return null;
   const speed = slowed ? div(B.speed.get(def.move)! * (100 - B.slowPct), 100) : B.speed.get(def.move)!;
   if (speed === 0) return null;
+  if (def.move === 'guard') { // out to the nearest enemy it can hit near its post, else back to the post
+    let goal = fwd(u.side, u.home), near = Infinity;
+    for (const e of s.units)
+      if (e.side !== u.side && canHit(def, e) && Math.abs(e.d - u.home) <= B.guardLeash && Math.abs(e.d - u.d) < near) { near = Math.abs(e.d - u.d); goal = fwd(u.side, e.d); }
+    return goal === me ? null : goal > me ? Math.min(goal, me + speed) : Math.max(goal, me - speed);
+  }
   let want = Math.min(me + speed, BATTLE_LEN);
   if (def.move === 'capture') {
     const f = captureStop(s, u);
