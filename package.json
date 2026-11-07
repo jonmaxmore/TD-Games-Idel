@@ -1,0 +1,31 @@
+{
+  "name": "td-games-idel",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "economy:check": "node tools/economy/check.mjs",
+    "progression:check": "node tools/progression/check.mjs",
+    "sim:golden": "vite-node packages/sim/scripts/write-golden.ts",
+    "art:build": "node tools/blender/build.mjs",
+    "art:brief": "node tools/art/brief.mjs",
+    "art:pixellab": "node tools/art/pixellab.mjs",
+    "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py",
+    "sim:battle": "vite-node packages/sim/scripts/battle-measure.ts",
+    "typecheck": "tsc -p packages/sim && tsc -p packages/client",
+    "dev": "npm run dev -w @five-sects/client",
+    "build": "npm run build -w @five-sects/client",
+    "shots": "node packages/client/scripts/shots.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "playwright": "1.56.1",
+    "typescript": "5.9.2",
+    "vite": "6.3.5",
+    "vite-node": "3.2.4",
+    "vitest": "3.2.4"
+  }
+}

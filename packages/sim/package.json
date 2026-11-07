@@ -1,0 +1,6 @@
+{
+  "name": "@five-sects/sim",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts"
+}

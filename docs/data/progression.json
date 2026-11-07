@@ -1,0 +1,78 @@
+{
+  "_notes": "Account level, PvP rank, sect mastery and achievements (docs/design/progression.md). None of these give combat power: they unlock features, show status and give cosmetics. The XP table is generated from time targets (accountLevel.anchors) by tools/progression/check.mjs, which also simulates a ranked season to calibrate the ladder. Run: node tools/progression/check.mjs",
+  "accountLevel": {
+    "cap": 60,
+    "capRaisePerExpansion": 10,
+    "player": {
+      "_notes": "Reference player used to turn time targets into XP. Minutes are active play; stageXpPerWave x waves per minute gives XP per active minute.",
+      "minutesFirstDay": 30,
+      "minutesPerDay": 40,
+      "wavesPerMinute": 3,
+      "dailyMissionXp": 200
+    },
+    "xpSources": {
+      "stageXpPerWave": 5,
+      "firstClearMultiplier": 2,
+      "dailyMissionXp": 200,
+      "pvpWinXp": 30,
+      "pvpLossXp": 20,
+      "coopXp": 25
+    },
+    "anchors": [
+      { "level": 1, "day": 0 },
+      { "level": 10, "day": 0.75 },
+      { "level": 20, "day": 3 },
+      { "level": 30, "day": 10 },
+      { "level": 40, "day": 30 },
+      { "level": 50, "day": 75 },
+      { "level": 60, "day": 150 }
+    ],
+    "roundTo": 10,
+    "afterCap": { "_notes": "XP past the cap fills prestige stars (ดาวบารมี): shown on the profile, no power, no end.", "xpPerStar": 2000 }
+  },
+  "ranked": {
+    "_notes": "Visible ladder of stars on top of a hidden Glicko-2 MMR used for matchmaking (modes.md). Leagues and star rules follow the ML/RoV pattern players in Thailand already know (benchmarks.md).",
+    "leagues": [
+      { "id": "stone", "nameTh": "ศิลา", "divisions": 3, "stars": 3, "loseStars": false, "streakBonus": true, "floor": true, "mmrBoost": true },
+      { "id": "bronze", "nameTh": "สำริด", "divisions": 3, "stars": 3, "loseStars": false, "streakBonus": true, "floor": true, "mmrBoost": true },
+      { "id": "silver", "nameTh": "เงิน", "divisions": 3, "stars": 4, "loseStars": true, "streakBonus": true, "floor": true, "mmrBoost": true },
+      { "id": "gold", "nameTh": "ทอง", "divisions": 3, "stars": 4, "loseStars": true, "streakBonus": true, "floor": true, "mmrBoost": true },
+      { "id": "jade", "nameTh": "หยก", "divisions": 3, "stars": 4, "loseStars": true, "streakBonus": false, "floor": false, "mmrBoost": false },
+      { "id": "master", "nameTh": "ยอดฝีมือ", "divisions": 3, "stars": 5, "loseStars": true, "streakBonus": false, "floor": false, "mmrBoost": false },
+      { "id": "legend", "nameTh": "เทพยุทธ์", "divisions": 1, "stars": 0, "loseStars": true, "streakBonus": false, "floor": true, "points": true, "mmrBoost": false }
+    ],
+    "streakLength": 3,
+    "mmrBoost": { "_notes": "In leagues with mmrBoost, a win gives one extra star while hidden MMR is this far above the MMR players in that league usually hold, so strong new players climb out of the low leagues fast. From jade up every star is earned.", "gap": 150 },
+    "legendPoints": { "win": 20, "loss": -18 },
+    "starProtection": { "_notes": "ยันต์คุ้มดาว: a loss costs no star. Earned from missions only, never sold.", "perWeek": 2 },
+    "seasonWeeks": 9,
+    "seasonResetDivisions": 4,
+    "glicko": { "start": 1500, "rd": 350, "vol": 0.06, "tau": 0.5 },
+    "targetDistribution": { "stone": 10, "bronze": 15, "silver": 28, "gold": 25, "jade": 13, "master": 7, "legend": 2 }
+  },
+  "sectMastery": {
+    "_notes": "Per-sect mastery (ความชำนาญสำนัก), like hero proficiency in RoV: earned by playing that sect, shown as a badge on the profile and the loading screen. Cosmetic only.",
+    "points": { "pvpWin": 30, "pvpLoss": 15, "stage": 10, "coop": 15 },
+    "levels": [0, 100, 300, 600, 1000, 1600, 2400, 3500, 5000, 7000],
+    "badges": [
+      { "level": 4, "id": "bronze_seal", "nameTh": "ตราสำริด" },
+      { "level": 7, "id": "silver_seal", "nameTh": "ตราเงิน" },
+      { "level": 10, "id": "gold_seal", "nameTh": "ตราทอง" }
+    ],
+    "titles": { "_notes": "Weekly by sect mastery points gained in ranked, per region.", "top": [{ "rank": 100, "nameTh": "ศิษย์เอกแห่งภูมิภาค" }, { "rank": 10, "nameTh": "ผู้สืบทอดสำนัก" }] }
+  },
+  "achievements": {
+    "_notes": "Each achievement has up to three tiers. Points add up to the profile's achievement score (แต้มเกียรติยศ). Rewards are titles, frames and a little jade; nothing changes combat.",
+    "tierPoints": [5, 10, 20],
+    "tierJade": [20, 40, 80],
+    "categories": [
+      { "id": "story", "nameTh": "เส้นทางยุทธภพ", "examples": ["clear chapter N", "3 stars on every stage of chapter N"] },
+      { "id": "combat", "nameTh": "ฝีมือ", "examples": ["defeat N enemies", "win without losing a life N times", "N crits"] },
+      { "id": "sect", "nameTh": "สำนัก", "examples": ["mastery level N with any sect", "win with every sect"] },
+      { "id": "combo", "nameTh": "ยุทธ์ผสาน", "examples": ["form every merged form once", "win with N merged forms on the board"] },
+      { "id": "pvp", "nameTh": "ลานประลอง", "examples": ["reach league X", "win streak of N", "N wins in a season"] },
+      { "id": "social", "nameTh": "สหาย", "examples": ["win N co-op runs", "join a guild", "watch N replays"] },
+      { "id": "hidden", "nameTh": "ลับ", "examples": ["shown only once earned"] }
+    ]
+  }
+}
