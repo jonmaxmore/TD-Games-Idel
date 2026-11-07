@@ -782,7 +782,7 @@ function resolveDeaths(s: DefendState, ev: SimEvent[]): void {
           o.poisonDps = Math.max(o.poisonDps, e.poisonDps);
         }
     if (fireExplodes && (e.burnT > 0 || (s.sect === 'wood' && e.poison > 0))) // roster: the sect DoT
-      for (const o of s.enemies) if (within(e.x, e.y, o.x, o.y, TILE)) o.hp -= FIRE_EXPLODE_DMG;
+      for (const o of s.enemies) if (within(e.x, e.y, o.x, o.y, TILE)) o.hp -= s.sect === 'fire' ? sectRules.fireExplodeDmg : FIRE_EXPLODE_DMG;
   }
   if (won) finish(s, true, ev);
 }

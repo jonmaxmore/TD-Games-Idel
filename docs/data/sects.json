@@ -117,7 +117,7 @@
     ],
     "roleUnlocks": { "1-1": ["striker", "burst"], "1-2": ["control"], "1-4": ["stacker"], "1-6": ["support"] },
     "rules": {
-      "fire": { "ruleTh": "ไฟเผาต่อเนื่อง ยิ่งโดนนานยิ่งแรง", "burnRampPctPerSec": 10, "burnRampMaxPct": 100 },
+      "fire": { "ruleTh": "ไฟเผาต่อเนื่อง ยิ่งโดนนานยิ่งแรง ศัตรูที่ไหม้อยู่ตอนตายระเบิดแรงขึ้น", "burnRampPctPerSec": 10, "burnRampMaxPct": 100, "explodeDmg": 50 },
       "wood": { "ruleTh": "พิษลามไปศัตรูข้างเคียงเมื่อเป้าตาย", "spreadRange": 1.0, "spreadStacks": 1 }
     },
     "units": [
