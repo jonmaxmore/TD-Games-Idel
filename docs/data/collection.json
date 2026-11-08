@@ -1,0 +1,55 @@
+{
+  "_notes": "Card acquisition (docs/design/acquisition.md, owner-approved 2026-11-08). A tier is how hard a card is to get, never its power (stats stay in sects.json). starter: owned by every account; homeStarterRoles: the home sect's cards of these roles are owned too (the sect picked on first run, เลือกสำนักแรก). homeRoleCards maps a sect and a role to its card id, so campaign.json can reward {homeRole}. starterTeam: the roles of the home sect a new account leads with. A card's route is, in order: starter, a campaign.json stage's rewards.firstClear, chapterStars of a chapter that exists, else the egg shop. plannedRoutes: the designed route of cards whose chapter or mode is not built yet (chapters 2-3, achievements, the casual league); until it exists the card is sold in the egg shop at its tier price, and the collection view shows both. eggShop: a card is bought by choice with egg points (castleLevel.levels[].eggPoints, chapterStars and campaign rewards; never sold) once opensAfterStage is won and the castle reaches its tier's eggShopFromCastleLevel; there is no rotation and no hatch timer. Buying an owned card is a training egg: the card gains its tier's dupeXp. duplicates.campaignOwned: a campaign card reward the player already owns pays its tier's egg price in egg points instead. The hand is picked, never drawn (SPEC-deck-budget, battle.json deck): an account picks from the cards it owns, and borrows battle.json deck.loaners when it owns fewer than 6 non-basic cards. rankedPool: ranked ศึกฝีมือ picks from every card here, whatever the account owns (normalized stats). debut: a new card's first weeks (Season 1 on).",
+  "tierRule": {
+    "basic": "move capture",
+    "legendary": "kind dragon",
+    "elite": "size large and not a dragon",
+    "adept": "move fly and size medium, or kind demon/divine and size medium",
+    "common": "everything else"
+  },
+  "tiers": {
+    "basic": { "nameTh": "พื้นฐาน", "eggPoints": null, "eggShopFromCastleLevel": null, "dupeXp": 0 },
+    "common": { "nameTh": "สามัญ", "eggPoints": 10, "eggShopFromCastleLevel": 1, "dupeXp": 120 },
+    "adept": { "nameTh": "ชำนาญ", "eggPoints": 20, "eggShopFromCastleLevel": 5, "dupeXp": 240 },
+    "elite": { "nameTh": "ยอดฝีมือ", "eggPoints": 35, "eggShopFromCastleLevel": 8, "dupeXp": 420 },
+    "legendary": { "nameTh": "ตำนาน", "eggPoints": 60, "eggShopFromCastleLevel": 12, "dupeXp": 720 }
+  },
+  "cardTier": {
+    "crimson_phoenix_banner": "basic", "jade_bamboo_banner": "basic", "cloud_sword_banner": "basic", "frost_tide_banner": "basic", "vajra_stone_banner": "basic",
+    "crimson_phoenix_blade": "common", "crimson_phoenix_striker": "common", "crimson_phoenix_burst": "common", "crimson_phoenix_control": "common", "crimson_phoenix_stacker": "common", "crimson_phoenix_support": "common", "crimson_phoenix_kite": "adept", "crimson_phoenix_beast": "elite",
+    "jade_bamboo_blade": "common", "jade_bamboo_striker": "common", "jade_bamboo_burst": "common", "jade_bamboo_control": "common", "jade_bamboo_stacker": "common", "jade_bamboo_support": "common", "jade_bamboo_crane": "adept", "jade_bamboo_warden": "elite",
+    "cloud_sword_blade": "common", "cloud_sword_striker": "common", "cloud_sword_burst": "common", "cloud_sword_control": "common", "cloud_sword_stacker": "common", "cloud_sword_support": "common", "cloud_sword_rider": "adept", "cloud_sword_elder": "elite",
+    "frost_tide_blade": "common", "frost_tide_striker": "common", "frost_tide_burst": "common", "frost_tide_control": "common", "frost_tide_stacker": "common", "frost_tide_support": "common", "frost_tide_swallow": "adept", "frost_tide_naga": "elite",
+    "vajra_stone_blade": "common", "vajra_stone_striker": "common", "vajra_stone_burst": "common", "vajra_stone_control": "common", "vajra_stone_stacker": "common", "vajra_stone_support": "common", "vajra_stone_hawk": "adept", "vajra_stone_guardian": "elite",
+    "wandering_archer": "common", "ember_imp": "common", "shade_hound": "common",
+    "blood_bat": "adept", "mirage_fox": "adept", "corpse_puppeteer": "adept", "cloud_crane": "adept",
+    "venom_toad": "elite", "earth_wyrm": "elite", "jade_tortoise": "elite", "golden_lion": "elite", "dawn_qilin": "elite",
+    "lava_dragon": "legendary", "storm_dragon": "legendary"
+  },
+  "starter": ["crimson_phoenix_banner", "jade_bamboo_banner", "cloud_sword_banner", "frost_tide_banner", "vajra_stone_banner", "wandering_archer"],
+  "homeStarterRoles": ["blade", "striker", "control"],
+  "starterTeam": { "leader": "striker", "sub": "control" },
+  "homeRoleCards": {
+    "fire": { "banner": "crimson_phoenix_banner", "blade": "crimson_phoenix_blade", "striker": "crimson_phoenix_striker", "control": "crimson_phoenix_control", "burst": "crimson_phoenix_burst", "stacker": "crimson_phoenix_stacker", "support": "crimson_phoenix_support", "flier": "crimson_phoenix_kite", "large": "crimson_phoenix_beast" },
+    "wood": { "banner": "jade_bamboo_banner", "blade": "jade_bamboo_blade", "striker": "jade_bamboo_striker", "control": "jade_bamboo_control", "burst": "jade_bamboo_burst", "stacker": "jade_bamboo_stacker", "support": "jade_bamboo_support", "flier": "jade_bamboo_crane", "large": "jade_bamboo_warden" },
+    "metal": { "banner": "cloud_sword_banner", "blade": "cloud_sword_blade", "striker": "cloud_sword_striker", "control": "cloud_sword_control", "burst": "cloud_sword_burst", "stacker": "cloud_sword_stacker", "support": "cloud_sword_support", "flier": "cloud_sword_rider", "large": "cloud_sword_elder" },
+    "water": { "banner": "frost_tide_banner", "blade": "frost_tide_blade", "striker": "frost_tide_striker", "control": "frost_tide_control", "burst": "frost_tide_burst", "stacker": "frost_tide_stacker", "support": "frost_tide_support", "flier": "frost_tide_swallow", "large": "frost_tide_naga" },
+    "earth": { "banner": "vajra_stone_banner", "blade": "vajra_stone_blade", "striker": "vajra_stone_striker", "control": "vajra_stone_control", "burst": "vajra_stone_burst", "stacker": "vajra_stone_stacker", "support": "vajra_stone_support", "flier": "vajra_stone_hawk", "large": "vajra_stone_guardian" }
+  },
+  "eggShop": { "opensAfterStage": "1-10", "rotation": null, "hatchSec": 0 },
+  "duplicates": { "trainingEgg": "dupeXp", "campaignOwned": "eggPoints", "gacha": "outfitShards" },
+  "chapterStars": {
+    "ch1": [{ "stars": 15, "eggPoints": 10 }, { "stars": 30, "eggPoints": 10 }]
+  },
+  "plannedRoutes": {
+    "_notes": "Designed routes that wait for content (acquisition.md §6). The home sect's cards here are owned already (homeStarterRoles, chapter 1); a wood or water home pays nothing extra until chapters 2-3 exist.",
+    "jade_bamboo_blade": "ศึกปราบ 2-1", "jade_bamboo_control": "ศึกปราบ 2-2", "shade_hound": "ศึกปราบ 2-3", "jade_bamboo_striker": "ศึกปราบ 2-5", "mirage_fox": "ศึกปราบ 2-6",
+    "jade_bamboo_burst": "ศึกปราบ 2-7", "jade_bamboo_stacker": "ศึกปราบ 2-8", "venom_toad": "ศึกปราบ 2-9", "jade_bamboo_warden": "ศึกปราบ 2-10",
+    "frost_tide_blade": "ศึกปราบ 3-1", "frost_tide_striker": "ศึกปราบ 3-2", "blood_bat": "ศึกปราบ 3-3", "frost_tide_control": "ศึกปราบ 3-5", "frost_tide_burst": "ศึกปราบ 3-6",
+    "frost_tide_stacker": "ศึกปราบ 3-7", "jade_tortoise": "ศึกปราบ 3-8", "frost_tide_naga": "ศึกปราบ 3-10",
+    "corpse_puppeteer": "ดาวบท 2 ครบ 30", "storm_dragon": "ดาวบท 3 ครบ 30",
+    "dawn_qilin": "ความสำเร็จ หมอเทวดา", "earth_wyrm": "ความสำเร็จ ทลายป้อม", "golden_lion": "ลีกทั่วไป 15 แมตช์"
+  },
+  "rankedPool": { "rule": "every card in cardTier whose free route has opened for every account (debut cards after debut.weeksToEggShop)" },
+  "debut": { "weeksToEggShop": 8, "freeRoute": "debut event stages, 3 stars on each", "gachaTier": "legendary" }
+}

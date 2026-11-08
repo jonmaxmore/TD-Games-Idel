@@ -1,0 +1,175 @@
+{
+  "_notes": "Account level, PvP rank, sect mastery and achievements (docs/design/progression.md). None of these give combat power: they unlock features, show status and give cosmetics. The XP table is generated from time targets (accountLevel.anchors) by tools/progression/check.mjs, which also simulates a ranked season to calibrate the ladder. Run: node tools/progression/check.mjs. The castle-battle keys after achievements (cardLevel, realms, castleLevel, forge, town, matchRewards, matchmaking; deck-and-realms.md §5) are the one exception: they add power in ศึกทั่วไป and PvE, and packages/sim ignores all of them in a normalized (ranked ศึกฝีมือ) match. check.mjs part C prints their pacing.",
+  "accountLevel": {
+    "cap": 60,
+    "capRaisePerExpansion": 10,
+    "player": {
+      "_notes": "Reference player used to turn time targets into XP. Minutes are active play; stageXpPerWave x waves per minute gives XP per active minute.",
+      "minutesFirstDay": 30,
+      "minutesPerDay": 40,
+      "wavesPerMinute": 3,
+      "dailyMissionXp": 200
+    },
+    "xpSources": {
+      "stageXpPerWave": 5,
+      "firstClearMultiplier": 2,
+      "dailyMissionXp": 200,
+      "pvpWinXp": 30,
+      "pvpLossXp": 20,
+      "coopXp": 25
+    },
+    "anchors": [
+      { "level": 1, "day": 0 },
+      { "level": 10, "day": 0.75 },
+      { "level": 20, "day": 3 },
+      { "level": 30, "day": 10 },
+      { "level": 40, "day": 30 },
+      { "level": 50, "day": 75 },
+      { "level": 60, "day": 150 }
+    ],
+    "roundTo": 10,
+    "afterCap": { "_notes": "XP past the cap fills prestige stars (ดาวบารมี): shown on the profile, no power, no end.", "xpPerStar": 2000 }
+  },
+  "ranked": {
+    "_notes": "Visible ladder of stars on top of a hidden Glicko-2 MMR used for matchmaking (modes.md). Leagues and star rules follow the ML/RoV pattern players in Thailand already know (benchmarks.md).",
+    "leagues": [
+      { "id": "stone", "nameTh": "ศิลา", "divisions": 3, "stars": 3, "loseStars": false, "streakBonus": true, "floor": true, "mmrBoost": true },
+      { "id": "bronze", "nameTh": "สำริด", "divisions": 3, "stars": 3, "loseStars": false, "streakBonus": true, "floor": true, "mmrBoost": true },
+      { "id": "silver", "nameTh": "เงิน", "divisions": 3, "stars": 4, "loseStars": true, "streakBonus": true, "floor": true, "mmrBoost": true },
+      { "id": "gold", "nameTh": "ทอง", "divisions": 3, "stars": 4, "loseStars": true, "streakBonus": true, "floor": true, "mmrBoost": true },
+      { "id": "jade", "nameTh": "หยก", "divisions": 3, "stars": 4, "loseStars": true, "streakBonus": false, "floor": false, "mmrBoost": false },
+      { "id": "master", "nameTh": "ยอดฝีมือ", "divisions": 3, "stars": 5, "loseStars": true, "streakBonus": false, "floor": false, "mmrBoost": false },
+      { "id": "legend", "nameTh": "เทพยุทธ์", "divisions": 1, "stars": 0, "loseStars": true, "streakBonus": false, "floor": true, "points": true, "mmrBoost": false }
+    ],
+    "streakLength": 3,
+    "mmrBoost": { "_notes": "In leagues with mmrBoost, a win gives one extra star while hidden MMR is this far above the MMR players in that league usually hold, so strong new players climb out of the low leagues fast. From jade up every star is earned.", "gap": 150 },
+    "legendPoints": { "win": 20, "loss": -18 },
+    "starProtection": { "_notes": "ยันต์คุ้มดาว: a loss costs no star. Earned from missions only, never sold.", "perWeek": 2 },
+    "seasonWeeks": 9,
+    "seasonResetDivisions": 4,
+    "glicko": { "start": 1500, "rd": 350, "vol": 0.06, "tau": 0.5 },
+    "targetDistribution": { "stone": 10, "bronze": 15, "silver": 28, "gold": 25, "jade": 13, "master": 7, "legend": 2 }
+  },
+  "sectMastery": {
+    "_notes": "Per-sect mastery (ความชำนาญสำนัก), like hero proficiency in RoV: earned by playing that sect, shown as a badge on the profile and the loading screen. Cosmetic only.",
+    "points": { "pvpWin": 30, "pvpLoss": 15, "stage": 10, "coop": 15 },
+    "levels": [0, 100, 300, 600, 1000, 1600, 2400, 3500, 5000, 7000],
+    "badges": [
+      { "level": 4, "id": "bronze_seal", "nameTh": "ตราสำริด" },
+      { "level": 7, "id": "silver_seal", "nameTh": "ตราเงิน" },
+      { "level": 10, "id": "gold_seal", "nameTh": "ตราทอง" }
+    ],
+    "titles": { "_notes": "Weekly by sect mastery points gained in ranked, per region.", "top": [{ "rank": 100, "nameTh": "ศิษย์เอกแห่งภูมิภาค" }, { "rank": 10, "nameTh": "ผู้สืบทอดสำนัก" }] }
+  },
+  "achievements": {
+    "_notes": "Each achievement has up to three tiers. Points add up to the profile's achievement score (แต้มเกียรติยศ). Rewards are titles, frames and a little jade; nothing changes combat.",
+    "tierPoints": [5, 10, 20],
+    "tierJade": [20, 40, 80],
+    "categories": [
+      { "id": "story", "nameTh": "เส้นทางยุทธภพ", "examples": ["clear chapter N", "3 stars on every stage of chapter N"] },
+      { "id": "combat", "nameTh": "ฝีมือ", "examples": ["defeat N enemies", "win without losing a life N times", "N crits"] },
+      { "id": "sect", "nameTh": "สำนัก", "examples": ["mastery level N with any sect", "win with every sect"] },
+      { "id": "combo", "nameTh": "ยุทธ์ผสาน", "examples": ["form every merged form once", "win with N merged forms on the board"] },
+      { "id": "pvp", "nameTh": "ลานประลอง", "examples": ["reach league X", "win streak of N", "N wins in a season"] },
+      { "id": "social", "nameTh": "สหาย", "examples": ["win N co-op runs", "join a guild", "watch N replays"] },
+      { "id": "hidden", "nameTh": "ลับ", "examples": ["shown only once earned"] }
+    ]
+  },
+  "cardLevel": {
+    "_notes": "Character levels for the castle battle (deck-and-realms.md §5, SPEC-castle-battle §12). Every card starts at level 1 and climbs to max with card xp from matches (matchRewards) and training eggs (collection.json tiers dupeXp). xpToNext[i] is the xp from level i+1 to i+2 (length max - 1). statPctPerLevel: each level above 1 adds this % of the card's sects.json hp and dmg, so level L has (100 + (L - 1) x statPctPerLevel)% (integer, rounded down). abilityAt: from this level a card with an ability uses it at abilityLevel (the leader's level) even when it is not the leader. None of this applies in a normalized (ranked ศึกฝีมือ) match.",
+    "max": 30,
+    "statPctPerLevel": 3,
+    "xpToNext": [30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 115, 130, 145, 165, 190, 210, 240, 270, 305, 345, 390, 440, 500, 565, 635, 720, 815, 920],
+    "abilityAt": 30,
+    "abilityLevel": 3
+  },
+  "realms": {
+    "_notes": "Realm bands over the card level (ขั้นพลัง): from/to are the first and last level of the band, nameTh and descTh the badge and its tooltip, color the badge colour. Names are original. Bands cover 1..cardLevel.max with no gap.",
+    "bands": [
+      { "id": "breath", "from": 1, "to": 9, "nameTh": "ลมปราณ", "descTh": "เพิ่งเดินลมปราณได้ ร่างยังเบา พลังมาจากเพลงยุทธ์ล้วน ๆ", "color": "#8FB3C9" },
+      { "id": "forged", "from": 10, "to": 19, "nameTh": "หลอมกาย", "descTh": "ลมปราณหลอมเข้ากระดูกและเส้นเอ็น ทนขึ้นและตีหนักขึ้นชัดเจน", "color": "#C98F5A" },
+      { "id": "golden", "from": 20, "to": 29, "nameTh": "แก่นทอง", "descTh": "ลมปราณควบแน่นเป็นแก่นทองกลางท้อง พลังไหลไม่ขาดสาย", "color": "#E3B04B" },
+      { "id": "spirit", "from": 30, "to": 30, "nameTh": "จิตก่อรูป", "descTh": "จิตก่อรูปเป็นร่างที่สอง ใช้วิชาประจำตัวเต็มขั้นแม้ไม่ได้เป็นแม่ทัพ", "color": "#C77DDB" }
+    ]
+  },
+  "castleLevel": {
+    "_notes": "The castle level comes from the sum of the levels of every card the account owns (collection.json). A new account owns its 9 starter cards, so the sum starts at 9. levels[i] is castle level i+1: cardLevels is the sum it needs, eggPoints what reaching it grants (spent in the collection.json egg shop), unlockTh what it opens (shown as coming soon until that mode exists). Thresholds from docs/design/acquisition.md §11.2; eggPoints are 3x that proposal while the cards of chapters 2-3, achievements and the casual league are sold in the egg shop (collection.json plannedRoutes), which puts every card at about 46 h of play (owner decision 2026-11-08), and come down as those routes ship; the top (1600) is below the reachable 1654 because only the leader's own banner earns xp in most hands. eggPoints is the one knob for the time to own every card (tools/progression/check.mjs part D). No power in ranked.",
+    "levels": [
+      { "cardLevels": 0, "eggPoints": 0 },
+      { "cardLevels": 20, "eggPoints": 30 },
+      { "cardLevels": 35, "eggPoints": 30, "unlockTh": "ศึกป้องกันเมือง" },
+      { "cardLevels": 55, "eggPoints": 30 },
+      { "cardLevels": 85, "eggPoints": 30, "unlockTh": "ลีกทั่วไป" },
+      { "cardLevels": 120, "eggPoints": 30 },
+      { "cardLevels": 170, "eggPoints": 30 },
+      { "cardLevels": 240, "eggPoints": 45, "unlockTh": "ตำแหน่งยิงบนกำแพง" },
+      { "cardLevels": 300, "eggPoints": 45 },
+      { "cardLevels": 370, "eggPoints": 45, "unlockTh": "ปราสาทสูงขึ้นหนึ่งชั้น" },
+      { "cardLevels": 450, "eggPoints": 45 },
+      { "cardLevels": 520, "eggPoints": 45 },
+      { "cardLevels": 620, "eggPoints": 60 },
+      { "cardLevels": 700, "eggPoints": 60 },
+      { "cardLevels": 770, "eggPoints": 60, "unlockTh": "ปราสาทเปลี่ยนสีตามสำนัก" },
+      { "cardLevels": 850, "eggPoints": 75 },
+      { "cardLevels": 950, "eggPoints": 75 },
+      { "cardLevels": 1050, "eggPoints": 75 },
+      { "cardLevels": 1200, "eggPoints": 90 },
+      { "cardLevels": 1600, "eggPoints": 90, "unlockTh": "ปราสาทจิตก่อรูป" }
+    ]
+  },
+  "forge": {
+    "_notes": "Forge (โรงหลอม): every card has the four slots below. Building a slot's item costs coins (from matches) and takes buildSec of real time; there is no way to pay to skip it. A built item adds hpPct / dmgPct (integer %) to that card's hp and dmg whether it is worn or not (wearing is looks only), on top of the level %. Never in a normalized match.",
+    "slots": [
+      { "id": "weapon", "nameTh": "อาวุธ", "itemTh": "อาวุธเหล็กกล้าเจ็ดไฟ", "coins": 120, "buildSec": 60, "hpPct": 0, "dmgPct": 6 },
+      { "id": "shield", "nameTh": "โล่", "itemTh": "โล่ไม้เหล็กลายเมฆ", "coins": 100, "buildSec": 45, "hpPct": 5, "dmgPct": 0 },
+      { "id": "armor", "nameTh": "เกราะ", "itemTh": "เกราะเกล็ดสำริด", "coins": 150, "buildSec": 90, "hpPct": 8, "dmgPct": 0 },
+      { "id": "helm", "nameTh": "หมวก", "itemTh": "หมวกเหล็กยอดพู่", "coins": 80, "buildSec": 30, "hpPct": 3, "dmgPct": 3 }
+    ]
+  },
+  "town": {
+    "_notes": "Town upgrades bought with gold (from matches). cannon.tiers[i] is tier i+1: dmg and pushTiles added to battle.json castle.cannon; walls.tiers[i]: castleHp added to battle.json castle.hp. Tier 0 is the base game. Values are totals at that tier, not steps; gold is the price of that tier. Never in a normalized match.",
+    "cannon": {
+      "nameTh": "ปืนใหญ่ปราสาท",
+      "tiers": [
+        { "gold": 200, "dmg": 10, "pushTiles": 0.25 },
+        { "gold": 500, "dmg": 20, "pushTiles": 0.5 },
+        { "gold": 1000, "dmg": 35, "pushTiles": 0.75 }
+      ]
+    },
+    "walls": {
+      "nameTh": "กำแพงปราสาท",
+      "tiers": [
+        { "gold": 200, "castleHp": 300 },
+        { "gold": 500, "castleHp": 700 },
+        { "gold": 1000, "castleHp": 1200 }
+      ]
+    }
+  },
+  "matchRewards": {
+    "_notes": "What one castle-battle match pays, by result for the player (battle.json results): win.<type> for a win of that type, draw, loss. xp goes to every card in the player's hand that match; coins buy forge items, gold town upgrades. The same in normalized (ศึกฝีมือ) matches: rewards grow the account, they never change a ranked match.",
+    "win": {
+      "total": { "xp": 60, "coins": 60, "gold": 30 },
+      "castle": { "xp": 50, "coins": 50, "gold": 25 },
+      "hp": { "xp": 40, "coins": 40, "gold": 20 },
+      "tiebreak": { "xp": 35, "coins": 35, "gold": 18 }
+    },
+    "draw": { "xp": 30, "coins": 25, "gold": 12 },
+    "loss": { "xp": 20, "coins": 20, "gold": 10 }
+  },
+  "unlocks": {
+    "_notes": "Lobby features opened by progress (docs/design/ui-flow.md §4, re-keyed to the 10 stages of chapter 1), read by packages/client/src/unlocks.ts. A feature opens when every condition it names holds: stage = that ศึกปราบ stage won, castleLevel = castle level reached (from the owned card-level sum). It also stays open on a save that already used it (a levelled card, a forge item, a town tier, an egg bought, a ranked match kept), so older saves lose nothing. Locked features are hidden, except the first locked one in this order, shown as a locked button with its condition. The card log (บันทึกการ์ด) is always open. eggShop opens with collection.json eggShop.opensAfterStage and ranked after chapter 1 (owner decision 2026-11-08), both 1-10.",
+    "features": [
+      { "id": "levelUp", "nameTh": "ค่ายฝึก", "stage": "1-2" },
+      { "id": "casual", "nameTh": "ศึกทั่วไป", "stage": "1-5" },
+      { "id": "forge", "nameTh": "โรงหลอม", "stage": "1-6" },
+      { "id": "town", "nameTh": "เมือง", "stage": "1-8" },
+      { "id": "eggShop", "nameTh": "ร้านไข่", "stage": "1-10" },
+      { "id": "ranked", "nameTh": "ศึกฝีมือ", "stage": "1-10" }
+    ]
+  },
+  "matchmaking": {
+    "_notes": "The local part of docs/design/matchmaking.md §5 (the Glicko queues wait for M1). powerScore P = round(base x A x K): A = the weighted mean over the hand of (hp%/100) x (dmg%/100) (cardLevel and forge, packages/sim progression.ts statPct), weight fixedWeight for the leader's basic, the leader and the sub and min(1, drawSlots / picks) for each picked card (deck.pick = drawSlots, so every hand card weighs the same); K = 1 + castleHpWeightPct/100 x addedCastleHp / battle.json castle.hp + cannonDmgWeightPct/100 x addedCannonDmg / battle.json castle.cannon.dmg (the doc's weights 0.5 and 0.1 as integer %). casual.powerRatioMaxPct: the casual AI's card level is the one whose power is closest to the player's, and max(P)/min(P) must stay at or under this % (the doc's hard cap 1.30); powerRatioStartPct is the doc's opening window for the M1 queue.",
+    "powerScore": { "base": 1000, "fixedWeight": 1, "drawSlots": 4, "castleHpWeightPct": 50, "cannonDmgWeightPct": 10 },
+    "casual": { "powerRatioStartPct": 110, "powerRatioMaxPct": 130 }
+  }
+}

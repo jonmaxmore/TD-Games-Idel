@@ -1,0 +1,116 @@
+{
+  "_notes": "PvE power, items and gacha at launch (docs/specs/SPEC-core.md §5, §7; numbers from docs/design/pve-economy.md). Every item lists the systems that give it (sources) and use it (sinks); tools/economy/check.mjs fails if one side is empty or names an unknown system. Every power layer here is PvE only: ranked, Shadow Siege and guild war use normalized stats (ADR 0005).",
+  "systems": {
+    "kill": { "nameTh": "ฆ่าศัตรูในด่าน", "world": "in-run" },
+    "interest": { "nameTh": "ดอกเบี้ยตำลึง", "world": "in-run" },
+    "in_run_hire": { "nameTh": "จ้างและอัปศิษย์ในด่าน", "world": "in-run" },
+    "idle": { "nameTh": "หีบ idle", "world": "pve" },
+    "stage_clear": { "nameTh": "ผ่านด่าน", "world": "pve" },
+    "stage_first_clear": { "nameTh": "ผ่านด่านครั้งแรก", "world": "pve" },
+    "chapter_reward": { "nameTh": "รางวัลจบบท", "world": "pve" },
+    "dungeon": { "nameTh": "ดันเจี้ยนรายวัน", "world": "pve", "unlockStage": "1-6" },
+    "daily_boss": { "nameTh": "บอสรายวัน", "world": "pve", "unlockStage": "1-8" },
+    "chapter_boss": { "nameTh": "บอสจบบท", "world": "pve" },
+    "missions_daily": { "nameTh": "ภารกิจรายวัน", "world": "meta" },
+    "missions_weekly": { "nameTh": "ภารกิจรายสัปดาห์", "world": "meta" },
+    "achievements": { "nameTh": "ความสำเร็จ", "world": "meta" },
+    "events": { "nameTh": "อีเวนต์", "world": "meta" },
+    "event_shop": { "nameTh": "ร้านอีเวนต์", "world": "meta" },
+    "pass": { "nameTh": "ตั๋วยุทธภพ", "world": "meta" },
+    "subscription": { "nameTh": "บัตรรายเดือน", "world": "meta" },
+    "packs": { "nameTh": "แพ็กในร้าน", "world": "meta" },
+    "jade_shop": { "nameTh": "เติมหยก", "world": "meta" },
+    "gacha_hero": { "nameTh": "ตู้วีรชน", "world": "pve" },
+    "gacha_gear": { "nameTh": "ตู้อุปกรณ์", "world": "pve" },
+    "hero_dupe": { "nameTh": "แยกวีรชนซ้ำที่ดาวเต็ม", "world": "pve" },
+    "hero_emblem_shop": { "nameTh": "ร้านตราวีรชน", "world": "pve" },
+    "level_up": { "nameTh": "อัปเลเวล", "world": "pve" },
+    "level_gate": { "nameTh": "ข้ามเคราะห์ (ประตูเลเวลทุก 20)", "world": "pve" },
+    "tribulation_help": { "nameTh": "ช่วยเพื่อนข้ามเคราะห์", "world": "pve" },
+    "hero_star": { "nameTh": "ดาววีรชน", "world": "pve" },
+    "disciple_star": { "nameTh": "ดาวศิษย์ฟรี", "world": "pve" },
+    "enhance": { "nameTh": "ตีบวกช่องอุปกรณ์", "world": "pve", "unlockStage": "1-6" },
+    "enhance_protect": { "nameTh": "กันระดับตกตอนตีบวก +16..+20", "world": "pve" },
+    "skill_level": { "nameTh": "อัประดับวิชา", "world": "pve", "unlockStage": "1-8" },
+    "dungeon_refill": { "nameTh": "เติมรอบดันเจี้ยน", "world": "pve" },
+    "guild_create": { "nameTh": "สร้างกิลด์", "world": "meta" },
+    "guild_checkin": { "nameTh": "เช็กอินกิลด์", "world": "meta" },
+    "guild_donate": { "nameTh": "บริจาคกิลด์", "world": "meta" },
+    "guild_boss": { "nameTh": "บอสกิลด์", "world": "pve" },
+    "guild_tech": { "nameTh": "วิชากิลด์ (บัฟ PvE)", "world": "pve" },
+    "guild_shop": { "nameTh": "ร้านกิลด์", "world": "meta" },
+    "overflow": { "nameTh": "แปลงของเกินเพดาน", "world": "meta" },
+    "sect_change": { "nameTh": "ย้ายสำนัก", "world": "meta" },
+    "pvp_ranked": { "nameTh": "ranked", "world": "pvp" },
+    "shadow_siege": { "nameTh": "ศึกเงา", "world": "pvp" },
+    "tournament": { "nameTh": "ทัวร์นาเมนต์", "world": "pvp" },
+    "pvp_shop": { "nameTh": "ร้าน PvP (ของตกแต่งเท่านั้น)", "world": "pvp", "cosmeticOnly": true }
+  },
+  "items": [
+    { "id": "silver", "nameTh": "ตำลึงเงิน", "purchasable": false, "sources": ["kill", "interest"], "sinks": ["in_run_hire"] },
+    { "id": "qi", "nameTh": "ปราณ", "purchasable": "indirect", "sources": ["idle", "stage_clear", "dungeon", "subscription", "packs"], "sinks": ["level_up", "guild_donate"] },
+    { "id": "jade", "nameTh": "หยก", "purchasable": true, "ledgers": ["jade_paid", "jade_free"], "f2pWeekly": 1500, "sources": ["missions_daily", "missions_weekly", "events", "stage_first_clear", "achievements", "pvp_ranked", "jade_shop", "subscription"], "sinks": ["gacha_hero", "gacha_gear", "packs", "dungeon_refill", "guild_create", "guild_donate"] },
+    { "id": "fortune_stick", "nameTh": "ป้ายเซียมซี", "purchasable": "indirect", "sources": ["pass", "missions_weekly", "events", "packs", "chapter_reward", "hero_emblem_shop", "guild_shop"], "sinks": ["gacha_hero"] },
+    { "id": "forge_ticket", "nameTh": "ป้ายศาสตรา", "purchasable": "indirect", "sources": ["dungeon", "chapter_boss", "packs"], "sinks": ["gacha_gear"] },
+    { "id": "forge_stone", "nameTh": "ศิลาหลอม", "purchasable": true, "sources": ["idle", "dungeon", "pass", "packs", "gacha_hero"], "sinks": ["enhance"] },
+    { "id": "ward_charm", "nameTh": "ยันต์คุ้มกัน", "purchasable": true, "sources": ["events", "pass", "packs"], "sinks": ["enhance_protect"] },
+    { "id": "break_stone", "nameTh": "ศิลาทะลวงขั้น", "purchasable": true, "sources": ["daily_boss", "chapter_boss", "idle", "tribulation_help"], "sinks": ["level_gate"] },
+    { "id": "skill_scroll", "nameTh": "คัมภีร์วิชา", "purchasable": true, "sources": ["dungeon", "idle", "gacha_hero"], "sinks": ["skill_level"] },
+    { "id": "disciple_shard", "nameTh": "เศษศิษย์", "purchasable": false, "sources": ["dungeon", "idle", "gacha_hero"], "sinks": ["disciple_star"] },
+    { "id": "hero_emblem", "nameTh": "ตราวีรชน", "purchasable": false, "sources": ["gacha_hero", "hero_dupe"], "sinks": ["hero_emblem_shop"] },
+    { "id": "guild_merit", "nameTh": "แต้มกิลด์", "purchasable": "indirect", "sources": ["guild_checkin", "guild_donate", "guild_boss", "overflow"], "sinks": ["guild_tech", "guild_shop"] },
+    { "id": "event_token", "nameTh": "เหรียญเทศกาล", "purchasable": "indirect", "expiresWithEvent": true, "sources": ["events"], "sinks": ["event_shop"] },
+    { "id": "sect_token", "nameTh": "ป้ายย้ายสังกัด", "purchasable": true, "priceTHB": 199, "sources": ["packs", "events"], "sinks": ["sect_change"] },
+    { "id": "war_seal", "nameTh": "ตราศึก", "purchasable": false, "sources": ["pvp_ranked", "shadow_siege", "tournament"], "sinks": ["pvp_shop"] }
+  ],
+  "deferredItems": {
+    "_notes": "Designed in pve-economy.md, not in the game until Season 1 (SPEC-core §5).",
+    "season1": ["relic_ticket", "relic_essence", "outfit_ticket", "skin_shard", "forge_core", "reroll_stone", "hero_shard_any", "merit"]
+  },
+  "overflow": {
+    "_notes": "What happens to materials past their cap: nothing collected is ever worthless.",
+    "qi": { "to": "guild_merit", "per": 100000, "gives": 20, "perDay": 3 },
+    "break_stone": { "to": "guild_merit", "per": 10, "gives": 1 },
+    "skill_scroll": { "to": "guild_merit", "per": 10, "gives": 1 },
+    "disciple_shard": { "to": "qi", "per": 1, "gives": 500 }
+  },
+  "power": {
+    "_notes": "PvE power multipliers (pve-economy §3.2). Launch layers only; relics, realm prestige, resonance and wardrobe come in Season 1.",
+    "level": { "max": 120, "perLevel": 0.025, "qiBase": 1000, "qiGrowth": 1.04 },
+    "levelGates": {
+      "_notes": "Every 20 levels a tribulation stage (ด่านข้ามเคราะห์) that guildmates can help defend; clearing it consumes break stones. Realm names are original.",
+      "at": [20, 40, 60, 80, 100, 120],
+      "breakStones": [10, 20, 40, 80, 160, 320],
+      "realmTh": ["ลมปราณแรกเริ่ม", "กระดูกเหล็กเอ็นทอง", "ชีพจรทะลวงแปดทิศ", "จิตนิ่งดั่งผืนน้ำ", "ปราณคืนสู่ต้นกำเนิด", "กายาวัชระไร้เทียมทาน"]
+    },
+    "rarity": { "common": 1.0, "free_disciple": 1.0, "epic": 1.35, "legendary": 1.6 },
+    "heroStars": { "max": 10, "perStar": 0.10, "copiesPerStar": [1, 1, 1, 1, 1, 2, 2, 2, 2, 2] },
+    "discipleStars": { "max": 5, "perStar": 0.05, "shardsPerStar": 100 },
+    "gear": { "slotsPerPosition": 3, "positions": 6, "baseByRarity": { "common": 0.05, "rare": 0.10, "epic": 0.16, "legendary": 0.25 }, "perEnhanceLevel": 0.1, "maxSubstatMult": 1.30 },
+    "skill": { "max": 10, "perLevel": 0.06, "scrollsPerLevel": 5 },
+    "guildTech": { "max": 40, "perLevel": 0.005 }
+  },
+  "enhance": {
+    "_notes": "Stored on the gear slot, so it survives changing gear or heroes. Cost per attempt = stonesPerTargetLevel x target level. Pity: after ceil(2/p) misses at a level the next attempt succeeds. Below +16 a miss costs only stones; from +16 a miss drops one level unless a ward charm is used (the charm breaks). Gear never breaks.",
+    "stonesPerTargetLevel": 10,
+    "levels": [
+      { "to": 1, "p": 1.0 }, { "to": 2, "p": 1.0 }, { "to": 3, "p": 1.0 }, { "to": 4, "p": 1.0 }, { "to": 5, "p": 1.0 },
+      { "to": 6, "p": 0.9 }, { "to": 7, "p": 0.8 }, { "to": 8, "p": 0.7 }, { "to": 9, "p": 0.6 }, { "to": 10, "p": 0.5 },
+      { "to": 11, "p": 0.45 }, { "to": 12, "p": 0.4 }, { "to": 13, "p": 0.35 }, { "to": 14, "p": 0.3 }, { "to": 15, "p": 0.25 },
+      { "to": 16, "p": 0.2, "dropOnFail": true }, { "to": 17, "p": 0.15, "dropOnFail": true }, { "to": 18, "p": 0.1, "dropOnFail": true },
+      { "to": 19, "p": 0.08, "dropOnFail": true }, { "to": 20, "p": 0.05, "dropOnFail": true }
+    ]
+  },
+  "gacha": {
+    "_notes": "Rates in percent. Pity and spark counters carry over between banners of the same group (SPEC-core §7). Losing the 50/50 gives no guarantee; spark is the guarantee.",
+    "jadePerTHB": 9.75,
+    "banners": [
+      { "id": "hero_weekly", "nameTh": "วีรชนประจำสัปดาห์", "group": "hero_limited", "currency": ["jade", "fortune_stick"], "costSingle": 150, "costTen": 1350, "rates": { "legendary": 1.5, "epic": 8.5, "rare": 30, "common": 60 }, "featuredShare": 0.5, "pity": 60, "spark": 120, "tenPullGuarantee": "rare" },
+      { "id": "hero_standard", "nameTh": "วีรชนถาวร", "group": "hero_standard", "currency": ["jade", "fortune_stick"], "costSingle": 150, "costTen": 1350, "rates": { "legendary": 1.5, "epic": 8.5, "rare": 30, "common": 60 }, "featuredShare": 0, "pity": 60, "spark": 120, "tenPullGuarantee": "rare" },
+      { "id": "gear", "nameTh": "ศาลาศาสตรา", "group": "gear", "currency": ["jade", "forge_ticket"], "costSingle": 100, "costTen": 900, "rates": { "legendary": 3, "epic": 17, "rare": 40, "common": 40 }, "featuredShare": 0, "pity": 40, "spark": 80, "tenPullGuarantee": "rare" },
+      { "id": "starter", "nameTh": "ผู้เริ่มต้น", "group": "starter", "currency": ["jade"], "costSingle": 75, "costTen": 675, "maxPulls": 20, "rates": { "legendary": 1.5, "epic": 8.5, "rare": 30, "common": 60 }, "featuredShare": 0, "pity": 20, "spark": 0, "tenPullGuarantee": "rare" }
+    ],
+    "heroDupes": "star-up the hero; past 10 stars each copy becomes 50 hero_emblem",
+    "heroToStandard": "after 2 reruns or 26 weeks, whichever is first"
+  }
+}

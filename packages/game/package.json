@@ -1,0 +1,16 @@
+{
+  "name": "@five-sects/game",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@fastify/websocket": "11.3.4",
+    "@five-sects/protocol": "*",
+    "@five-sects/sim": "*",
+    "fastify": "5.12.7",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.2"
+  }
+}

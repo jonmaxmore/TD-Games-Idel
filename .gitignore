@@ -1,0 +1,8 @@
+node_modules/
+dist/
+graphify-out/
+*.log
+art/promo/
+__pycache__/
+shots/
+.claude/worktrees/
