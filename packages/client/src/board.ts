@@ -649,17 +649,21 @@ export class Board {
 
   // A card's figure with its feet at (x, y) (a flier's height already taken off y) at its size: the live unit, the death ghost
   // and the aim preview all draw through this so they match. The PixelLab sprite when there is one, else the procedural
-  // figure. Returns where the HP bar goes and how wide it is.
+  // figure. Returns where the HP bar goes and how wide it is, in one object it reuses (read it before the next call).
+  private readonly fig = { top: 0, w: 0 };
   private figureAt(card: string, side: Side, x: number, y: number, b: number, over: Over): { top: number; w: number } {
+    const r = this.fig;
     const size = defOf(card).size, sp = boardSprite(card, side === 0 ? 'east' : 'west');
     if (sp) {
-      const k = SPRITE_SCALE[size]!;
+      const k = FIG_SCALE[size]!;
       this.blit(sp.f, x, y - b, sp.flip, k, over === 'white' ? ['#FFFFFF', 1] : over === 'stun' ? ['#5A5266', 0.6] : over ? [over, 0.5] : undefined, SIDE[side]);
-      return { top: y - Math.ceil(((sp.f.foot - sp.f.top + 1) * k) / this.K) - 4, w: Math.max(10, Math.round(((sp.f.right - sp.f.left + 1) * k) / this.K * 0.6)) };
+      r.top = y - Math.ceil(((sp.f.foot - sp.f.top + 1) * k) / this.K) - 4; r.w = Math.max(10, Math.round(((sp.f.right - sp.f.left + 1) * k) / this.K * 0.6));
+      return r;
     }
     const big = FIG_SCALE[size]!;
     this.g.drawImage(figure(card, side, side === 1, b, over), x - FIG_X * big, y - FIG_Y * big, FIG_W * big, FIG_H * big);
-    return { top: y - (size === 'small' ? 25 : 27) * big, w: 12 * big };
+    r.top = y - (size === 'small' ? 25 : 27) * big; r.w = 12 * big;
+    return r;
   }
 
   // A sprite in buffer pixels times k (its card's size), its lowest opaque row on the ground point (x, y) in board units.
@@ -677,12 +681,12 @@ export class Board {
 }
 
 // ---- figures: drawn once per card, side, facing, bob and overlay into a small canvas, then blitted ----
-const FIG_W = 32, FIG_H = 36, FIG_X = 16, FIG_Y = 32; // canvas size and the feet point inside it
+export const FIG_W = 40, FIG_H = 38, FIG_X = 20, FIG_Y = 34; // canvas size and the feet point inside it (centred: a flip keeps the feet)
 const figs = new Map<string, HTMLCanvasElement>();
-// How big each size stands on the board: the procedural figure is drawn at FIG_SCALE, a PixelLab sprite (96 px, one per card
-// whatever its size) at SPRITE_SCALE, so a dragon never stands as tall as an archer.
+// How big each size stands on the board, for the procedural figure and a PixelLab sprite alike: whole multiples only, so
+// every art pixel stays a square block (no uneven columns), and a large card stands twice as tall. A small card reads
+// smaller from its own drawing (the procedural figure is drawn 2 px shorter; a sprite's art must be too).
 const FIG_SCALE: Record<string, number> = { small: 1, medium: 1, large: 2 };
-const SPRITE_SCALE: Record<string, number> = { small: 0.75, medium: 1, large: 1.75 };
 // How high a flier hovers over its shadow, bobbing (board units); 0 on the ground.
 const flyHeight = (d: BattleUnitDef, now: number, id: number) => (d.move === 'fly' ? 8 + Math.round(Math.sin(now / 200 + id) * 2) : 0);
 type Over = 'white' | 'stun' | string | null; // a tint colour, or white (hit flash), or stun (greyed)
@@ -721,7 +725,7 @@ export function figure(card: string, side: Side, flip: boolean, b: number, over:
 // The figure facing right, feet at (FIG_X, FIG_Y): a robe in its sect colour with a sash in the side colour, its sect's
 // headgear (looks.ts) and the weapon of its slot; a flier sits on its sect's mount. A large disciple (the elder) has a
 // white beard and a long coat; the board draws it twice the size.
-function drawFigure(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b: number) {
+export function drawFigure(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b: number) {
   const look = lookOf(d);
   if (look.body !== 'human' && look.body !== 'archer' && look.body !== 'ghoul') return drawBeast(g, d, side, b);
   const P = palette.get(d.sect) ?? palette.get('yinyang')!, M = palette.get('metal')!, E = palette.get('earth')!, O = '#1A1418', SKIN = '#E9C9A4';
