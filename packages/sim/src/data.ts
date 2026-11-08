@@ -36,7 +36,7 @@ export interface BattleUnitDef {
   // On-hit kit (ticks or milli-tiles, 0 = none): splash hits every enemy it can hit this close to the target too.
   splash: number; slow: number; root: number; stun: number; push: number; ground: number; armor: number; pierce: boolean;
   raise: number; // a small enemy this card's hit kills rises on its side with this % of its HP (0 = none)
-  tagTh: string; counters: string[];
+  tagTh: string; descTh: string; counters: string[]; // tagTh: one line for the card; descTh: what it does, in full
   body: string; // how the client draws it: human (default), archer, ghoul, imp, beast, wing, serpent, mass, shell, dragon
   ability: { kind: 'aura' | 'ward' | 'hp' | 'refund'; lv: [number, number, number] } | null; // lv: value as a normal card, sub-leader, leader
 }
@@ -88,6 +88,6 @@ for (const u of S.roster.units) {
     hitsAir: u.target.includes('air'), hitsGround: u.target.includes('ground'), dot: u.dot ?? null,
     splash: tiles(u.splash ?? 0), slow: ticks(u.slowSec ?? 0), root: ticks(u.rootSec ?? 0), stun: ticks(u.stunSec ?? 0),
     push: tiles(u.pushTiles ?? 0), ground: ticks(u.groundSec ?? 0), armor: u.armor ?? 0, pierce: u.pierce === true, raise: u.raisePct ?? 0,
-    tagTh: u.tagTh ?? '', counters: u.counters ?? [], ability: u.ability ?? null, body: u.body ?? 'human',
+    tagTh: u.tagTh ?? '', descTh: u.descTh ?? '', counters: u.counters ?? [], ability: u.ability ?? null, body: u.body ?? 'human',
   });
 }

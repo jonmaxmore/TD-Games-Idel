@@ -133,7 +133,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
     back.setAttribute('aria-modal', 'true');
     back.setAttribute('aria-label', 'จัดทัพ');
     const use = button('ใช้ทัพนี้', () => { team = draft; close(); client?.send({ t: 'team', team }); show(); }, 'primary', 'lg', 'use-btn');
-    const pk = deckPicker({ rules: RANKED_RULES, team: draft, level: () => null, onChange: (t) => { draft = { ...t, picks: [...t.picks] }; check(); } });
+    const pk = deckPicker({ rules: RANKED_RULES, team: draft, progress: null, onChange: (t) => { draft = { ...t, picks: [...t.picks] }; check(); } });
     const check = () => { const p = pk.problem(); setDisabled(use, p); why.textContent = p ? `ยังใช้ไม่ได้: ${p}` : ''; };
     const close = () => { pk.dispose(); removeEventListener('keydown', onEsc, true); back.remove(); closeSheet = null; };
     closeSheet = close;

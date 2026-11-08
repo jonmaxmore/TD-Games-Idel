@@ -193,7 +193,7 @@ function teamScreen(stage?: Stage): () => void {
     ? `ศึกฝีมือ: เลือกจากการ์ดทุกใบในเกม งบแต้มทัพ ${rules.budget} เท่ากันทุกคน และทุกใบใช้ค่าพื้นฐานเท่ากัน เลเวลไม่มีผล`
     : `${stage ? `ด่านนี้งบแต้มทัพ ${rules.budget}${rules.budget !== battle.deck.budget ? ` (ปกติ ${battle.deck.budget})` : ''}` : `ศึกทั่วไป: งบแต้มทัพ ${rules.budget}`} · ใช้การ์ดที่มี เลเวลการ์ดมีผล${lent > 0 ? ` · การ์ดยังน้อย ยืมศิษย์กระบี่ได้ ${lent} ใบ (ป้าย "ยืม")` : ''}`;
   const picker = deckPicker({
-    rules, team: teamOf(profile), level: (c) => (rules.ranked ? null : profile.cards[c]!.level),
+    rules, team: teamOf(profile), progress: rules.ranked ? null : progressOf(profile, Date.now()),
     onChange: (t) => { setTeam(profile, t); save(profile); refresh(); },
   });
   const seed = (Date.now() % 100000) + 1;

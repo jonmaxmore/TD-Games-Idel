@@ -13,6 +13,7 @@ import { teamName, type Team } from './decks';
 import type { Settings } from './profile';
 import { quitRule, type QuitKind } from './quit';
 import { cardArt } from './sprites';
+import { cardInfo } from './cardInfo';
 import { applyVolume, play } from './sound';
 import { button, confirmBox, setDisabled } from './ui';
 import { nowrapWords } from './words';
@@ -56,19 +57,22 @@ const capOf = (card: string) => battleUnits.get(card)!.perMatch;
 const CLASS_TH: Record<string, string> = { ...(ui.lossTip.classTh as Record<string, string>), structure: 'ป้อมและปราสาท' };
 const TIP_MS = 250; // a hand card's tooltip shows after the pointer rests this long
 
-// A card's tooltip (the hand in a match, the team screen): stats, what it beats (▲, orange on the field) and what beats it
-// (▼, purple), the uses line, then any lines the caller adds.
-export function cardTip(card: string, uses: string, extra: HTMLElement[] = []): HTMLElement[] {
-  const u = battleUnits.get(card)!, m = battle.moves.get(u.move)!;
+// A card's tooltip (the hand in a match, the team screen, ค่ายฝึก, บันทึกการ์ด, ร้านไข่): its numbers on the team it would play
+// in (cardInfo: what the sim summons), what it beats (▲, orange on the field) and what beats it (▼), its ability at that
+// level, the full description, the uses line, then any lines the caller adds.
+export function cardTip(card: string, setup: BattleSetup, p: Progress | null, uses: string, extra: HTMLElement[] = []): HTMLElement[] {
+  const u = battleUnits.get(card)!, info = cardInfo(card, setup, p);
   const beats = u.counters.map((c) => CLASS_TH[c] ?? c), weak = classesOf(u).map((c) => battle.counterTags.get(c)).filter(Boolean);
-  const line = (cls: string, mark: string, text: string) => { const p = el('p', cls); p.append(el('b', '', mark), document.createTextNode(` ${text}`)); return p; };
+  const line = (cls: string, mark: string, text: string) => { const q = el('p', cls); q.append(el('b', '', mark), document.createTextNode(` ${text}`)); return q; };
   return [
     nowrapWords(el('b', 'tip-name'), u.nameTh),
-    el('p', 'tip-stats', `HP ${u.hp} · ตี ${u.dmg} · ${m.roleTh} · ${m.nameTh} · ${battle.sizes.get(u.size)?.nameTh ?? u.size}${u.hitsAir ? ' · ตีอากาศได้' : ''}`),
+    el('p', 'tip-stats', info.stats),
+    el('p', 'tip-reach', info.reach),
     ...(beats.length > 0 ? [line('tip-strong', '▲', `ชนะทาง: ${beats.join(' · ')}`)] : []),
     ...(weak.length > 0 ? [line('tip-weak', '▼', `แพ้ทาง: ตัวที่${weak.join(' · ')}`)] : []),
-    nowrapWords(el('p', 'tip-tag'), u.tagTh),
-    el('p', 'tip-uses', uses),
+    ...(info.ability ? [nowrapWords(el('p', 'tip-ab'), info.ability)] : []),
+    nowrapWords(el('p', 'tip-tag'), info.desc),
+    ...(uses ? [el('p', 'tip-uses', uses)] : []),
     ...extra,
   ];
 }
@@ -176,7 +180,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     clearTimeout(tipTimer);
     tipTimer = window.setTimeout(() => {
       const c = cards[slot]!, cap = capOf(c.card);
-      tip.replaceChildren(...cardTip(c.card, cap == null ? 'ลงได้ไม่จำกัด' : `ลงได้อีก ${cap - s.uses[me][slot]!} ครั้ง`));
+      tip.replaceChildren(...cardTip(c.card, s.setups[me], s.progress[me], cap == null ? 'ลงได้ไม่จำกัด' : `ลงได้อีก ${cap - s.uses[me][slot]!} ครั้ง`));
       const r = c.b.getBoundingClientRect(), p = toStage(r.left + r.width / 2, r.top);
       tip.style.left = `${Math.max(150, Math.min(root.offsetWidth - 150, p.x))}px`;
       tip.style.top = `${p.y - 10}px`;

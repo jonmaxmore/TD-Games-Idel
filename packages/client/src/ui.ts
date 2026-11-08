@@ -50,6 +50,31 @@ export function confirmBox(host: HTMLElement, c: Confirm, onYes: () => void, onN
   return close;
 }
 
+// A .card-tip inside root shown over node (under it near the top) once the pointer rests there or the node has focus;
+// build makes its lines each time. Positions are in root's own pixels (the stage is scaled by main.ts fit()).
+const TIP_MS = 250;
+const tipTimers = new WeakMap<HTMLElement, number>();
+export function hideTip(tip: HTMLElement): void { clearTimeout(tipTimers.get(tip)); tip.classList.remove('on'); }
+export function hoverTip(root: HTMLElement, tip: HTMLElement, node: HTMLElement, build: () => HTMLElement[]): void {
+  const show = (delay: number) => {
+    clearTimeout(tipTimers.get(tip));
+    tipTimers.set(tip, window.setTimeout(() => {
+      tip.replaceChildren(...build());
+      const box = root.getBoundingClientRect(), k = box.width / root.offsetWidth, n = node.getBoundingClientRect();
+      const x = (n.left + n.width / 2 - box.left) / k, above = (n.top - box.top) / k, below = (n.bottom - box.top) / k;
+      const up = above > 230;
+      tip.classList.toggle('below', !up);
+      tip.style.left = `${Math.max(160, Math.min(root.offsetWidth - 160, x))}px`;
+      tip.style.top = `${up ? above - 8 : below + 8}px`;
+      tip.classList.add('on');
+    }, delay));
+  };
+  node.addEventListener('pointerenter', () => show(TIP_MS));
+  node.addEventListener('focus', () => show(0));
+  node.addEventListener('pointerleave', () => hideTip(tip));
+  node.addEventListener('blur', () => hideTip(tip));
+}
+
 // A key typed into a text field belongs to the field: the game's shortcuts (F for full screen) leave it alone.
 export const typing = (e: KeyboardEvent): boolean => {
   const t = e.target as HTMLElement | null;
