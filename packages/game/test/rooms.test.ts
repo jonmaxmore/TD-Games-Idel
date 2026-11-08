@@ -4,39 +4,17 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { battleHash, battleOver, replayBattle, type Side } from '@five-sects/sim';
 import { leaderPool, type ServerMsg } from '@five-sects/protocol';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
-import { buildServer, MemoryStore, type ServerOpts } from '../src/server';
-import { TestClient } from './client';
+import type { ServerOpts } from '../src/server';
+import { room, startServer, TestClient } from './client';
 
 const [L0, S0, L1, S1] = leaderPool();
 let close: (() => Promise<void>) | null = null;
 afterEach(async () => { await close?.(); close = null; });
 
 async function server(o: ServerOpts = {}) {
-  const store = new MemoryStore();
-  const { app, lobby } = await buildServer({ tickMs: 2, startDelayMs: 20, graceMs: 2000, store, ...o });
-  await app.listen({ port: 0, host: '127.0.0.1' });
-  const addr = app.server.address();
-  const url = `ws://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}/v1/ws`;
-  close = () => app.close();
-  return { url, store, lobby };
-}
-
-// Host creates, guest joins by code, both pick a team and ready up; resolves on both start messages.
-async function room(url: string) {
-  const a = await TestClient.open(url), b = await TestClient.open(url);
-  const wa = await a.hello('เจ้าบ้าน'), wb = await b.hello('แขก');
-  a.send({ t: 'create' });
-  const { code } = await a.next('room');
-  b.send({ t: 'join', code: code.toLowerCase() });
-  const r = await b.next('room');
-  expect(r.seat).toBe(1);
-  expect(r.seats[0]?.name).toBe('เจ้าบ้าน');
-  a.send({ t: 'team', team: { leader: L0!, sub: S0! } });
-  b.send({ t: 'team', team: { leader: L1!, sub: S1! } });
-  a.send({ t: 'ready', on: true });
-  b.send({ t: 'ready', on: true });
-  const [sa, sb] = await Promise.all([a.next('start'), b.next('start')]);
-  return { a, b, code, sa, sb, tokens: [wa.token, wb.token] as const };
+  const s = await startServer(o);
+  close = () => s.app.close();
+  return s;
 }
 
 // Plays a side with a bot: after every frame, step the local sim and send what the bot decides, stamped by Lockstep.
@@ -151,18 +129,23 @@ describe('friend rooms', () => {
     expect(a.got.some((m) => m.t === 'desync')).toBe(false);
   });
 
-  it('refuses a foreign browser origin, the wrong protocol version, and too many join attempts', async () => {
+  it('refuses a foreign browser origin, the wrong protocol version, and too many wrong codes', async () => {
     const { url } = await server();
     await expect(TestClient.open(url, { origin: 'https://evil.example' })).rejects.toThrow('HTTP 403');
     const ok = await TestClient.open(url, { origin: 'http://localhost:5173' });
     ok.send({ t: 'hello', v: 99, name: 'x' });
     expect((await ok.next('error')).code).toBe('version');
+    // Five wrong codes in a row close the socket; the address may try ten a minute across its sockets.
+    for (const n of [1, 2]) {
+      const c = await TestClient.open(url);
+      await c.hello(`c${n}`);
+      for (let i = 0; i < 5; i++) c.send({ t: 'join', code: 'ABCDEF' });
+      expect((await c.waitClose()).code).toBe(1008);
+      expect(c.got.map((m) => m.t === 'error' && m.code)).toEqual(Array(5).fill('room_not_found'));
+    }
     const c = await TestClient.open(url);
-    await c.hello('c');
-    for (let i = 0; i < 12; i++) c.send({ t: 'join', code: 'ABCDEF' });
-    const codes: string[] = [];
-    for (let i = 0; i < 12; i++) codes.push((await c.next('error')).code);
-    expect(codes.filter((x) => x === 'room_not_found').length).toBe(10);
-    expect(codes.filter((x) => x === 'rate_limited').length).toBe(2);
+    await c.hello('c3');
+    c.send({ t: 'join', code: 'ABCDEF' });
+    expect((await c.next('error')).code).toBe('rate_limited');
   });
 });
