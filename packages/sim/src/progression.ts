@@ -88,3 +88,43 @@ export function rollEgg(egg: Egg, r: { rng: number }): string {
 export const rewardFor = (won: boolean | null, type: string): Reward =>
   won === null ? progression.rewards.draw : won ? progression.rewards.win.get(type) ?? progression.rewards.draw : progression.rewards.loss;
 export const forgeOf = (id: string) => forgeSlot.get(id);
+
+// ศึกฝีมือ ladder (progression.json > ranked): league (index), division (divisions..1, 1 the top), stars in the division,
+// the win streak, and points in a league without stars (เทพยุทธ์). The hidden MMR, mmrBoost and star protection wait for
+// the M1 server.
+export interface League { id: string; nameTh: string; divisions: number; stars: number; loseStars: boolean; streakBonus: boolean; floor: boolean }
+export interface Rank { league: number; div: number; stars: number; streak: number; points: number }
+const R = P.ranked;
+export const leagues = R.leagues as League[];
+export const startRank = (): Rank => ({ league: 0, div: leagues[0]!.divisions, stars: 0, streak: 0, points: 0 });
+
+export function rankAfter(r: Rank, won: boolean | null): Rank {
+  const n = { ...r };
+  if (won === null) { n.streak = 0; return n; }
+  const L = leagues[n.league]!;
+  if (won) {
+    n.streak++;
+    if (L.stars === 0) { n.points += R.legendPoints.win as number; return n; }
+    const gain = 1 + (L.streakBonus && n.streak >= (R.streakLength as number) ? 1 : 0);
+    for (let i = 0; i < gain; i++) {
+      const cur = leagues[n.league]!;
+      if (cur.stars === 0) break;
+      if (++n.stars <= cur.stars) continue;
+      if (n.div > 1) { n.div--; n.stars = 1; continue; }
+      if (n.league + 1 >= leagues.length) { n.stars = cur.stars; break; }
+      n.league++;
+      n.div = leagues[n.league]!.divisions;
+      n.stars = leagues[n.league]!.stars === 0 ? 0 : 1;
+    }
+    return n;
+  }
+  n.streak = 0;
+  if (L.stars === 0) { n.points = Math.max(0, n.points + (R.legendPoints.loss as number)); return n; }
+  if (!L.loseStars) return n;
+  if (n.stars > 0) n.stars--;
+  else if (n.div < L.divisions) { n.div++; n.stars = L.stars - 1; }
+  else if (!L.floor && n.league > 0) { n.league--; n.div = 1; n.stars = leagues[n.league]!.stars - 1; }
+  return n;
+}
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+export const rankName = (r: Rank) => { const L = leagues[r.league]!; return L.stars === 0 ? `${L.nameTh} ${r.points} แต้ม` : `${L.nameTh} ${ROMAN[r.div]} · ${r.stars}/${L.stars} ดาว`; };
