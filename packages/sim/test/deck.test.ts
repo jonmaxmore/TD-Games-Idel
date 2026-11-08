@@ -54,7 +54,66 @@ describe('validateDeck', () => {
   });
 });
 
+// The cheapest legal completion by brute force (a DP over count, large cards and loaners), independent of fillPicks: does
+// any legal hand hold this leader and sub?
+function anyHand(leader: string, sub: string, owned: readonly string[], budget: number): boolean {
+  const room = loanerRoom(owned), capL = battle.hand.maxLarge - [leader, sub].filter((c) => battleUnits.get(c)!.size === 'large').length;
+  if (capL < 0) return false;
+  const cand = [...new Set([...owned, ...battle.deck.loaners])].filter((c) => battleUnits.has(c) && !isBasic(c) && c !== leader && c !== sub);
+  let dp = new Map<string, number>([['0,0,0', 0]]);
+  for (const c of cand) {
+    const nd = new Map(dp), big = battleUnits.get(c)!.size === 'large' ? 1 : 0, lend = owned.includes(c) ? 0 : 1;
+    for (const [k, v] of dp) {
+      const [n, l, j] = k.split(',').map(Number) as [number, number, number], nk = `${n + 1},${l + big},${j + lend}`;
+      if (n < battle.deck.pick && l + big <= capL && j + lend <= room && (nd.get(nk) ?? Infinity) > v + deckPoints(c)) nd.set(nk, v + deckPoints(c));
+    }
+    dp = nd;
+  }
+  const best = Math.min(...[...dp].filter(([k]) => k.startsWith(`${battle.deck.pick},`)).map(([, v]) => v));
+  return best <= budget - deckPoints(leader) - deckPoints(sub);
+}
+
 describe('autoPicks', () => {
+  it('finds a legal hand whenever one exists: every ranked pair, and every pair each home owns at each stage', () => {
+    const cases: [readonly string[], number, string][] = [[rankedPool, battle.deck.budget, 'ranked']];
+    homeSects.forEach((h) => stages.forEach((st, i) => cases.push([ownedAt(h, i), st.deckBudget, `${h} ${st.id}`])));
+    for (const [owned, budget, tag] of cases) {
+      const mine = owned.filter((c) => battleUnits.has(c) && !isBasic(c));
+      for (const l of mine) for (const s of mine) {
+        if (l === s || !anyHand(l, s, owned, budget)) continue;
+        expect(validateDeck({ leader: l, sub: s, picks: autoPicks(l, s, owned, budget) }, owned, budget), `${tag} ${l} ${s}`).toBeNull();
+      }
+    }
+  });
+
+  it('looks ahead within the large cap: a cheap large card cannot fill a slot the cap closes', () => {
+    const was = battle.deck.cardPoints.get('venom_toad');
+    battle.deck.cardPoints.set('venom_toad', 1); // a season could price a large card this low
+    try {
+      // Two large leaders close the cap; the four small and medium cards that fit cost 4 + 3 + 2 + 2.
+      const owned = ['cloud_sword_elder', 'dawn_qilin', 'venom_toad', 'crimson_phoenix_striker', 'crimson_phoenix_burst', 'wandering_archer', 'ember_imp', 'crimson_phoenix_control'];
+      const budget = deckPoints('cloud_sword_elder') + deckPoints('dawn_qilin') + 11;
+      expect(anyHand('cloud_sword_elder', 'dawn_qilin', owned, budget)).toBe(true);
+      expect(validateDeck({ leader: 'cloud_sword_elder', sub: 'dawn_qilin', picks: autoPicks('cloud_sword_elder', 'dawn_qilin', owned, budget) }, owned, budget)).toBeNull();
+    } finally {
+      if (was == null) battle.deck.cardPoints.delete('venom_toad'); else battle.deck.cardPoints.set('venom_toad', was);
+    }
+  });
+
+  it('borrows the cheapest loaners when it looks ahead', () => {
+    const was = battle.deck.cardPoints.get('vajra_stone_blade'); // the last loaner in data order
+    battle.deck.cardPoints.set('vajra_stone_blade', 1);
+    try {
+      const owned = starterCards('fire'), t = starterTeam('fire'), cheap = battle.deck.loaners.filter((c) => !owned.includes(c)).map(deckPoints).sort((a, b) => a - b);
+      const mine = owned.filter((c) => !isBasic(c) && c !== t.leader && c !== t.sub).map(deckPoints).sort((a, b) => a - b);
+      const budget = deckPoints(t.leader) + deckPoints(t.sub) + mine.reduce((a, x) => a + x, 0) + cheap[0]! + cheap[1]!;
+      expect(anyHand(t.leader, t.sub, owned, budget)).toBe(true);
+      expect(validateDeck({ ...t, picks: autoPicks(t.leader, t.sub, owned, budget) }, owned, budget)).toBeNull();
+    } finally {
+      if (was == null) battle.deck.cardPoints.delete('vajra_stone_blade'); else battle.deck.cardPoints.set('vajra_stone_blade', was);
+    }
+  });
+
   it('a new account of every home sect fills its hand with loaners, within budget', () => {
     for (const home of homeSects) {
       const owned = starterCards(home), t = starterTeam(home), picks = autoPicks(t.leader, t.sub, owned);
