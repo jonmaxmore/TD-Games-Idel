@@ -161,7 +161,7 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 /* ---- team setup (main.ts teamScreen): collections, the collection's cards with leader/sub/bench, the dealt hand ---- */
 .screen.team { max-width: none; padding: 14px 20px; gap: 8px; }
 .team h1 { font-size: 26px; }
-.team-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px 1fr; gap: 12px; }
+.team-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr; gap: 12px; }
 .team .deck-row { padding: 6px 12px; min-height: 0; }
 .team .deck-row b { font-size: 17px; }
 .team-cards { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); align-content: start; gap: 6px; min-height: 0; overflow-y: auto; padding: 4px 4px 0 0; }
@@ -286,7 +286,7 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .stage-map { position: relative; flex: 1; min-height: 0; margin: 4px 30px 0; border: 1px solid var(--line); border-radius: 8px; background: radial-gradient(ellipse at 30% 70%, #2a1f18, #120d14 70%); }
 .stage-map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .stage-map polyline { fill: none; stroke: #8a6436; stroke-dasharray: 10 8; vector-effect: non-scaling-stroke; stroke-width: 6px; }
-.stage-node { position: absolute; transform: translate(-50%, -50%); width: 168px; line-height: 1.3; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 6px 8px; background: #241a20; border: 2px solid var(--gold); }
+.stage-node { position: absolute; transform: translate(-50%, -50%); width: 138px; line-height: 1.3; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 6px 8px; background: #241a20; border: 2px solid var(--gold); }
 .stage-node .id { font-size: 13px; color: var(--dim); }
 .stage-node b { font-size: 17px; color: var(--gold); }
 .stage-node .stars { font-size: 22px; color: #ffd24a; letter-spacing: 2px; line-height: 1.1; }
@@ -386,3 +386,42 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .pause-menu button { min-height: 52px; font-size: 20px; }
 .modal .loss-tip { max-width: 900px; padding: 8px 18px; font-size: 18px; color: #ffe08a; border: 1px solid #f2a23a; border-radius: 6px; background: #2a1612; text-align: center; }
 .result-actions > button.primary { flex: 2; font-size: 22px; font-weight: 700; min-height: 52px; }
+
+/* เลือกสำนักแรก */
+.screen.pick { max-width: none; justify-content: center; gap: 16px; }
+.pick-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.pick-card { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 12px 8px 14px; border: 2px solid var(--sect); background: linear-gradient(180deg, color-mix(in srgb, var(--sect) 22%, #17111a), #17111a 70%); line-height: 1.3; }
+.pick-card:hover { box-shadow: 0 0 0 2px var(--sect), 0 0 18px color-mix(in srgb, var(--sect) 60%, transparent); }
+.pick-name { font-size: 24px; color: var(--sect); text-shadow: 0 2px 0 #000; }
+.pick-faces { display: flex; justify-content: center; gap: 0; margin: 4px 0; }
+.pick-faces .face { position: relative; display: block; width: 62px; height: 78px; overflow: hidden; }
+.pick-faces .face img.art { position: absolute; left: 50%; top: -12px; margin-left: -64px; }
+.pick-card small { font-size: 13px; color: var(--ink); }
+.pick-tag { margin: 6px 0 0; font-size: 12px; color: var(--dim); min-height: 48px; }
+
+/* บันทึกการ์ด and ร้านไข่ */
+.log-sheet .sheet { width: 1040px; max-height: 680px; }
+.log-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 5px; }
+.log-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 2px 4px; border: 2px solid; border-radius: 6px; background: var(--panel); line-height: 1.2; min-width: 0; }
+.log-card .face { position: relative; display: block; width: 84px; height: 48px; overflow: hidden; }
+.log-card .face img.art { position: absolute; left: 50%; top: -24px; margin-left: -64px; }
+.log-card .face canvas { margin: -14px auto 0; }
+.log-card b { font-size: 12px; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.log-card .tier { font-size: 10px; color: var(--dim); }
+.log-card .cost { position: absolute; top: 2px; left: 2px; font-size: 11px; font-weight: 700; background: #1a1423; color: #abdbff; padding: 0 4px; border-radius: 3px; }
+.log-card .route { font-size: 10px; color: #ffe08a; text-align: center; }
+.log-card .planned { font-size: 9px; color: var(--dim); text-align: center; }
+.log-card.locked { border-style: dashed; border-color: #3a3442 !important; background: #100c12; }
+.log-card.locked .face, .log-card.locked b { filter: grayscale(1) brightness(0.45); }
+.log-card .buy { min-height: 26px; width: 100%; font-size: 12px; padding: 0 2px; margin-top: 2px; }
+
+/* ได้การ์ดใหม่ on the stage result */
+.modal .new-card { display: grid; grid-template-columns: 96px auto; column-gap: 12px; align-items: center; padding: 8px 18px; border: 2px solid var(--sect); border-radius: 8px; background: #1c1420; box-shadow: 0 0 18px color-mix(in srgb, var(--sect) 50%, transparent); }
+.modal .new-card .face { grid-row: 1 / 4; position: relative; display: block; width: 96px; height: 80px; overflow: hidden; }
+.modal .new-card .face img.art { position: absolute; left: 50%; top: -10px; margin-left: -64px; }
+.modal .new-card em { font-style: normal; font-weight: 700; font-size: 18px; color: #ffe08a; }
+.modal .new-card b { font-size: 22px; color: var(--sect); }
+.modal .new-card small { font-size: 13px; color: var(--dim); max-width: 520px; }
+.modal .egg-line { color: #abdbff; font-size: 16px; }
+.toast.warn { font-size: 18px; font-weight: 700; background: #3a0d0acc; }
+.goals-box .first-clear { color: #ffe08a; font-weight: 700; }

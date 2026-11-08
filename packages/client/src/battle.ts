@@ -7,7 +7,7 @@ import {
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { Board, cannonIcon, portrait } from './board';
-import { teamName, teamSetup, type Team } from './decks';
+import { teamName, type Team } from './decks';
 import type { Settings } from './profile';
 import { cardArt } from './sprites';
 import { applyVolume, play } from './sound';
@@ -23,7 +23,8 @@ export function realmBadge(level: number): HTMLElement {
 }
 
 export interface MatchOpts {
-  seed: number; team: Team; vs: Team; redraws: number; speed: number; settings: Settings; saveSettings: () => void;
+  // mine, vs: both sides' cards and leaders (each side's progress is added); team: ours, for the leader marks and the name.
+  seed: number; team: Team; mine: BattleSetup; vs: BattleSetup; redraws: number; speed: number; settings: Settings; saveSettings: () => void;
   bots: [Policy | null, Policy]; // who plays each side: null = the player
   progress: [Progress | null, Progress | null]; normalized: boolean; // each side's account; normalized: ranked ศึกฝีมือ
   modeTh: string; // the mode named on our castle bar
@@ -46,8 +47,8 @@ const capOf = (card: string) => battleUnits.get(card)!.perMatch;
 
 export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResult) => void): () => void {
   let speed = o.speed;
-  const setup = (t: Team, p: Progress | null) => (p ? { ...teamSetup(t), progress: p } : teamSetup(t));
-  const setups: [BattleSetup, BattleSetup] = o.replay?.setups ?? [setup(o.team, o.progress[0]), o.stage?.enemy ?? setup(o.vs, o.progress[1])];
+  const setup = (t: BattleSetup, p: Progress | null): BattleSetup => (p ? { ...t, progress: p } : t);
+  const setups: [BattleSetup, BattleSetup] = o.replay?.setups ?? [setup(o.mine, o.progress[0]), o.stage?.enemy ?? setup(o.vs, o.progress[1])];
   const opts: BattleOpts = o.replay?.opts ?? (o.stage ? { normalized: o.normalized, stage: o.stage.rules } : { normalized: o.normalized });
   const seed = o.replay?.seed ?? o.seed;
   const s: BattleState = createBattle(seed, setups[0], setups[1], opts);

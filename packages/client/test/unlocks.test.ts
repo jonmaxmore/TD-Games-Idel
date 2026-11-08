@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { battle, battleCardIds, battleUnits, chapter, classesOf, COUNTER_CLASSES, progression, stageOf, stages } from '@five-sects/sim';
+import { battle, battleCardIds, battleUnits, classesOf, COUNTER_CLASSES, progression, stageOf, stages } from '@five-sects/sim';
 import ui from '../../../docs/data/ui.json';
 import { lossTip, versusTip } from '../src/tips';
 import { conditionTh, nextStage, UNLOCKS, unlockState } from '../src/unlocks';
@@ -9,31 +9,26 @@ const winUpTo = (id: string) => Object.fromEntries(stages.slice(0, stages.findIn
 const state = (raw: object) => { const u = unlockState(migrate(raw)); return { open: [...u.open].sort(), next: u.next?.id ?? null }; };
 
 describe('lobby unlocks', () => {
-  it('names real stages, the real chapter and a real castle level', () => {
+  it('names real stages and a real castle level', () => {
     for (const u of UNLOCKS) {
       if (u.stage) expect(stageOf(u.stage), u.id).toBeDefined();
-      if (u.chapter) expect(u.chapter).toBe(chapter.id);
       if (u.castleLevel) expect(u.castleLevel).toBeLessThanOrEqual(progression.castleLevels.length);
     }
     expect(new Set(UNLOCKS.map((u) => u.id)).size).toBe(UNLOCKS.length);
   });
 
-  it('opens features as ศึกปราบ stages are won, with the first locked one next', () => {
+  it('opens features as ศึกปราบ stages are won, with the first locked one next; ranked and the egg shop after 1-10', () => {
     expect(state({})).toEqual({ open: [], next: 'levelUp' });
     expect(state({ campaign: winUpTo('1-1') })).toEqual({ open: [], next: 'levelUp' });
     expect(state({ campaign: winUpTo('1-2') })).toEqual({ open: ['levelUp'], next: 'casual' });
-    expect(state({ campaign: winUpTo('1-4') })).toEqual({ open: ['casual', 'forge', 'levelUp'], next: 'eggShop' });
-    expect(state({ campaign: winUpTo('1-6') })).toEqual({ open: ['casual', 'forge', 'levelUp', 'ranked', 'town'], next: 'eggShop' });
+    expect(state({ campaign: winUpTo('1-5') })).toEqual({ open: ['casual', 'levelUp'], next: 'forge' });
+    expect(state({ campaign: winUpTo('1-8') })).toEqual({ open: ['casual', 'forge', 'levelUp', 'town'], next: 'eggShop' });
+    expect(state({ campaign: winUpTo('1-9') }).open).not.toContain('ranked');
+    expect(state({ campaign: winUpTo('1-10') })).toEqual({ open: ['casual', 'eggShop', 'forge', 'levelUp', 'ranked', 'town'], next: null });
   });
 
   it('a lost stage (no win star) opens nothing', () => {
     expect(state({ campaign: { ...winUpTo('1-1'), '1-2': { stars: [false, false, false], bestSec: null } } }).open).toEqual([]);
-  });
-
-  it('opens the egg shop at castle Lv2 from card levels alone', () => {
-    const lv2 = progression.castleLevels[1]!.cardLevels, cards: Record<string, object> = {};
-    battleCardIds.forEach((id, i) => { cards[id] = { level: i < lv2 - battleCardIds.length ? 2 : 1, xp: 0, dupes: 0 }; });
-    expect(state({ cards }).open).toContain('eggShop');
   });
 
   it('an older save that already used a feature keeps it without stage wins', () => {
@@ -43,10 +38,10 @@ describe('lobby unlocks', () => {
   });
 
   it('says each locked condition in Thai and points the lobby at the first stage not won', () => {
-    expect(UNLOCKS.map(conditionTh)).toEqual(['ผ่านด่าน 1-2', 'ผ่านด่าน 1-3', 'ผ่านด่าน 1-4', 'ปราสาท Lv2', 'ผ่านด่าน 1-6', 'ผ่านบทที่ 1']);
+    expect(UNLOCKS.map(conditionTh)).toEqual(['ผ่านด่าน 1-2', 'ผ่านด่าน 1-5', 'ผ่านด่าน 1-6', 'ผ่านด่าน 1-8', 'ผ่านด่าน 1-10', 'ผ่านด่าน 1-10']);
     expect(nextStage(migrate({}))?.id).toBe('1-1');
     expect(nextStage(migrate({ campaign: winUpTo('1-3') }))?.id).toBe('1-4');
-    expect(nextStage(migrate({ campaign: winUpTo('1-6') }))).toBeNull();
+    expect(nextStage(migrate({ campaign: winUpTo('1-10') }))).toBeNull();
   });
 });
 
