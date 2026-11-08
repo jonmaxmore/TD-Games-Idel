@@ -2,12 +2,13 @@
 // owned ones in colour, locked ones greyed with the one route that gives them. The egg shop sells a chosen card for its
 // tier's egg points (no rotation, no hatch timer) and training eggs for cards already owned.
 import { battleCardIds, battleUnits, chapter, routeOf, sects, shopBlock, tierOf, type Route } from '@five-sects/sim';
-import { el, realmBadge } from './battle';
+import { cardTip, el, realmBadge } from './battle';
 import { portrait } from './board';
-import { account, buyCard, SHOP_WHY } from './camp';
-import type { Profile } from './profile';
+import { account, buyCard, progressOf, SHOP_WHY } from './camp';
+import { setupOf } from './decks';
+import { teamOf, type Profile } from './profile';
 import { cardArt } from './sprites';
-import { button, confirmBox, setDisabled } from './ui';
+import { button, confirmBox, hoverTip, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 const btn = (text: string, cls: string, onclick: () => void) => { const b = el('button', cls, text); b.onclick = onclick; return b; };
@@ -21,34 +22,37 @@ export function routeTh(r: Route): string {
   return `ร้านไข่ ${r.price} แต้ม · ปราสาท Lv${r.castleLevel}`;
 }
 
-function tile(id: string, cls: string): HTMLElement {
+// A tile shows its card's full tooltip (cardTip, on the player's current team with the account's progress: what a ศึกทั่วไป
+// summon gets) while hovered or focused; tip is the .card-tip inside root.
+function tile(id: string, cls: string, p: Profile, root: HTMLElement, tip: HTMLElement, line: () => string): HTMLElement {
   const u = battleUnits.get(id)!, t = el('div', `log-card ${cls} kind-${u.kind}`);
   t.dataset.id = id;
+  t.tabIndex = 0;
+  hoverTip(root, tip, t, () => cardTip(id, setupOf(teamOf(p)), progressOf(p, Date.now()), line()));
   t.style.borderColor = sects.get(u.sect)?.color ?? '#E3B04B';
   t.append(face(id), el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh), el('small', 'tier', tierOf(id).nameTh));
   return t;
 }
 
 export function cardLog(p: Profile): HTMLElement {
-  const box = el('div', 'card-log'), home = p.home!;
+  const box = el('div', 'card-log'), home = p.home!, tip = el('div', 'card-tip deck-tip');
   box.append(el('p', 'dim small', `มีแล้ว ${p.owned.length}/${battleCardIds.length} ใบ · ใบที่ยังไม่มีบอกทางที่จะได้ · ศึกฝีมือใช้การ์ดทุกใบ ไม่ขึ้นกับว่ามีหรือยัง`));
   const grid = el('div', 'log-grid');
   for (const id of battleCardIds) {
-    const has = p.owned.includes(id), r = routeOf(id, home), t = tile(id, has ? 'owned' : 'locked');
+    const has = p.owned.includes(id), r = routeOf(id, home), t = tile(id, has ? 'owned' : 'locked', p, box, tip, () => (has ? `มีแล้ว · ${tierOf(id).nameTh}` : `ยังไม่มี · ได้จาก${routeTh(r)}`));
     if (has) t.append(realmBadge(p.cards[id]!.level));
     else {
       t.append(el('span', 'route', routeTh(r)));
       if (r.kind === 'shop' && r.planned) t.append(el('span', 'planned', `ต่อไป: ${r.planned}`));
     }
-    t.title = battleUnits.get(id)!.tagTh;
     grid.append(t);
   }
-  box.append(grid);
+  box.append(grid, tip);
   return box;
 }
 
 export function eggShop(p: Profile, save: () => void, onChange: () => void): HTMLElement {
-  const shop = el('div', 'eggs');
+  const shop = el('div', 'eggs'), tip = el('div', 'card-tip deck-tip');
   let tab: 'new' | 'train' = 'new', msg = '', bad = false, last: string | null = null;
   function show() {
     const a = account(p);
@@ -61,7 +65,7 @@ export function eggShop(p: Profile, save: () => void, onChange: () => void): HTM
     const cards = battleCardIds.filter((id) => tierOf(id).eggPoints != null && (tab === 'new' ? !p.owned.includes(id) && routeOf(id, p.home!).kind === 'shop' : p.owned.includes(id)));
     const grid = el('div', 'log-grid shop-grid');
     for (const id of cards) {
-      const t = tile(id, 'shop'), why = shopBlock(a, id), price = tierOf(id).eggPoints!;
+      const price = tierOf(id).eggPoints!, t = tile(id, 'shop', p, shop, tip, () => `${tierOf(id).nameTh} · ${price} แต้มไข่`), why = shopBlock(a, id);
       const name = battleUnits.get(id)!.nameTh;
       const buy = () => {
         const res = buyCard(p, id);
@@ -94,7 +98,7 @@ export function eggShop(p: Profile, save: () => void, onChange: () => void): HTM
       got.append(el('span', bad ? 'bad' : '', msg));
       shop.append(got);
     }
-    shop.append(el('p', 'dim small', 'แต้มไข่ได้จากเลเวลปราสาท ด่าน และดาวครบบทเท่านั้น ไม่มีขายด้วยเงินจริง'));
+    shop.append(el('p', 'dim small', 'แต้มไข่ได้จากเลเวลปราสาท ด่าน และดาวครบบทเท่านั้น ไม่มีขายด้วยเงินจริง'), tip);
   }
   show();
   return shop;

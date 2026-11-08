@@ -1,8 +1,10 @@
 // ค่ายฝึก: every owned card with its level and realm, the picked card's level-up and forge slots, and town upgrades (forge and town
 // once unlocked). It owns its root until dispose(); main.ts decides what follows. Only owned cards are listed.
-import { battleUnits, cardStats, castleLevelOf, progression, sects } from '@five-sects/sim';
+import { battleUnits, castleLevelOf, progression, sects } from '@five-sects/sim';
 import { el, realmBadge } from './battle';
 import { portrait } from './board';
+import { cardInfo } from './cardInfo';
+import { setupOf } from './decks';
 import { build, canLevel, forgeState, levelUp, progressOf, townTiers, upgradeTown, xpNeed, type TownKey } from './camp';
 import { levelSum, teamOf, type Profile } from './profile';
 import { unlockState } from './unlocks';
@@ -45,7 +47,7 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
 
   function showDetail(now: number) {
     const u = battleUnits.get(pick)!, c = p.cards[pick]!, need = xpNeed(c.level);
-    const st = cardStats(u, progressOf(p, now));
+    const st = cardInfo(pick, setupOf(teamOf(p)), progressOf(p, now)), role = pick === teamOf(p).leader ? 'แม่ทัพ' : pick === teamOf(p).sub ? 'รองแม่ทัพ' : null;
     const face = el('span', 'face big');
     face.append(cardArt(pick) ?? portrait(pick));
     const lvl = button(need == null ? 'ขั้นสูงสุดแล้ว' : `เลื่อนขั้น (ใช้ ${need} แต้มฝึก)`, () => {
@@ -66,7 +68,8 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
       slots.append(b);
     }
     detail.replaceChildren(face, realmBadge(c.level), nowrapWords(el('h2'), u.nameTh),
-      el('p', 'stats', `HP ${st.hp} · ตี ${st.dmg} (ฐาน HP ${u.hp} · ตี ${u.dmg})`),
+      el('p', 'stats', `${st.stats}`), el('p', 'dim small', `ในศึกทั่วไปกับทัพปัจจุบัน${role ? ` (เป็น${role})` : ''} · ฐาน HP ${u.hp} · ตี ${u.dmg} · ${st.reach}`),
+      ...(st.ability ? [nowrapWords(el('p', 'ability'), st.ability)] : []), nowrapWords(el('p', 'desc'), st.desc),
       el('p', 'dim', need == null ? 'ถึงขั้นจิตก่อรูปแล้ว' : `แต้มฝึก ${c.xp}/${need}${c.dupes > 0 ? ` · ไข่ฝึก ${c.dupes} ครั้ง` : ''}`),
       lvl, ...(open.has('forge') ? [el('h3', '', 'โรงหลอม'), el('p', 'dim small', 'อุปกรณ์ที่หลอมแล้วให้ค่าสถานะแม้ไม่สวม'), slots] : []),
       el('p', 'dim small', 'ศึกฝีมือ (จัดอันดับ) ใช้ค่าพื้นฐานเท่ากันทุกตัว ไม่นับเลเวลและอุปกรณ์'));

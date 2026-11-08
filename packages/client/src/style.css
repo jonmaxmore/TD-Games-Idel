@@ -67,13 +67,14 @@ button:disabled { cursor: not-allowed; background: var(--c-surface-2); color: va
 .btn-ghost:hover:not(:disabled) { background: var(--c-surface-1); }
 .btn-icon { padding: 0 var(--sp-2); min-width: var(--h-sm); border-color: var(--c-line-strong); font-weight: 400; }
 .btn-primary:disabled, .btn-danger:disabled { background: var(--c-surface-2); color: var(--c-text-dim); border: 2px dashed var(--c-line-strong); text-shadow: none; }
-canvas.portrait { image-rendering: pixelated; display: block; }
+/* portrait() is the whole figure in board pixels; it scales up crisp to whatever box holds it, never cropped */
+canvas.portrait { image-rendering: pixelated; display: block; width: 84px; height: 84px; }
+.face canvas.portrait { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
 /* Card art (sprites.ts cardArt): always 1x and pixel-crisp; a window crops it, nothing scales it. */
 img.art { image-rendering: pixelated; display: block; width: 128px; height: 128px; max-width: none; }
-.card .face img.art { position: absolute; left: 50%; top: -10px; margin-left: -64px; }
+/* card art fits its frame whole, like a portrait (it used to hang over the edges) */
+.face img.art { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
 .deck-card .face { position: relative; display: block; width: 100px; height: 90px; overflow: hidden; }
-.deck-card .face canvas { margin: 0 auto; }
-.deck-card .face img.art { position: absolute; left: 50%; top: -12px; margin-left: -64px; }
 kbd { font: inherit; }
 
 /* ---- the match: the field fills the stage, the HUD bands sit over it ---- */
@@ -122,7 +123,6 @@ kbd { font: inherit; }
   border: 2px solid var(--sect); background: var(--c-surface-1); line-height: 1.15; overflow: hidden; touch-action: none;
 }
 .card .face { position: absolute; left: 0; right: 0; top: 0; height: 76px; overflow: hidden; }
-.card .face canvas { position: absolute; left: 50%; top: 0; margin-left: -42px; }
 .card .name { position: relative; font-size: var(--fs-sm); text-align: center; text-shadow: 0 1px 2px var(--c-black), 0 0 3px var(--c-black); }
 .card small { position: relative; color: var(--c-text-dim); font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; }
 .card .cost {
@@ -233,8 +233,6 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .deck-slot .slot-empty { color: var(--c-muted); font-size: var(--fs-sm); }
 .deck-slot b { font-size: var(--fs-sm); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .deck-slot .face, .deck-card .face { position: relative; display: block; width: 84px; height: 72px; overflow: hidden; }
-.deck-slot .face img.art, .deck-card .face img.art { position: absolute; left: 50%; top: -6px; margin-left: -64px; }
-.deck-slot .face canvas, .deck-card .face canvas { display: block; margin: 0 auto; height: 72px; width: auto; image-rendering: pixelated; }
 .deck-slot .realm, .deck-card .realm { margin: 1px 0 0; }
 
 .deck-meter { display: flex; flex-direction: column; gap: var(--sp-1); }
@@ -311,7 +309,8 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 
 /* ---- progression (campScreen.ts, battle.ts realmBadge): realm badges, mode buttons, ค่ายฝึก, match rewards ---- */
 .realm { font-style: normal; font-size: var(--fs-xs); font-weight: 700; line-height: 1.3; padding: 0 var(--sp-1); border-radius: var(--r-sm); white-space: nowrap; background: var(--realm); color: var(--c-outline); }
-.card .realm { position: absolute; top: 36px; right: 3px; }
+/* the hand shows the level only (the realm is its colour and its tooltip), beside the cost, clear of the face */
+.card .realm { position: absolute; top: 32px; left: 3px; }
 .mode { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 66px; }
 .mode b { font-size: var(--fs-lg); }
 .mode small { font-size: var(--fs-sm); color: var(--c-text); opacity: 0.85; }
@@ -331,10 +330,8 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .small { font-size: var(--fs-sm); }
 .camp-cards { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); align-content: start; gap: var(--sp-1); overflow-y: auto; min-height: 0; padding-right: 4px; }
 .camp-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 2px var(--sp-1); min-height: auto; border: 2px solid; background: var(--c-surface-1); line-height: 1.2; min-width: 0; }
-.camp-card .face { position: relative; display: block; width: 84px; height: 52px; overflow: hidden; }
-.camp-card .face img.art { position: absolute; left: 50%; top: -22px; margin-left: -64px; }
-.camp-card .face canvas { margin: -14px auto 0; }
-.camp-card b { font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.camp-card .face { position: relative; display: block; width: 84px; height: 60px; overflow: hidden; }
+.camp-card b { font-size: var(--fs-xs); font-weight: 700; text-align: center; max-width: 100%; }
 .camp-card.sel { background: var(--c-surface-sel); box-shadow: 0 0 0 2px var(--c-accent); }
 .camp-card.ready::after { content: 'เลื่อนขั้นได้'; position: absolute; top: 2px; right: 2px; font-size: var(--fs-xs); font-weight: 700; background: var(--c-mana); color: var(--c-bg); padding: 0 3px; border-radius: var(--r-sm); }
 .xp { display: block; width: 90%; height: 4px; background: var(--c-surface-2); position: relative; overflow: hidden; }
@@ -343,6 +340,8 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .camp-detail .face.big { position: relative; display: block; width: 128px; height: 100px; overflow: hidden; }
 .camp-detail .face.big canvas { margin: 6px auto 0; }
 .camp-detail .stats { color: var(--c-accent-hi); font-size: var(--fs-sm); }
+.camp-detail .ability { color: var(--c-text); font-size: var(--fs-sm); }
+.camp-detail .desc { color: var(--c-text-dim); font-size: var(--fs-sm); line-height: var(--lh-thai); }
 .camp-detail .level-up { width: 100%; }
 .slots { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); width: 100%; }
 .slot { display: flex; flex-direction: column; align-items: center; gap: 0; padding: var(--sp-1); min-height: 0; border-color: var(--c-line); line-height: 1.25; }
@@ -358,7 +357,9 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .town-row { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 0 var(--sp-2); align-items: center; }
 .town-row small { color: var(--c-text-dim); font-size: var(--fs-sm); }
 .town-row .up { grid-row: 1 / 3; grid-column: 2; }
-.eggs { display: flex; flex-direction: column; gap: var(--sp-2); flex: 1; }
+.card-log { position: relative; }
+.log-card:focus-visible { outline: 2px solid var(--c-accent-hi); outline-offset: 1px; }
+.eggs { position: relative; display: flex; flex-direction: column; gap: var(--sp-2); flex: 1; }
 .odds { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
 .odds td { padding: 2px var(--sp-1); border-bottom: 1px solid var(--c-line); }
 .odds .pct { text-align: right; color: var(--c-accent); font-weight: 700; }
@@ -395,6 +396,7 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .goals-box p { font-size: var(--fs-md); margin-top: var(--sp-1); } .goals-box p.got { color: var(--c-star); }
 .enemy-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--sp-2); margin-top: var(--sp-2); }
 .enemy-card { display: flex; flex-direction: column; align-items: center; padding: var(--sp-1) 2px; border: 2px solid; border-radius: var(--r-md); background: var(--c-surface-deep); min-width: 0; line-height: 1.2; }
+.enemy-card canvas.portrait { width: 64px; height: 64px; }
 .enemy-card b { font-size: var(--fs-sm); text-align: center; } .enemy-card small { font-size: var(--fs-xs); font-weight: 700; color: var(--c-text-dim); }
 .clock .gimmick { font-style: normal; font-size: var(--fs-xs); font-weight: 700; color: var(--c-outline); background: var(--c-warn); padding: 0 var(--sp-2); border-radius: var(--r-sm); margin-top: 2px; white-space: nowrap; }
 .star-row { display: flex; gap: var(--sp-3); }
@@ -456,7 +458,6 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .egg-purse { font-size: var(--fs-lg); font-weight: 700; color: var(--c-mana-hi); }
 .egg-got { display: flex; align-items: center; gap: var(--sp-2); color: var(--c-mana-hi); font-size: var(--fs-md); }
 .egg-got .face { position: relative; display: block; width: 84px; height: 72px; overflow: hidden; flex: none; }
-.egg-got .face img.art { position: absolute; left: 50%; top: -14px; margin-left: -64px; }
 .egg-got .bad, p.egg-got.bad { color: var(--c-bad); }
 
 /* ---- versus, pause, result actions (main.ts versus/result, battle.ts pause) ---- */
@@ -464,7 +465,7 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .vs-row { display: grid; grid-template-columns: 1fr 300px 1fr; align-items: center; width: 100%; max-width: 1180px; }
 .vs-side { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .vs-face { width: 280px; height: 240px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; border-bottom: 6px solid var(--sect); }
-.vs-face canvas { height: 228px; width: auto; image-rendering: pixelated; }
+.vs-face canvas.portrait { height: 228px; width: 228px; }
 .vs-side b { margin-top: var(--sp-2); font-size: var(--fs-2xl); color: var(--c-ally); text-shadow: 0 2px 0 var(--c-black); }
 .vs-side.side1 b { color: var(--c-foe); }
 .vs-side small { font-size: var(--fs-md); color: var(--c-text-dim); }
@@ -503,7 +504,6 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .pick-name { font-size: var(--fs-xl); color: var(--sect); text-shadow: 0 2px 0 var(--c-black); }
 .pick-faces { display: flex; justify-content: center; gap: 0; margin: var(--sp-1) 0; }
 .pick-faces .face { position: relative; display: block; width: 62px; height: 78px; overflow: hidden; }
-.pick-faces .face img.art { position: absolute; left: 50%; top: -12px; margin-left: -64px; }
 .pick-card small { font-size: var(--fs-sm); color: var(--c-text); }
 .pick-tag { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--c-text-dim); min-height: 48px; }
 
@@ -511,10 +511,8 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .log-sheet .sheet { width: 1040px; max-height: 680px; }
 .log-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: var(--sp-1); }
 .log-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 2px var(--sp-1); border: 2px solid; border-radius: var(--r-md); background: var(--c-surface-1); line-height: 1.2; min-width: 0; }
-.log-card .face { position: relative; display: block; width: 84px; height: 48px; overflow: hidden; }
-.log-card .face img.art { position: absolute; left: 50%; top: -24px; margin-left: -64px; }
-.log-card .face canvas { margin: -14px auto 0; }
-.log-card b { font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.log-card .face { position: relative; display: block; width: 84px; height: 60px; overflow: hidden; }
+.log-card b { font-size: var(--fs-xs); font-weight: 700; text-align: center; max-width: 100%; }
 .log-card .tier { font-size: var(--fs-xs); font-weight: 700; color: var(--c-text-dim); }
 .log-card .cost { position: absolute; top: 2px; left: 2px; font-size: var(--fs-xs); font-weight: 700; background: var(--c-outline); color: var(--c-mana-hi); padding: 0 var(--sp-1); border-radius: var(--r-sm); }
 .log-card .route { font-size: var(--fs-xs); font-weight: 700; line-height: 1.3; color: var(--c-accent-hi); text-align: center; }
@@ -527,7 +525,6 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 /* ได้การ์ดใหม่ on the stage result */
 .modal .new-card { display: grid; grid-template-columns: 96px auto; column-gap: var(--sp-3); align-items: center; padding: var(--sp-2) 18px; border: 2px solid var(--sect); border-radius: var(--r-md); background: var(--c-surface-2); box-shadow: 0 0 18px color-mix(in srgb, var(--sect) 50%, transparent); }
 .modal .new-card .face { grid-row: 1 / 4; position: relative; display: block; width: 96px; height: 80px; overflow: hidden; }
-.modal .new-card .face img.art { position: absolute; left: 50%; top: -10px; margin-left: -64px; }
 .modal .new-card em { font-style: normal; font-weight: 700; font-size: var(--fs-lg); color: var(--c-accent-hi); }
 .modal .new-card b { font-size: var(--fs-lg); color: var(--sect); }
 .modal .new-card small { font-size: var(--fs-sm); color: var(--c-text-dim); max-width: 520px; }
@@ -546,7 +543,8 @@ button.deck-slot:hover { background: var(--c-surface-2); }
 .card-tip p { margin: 0; font-size: var(--fs-sm); }
 .card-tip .tip-name { font-size: var(--fs-md); color: var(--c-accent); }
 .card-tip .tip-stats { color: var(--c-accent-hi); }
-.card-tip .tip-tag, .card-tip .tip-uses { color: var(--c-text-dim); }
+.card-tip .tip-tag { color: var(--c-text); }
+.card-tip .tip-reach, .card-tip .tip-uses { color: var(--c-text-dim); }
 .tip-strong, .tip-strong b { color: var(--c-strong); }
 .tip-weak, .tip-weak b { color: var(--c-weak); }
 .counter-legend { position: absolute; z-index: 5; right: var(--sp-3); bottom: 156px; display: flex; gap: var(--sp-3); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-xs); font-weight: 700; background: var(--c-scrim); border: 1px solid var(--c-line); border-radius: var(--r-md); opacity: 0; pointer-events: none; transition: opacity var(--t-fast); }

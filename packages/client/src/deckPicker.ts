@@ -3,45 +3,38 @@
 // collection grid with filters. A click on a card puts it in the first free slot or takes it out; a right-click (or the
 // context-menu key) opens a menu to make it the leader or the sub; a click on the leader or sub slot then on a card does the
 // same. A card that cannot go in is dimmed and says why. The team screen and the friend room both use it.
-import { battle, battleUnits, loanerRoom, sects } from '@five-sects/sim';
+import { battle, battleUnits, levelOf, loanerRoom, sects, type Progress } from '@five-sects/sim';
 import { cardTip, el, realmBadge } from './battle';
 import { portrait } from './board';
 import { addPick, autoFill, deckPoints, deckProblem, isBasic, isLoaner, largeOf, pickPool, removePick, setRole, spendOf, type DeckRules, type Step, type Team } from './decks';
 import { cardArt } from './sprites';
-import { button, setDisabled } from './ui';
+import { button, hideTip as hideTipOf, hoverTip, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 export const kindOf = (c: string) => battle.kinds.get(battleUnits.get(c)!.kind)!;
 export const colorOf = (c: string) => sects.get(battleUnits.get(c)!.sect)?.color ?? '#E3B04B';
 const roleLine = (c: string) => { const u = battleUnits.get(c)!, m = battle.moves.get(u.move)!; return `${kindOf(c)} · ${m.roleTh}`; };
-function abilityText(c: string, level: number): string | null {
-  const u = battleUnits.get(c)!;
-  if (!u.ability) return null;
-  const a = battle.abilities.get(u.ability.kind)!;
-  return `${a.nameTh} Lv${level}: ${a.doesTh.replace('{v}', String(u.ability.lv[level - 1]))}`;
-}
 // The filter bar: one row of chips per key, 'all' first; a card shows when it matches every key.
 type Filter = { kind: string; cost: string; role: string };
 const FILTERS: { key: keyof Filter; label: string; opts: [string, string][]; test: (c: string, v: string) => boolean }[] = [
   { key: 'kind', label: 'ชนิด', opts: [...battle.kinds], test: (c, v) => battleUnits.get(c)!.kind === v },
   { key: 'cost', label: 'ปราณ', opts: [1, 2, 3, 4, 5, 6, 7].map((n) => [String(n), String(n)]), test: (c, v) => battleUnits.get(c)!.mana === Number(v) },
-  { key: 'role', label: 'บทบาท', opts: [['บุก', 'ตัวบุก'], ['สกัด', 'ตัวสกัด']], test: (c, v) => battle.moves.get(battleUnits.get(c)!.move)!.roleTh === v },
+  { key: 'role', label: 'บทบาท', opts: [...new Set([...battle.moves.values()].map((m) => m.roleTh))].map((r) => [r, `ตัว${r}`]), test: (c, v) => battle.moves.get(battleUnits.get(c)!.move)!.roleTh === v },
 ];
-const TIP_MS = 250;
 type Role = 'leader' | 'sub';
 const ROLE_TH: Record<Role, string> = { leader: 'แม่ทัพ', sub: 'รองแม่ทัพ' };
 
 export interface PickerOpts {
   rules: DeckRules;
   team: Team;
-  level: (c: string) => number | null; // the card level shown on its face; null hides levels (ศึกฝีมือ: every card at base)
+  progress: Progress | null; // the account's progress the match will use; null: every card at base (ศึกฝีมือ), no levels shown
   onChange: (t: Team) => void; // after every edit, with the new team
 }
 export interface Picker { root: HTMLElement; set: (t: Team) => void; problem: () => string | null; dispose: () => void }
 
 export function deckPicker(o: PickerOpts): Picker {
   const r = o.rules, pool = pickPool(r), room = loanerRoom(r.owned);
-  let team = o.team, choose: Role | null = null, menu: HTMLElement | null = null, tipTimer = 0;
+  let team = o.team, choose: Role | null = null, menu: HTMLElement | null = null;
   const filter: Filter = { kind: '', cost: '', role: '' };
   const root = el('div', 'deck-picker'), top = el('div', 'deck-top'), slots = el('div', 'deck-slots'), meter = el('div', 'panel deck-meter');
   const msg = el('p', 'deck-msg'), bar = el('div', 'filters'), grid = el('div', 'deck-grid'), tip = el('div', 'card-tip deck-tip');
@@ -59,28 +52,15 @@ export function deckPicker(o: PickerOpts): Picker {
     show();
   };
   const face = (c: string) => { const f = el('span', 'face'); f.append(cardArt(c) ?? portrait(c)); return f; };
-  const lvOf = (c: string) => (c === team.leader ? 3 : c === team.sub ? 2 : 1);
+  const levelShown = (c: string) => (o.progress && !isLoaner(c, r) ? levelOf(o.progress, c) : null);
 
-  // the tooltip over (or under, near the top) the card the pointer rests on
-  const hideTip = () => { clearTimeout(tipTimer); tip.classList.remove('on'); };
-  const hover = (node: HTMLElement, c: string) => {
-    node.addEventListener('pointerenter', () => {
-      clearTimeout(tipTimer);
-      tipTimer = window.setTimeout(() => {
-        const u = battleUnits.get(c)!, ab = abilityText(c, lvOf(c)), lent = isLoaner(c, r);
-        const extra = [el('p', 'tip-pts', `แต้มทัพ ${deckPoints(c)} · ปราณในศึก ${u.mana}${lent ? ' · ใบยืม (Lv1 ไม่ได้แต้มฝึก)' : ''}`), ...(ab ? [nowrapWords(el('p', 'tip-ab'), ab)] : [])];
-        tip.replaceChildren(...cardTip(c, u.perMatch == null ? 'ลงได้ไม่จำกัดต่อศึก' : `ลงได้ ${u.perMatch} ครั้งต่อศึก`, extra));
-        const box = root.getBoundingClientRect(), k = box.width / root.offsetWidth, n = node.getBoundingClientRect();
-        const x = (n.left + n.width / 2 - box.left) / k, above = (n.top - box.top) / k, below = (n.bottom - box.top) / k;
-        const up = above > 190;
-        tip.classList.toggle('below', !up);
-        tip.style.left = `${Math.max(160, Math.min(root.offsetWidth - 160, x))}px`;
-        tip.style.top = `${up ? above - 8 : below + 8}px`;
-        tip.classList.add('on');
-      }, TIP_MS);
-    });
-    node.addEventListener('pointerleave', hideTip);
-  };
+  // the tooltip over (or under, near the top) the card the pointer rests on: its numbers on the team as it now stands
+  const hideTip = () => hideTipOf(tip);
+  const hover = (node: HTMLElement, c: string) => hoverTip(root, tip, node, () => {
+    const u = battleUnits.get(c)!, lent = isLoaner(c, r);
+    const extra = [el('p', 'tip-pts', `แต้มทัพ ${deckPoints(c)} · ปราณในศึก ${u.mana}${lent ? ' · ใบยืม (Lv1 ไม่ได้แต้มฝึก)' : ''}`)];
+    return cardTip(c, team, o.progress, u.perMatch == null ? 'ลงได้ไม่จำกัดต่อศึก' : `ลงได้ ${u.perMatch} ครั้งต่อศึก`, extra);
+  });
 
   // ---- the menu a right-click opens on a card ----
   const closeMenu = () => { menu?.remove(); menu = null; };
@@ -137,10 +117,10 @@ export function deckPicker(o: PickerOpts): Picker {
     if (!c) { s.append(el('span', 'slot-empty', 'ว่าง')); return s; }
     s.dataset.id = c;
     s.style.borderColor = colorOf(c);
-    const lv = o.level(c);
+    const lv = levelShown(c);
     s.append(face(c), nowrapWords(el('b'), battleUnits.get(c)!.nameTh));
     if (!isBasic(c)) s.append(el('span', 'pts', String(deckPoints(c))));
-    if (lv != null && !isLoaner(c, r)) s.append(realmBadge(lv));
+    if (lv != null) s.append(realmBadge(lv));
     if (isLoaner(c, r)) s.append(el('em', 'loan', 'ยืม'));
     hover(s, c);
     return s;
@@ -224,9 +204,9 @@ export function deckPicker(o: PickerOpts): Picker {
     b.setAttribute('aria-pressed', String(role !== ''));
     b.setAttribute('aria-label', `${u.nameTh} แต้มทัพ ${deckPoints(c)}${why ? ` · ${why}` : ''}`);
     b.title = why ?? (role === 'picked' ? 'คลิกเพื่อเอาออก · คลิกขวาตั้งเป็นแม่ทัพหรือรอง' : role ? '' : 'คลิกเพื่อใส่ทัพ · คลิกขวาตั้งเป็นแม่ทัพหรือรอง');
-    const lv = o.level(c), lent = isLoaner(c, r);
+    const lv = levelShown(c), lent = isLoaner(c, r);
     b.append(face(c), el('span', 'cost', String(u.mana)), el('span', 'pts', String(deckPoints(c))), nowrapWords(el('b'), u.nameTh), el('small', '', roleLine(c)));
-    if (lv != null && !lent) b.append(realmBadge(lv));
+    if (lv != null) b.append(realmBadge(lv));
     const tag = role === 'leader' ? 'แม่ทัพ' : role === 'sub' ? 'รอง' : role === 'picked' ? 'ในทัพ' : lent ? 'ยืม' : '';
     if (tag) b.append(el('em', lent && !role ? 'loan' : '', tag));
     if (lent && role === 'picked') b.append(el('em', 'loan second', 'ยืม'));

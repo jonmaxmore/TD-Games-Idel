@@ -28,7 +28,13 @@ export const pickPool = (r: DeckRules): string[] => {
 export const isLoaner = (c: string, r: DeckRules) => !r.owned.includes(c) && battle.deck.loaners.includes(c);
 
 const sectOf = (card: string) => battleUnits.get(card)?.sect ?? 'metal';
-export const teamName = (t: { leader: string }) => `ทัพ${sects.get(sectOf(t.leader))?.nameTh ?? ''}`;
+// A team is named after its leader's sect when a sect disciple leads it; a beast, dragon or the sectless archer has no sect
+// (its sect key is only its element), so the team takes the leader's own name.
+export function teamName(t: { leader: string }): string {
+  const u = battleUnits.get(t.leader);
+  if (u && (u.kind !== 'disciple' || !battle.sectTeams.has(u.sect))) return `ทัพ${u.nameTh}`;
+  return `ทัพ${sects.get(sectOf(t.leader))?.nameTh ?? ''}`;
+}
 export const setupOf = (t: Team): BattleSetup => ({ leader: t.leader, sub: t.sub, picks: [...t.picks] });
 export const spendOf = (t: Team) => deckSpend(t);
 export const largeOf = (t: Team) => deckLarge(t);

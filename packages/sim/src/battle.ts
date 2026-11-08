@@ -127,6 +127,14 @@ const err = (ev: BattleEvent[], msg: string): void => void ev.push({ e: 'error',
 export const cardLevel = (setup: BattleSetup, card: string, p: Progress | null = null) =>
   card === setup.leader ? 3 : abilityUnlocked(p, card) ? progression.abilityLevel : card === setup.sub ? 2 : 1;
 export const abilityValue = (def: BattleUnitDef, level: number) => def.ability?.lv[level - 1] ?? 0;
+// What a summon of card by a side with this setup and progress (null: base stats, as in a normalized match) fights with:
+// HP (with กายแกร่ง), damage per hit, and its ability's level on the team and value. summon() uses exactly this, so a screen
+// that shows a card's numbers calls it with the same setup and progress the match will use.
+export interface UnitStats { hp: number; dmg: number; abilityLevel: number; ability: number }
+export function unitStats(setup: BattleSetup, card: string, p: Progress | null): UnitStats {
+  const def = battleUnits.get(card)!, abilityLevel = cardLevel(setup, card, p), v = abilityValue(def, abilityLevel), st = cardStats(def, p);
+  return { hp: def.ability?.kind === 'hp' ? div(st.hp * (100 + v), 100) : st.hp, dmg: st.dmg, abilityLevel, ability: v };
+}
 // The strongest aura (ward) of an ally, itself too, within reach: the % more damage u deals (less damage u takes).
 function bestNear(s: BattleState, u: Fighter, key: 'aura' | 'ward', radius: number): number {
   let best = 0;
@@ -150,11 +158,10 @@ function summon(s: BattleState, c: Extract<BattleCommand, { t: 'summon' }>, ev: 
   if (!Number.isInteger(d) || d < 0 || d > summonZone(s, c.side)) return err(ev, 'outside summon zone');
   s.mana[c.side] -= def.mana;
   s.uses[c.side][slot]!++;
-  const p = s.progress[c.side], v = abilityValue(def, cardLevel(s.setups[c.side], def.id, p)), kind = def.ability?.kind;
+  const st = unitStats(s.setups[c.side], def.id, s.progress[c.side]), v = st.ability, kind = def.ability?.kind;
   if (kind === 'refund') s.mana[c.side] = Math.min(B.manaMax, s.mana[c.side] + v);
-  const st = cardStats(def, p), moon = c.side === 1 && s.stage ? s.stage.enemyDmgPct : 100;
-  const hp = kind === 'hp' ? div(st.hp * (100 + v), 100) : st.hp;
-  addFighter(s, c.side, def.id, fwd(c.side, d), hp, div(st.dmg * moon, 100), kind === 'aura' ? v : 0, kind === 'ward' ? v : 0, ev);
+  const moon = c.side === 1 && s.stage ? s.stage.enemyDmgPct : 100;
+  addFighter(s, c.side, def.id, fwd(c.side, d), st.hp, div(st.dmg * moon, 100), kind === 'aura' ? v : 0, kind === 'ward' ? v : 0, ev);
 }
 
 // The castle cannon: every enemy within its radius of the aimed point takes the shot, and the nearest small ones are
