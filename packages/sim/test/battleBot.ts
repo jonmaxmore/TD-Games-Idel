@@ -52,7 +52,7 @@ export const PACED_MIXED_PAIRS: [Policy, Policy][] = [['paced', 'rush'], ['rush'
 export async function cardTable(games: number, pairs = PAIRS): Promise<{ rows: CardRow[]; band: Map<string, number>; games: number }> {
   const pts = new Map<string, [number, number]>(), held = new Map<string, [number, number]>(); // lookups; rows come out in data order
   for (let seed = 1; seed <= games; seed++) {
-    if (seed % 500 === 0) await new Promise((r) => setImmediate(r));
+    if (seed % 500 === 0) await new Promise((r) => setTimeout(r, 0));
     const [p0, p1] = pairs[seed % pairs.length]!;
     const { state: s, commands } = playBattle(seed, p0, p1, randomTeam(seed, 0), randomTeam(seed, 1));
     const w0 = s.winner === 0 ? 2 : s.winner === -1 ? 1 : 0;

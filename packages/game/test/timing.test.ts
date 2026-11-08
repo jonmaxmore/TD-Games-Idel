@@ -29,6 +29,7 @@ describe('timing at 20 Hz', () => {
     b.send({ t: 'join', code });
     await b.next('room');
     a.send({ t: 'team', team: autoTeam(L0!, S0!) }); b.send({ t: 'team', team: autoTeam(L1!, S1!) });
+    await a.next('room', (m) => m.seats[0]?.team != null && m.seats[1]?.team != null);
     a.send({ t: 'ready', on: true }); b.send({ t: 'ready', on: true });
     const st = await a.next('start');
     await b.next('start');
