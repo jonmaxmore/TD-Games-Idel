@@ -102,6 +102,8 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.waitForSelector('.versus');
   await sleep(200);
   await shot(p, '67-versus-stage');
+  await p.keyboard.press('Enter');
+  check(await p.evaluate(() => window.__flow.screen) === 'match', 'any key skips the versus screen');
   await p.waitForFunction(() => window.__game?.s, null, { timeout: 5000 });
   console.log('clicks lobby -> next stage: 2');
   // Esc with no card picked pauses: the sim must not step while the menu is open.
@@ -518,6 +520,12 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await p.waitForSelector('.team-card');
   await sleep(200);
   await shot(p, '53-team-stage');
+  // Esc walks back: team setup -> briefing -> stage map -> lobby.
+  const flow = () => p.evaluate(() => window.__flow.screen);
+  const walked = [];
+  for (let i = 0; i < 3; i++) { await p.keyboard.press('Escape'); await sleep(100); walked.push(await flow()); }
+  console.log('Esc from the stage team setup:', walked.join(' -> '));
+  check(walked.join() === 'brief,campaign,lobby', `Esc goes back on each full screen (${walked.join()})`);
   await ctx.close();
   const m = await open('?mode=battle&stage=1-2&bot=1&speed=4&seed=3', 'stage-waves', null, save);
   await m.p.waitForFunction(() => window.__game?.s);

@@ -46,10 +46,23 @@ type Screen =
   | { k: 'title' } | { k: 'pick' } | { k: 'lobby' } | { k: 'deck'; stage?: string } | { k: 'camp' } | { k: 'campaign' } | { k: 'brief'; stage: string } | { k: 'replay' }
   | ({ k: 'versus' } & Fight) | ({ k: 'match' } & Fight);
 let dispose: (() => void) | void;
+let current: Screen = { k: 'title' };
+// Esc goes back on every full screen that has a way back (ui-flow.md; the settings page promises it). An open overlay
+// takes Esc for itself first.
+const BACK: Partial<Record<Screen['k'], (s: Screen) => Screen>> = {
+  deck: (s) => (s.k === 'deck' && s.stage ? { k: 'brief', stage: s.stage } : { k: 'lobby' }),
+  camp: () => ({ k: 'lobby' }), campaign: () => ({ k: 'lobby' }), brief: () => ({ k: 'campaign' }),
+};
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.repeat || document.querySelector('.overlay')) return;
+  const back = BACK[current.k];
+  if (back) go(back(current));
+});
 
 function go(next: Screen) {
   if (dispose) dispose();
   dispose = undefined;
+  current = next;
   app.replaceChildren();
   Object.assign(window, { __flow: { screen: next.k } });
   if (next.k === 'title') dispose = title();
@@ -307,7 +320,8 @@ function briefing(st: Stage) {
 }
 
 // ---- versus → match → result ----
-// About 1.5 s before every match: our leader against theirs, both team names, the mode or stage, and one tip. A click skips it.
+// About 1.5 s before every match: our leader against theirs, both team names, the mode or stage, and one tip. A click or any
+// key (but F, full screen) skips it.
 function versus(f: Fight): () => void {
   const stage = f.stage ? stageOf(f.stage) : undefined, foe = stage ? stage.enemy : aiSetup(f.team);
   const foeLeader = foe.leader || foe.collection.find((c) => !isBasic(c)) || foe.collection[0]!;
@@ -325,12 +339,14 @@ function versus(f: Fight): () => void {
   mid.append(el('span', 'vs-word', 'ปะทะ'), el('span', 'vs-mode', mode));
   const row = el('div', 'vs-row');
   row.append(side(f.team.leader, 0, teamName(f.team), 'แม่ทัพเรา'), mid, side(foeLeader, 1, stage ? stage.nameTh : `${teamName(foe)}${ai ? ` · เงายุทธ์ (AI) Lv${ai}` : ''}`, stage && !foe.leader ? 'หัวหน้าโจร' : 'แม่ทัพศัตรู'));
-  r.append(el('div', 'grow'), row, el('p', 'vs-tip', `เคล็ดลับ: ${versusTip(f.seed)}`), el('p', 'dim center small', 'คลิกเพื่อข้าม'), el('div', 'grow'));
+  r.append(el('div', 'grow'), row, el('p', 'vs-tip', `เคล็ดลับ: ${versusTip(f.seed)}`), el('p', 'dim center small', 'คลิกหรือกดปุ่มใดก็ได้เพื่อข้าม'), el('div', 'grow'));
   app.append(r);
   const start = () => go({ ...f, k: 'match' });
   const timer = setTimeout(start, 1500);
+  const onKey = (e: KeyboardEvent) => { if (e.key !== 'f' && !e.repeat) start(); };
   r.addEventListener('pointerdown', start);
-  return () => clearTimeout(timer);
+  addEventListener('keydown', onKey);
+  return () => { clearTimeout(timer); removeEventListener('keydown', onKey); };
 }
 
 // Our side: ranked draws from every card (normalized), else the owned cards (a dev ?deck= the cards it names). The casual AI
