@@ -28,7 +28,7 @@
     {
       "id": "1-3", "nameTh": "ค่ายโจรผาวัชระ", "briefTh": "โจรภูเขาขโมยดินปืนจากทั้งสองปราสาทไปหมด ศึกนี้ไม่มีปืนใหญ่ ต้องสู้กันด้วยศิษย์ล้วน",
       "enemy": { "leader": "vajra_stone_guardian", "sub": "vajra_stone_striker", "cards": "earth", "level": 2 },
-      "mana": { "start": 25, "regenPct": 90 }, "fortsAtPct": [30, 50, 70],
+      "mana": { "start": 20, "regenPct": 80 }, "fortsAtPct": [30, 50, 70],
       "gimmick": { "kind": "noCannon", "nameTh": "ไร้ดินปืน", "descTh": "ปืนใหญ่ของทั้งสองฝ่ายใช้ไม่ได้" },
       "rewards": { "win": { "xp": 60, "coins": 60, "gold": 30 } }
     },
@@ -42,7 +42,7 @@
     {
       "id": "1-5", "nameTh": "ป้อมธารน้ำแข็ง", "briefTh": "สำนักธารเยือกเสริมกำแพงด้วยน้ำแข็งหนา และย้ายป้อมให้ห่างกันขึ้น ธาตุน้ำข่มไฟ ต้องเลือกจังหวะบุกให้ดี",
       "enemy": { "leader": "frost_tide_naga", "sub": "frost_tide_striker", "cards": "water", "level": 3 },
-      "mana": { "start": 30, "regenPct": 100 }, "fortsAtPct": [25, 50, 75],
+      "mana": { "start": 25, "regenPct": 90 }, "fortsAtPct": [25, 50, 75],
       "gimmick": { "kind": "castle", "hpPct": 120, "nameTh": "กำแพงน้ำแข็ง", "descTh": "ปราสาทศัตรูแข็งแรงขึ้น HP 120%" },
       "rewards": { "win": { "xp": 70, "coins": 70, "gold": 35 } }
     },
