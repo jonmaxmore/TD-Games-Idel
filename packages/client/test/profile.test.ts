@@ -227,6 +227,16 @@ describe('saved decks follow the collection', () => {
   });
 });
 
+describe('match progress', () => {
+  it('a card the account does not own (a loaner) plays at level 1, whatever its save entry holds', () => {
+    const p = fresh('fire'), lend = battle.deck.loaners.find((c) => !p.owned.includes(c))!, mine = p.owned.find((c) => battleUnits.has(c))!;
+    p.cards[lend]!.level = 5;
+    p.cards[mine]!.level = 3;
+    const g = progressOf(p, 0);
+    expect([g.levels![lend], g.levels![mine]]).toEqual([1, 3]);
+  });
+});
+
 describe('the friend-room team', () => {
   it('keeps a legal saved team, else starts from the first leader pair with a legal hand, never an illegal one', () => {
     const t = teamOf(fresh('fire')), legal = { ...t, picks: autoPicks(t.leader, t.sub, rankedPool) };
