@@ -27,7 +27,7 @@ const ROLE_TH: Record<Role, string> = { leader: 'แม่ทัพ', sub: 'ร�
 export interface PickerOpts {
   rules: DeckRules;
   team: Team;
-  progress: Progress | null; // the account's progress the match will use; null: every card at base (ศึกฝีมือ), no levels shown
+  progress: () => Progress | null; // the account's progress now (a forge item may finish while the screen is open); null: every card at base (ศึกฝีมือ), no levels shown
   onChange: (t: Team) => void; // after every edit, with the new team
 }
 export interface Picker { root: HTMLElement; set: (t: Team) => void; problem: () => string | null; dispose: () => void }
@@ -52,14 +52,14 @@ export function deckPicker(o: PickerOpts): Picker {
     show();
   };
   const face = (c: string) => { const f = el('span', 'face'); f.append(cardArt(c) ?? portrait(c)); return f; };
-  const levelShown = (c: string) => (o.progress && !isLoaner(c, r) ? levelOf(o.progress, c) : null);
+  const levelShown = (c: string) => { const p = o.progress(); return p && !isLoaner(c, r) ? levelOf(p, c) : null; };
 
   // the tooltip over (or under, near the top) the card the pointer rests on: its numbers on the team as it now stands
   const hideTip = () => hideTipOf(tip);
   const hover = (node: HTMLElement, c: string) => hoverTip(root, tip, node, () => {
     const u = battleUnits.get(c)!, lent = isLoaner(c, r);
     const extra = [el('p', 'tip-pts', `แต้มทัพ ${deckPoints(c)} · ปราณในศึก ${u.mana}${lent ? ' · ใบยืม (Lv1 ไม่ได้แต้มฝึก)' : ''}`)];
-    return cardTip(c, team, o.progress, u.perMatch == null ? 'ลงได้ไม่จำกัดต่อศึก' : `ลงได้ ${u.perMatch} ครั้งต่อศึก`, extra);
+    return cardTip(c, team, o.progress(), u.perMatch == null ? 'ลงได้ไม่จำกัดต่อศึก' : `ลงได้ ${u.perMatch} ครั้งต่อศึก`, extra);
   });
 
   // ---- the menu a right-click opens on a card ----
@@ -111,7 +111,7 @@ export function deckPicker(o: PickerOpts): Picker {
   // ---- the seven slots ----
   function slot(label: string, c: string | null, cls: string, onclick: (() => void) | null, why: string): HTMLElement {
     const s = el(onclick ? 'button' : 'div', `deck-slot ${cls}${c ? '' : ' empty'}`);
-    if (s instanceof HTMLButtonElement) { s.type = 'button'; s.onclick = onclick; }
+    if (s instanceof HTMLButtonElement) { s.type = 'button'; s.onclick = onclick; } else if (c) s.tabIndex = 0; // the fixed basic slot: focus shows its tip
     s.title = why;
     s.append(el('span', 'slot-label', label));
     if (!c) { s.append(el('span', 'slot-empty', 'ว่าง')); return s; }

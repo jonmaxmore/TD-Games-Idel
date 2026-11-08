@@ -15,7 +15,7 @@ import { quitRule, type QuitKind } from './quit';
 import { cardArt } from './sprites';
 import { cardInfo } from './cardInfo';
 import { applyVolume, play } from './sound';
-import { button, confirmBox, setDisabled } from './ui';
+import { button, confirmBox, focusTip, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
@@ -159,6 +159,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     b.addEventListener('pointerdown', (ev) => { hideTip(); if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
     b.addEventListener('pointerenter', () => { hover = slot; showTip(slot); });
     b.addEventListener('pointerleave', () => { if (hover === slot) hover = null; hideTip(); });
+    focusTip(b, tip, () => showTip(slot), hideTip);
     cardRow.append(b);
     return { b, uses, card };
   });
@@ -178,9 +179,10 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const toStage = (x: number, y: number) => { const r = root.getBoundingClientRect(), k = r.width / root.offsetWidth; return { x: (x - r.left) / k, y: (y - r.top) / k }; };
   let tipTimer = 0;
   function showTip(slot: number) {
-    clearTimeout(tipTimer);
+    hideTip();
     tipTimer = window.setTimeout(() => {
       const c = cards[slot]!, cap = capOf(c.card);
+      if (!c.b.isConnected) return;
       tip.replaceChildren(...cardTip(c.card, s.setups[me], s.progress[me], cap == null ? 'ลงได้ไม่จำกัด' : `ลงได้อีก ${cap - s.uses[me][slot]!} ครั้ง`));
       const r = c.b.getBoundingClientRect(), p = toStage(r.left + r.width / 2, r.top);
       tip.style.left = `${Math.max(150, Math.min(root.offsetWidth - 150, p.x))}px`;
