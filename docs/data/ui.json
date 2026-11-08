@@ -1,0 +1,16 @@
+{
+  "_notes": "Client-only text for the screens around a match (docs/design/ui-flow.md §2.3), read by packages/client/src/tips.ts. No rules here. versusTipsTh: one is shown on the versus screen before a match (picked by the match seed). lossTip: after a loss, the enemy card that dealt us the most damage is named with the first class in order it belongs to (battle.json counter classes; classTh = how the tip names that class), then a card of ours that counters that class (its counters list names it) is suggested with battle.json counterTags. lineTh fills {card} {class} {counter} {example}.",
+  "versusTipsTh": [
+    "ยึดป้อมได้ เขตอัญเชิญของเราจะขยายออกไป",
+    "ตัวสกัดเฝ้าจุดที่ลง ใช้กันตัวบุกของศัตรูหน้าปราสาท",
+    "ปืนใหญ่ (Space) ผลักตัวเล็กของศัตรูให้ถอยกลับ",
+    "ปราณไหลเร็วขึ้นในนาทีหลัง เก็บไว้ลงตัวใหญ่ตอนท้ายได้",
+    "ชี้การ์ดค้างไว้ ศัตรูที่การ์ดนั้นชนะทางจะเรืองสีส้ม",
+    "หมดเวลาแล้ว ฝ่ายที่ HP ปราสาทเหลือมากกว่าชนะ"
+  ],
+  "lossTip": {
+    "order": ["dragon", "air", "large", "guard", "capture", "attacker", "swarm"],
+    "classTh": { "dragon": "มังกร", "air": "ตัวบิน", "large": "ตัวใหญ่", "guard": "ตัวสกัด", "capture": "ตัวยึดป้อม", "attacker": "ตัวบุกขนาดกลาง", "swarm": "ตัวเล็ก" },
+    "lineTh": "ศัตรูตีเราหนักสุดด้วย{card} ({class}) · ลองใส่ตัว{counter} เช่น {example}"
+  }
+}

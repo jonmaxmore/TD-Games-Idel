@@ -171,5 +171,16 @@
     },
     "draw": { "xp": 30, "coins": 25, "gold": 12 },
     "loss": { "xp": 20, "coins": 20, "gold": 10 }
+  },
+  "unlocks": {
+    "_notes": "Lobby features opened by progress (docs/design/ui-flow.md §4), read by packages/client/src/unlocks.ts. A feature opens when every condition it names holds: stage = that ศึกปราบ stage won, chapter = every stage of that chapter won, castleLevel = castle level reached (from the card-level sum). It also stays open on a save that already used it (a levelled card, a forge item, a town tier, an egg rolled, a ranked match kept), so older saves lose nothing. Locked features are hidden, except the first locked one in this order, shown as a locked button with its condition. Cards are not gated here (acquisition is a separate design).",
+    "features": [
+      { "id": "levelUp", "nameTh": "ค่ายฝึก", "stage": "1-2" },
+      { "id": "casual", "nameTh": "ศึกทั่วไป", "stage": "1-3" },
+      { "id": "forge", "nameTh": "โรงหลอม", "stage": "1-4" },
+      { "id": "eggShop", "nameTh": "ร้านไข่", "castleLevel": 2 },
+      { "id": "town", "nameTh": "เมือง", "stage": "1-6" },
+      { "id": "ranked", "nameTh": "ศึกฝีมือ", "chapter": "ch1" }
+    ]
   }
 }
