@@ -1,7 +1,7 @@
 // The wire boundary: only messages exactly in the protocol parse; anything else throws ProtocolError.
 import { describe, expect, it } from 'vitest';
 import { battleCardIds } from '@five-sects/sim';
-import { CODE_ALPHABET, MAX_CLIENT_BYTES, ProtocolError, cleanName, leaderPool, normalizeCode, parseClient, parseServer, teamError } from '../src';
+import { CODE_ALPHABET, MAX_CLIENT_BYTES, ProtocolError, cleanName, leaderPool, normalizeCode, parseClient, parseServer, teamError, wsUrlError } from '../src';
 
 const card = leaderPool()[0]!, card2 = leaderPool()[1]!;
 const bad = (x: unknown) => expect(() => parseClient(typeof x === 'string' ? x : JSON.stringify(x))).toThrow(ProtocolError);
@@ -10,7 +10,7 @@ describe('client messages', () => {
   it('accepts each message type in its exact shape', () => {
     const ok = [
       { t: 'hello', v: 1, name: 'ลมปราณ' }, { t: 'hello', v: 1, name: 'a', token: 'A'.repeat(43) }, { t: 'create' }, { t: 'join', code: 'ABC234' },
-      { t: 'team', team: { leader: card, sub: card2 } }, { t: 'ready', on: true }, { t: 'leave' },
+      { t: 'team', team: { leader: card, sub: card2 } }, { t: 'ready', on: true }, { t: 'leave' }, { t: 'kick' },
       { t: 'cmd', tick: 10, c: { t: 'summon', side: 1, card, d: 1200 } }, { t: 'cmd', tick: 0, c: { t: 'cannon', side: 0, d: 0 } },
       { t: 'hash', tick: 100, h: '0123abcd' }, { t: 'ping', n: 7 },
     ];
@@ -61,5 +61,18 @@ describe('codes, names and teams', () => {
     expect(teamError({ leader: card, sub: card })).not.toBeNull();
     const basic = battleCardIds.find((c) => !leaderPool().includes(c))!;
     expect(teamError({ leader: basic, sub: card })).not.toBeNull();
+  });
+});
+
+describe('server URL', () => {
+  it('a release build talks to wss:// only; dev also allows ws:// on this machine', () => {
+    expect(wsUrlError('wss://play.example/v1/ws', true)).toBeNull();
+    expect(wsUrlError('ws://play.example/v1/ws', true)).not.toBeNull();
+    expect(wsUrlError('ws://localhost:8787/v1/ws', true)).not.toBeNull();
+    expect(wsUrlError('ws://127.0.0.1:8799/v1/ws', false)).toBeNull();
+    expect(wsUrlError('ws://[::1]:8787/v1/ws', false)).toBeNull();
+    expect(wsUrlError('ws://192.168.1.5:8787/v1/ws', false)).not.toBeNull();
+    expect(wsUrlError('ws://localhost.evil.example/v1/ws', false)).not.toBeNull();
+    expect(wsUrlError('https://play.example/v1/ws', false)).not.toBeNull();
   });
 });

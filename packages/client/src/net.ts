@@ -1,10 +1,9 @@
 // The browser's link to the friend-room server: where it is (VITE_GAME_SERVER, else this machine), whether it answers,
 // and one socket that says hello with the saved guest token, parses every message through the protocol and, during a
 // match, reconnects by itself inside the server's reconnect window.
-import { PROTOCOL_VERSION, RECONNECT_SEC, parseServer, type ClientMsg, type ErrorCode, type RejectCode, type ServerMsg } from '@five-sects/protocol';
+import { LOOPBACK_WS, PROTOCOL_VERSION, RECONNECT_SEC, parseServer, wsUrlError, type ClientMsg, type ErrorCode, type RejectCode, type ServerMsg } from '@five-sects/protocol';
 
 const TOKEN_KEY = 'five-sects.pvp.token', NAME_KEY = 'five-sects.pvp.name';
-const LOOPBACK = /^wss?:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\/[\w/]*$/;
 // The token lives in sessionStorage: it survives a reload of this tab (a reconnect) and each tab is its own guest, so two
 // tabs on one machine can play each other. The name is remembered across tabs.
 const store = (k: string) => (k === TOKEN_KEY ? sessionStorage : localStorage);
@@ -12,10 +11,12 @@ const get = (k: string) => { try { return store(k).getItem(k); } catch { return 
 const put = (k: string, v: string) => { try { store(k).setItem(k, v); } catch { /* storage blocked: the token lasts this page */ } };
 
 // The server URL, or null with the reason it cannot be used from this page. ?server= may point at another port on this
-// machine only (dev and the shots script); a page served over https cannot open a plain ws:// socket.
+// machine only (dev and the shots script); a release build talks to wss:// only, and a page served over https cannot open
+// a plain ws:// socket.
 export function serverUrl(): { url: string | null; why: string | null } {
   const q = new URLSearchParams(location.search).get('server');
-  const url = q && LOOPBACK.test(q) ? q : (import.meta.env.VITE_GAME_SERVER as string | undefined) ?? 'ws://localhost:8787/v1/ws';
+  const url = q && LOOPBACK_WS.test(q) ? q : (import.meta.env.VITE_GAME_SERVER as string | undefined) ?? 'ws://localhost:8787/v1/ws';
+  if (wsUrlError(url, import.meta.env.PROD)) return { url: null, why: 'ที่อยู่เซิร์ฟเวอร์ศึกกับเพื่อนไม่ปลอดภัย (ต้องเป็น wss://) จึงยังเล่นไม่ได้' };
   if (location.protocol === 'https:' && url.startsWith('ws:')) return { url: null, why: 'หน้านี้เปิดผ่าน https จึงต่อเซิร์ฟเวอร์ในเครื่องไม่ได้ · ศึกกับเพื่อนเล่นได้เมื่อเปิดเกมจากเครื่องที่รันเซิร์ฟเวอร์' };
   return { url, why: null };
 }
@@ -41,6 +42,7 @@ export const ERROR_TH: Record<ErrorCode, string> = {
   room_closed: 'ห้องถูกปิดแล้ว (เจ้าของห้องออกหรือหมดเวลา)', not_in_room: 'ยังไม่ได้อยู่ในห้อง',
   bad_team: 'ทัพนี้ใช้ไม่ได้ เลือกแม่ทัพและรองที่ต่างกัน', no_team: 'เลือกแม่ทัพและรองก่อนกดพร้อม', in_match: 'กำลังอยู่ในศึก',
   server_full: 'เซิร์ฟเวอร์เต็ม ลองใหม่ภายหลัง', replaced: 'บัญชีนี้เข้าเล่นจากอีกหน้าต่างหนึ่งแล้ว',
+  kicked: 'เจ้าของห้องให้ออกจากห้องนี้แล้ว', idle: 'ไม่ได้ใช้งานนานเกินไป จึงตัดการเชื่อมต่อ',
 };
 export const REJECT_TH: Record<RejectCode, string> = {
   wrong_side: 'คำสั่งไม่ใช่ของฝั่งเรา', late: 'คำสั่งถึงเซิร์ฟเวอร์ช้าเกินไป', too_early: 'คำสั่งเร็วเกินไป', not_in_hand: 'ไม่มีใบนี้ในมือ',

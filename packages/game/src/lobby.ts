@@ -11,7 +11,7 @@ import {
 export interface Conn { ip: string; send(text: string): void; close(code: number, reason: string): void }
 // A finished match as stored: a BattleRecord replayBattle() re-runs (a forfeit or a flagged desync stops early), plus who played.
 export interface MatchRecord extends BattleRecord { id: string; code: string; names: [string, string]; end: MatchEnd; playedAt: string }
-export interface MatchStore { save(r: MatchRecord): void }
+export interface MatchStore { save(r: MatchRecord): void; flush?(): Promise<void> }
 
 export interface LobbyOpts {
   tickMs: number; // 50 in play; tests run faster
@@ -19,39 +19,54 @@ export interface LobbyOpts {
   graceMs: number; // a dropped player may reconnect for this long, then forfeits
   roomTtlMs: number; // a room that never starts closes after this
   maxRooms: number; maxPlayers: number;
+  helloMs: number; // a socket that has not said hello by then is closed
+  idleMs: number; // a guest in no room that sends nothing for this long is sent away
+  joinFailsPerMin: number; // wrong room codes the whole server answers per minute (guessing from many addresses)
   store: MatchStore;
   log?: (msg: string, data?: Record<string, unknown>) => void;
 }
 export const defaultOpts = (store: MatchStore): LobbyOpts => ({
-  tickMs: 50, startDelayMs: 2000, graceMs: 20_000, roomTtlMs: 10 * 60_000, maxRooms: 1000, maxPlayers: 5000, store,
+  tickMs: 50, startDelayMs: 2000, graceMs: 20_000, roomTtlMs: 10 * 60_000, maxRooms: 1000, maxPlayers: 5000,
+  helloMs: 5000, idleMs: 10 * 60_000, joinFailsPerMin: 600, store,
 });
+
+// Match timing and rate limits run on the monotonic clock: a wall-clock step must not stall or rush a match.
+const now = () => performance.now();
+// A socket that sends this many wrong room codes in a row is closed.
+export const MAX_CODE_MISSES = 5;
 
 // A token bucket per key: at most `burst` at once, refilled at `perSec`.
 export class Limiter {
   private b = new Map<string, { n: number; at: number }>();
-  constructor(private burst: number, private perSec: number, private now: () => number = Date.now) {}
-  take(key: string): boolean {
-    const t = this.now(), x = this.b.get(key) ?? { n: this.burst, at: t };
+  constructor(private burst: number, private perSec: number, private clock: () => number = now) {}
+  private fill(key: string) {
+    const t = this.clock(), x = this.b.get(key) ?? { n: this.burst, at: t };
     x.n = Math.min(this.burst, x.n + ((t - x.at) / 1000) * this.perSec);
     x.at = t;
     this.b.set(key, x);
+    return x;
+  }
+  has(key: string): boolean { return this.fill(key).n >= 1; }
+  take(key: string): boolean {
+    const x = this.fill(key);
     if (x.n < 1) return false;
     x.n -= 1;
     return true;
   }
-  sweep(): void { const t = this.now(); for (const [k, x] of this.b) if (t - x.at > (this.burst / this.perSec) * 1000) this.b.delete(k); }
+  sweep(): void { const t = this.clock(); for (const [k, x] of this.b) if (t - x.at > (this.burst / this.perSec) * 1000) this.b.delete(k); }
 }
 
-interface Player { id: string; tokenHash: string; name: string; conn: Conn | null; room: Room | null; seat: Side; leftAt: number }
+interface Player { id: string; tokenHash: string; name: string; conn: Conn | null; room: Room | null; seat: Side; leftAt: number; lastAt: number; misses: number }
 interface Match {
   s: BattleState; seed: number; teams: [TeamPick, TeamPick]; startAt: number; timer: NodeJS.Timeout | null;
   queue: Map<number, { seat: Side; c: NetCommand }[]>; frames: Record<string, NetCommand[]>;
+  framesJson: string | null; // the history as a reconnect sends it, until the next frame with commands
   hashes: Map<number, string>; told: [Map<number, string>, Map<number, string>]; flagged: boolean;
   grace: [NodeJS.Timeout | null, NodeJS.Timeout | null]; perTick: [number, number]; perTickAt: number;
   timing: { steps: number; lateMs: number[] }; // how far behind its schedule each tick ran
   slack: number[]; // per accepted command: ticks between arrival and its stamp (negative: arrived late)
 }
-interface Room { code: string; seats: [Player | null, Player | null]; teams: [TeamPick | null, TeamPick | null]; ready: [boolean, boolean]; match: Match | null; expires: NodeJS.Timeout; createdAt: number }
+interface Room { code: string; seats: [Player | null, Player | null]; teams: [TeamPick | null, TeamPick | null]; ready: [boolean, boolean]; match: Match | null; expires: NodeJS.Timeout; createdAt: number; kicked: Set<string> }
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const other = (s: Side): Side => (s === 0 ? 1 : 0);
@@ -64,11 +79,14 @@ export class Lobby {
   private joinLimit = new Limiter(10, 10 / 60);
   private cmdLimit = new Limiter(10, 6);
   private guestLimit = new Limiter(10, 10 / 60); // new guest identities per IP
+  private reconnectLimit = new Limiter(3, 1); // hellos with a known token, per guest
+  private joinFails: Limiter;
   private sweeper: NodeJS.Timeout;
   readonly stats = { matches: 0, desyncs: 0, rejects: {} as Record<string, number>, lateMs: [] as number[], slack: [] as number[] };
 
   constructor(readonly o: LobbyOpts) {
-    this.sweeper = setInterval(() => this.sweep(), 60_000);
+    this.joinFails = new Limiter(o.joinFailsPerMin, o.joinFailsPerMin / 60);
+    this.sweeper = setInterval(() => this.sweep(), Math.min(60_000, o.idleMs));
     this.sweeper.unref();
   }
 
@@ -76,6 +94,8 @@ export class Lobby {
   connect(conn: Conn): { message(raw: unknown): void; close(): void } {
     let me: Player | null = null;
     const msgLimit = new Limiter(40, 30);
+    const helloTimer = setTimeout(() => { if (!me) conn.close(1008, 'hello timeout'); }, this.o.helloMs);
+    helloTimer.unref();
     return {
       message: (raw) => {
         if (!msgLimit.take('m')) { this.send(conn, { t: 'error', code: 'rate_limited' }); conn.close(1008, 'rate'); return; }
@@ -86,12 +106,13 @@ export class Lobby {
           conn.close(1008, 'bad message');
           return;
         }
-        if (m.t === 'hello') { if (!me) me = this.hello(conn, m); return; }
+        if (m.t === 'hello') { if (!me) { me = this.hello(conn, m); if (me) clearTimeout(helloTimer); } return; }
         if (!me) { this.send(conn, { t: 'error', code: 'need_hello' }); conn.close(1008, 'hello first'); return; }
         if (me.conn !== conn) return; // replaced by a newer connection
+        me.lastAt = now();
         this.handle(me, m);
       },
-      close: () => { if (me && me.conn === conn) this.dropped(me); },
+      close: () => { clearTimeout(helloTimer); if (me && me.conn === conn) this.dropped(me); },
     };
   }
 
@@ -109,22 +130,25 @@ export class Lobby {
   private hello(conn: Conn, m: Extract<ClientMsg, { t: 'hello' }>): Player | null {
     if (m.v !== PROTOCOL_VERSION) { this.send(conn, { t: 'error', code: 'version' }); conn.close(1008, 'version'); return null; }
     let token = m.token, p = token ? this.players.get(sha(token)) : undefined;
+    if (p && !this.reconnectLimit.take(p.id)) { this.send(conn, { t: 'error', code: 'rate_limited' }); conn.close(1008, 'rate'); return null; }
     if (!p) {
       if (!this.guestLimit.take(conn.ip)) { this.send(conn, { t: 'error', code: 'rate_limited' }); conn.close(1008, 'rate'); return null; }
       if (this.players.size >= this.o.maxPlayers) { this.send(conn, { t: 'error', code: 'server_full' }); conn.close(1013, 'full'); return null; }
       token = randomBytes(32).toString('base64url');
-      p = { id: randomBytes(8).toString('hex'), tokenHash: sha(token), name: '', conn: null, room: null, seat: 0, leftAt: 0 };
+      p = { id: randomBytes(8).toString('hex'), tokenHash: sha(token), name: '', conn: null, room: null, seat: 0, leftAt: 0, lastAt: 0, misses: 0 };
       this.players.set(p.tokenHash, p);
     }
     if (p.conn && p.conn !== conn) { this.send(p.conn, { t: 'error', code: 'replaced' }); p.conn.close(4000, 'replaced'); }
     p.conn = conn;
+    p.lastAt = now();
+    p.misses = 0;
     if (!p.room || !p.room.match) p.name = cleanName(m.name) ?? (p.name || defaultName()); // the name is fixed once a match starts
     this.send(conn, { t: 'welcome', v: PROTOCOL_VERSION, token: token!, name: p.name, delay: INPUT_DELAY, tickMs: this.o.tickMs });
     const r = p.room;
     if (r?.match) { // back into a running match: the whole history, then the live frames
       const g = r.match.grace[p.seat];
       if (g) { clearTimeout(g); r.match.grace[p.seat] = null; }
-      this.send(conn, this.startMsg(r, p.seat));
+      conn.send(this.startText(r, p.seat));
       this.toRoom(r, { t: 'peer', seat: p.seat, online: true, graceSec: 0 });
       this.log('reconnect', { room: r.code, seat: p.seat });
     } else if (r) this.roomState(r);
@@ -140,7 +164,7 @@ export class Lobby {
         if (this.rooms.size >= this.o.maxRooms) return this.send(p.conn, { t: 'error', code: 'server_full' });
         if (r) this.leave(p);
         const code = this.newCode();
-        const room: Room = { code, seats: [p, null], teams: [null, null], ready: [false, false], match: null, createdAt: Date.now(), expires: setTimeout(() => this.closeRoom(room, 'room_closed'), this.o.roomTtlMs) };
+        const room: Room = { code, seats: [p, null], teams: [null, null], ready: [false, false], match: null, createdAt: Date.now(), kicked: new Set(), expires: setTimeout(() => this.closeRoom(room, 'room_closed'), this.o.roomTtlMs) };
         room.expires.unref();
         this.rooms.set(code, room);
         p.room = room; p.seat = 0;
@@ -150,9 +174,17 @@ export class Lobby {
       case 'join': {
         if (r?.match) return this.send(p.conn, { t: 'error', code: 'in_match' });
         if (!this.joinLimit.take(p.conn!.ip)) return this.send(p.conn, { t: 'error', code: 'rate_limited' });
+        if (!this.joinFails.has('all')) return this.send(p.conn, { t: 'error', code: 'rate_limited' });
         const code = normalizeCode(m.code), room = code ? this.rooms.get(code) : undefined;
-        if (!room) return this.send(p.conn, { t: 'error', code: 'room_not_found' });
+        if (!room) {
+          this.joinFails.take('all');
+          this.send(p.conn, { t: 'error', code: 'room_not_found' });
+          if (++p.misses >= MAX_CODE_MISSES) p.conn!.close(1008, 'wrong codes');
+          return;
+        }
+        p.misses = 0;
         if (room === r) return this.roomState(room);
+        if (room.kicked.has(p.id)) return this.send(p.conn, { t: 'error', code: 'kicked' });
         if (room.match || room.seats[1]) return this.send(p.conn, { t: 'error', code: 'room_full' });
         if (r) this.leave(p);
         room.seats[1] = p; p.room = room; p.seat = 1;
@@ -173,6 +205,13 @@ export class Lobby {
         r.ready[p.seat] = m.on;
         if (r.ready[0] && r.ready[1] && r.seats[0]?.conn && r.seats[1]?.conn) return this.start(r);
         return this.roomState(r);
+      }
+      case 'kick': {
+        const guest = r?.seats[1];
+        if (!r || r.match || p.seat !== 0 || !guest) return;
+        r.kicked.add(guest.id);
+        this.send(guest.conn, { t: 'error', code: 'kicked' });
+        return this.leave(guest);
       }
       case 'leave': return r?.match ? this.forfeit(r, p.seat) : r ? this.leave(p) : undefined;
       case 'cmd': return this.command(p, m.tick, m.c);
@@ -231,18 +270,23 @@ export class Lobby {
     const teams = r.teams as [TeamPick, TeamPick], seed = randomInt(1, 2 ** 31 - 1);
     const s = createBattle(seed, pvpSetup(teams[0]), pvpSetup(teams[1]), PVP_OPTS);
     r.match = {
-      s, seed, teams, startAt: Date.now() + this.o.startDelayMs, timer: null, queue: new Map(), frames: {}, hashes: new Map(), told: [new Map(), new Map()],
+      s, seed, teams, startAt: now() + this.o.startDelayMs, timer: null, queue: new Map(), frames: {}, framesJson: null, hashes: new Map(), told: [new Map(), new Map()],
       flagged: false, grace: [null, null], perTick: [0, 0], perTickAt: -1, timing: { steps: 0, lateMs: [] }, slack: [],
     };
     this.stats.matches++;
-    r.seats.forEach((p, i) => { if (p) this.send(p.conn, this.startMsg(r, i as Side)); });
+    r.seats.forEach((p, i) => { if (p) p.conn?.send(this.startText(r, i as Side)); });
     this.log('start', { room: r.code, seed });
     this.schedule(r);
   }
 
-  private startMsg(r: Room, seat: Side): ServerMsg {
+  // The start message as text; the frame history inside it is serialised once per change, not once per reconnect.
+  private startText(r: Room, seat: Side): string {
     const m = r.match!;
-    return { t: 'start', seat, seed: m.seed, teams: m.teams, names: [r.seats[0]!.name, r.seats[1]!.name], inMs: Math.max(0, m.startAt - Date.now()), tick: m.s.tick, frames: m.frames };
+    m.framesJson ??= JSON.stringify(m.frames);
+    const head: Omit<Extract<ServerMsg, { t: 'start' }>, 'frames'> = {
+      t: 'start', seat, seed: m.seed, teams: m.teams, names: [r.seats[0]!.name, r.seats[1]!.name], inMs: Math.round(Math.max(0, m.startAt - now())), tick: m.s.tick,
+    };
+    return `${JSON.stringify(head).slice(0, -1)},"frames":${m.framesJson}}`;
   }
 
   // Tick n runs at startAt + n * tickMs; a late timer catches up (a few ticks at most per wake) instead of drifting.
@@ -252,8 +296,8 @@ export class Lobby {
       m.timer = null;
       let n = 0;
       try {
-        while (r.match === m && !battleOver(m.s) && Date.now() >= m.startAt + m.s.tick * this.o.tickMs && n++ < 5) {
-          m.timing.lateMs.push(Date.now() - (m.startAt + m.s.tick * this.o.tickMs));
+        while (r.match === m && !battleOver(m.s) && now() >= m.startAt + m.s.tick * this.o.tickMs && n++ < 5) {
+          m.timing.lateMs.push(now() - (m.startAt + m.s.tick * this.o.tickMs));
           this.step(r);
         }
       } catch (e) { // one broken match must not take the process (and every other room) down with it
@@ -261,7 +305,7 @@ export class Lobby {
         return this.closeRoom(r, 'room_closed');
       }
       if (r.match === m && !battleOver(m.s)) this.schedule(r);
-    }, Math.max(0, m.startAt + m.s.tick * this.o.tickMs - Date.now()));
+    }, Math.max(0, m.startAt + m.s.tick * this.o.tickMs - now()));
   }
 
   private step(r: Room): void {
@@ -275,7 +319,7 @@ export class Lobby {
       else ok.push(q.c);
     }
     m.queue.delete(tick);
-    if (ok.length > 0) m.frames[tick] = ok;
+    if (ok.length > 0) { m.frames[tick] = ok; m.framesJson = null; }
     stepBattle(s, ok);
     m.timing.steps++;
     this.toRoom(r, { t: 'frame', tick, cmds: ok });
@@ -297,7 +341,7 @@ export class Lobby {
 
   private command(p: Player, tick: number, c: NetCommand): void {
     const r = p.room, m = r?.match;
-    if (!r || !m || Date.now() < m.startAt || battleOver(m.s)) return this.reject(p, 'not_running', tick);
+    if (!r || !m || now() < m.startAt || battleOver(m.s)) return this.reject(p, 'not_running', tick);
     if (c.side !== p.seat) return this.reject(p, 'wrong_side', tick);
     if (!this.cmdLimit.take(p.id)) return this.reject(p, 'too_many', tick);
     const next = m.s.tick, slack = tick - next;
@@ -356,11 +400,14 @@ export class Lobby {
     this.rooms.delete(r.code);
   }
 
-  // Guests with no connection and no room for 10 minutes are forgotten (a later hello just gets a new token); idle
-  // limiter entries too.
+  // A guest in no room that has sent nothing for idleMs is sent away; one with no connection and no room for 10 minutes
+  // is forgotten (a later hello just gets a new token); idle limiter entries too.
   private sweep(): void {
-    const t = Date.now();
-    for (const [k, p] of this.players) if (!p.conn && !p.room && t - p.leftAt > 600_000) this.players.delete(k);
-    this.createLimit.sweep(); this.joinLimit.sweep(); this.cmdLimit.sweep(); this.guestLimit.sweep();
+    const t = Date.now(), mono = now();
+    for (const [k, p] of this.players) {
+      if (p.conn && !p.room && mono - p.lastAt > this.o.idleMs) { this.send(p.conn, { t: 'error', code: 'idle' }); p.conn.close(4002, 'idle'); }
+      else if (!p.conn && !p.room && t - p.leftAt > 600_000) this.players.delete(k);
+    }
+    for (const l of [this.createLimit, this.joinLimit, this.cmdLimit, this.guestLimit, this.reconnectLimit]) l.sweep();
   }
 }
