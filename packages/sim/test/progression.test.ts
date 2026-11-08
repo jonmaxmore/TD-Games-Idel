@@ -1,9 +1,9 @@
 // Castle-battle progression (SPEC-castle-battle §12): levels, forge and town change a casual match, never a normalized one;
-// the egg odds the shop shows are the odds it rolls.
+// the power score matches matchmaking.md's worked example and sizes the casual AI.
 import { describe, expect, it } from 'vitest';
 import {
   abilityValue, addXp, battle, BATTLE_LEN, battleCardIds, battleHash, battleOver, battleUnits, castleLevelOf, createBattle, fixedHand,
-  progression, rollEgg, stepBattle, type BattleCommand, type BattleSetup, type Progress,
+  matchLevel, powerRatioMaxPct, powerScore, progression, sectSetup, starterCards, stepBattle, type BattleCommand, type BattleSetup, type Progress,
 } from '../src';
 import { MIXED, playBattle } from './battleBot';
 
@@ -20,7 +20,7 @@ describe('progression data', () => {
     expect(progression.xpToNext.length).toBe(progression.maxLevel - 1);
     for (let i = 1; i < progression.xpToNext.length; i++) expect(progression.xpToNext[i]!).toBeGreaterThanOrEqual(progression.xpToNext[i - 1]!);
     for (let i = 1; i < progression.castleLevels.length; i++) expect(progression.castleLevels[i]!.cardLevels).toBeGreaterThan(progression.castleLevels[i - 1]!.cardLevels);
-    expect(castleLevelOf(battleCardIds.length)).toBe(1);
+    expect(castleLevelOf(starterCards('fire').length)).toBe(1);
     expect(castleLevelOf(battleCardIds.length * progression.maxLevel)).toBe(progression.castleLevels.length);
   });
 
@@ -96,19 +96,30 @@ describe('progression in a match', () => {
   });
 });
 
-describe('eggs', () => {
-  it('the odds shown sum to 100, every bucket has cards, and 20,000 seeded rolls land within 1.5 points of each', () => {
-    for (const egg of progression.eggs) {
-      expect(egg.odds.reduce((a, o) => a + o.pct, 0)).toBe(100);
-      for (const o of egg.odds) expect(o.cards.length, o.nameTh).toBeGreaterThan(0);
-      const r = { rng: 12345 }, hits = egg.odds.map(() => 0), N = 20000;
-      for (let i = 0; i < N; i++) {
-        const card = rollEgg(egg, r);
-        const b = egg.odds.findIndex((o) => o.cards.includes(card));
-        expect(b).toBeGreaterThanOrEqual(0);
-        hits[b]!++;
-      }
-      egg.odds.forEach((o, i) => expect(Math.abs((100 * hits[i]!) / N - o.pct), o.nameTh).toBeLessThan(1.5));
+describe('power score (matchmaking.md §5.2)', () => {
+  // The doc's worked example: banner Lv10, leader Lv12 with a weapon and armour, sub Lv10, 8 draw-pool cards Lv5, wall and
+  // cannon tier 1: P = 1000 x 1.4576 x 1.05 = 1,530.
+  const pool = battleCardIds.filter((c) => battleUnits.get(c)!.move !== 'capture' && c !== 'cloud_sword_elder' && c !== 'cloud_sword_striker').slice(0, 8);
+  const example = (more: Partial<Progress> = {}): BattleSetup => ({
+    leader: 'cloud_sword_elder', sub: 'cloud_sword_striker', collection: ['cloud_sword_banner', 'cloud_sword_elder', 'cloud_sword_striker', ...pool], bench: [],
+    progress: { levels: { cloud_sword_banner: 10, cloud_sword_elder: 12, cloud_sword_striker: 10, ...Object.fromEntries(pool.map((c) => [c, 5])) }, gear: { cloud_sword_elder: ['weapon', 'armor'] }, town: { cannon: 1, wall: 1 }, ...more },
+  });
+  it('the worked example scores 1,530; a new 9-card account 1,000', () => {
+    expect(powerScore(example())).toBe(1530);
+    expect(powerScore({ leader: 'cloud_sword_striker', sub: 'cloud_sword_control', collection: starterCards('metal'), bench: [] })).toBe(1000);
+  });
+  it('a benched card leaves the score; draw-pool cards share drawSlots of weight', () => {
+    const s = example(), low = { ...s, collection: [...s.collection, 'ember_imp'] };
+    expect(powerScore(low)).toBeLessThan(powerScore(s));
+    expect(powerScore({ ...low, bench: ['ember_imp'] })).toBe(powerScore(s));
+  });
+  it('the casual AI level keeps the power ratio under the cap for accounts from new to maxed', () => {
+    const ai = (lv: number): BattleSetup => ({ ...sectSetup('wood'), progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, lv])) } });
+    for (const lv of [1, 3, 7, 12, 20, 30]) {
+      const player = powerScore({ ...example(), progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, lv])), town: { cannon: lv > 10 ? 2 : 0, wall: lv > 20 ? 3 : 0 } } });
+      const m = matchLevel(player, (l) => powerScore(ai(l)));
+      expect(m.ratioPct, `player Lv${lv}: ${player} vs AI Lv${m.level} ${m.power}`).toBeLessThanOrEqual(powerRatioMaxPct);
+      expect(m.power).toBe(powerScore(ai(m.level)));
     }
   });
 });

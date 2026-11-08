@@ -159,7 +159,7 @@
    {
     "t": "summon",
     "side": 0,
-    "card": "jade_bamboo_burst",
+    "card": "blood_bat",
     "d": 5250
    },
    {
@@ -179,13 +179,13 @@
    {
     "t": "summon",
     "side": 0,
-    "card": "corpse_puppeteer",
+    "card": "frost_tide_striker",
     "d": 5250
    },
    {
     "t": "summon",
     "side": 1,
-    "card": "cloud_sword_rider",
+    "card": "frost_tide_swallow",
     "d": 5250
    }
   ],
@@ -193,7 +193,7 @@
    {
     "t": "summon",
     "side": 0,
-    "card": "corpse_puppeteer",
+    "card": "frost_tide_striker",
     "d": 5250
    },
    {
@@ -215,31 +215,33 @@
    {
     "t": "summon",
     "side": 0,
-    "card": "corpse_puppeteer",
+    "card": "crimson_phoenix_striker",
     "d": 5250
+   }
+  ],
+  "110": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "frost_tide_burst",
+    "d": 6300
    }
   ],
   "120": [
    {
     "t": "summon",
     "side": 0,
-    "card": "cloud_sword_rider",
+    "card": "frost_tide_striker",
     "d": 6300
    },
    {
     "t": "summon",
     "side": 1,
-    "card": "dawn_qilin",
+    "card": "jade_bamboo_striker",
     "d": 6300
    }
   ],
-  "240": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 6300
-   },
+  "200": [
    {
     "t": "summon",
     "side": 1,
@@ -247,21 +249,7 @@
     "d": 6300
    }
   ],
-  "400": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 6300
-   },
-   {
-    "t": "summon",
-    "side": 1,
-    "card": "jade_bamboo_banner",
-    "d": 6300
-   }
-  ],
-  "550": [
+  "250": [
    {
     "t": "summon",
     "side": 0,
@@ -269,7 +257,7 @@
     "d": 6300
    }
   ],
-  "560": [
+  "310": [
    {
     "t": "summon",
     "side": 1,
@@ -277,435 +265,498 @@
     "d": 6300
    }
   ],
-  "610": [
+  "320": [
+   {
+    "t": "cannon",
+    "side": 1,
+    "d": 9750
+   }
+  ],
+  "380": [
    {
     "t": "summon",
     "side": 1,
-    "card": "vajra_stone_control",
+    "card": "jade_bamboo_banner",
     "d": 6300
+   }
+  ],
+  "500": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 5250
    }
   ],
   "620": [
    {
     "t": "summon",
     "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 2000
+   }
+  ],
+  "720": [
+   {
+    "t": "summon",
+    "side": 0,
     "card": "crimson_phoenix_striker",
-    "d": 6300
+    "d": 14700
    }
   ],
-  "690": [
+  "750": [
    {
     "t": "summon",
     "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 6300
+    "d": 2000
    }
   ],
-  "810": [
+  "840": [
    {
     "t": "summon",
     "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 6300
+    "d": 2000
    }
   ],
-  "820": [
+  "970": [
    {
     "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 10500
-   }
-  ],
-  "860": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 10500
-   }
-  ],
-  "910": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 10500
-   }
-  ],
-  "960": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 10500
-   }
-  ],
-  "980": [
-   {
-    "t": "cannon",
     "side": 1,
-    "d": 9900
+    "card": "jade_bamboo_banner",
+    "d": 2000
    }
   ],
   "1080": [
    {
     "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 10500
-   }
-  ],
-  "1110": [
-   {
-    "t": "summon",
     "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 6300
+    "d": 2000
    }
   ],
   "1200": [
    {
     "t": "summon",
     "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 10500
+    "card": "frost_tide_striker",
+    "d": 14700
    }
   ],
-  "1320": [
+  "1260": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 2300
+   }
+  ],
+  "1330": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 2000
+   }
+  ],
+  "1500": [
    {
     "t": "summon",
     "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 10100
+    "card": "blood_bat",
+    "d": 14280
    }
   ],
-  "1450": [
+  "1550": [
    {
     "t": "summon",
-    "side": 0,
+    "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 6300
-   }
-  ],
-  "1520": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 6300
+    "d": 2720
    }
   ],
   "1600": [
    {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 5960
-   }
-  ],
-  "1950": [
-   {
     "t": "cannon",
-    "side": 0,
-    "d": 7900
+    "side": 1,
+    "d": 1560
    }
   ],
-  "1970": [
+  "1740": [
    {
     "t": "summon",
-    "side": 0,
+    "side": 1,
     "card": "jade_bamboo_banner",
     "d": 5250
    }
   ],
-  "2010": [
+  "1800": [
    {
     "t": "summon",
     "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 5250
+    "card": "blood_bat",
+    "d": 14300
    }
   ],
-  "2130": [
+  "1890": [
    {
     "t": "summon",
-    "side": 0,
+    "side": 1,
     "card": "jade_bamboo_banner",
     "d": 2000
+   }
+  ],
+  "2110": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 5250
    }
   ],
   "2200": [
    {
     "t": "summon",
     "side": 0,
+    "card": "crimson_phoenix_striker",
+    "d": 14300
+   }
+  ],
+  "2220": [
+   {
+    "t": "summon",
+    "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 2000
+    "d": 5250
    }
   ],
   "2300": [
    {
     "t": "summon",
-    "side": 0,
+    "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 2000
-   },
+    "d": 4100
+   }
+  ],
+  "2340": [
    {
     "t": "summon",
     "side": 1,
-    "card": "cloud_sword_rider",
+    "card": "jade_bamboo_banner",
+    "d": 3600
+   }
+  ],
+  "2400": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 2350
+   }
+  ],
+  "2450": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 2000
+   }
+  ],
+  "2480": [
+   {
+    "t": "summon",
+    "side": 0,
+    "card": "blood_bat",
     "d": 14700
-   }
-  ],
-  "2420": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 2000
-   }
-  ],
-  "2520": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 2000
    }
   ],
   "2560": [
    {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 2000
-   },
+    "t": "cannon",
+    "side": 1,
+    "d": 1560
+   }
+  ],
+  "2660": [
    {
     "t": "summon",
     "side": 1,
-    "card": "cloud_sword_rider",
-    "d": 14700
-   }
-  ],
-  "2640": [
-   {
-    "t": "summon",
-    "side": 0,
     "card": "jade_bamboo_banner",
-    "d": 2000
-   }
-  ],
-  "2720": [
-   {
-    "t": "summon",
-    "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 2000
+    "d": 5250
    }
   ],
   "2800": [
    {
     "t": "summon",
     "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 2000
-   },
+    "card": "crimson_phoenix_striker",
+    "d": 14300
+   }
+  ],
+  "2820": [
    {
     "t": "summon",
     "side": 1,
-    "card": "crimson_phoenix_striker",
-    "d": 14700
+    "card": "jade_bamboo_banner",
+    "d": 4750
    }
   ],
-  "2880": [
+  "2860": [
    {
     "t": "summon",
-    "side": 0,
+    "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 2000
+    "d": 4500
    }
   ],
-  "2960": [
+  "2940": [
    {
     "t": "summon",
-    "side": 0,
+    "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 2000
+    "d": 2800
    }
   ],
-  "3060": [
+  "3020": [
    {
     "t": "summon",
-    "side": 0,
+    "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 2000
+    "d": 5250
    }
   ],
   "3120": [
    {
     "t": "summon",
     "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 2000
-   },
+    "card": "frost_tide_striker",
+    "d": 14300
+   }
+  ],
+  "3130": [
    {
     "t": "summon",
     "side": 1,
-    "card": "vajra_stone_hawk",
-    "d": 14700
+    "card": "jade_bamboo_banner",
+    "d": 5250
    }
   ],
-  "3190": [
+  "3200": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 3850
+   }
+  ],
+  "3260": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 2600
+   }
+  ],
+  "3330": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 5250
+   }
+  ],
+  "3360": [
    {
     "t": "summon",
     "side": 0,
-    "card": "jade_bamboo_banner",
-    "d": 2000
+    "card": "frost_tide_striker",
+    "d": 14300
    }
   ],
-  "3240": [
+  "3420": [
    {
     "t": "summon",
-    "side": 0,
+    "side": 1,
     "card": "jade_bamboo_banner",
-    "d": 2000
+    "d": 4250
+   }
+  ],
+  "3460": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 4000
+   }
+  ],
+  "3510": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 3800
+   }
+  ],
+  "3570": [
+   {
+    "t": "summon",
+    "side": 1,
+    "card": "jade_bamboo_banner",
+    "d": 3150
    }
   ]
  },
  "trace": [
   [
    100,
-   "0b03b47f"
+   "cc7f4ca3"
   ],
   [
    200,
-   "1a953c54"
+   "6bbf7699"
   ],
   [
    300,
-   "a9f57f70"
+   "abe3da38"
   ],
   [
    400,
-   "7531baa9"
+   "21d26959"
   ],
   [
    500,
-   "2cfcfd95"
+   "a14a682c"
   ],
   [
    600,
-   "4c7ec1dd"
+   "ca759011"
   ],
   [
    700,
-   "0314fed7"
+   "c3899b2d"
   ],
   [
    800,
-   "7e44fd6c"
+   "923ccced"
   ],
   [
    900,
-   "42bbfb1d"
+   "086573b7"
   ],
   [
    1000,
-   "65e986a9"
+   "9b0a9d56"
   ],
   [
    1100,
-   "aa5d620f"
+   "7174f790"
   ],
   [
    1200,
-   "9f2e1598"
+   "cb42d6c2"
   ],
   [
    1300,
-   "2a9cf50d"
+   "7e616a6c"
   ],
   [
    1400,
-   "90be5760"
+   "7a13f2ce"
   ],
   [
    1500,
-   "d8af8256"
+   "e26db230"
   ],
   [
    1600,
-   "18612b0c"
+   "52ef1a23"
   ],
   [
    1700,
-   "37161cf9"
+   "29b2860e"
   ],
   [
    1800,
-   "2a5d285c"
+   "a10641dd"
   ],
   [
    1900,
-   "24b705ba"
+   "e9facadf"
   ],
   [
    2000,
-   "99b8b161"
+   "185ca605"
   ],
   [
    2100,
-   "0293cc29"
+   "6ecdd771"
   ],
   [
    2200,
-   "460befff"
+   "9b37db72"
   ],
   [
    2300,
-   "9244d3c7"
+   "02147853"
   ],
   [
    2400,
-   "829086a9"
+   "c7957afe"
   ],
   [
    2500,
-   "f4ee9c95"
+   "3225712e"
   ],
   [
    2600,
-   "492e36aa"
+   "a5399205"
   ],
   [
    2700,
-   "eca61c64"
+   "45aa86bf"
   ],
   [
    2800,
-   "7c5f28e6"
+   "072e7259"
   ],
   [
    2900,
-   "d6347d70"
+   "abf79716"
   ],
   [
    3000,
-   "93c91808"
+   "b3772011"
   ],
   [
    3100,
-   "d69d54a9"
+   "3b1ddfb9"
   ],
   [
    3200,
-   "934b8c1c"
+   "96778a60"
+  ],
+  [
+   3300,
+   "711c18fc"
+  ],
+  [
+   3400,
+   "9c6e528d"
+  ],
+  [
+   3500,
+   "a5955174"
+  ],
+  [
+   3600,
+   "eecf42a4"
   ]
  ],
  "final": {
-  "winner": 1,
-  "tick": 3276,
-  "hash": "08e92b28",
-  "canonical": "3276|1056695150|0,11|jade_bamboo_banner,jade_bamboo_warden,crimson_phoenix_striker,corpse_puppeteer,cloud_sword_rider,mirage_fox,jade_bamboo_burst/jade_bamboo_banner,jade_bamboo_warden,crimson_phoenix_striker,cloud_sword_rider,vajra_stone_hawk,dawn_qilin,vajra_stone_control|0,0|31,1,1,3,1,0,1/7,1,4,3,1,1,1|-19,13,0;5000,0,0;|1,600,0,-,0;1,600,0,-,0;1,600,0,-,0;|u14,1,dawn_qilin,2020,777,2160,10,0,0,5,0,0,0,0,0,0,0,0,0;u21,1,vajra_stone_control,14700,440,440,0,0,0,0,0,0,0,0,0,0,0,0,0;u22,1,crimson_phoenix_striker,2700,267,267,0,0,0,13,0,0,0,0,0,0,0,0,0;u45,1,cloud_sword_rider,1800,209,364,0,0,0,20,0,0,0,0,0,0,0,0,0;u49,1,crimson_phoenix_striker,2700,267,267,0,0,0,13,0,0,0,0,0,0,0,0,0;u54,1,vajra_stone_hawk,1980,379,379,0,0,0,17,0,0,0,0,0,0,0,0,0;||12,38|1"
+  "winner": 0,
+  "tick": 3600,
+  "hash": "eecf42a4",
+  "canonical": "3600|2072178002|4,2|jade_bamboo_banner,jade_bamboo_warden,crimson_phoenix_striker,mirage_fox,vajra_stone_control,frost_tide_striker,blood_bat/jade_bamboo_banner,jade_bamboo_warden,crimson_phoenix_striker,vajra_stone_guardian,frost_tide_swallow,jade_bamboo_striker,frost_tide_burst|0,0|2,1,5,0,0,6,4/34,1,2,0,1,1,1|5000,0,0;2823,0,0;|0,600,0,-,0;0,600,0,-,0;0,600,0,-,0;|u54,0,frost_tide_striker,16850,212,260,0,0,0,8,0,0,0,0,0,0,0,0,0;u58,1,jade_bamboo_banner,17640,58,120,0,0,0,20,0,0,0,0,0,0,31,0,0;||39,17|0"
  }
 }

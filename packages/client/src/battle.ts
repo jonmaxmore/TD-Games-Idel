@@ -2,12 +2,12 @@
 // The player is side 0 (left); the AI plays side 1 through the same bot the balance tests use. Every input becomes a
 // BattleCommand handed to stepBattle, exactly like a replay. It owns its root until dispose(); main.ts decides what follows.
 import {
-  battle, BATTLE_LEN, battleHash, battleOver, battleUnits, createBattle, decision, levelOf, realmOf, sects, starsOf, stepBattle, summonZone, TICK_HZ,
-  type BattleCommand, type BattleOpts, type BattleRecord, type BattleSetup, type Progress, type StageRules, type BattleEvent, type BattleState, type ResultType, type Side, type TiebreakStep,
+  battle, BATTLE_LEN, battleHash, battleOver, battleUnits, createBattle, decision, gimmickNames, levelOf, realmOf, sects, starsOf, stepBattle, summonZone, TICK_HZ,
+  type BattleCommand, type BattleOpts, type BattleRecord, type BattleSetup, type Progress, type Stage, type BattleEvent, type BattleState, type ResultType, type Side, type TiebreakStep,
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { Board, cannonIcon, portrait } from './board';
-import { teamName, teamSetup, type Team } from './decks';
+import { teamName, type Team } from './decks';
 import type { Settings } from './profile';
 import { cardArt } from './sprites';
 import { applyVolume, play } from './sound';
@@ -23,11 +23,12 @@ export function realmBadge(level: number): HTMLElement {
 }
 
 export interface MatchOpts {
-  seed: number; team: Team; vs: Team; redraws: number; speed: number; settings: Settings; saveSettings: () => void;
+  // mine, vs: both sides' cards and leaders (each side's progress is added); team: ours, for the leader marks and the name.
+  seed: number; team: Team; mine: BattleSetup; vs: BattleSetup; redraws: number; speed: number; settings: Settings; saveSettings: () => void;
   bots: [Policy | null, Policy]; // who plays each side: null = the player
   progress: [Progress | null, Progress | null]; normalized: boolean; // each side's account; normalized: ranked ศึกฝีมือ
   modeTh: string; // the mode named on our castle bar
-  stage?: { rules: StageRules; enemy: BattleSetup; nameTh: string; gimmickTh: string }; // a ศึกปราบ stage: its rules and enemy
+  stage?: Stage; // a ศึกปราบ stage: its rules, enemy and star goals
   replay?: BattleRecord; // plays this record back instead: no input, no bots
   onQuit: () => void; // the pause menu's way out: leave the match with no result
 }
@@ -46,8 +47,8 @@ const capOf = (card: string) => battleUnits.get(card)!.perMatch;
 
 export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResult) => void): () => void {
   let speed = o.speed;
-  const setup = (t: Team, p: Progress | null) => (p ? { ...teamSetup(t), progress: p } : teamSetup(t));
-  const setups: [BattleSetup, BattleSetup] = o.replay?.setups ?? [setup(o.team, o.progress[0]), o.stage?.enemy ?? setup(o.vs, o.progress[1])];
+  const setup = (t: BattleSetup, p: Progress | null): BattleSetup => (p ? { ...t, progress: p } : t);
+  const setups: [BattleSetup, BattleSetup] = o.replay?.setups ?? [setup(o.mine, o.progress[0]), o.stage?.enemy ?? setup(o.vs, o.progress[1])];
   const opts: BattleOpts = o.replay?.opts ?? (o.stage ? { normalized: o.normalized, stage: o.stage.rules } : { normalized: o.normalized });
   const seed = o.replay?.seed ?? o.seed;
   const s: BattleState = createBattle(seed, setups[0], setups[1], opts);
@@ -82,7 +83,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const clockBox = el('div', 'clock'), time = el('b', 'time'), fortRow = el('div', 'forts'), regenHint = el('small');
   const fortDots = s.forts.map(() => fortRow.appendChild(el('i')));
   clockBox.append(time, fortRow, regenHint);
-  if (o.stage) clockBox.append(el('em', 'gimmick', o.stage.gimmickTh));
+  if (o.stage && o.stage.gimmicks.length > 0) clockBox.append(el('em', 'gimmick', gimmickNames(o.stage)));
   if (o.replay) clockBox.append(el('em', 'gimmick', 'รีเพลย์'));
   const ctl = el('div', 'ctl');
   const pauseBtn = el('button', 'icon', 'หยุด');
@@ -294,6 +295,8 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
       else if (e.e === 'cannon') play('cannon');
       else if (e.e === 'capture') { play('capture'); toast(e.side === 0 ? 'ยึดป้อมได้! เขตอัญเชิญขยาย' : 'ศัตรูยึดป้อม', e.side === 0 ? '' : 'bad'); }
       else if (e.e === 'neutral') toast('ป้อมแตก กลับเป็นป้อมกลาง');
+      else if (e.e === 'warn') { play('castle', 0.5); toast(`ระวัง! ${battleUnits.get(e.type!)!.nameTh} จะบุกมาใน ${Math.ceil(e.amount! / TICK_HZ)} วินาที`, 'bad warn'); }
+      else if (e.e === 'bonus') toast(`ยึดป้อมครั้งแรก ได้ปราณ +${e.amount}`);
     }
     const ph = regenPhase();
     if (ph > lastPhase) toast('ปราณไหลเร็วขึ้น!');
@@ -325,7 +328,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
       ended = true;
       const d = decision(s);
       const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick, hand: [...s.hands[0]],
-        record: { seed, setups, opts, commands: log }, hash: battleHash(s), stars: starsOf(s), foeDmg };
+        record: { seed, setups, opts, commands: log }, hash: battleHash(s), stars: o.stage ? starsOf(s, o.stage) : [false, false, false], foeDmg };
       setTimeout(() => onEnd(r), 1200); // the last blow lands before the result covers the field
     }
     manaFill.style.width = `${(100 * Math.min(battle.manaMax, s.mana[0] + manaProgress())) / battle.manaMax}%`;

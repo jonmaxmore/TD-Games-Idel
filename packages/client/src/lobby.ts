@@ -1,9 +1,10 @@
 // The lobby, the player's home (ui-flow.md §2.2): the purse and profile chip on top, our castle in the middle (it grows with
 // the castle level), one primary button bottom right and the features the save has opened (unlocks.ts). Settings, profile
 // and the egg shop open as overlays over it (Esc or ✕ closes). It owns its root until dispose(); main.ts decides what follows.
-import { castleLevelOf, leagues, progression, rankName, stages, type Rank } from '@five-sects/sim';
+import { battleCardIds, castleLevelOf, leagues, progression, rankName, sects, stages, type Rank } from '@five-sects/sim';
 import { el } from './battle';
-import { eggShop } from './campScreen';
+import { playerPower } from './camp';
+import { cardLog, eggShop } from './collectionView';
 import { levelSum, type Mode, type Profile } from './profile';
 import { applyVolume } from './sound';
 import { conditionTh, nextStage, unlockState, type Feature } from './unlocks';
@@ -123,8 +124,11 @@ function profileBody(p: Profile): HTMLElement {
   const won = stages.filter((s) => p.campaign[s.id]?.stars[0]).length;
   const rows: [string, string | HTMLElement][] = [
     ['ปราสาท', `Lv${cl}${next ? ` · เลเวลการ์ดรวม ${sum}/${next.cardLevels} สู่ Lv${cl + 1}` : ` · เลเวลการ์ดรวม ${sum}`}`],
+    ['สำนักต้นสังกัด', p.home ? sects.get(p.home)!.nameTh : '-'],
+    ['พลังทัพ', `${playerPower(p, Date.now()).toLocaleString('en-US')} (ทัพที่จัดไว้ · ใช้จับคู่ศึกทั่วไป)`],
+    ['การ์ด', `มีแล้ว ${p.owned.length}/${battleCardIds.length} ใบ`],
     ['ศึกปราบ', `ผ่าน ${won}/${stages.length} ด่าน · ดาว ${starCount(p)}/${stages.length * 3}`],
-    ['ศึกฝีมือ', unlockState(p).open.has('ranked') ? rankBadge(p.rank) : 'เปิดเมื่อผ่านบทที่ 1'],
+    ['ศึกฝีมือ', unlockState(p).open.has('ranked') ? rankBadge(p.rank) : 'เปิดเมื่อผ่านด่าน 1-10'],
   ];
   box.append(el('p', 'profile-name', PLAYER_NAME));
   for (const [k, v] of rows) { const r = el('div', 'set-row'); r.append(el('span', '', k), typeof v === 'string' ? el('b', '', v) : v); box.append(r); }
@@ -161,7 +165,7 @@ export function lobbyScreen(app: HTMLElement, p: Profile, save: () => void, nav:
       : big('ranked', 'ศึกฝีมือ', `จัดอันดับ · ${rankName(p.rank)}`, () => nav.mode('ranked'));
     primary.dataset.cta = stage ? 'stage' : 'ranked';
     const side = el('div', 'lobby-buttons');
-    const add = (f: Feature | null, title: string, sub: string, go: () => void) => {
+    const add = (f: Feature | 'log' | null, title: string, sub: string, go: () => void) => {
       const b = btn('', 'mode', go);
       b.dataset.go = f ?? 'map';
       b.append(el('b', '', title), el('small', '', sub));
@@ -171,7 +175,8 @@ export function lobbyScreen(app: HTMLElement, p: Profile, save: () => void, nav:
     if (open.has('ranked') && stage) add('ranked', ...MODE_BTN.ranked, () => nav.mode('ranked'));
     if (open.has('casual')) add('casual', ...MODE_BTN.casual, () => nav.mode('casual'));
     if (open.has('levelUp')) add('levelUp', 'ค่ายฝึก', [`เลื่อนขั้น`, open.has('forge') ? 'โรงหลอม' : '', open.has('town') ? 'เมือง' : ''].filter(Boolean).join(' · '), nav.camp);
-    if (open.has('eggShop')) add('eggShop', 'ร้านไข่', `แต้มไข่ ${p.eggPoints}`, () => sheet('ร้านไข่', () => eggShop(p, save, show), 'egg-sheet'));
+    add('log', 'บันทึกการ์ด', `มีแล้ว ${p.owned.length}/${battleCardIds.length} ใบ`, () => sheet('บันทึกการ์ด', () => cardLog(p), 'log-sheet'));
+    if (open.has('eggShop')) add('eggShop', 'ร้านไข่', `แต้มไข่ ${p.eggPoints}`, () => sheet('ร้านไข่', () => eggShop(p, save, show), 'log-sheet egg-sheet'));
     if (next) {
       const lock = btn('', 'mode locked', () => {});
       lock.disabled = true;

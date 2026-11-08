@@ -1,9 +1,10 @@
 // Castle-battle progression (progression.json, deck-and-realms.md §5): card levels and realms, castle level, forge, town
-// tiers, eggs and match rewards. The stat formula lives here so a server re-runs it; a normalized (ranked) match never reads
+// tiers, match rewards and the power score (matchmaking.md §5). The stat formula lives here so a server re-runs it; a normalized (ranked) match never reads
 // a side's progress. Integers only; lookups are Maps, anything iterated is an array in data order.
 import progressionJson from '../../../docs/data/progression.json';
-import { battleCardIds, battleUnits, TILE, type BattleUnitDef } from './data';
-import { div, nextRandom } from './core';
+import { battle as B, battleUnits, TILE, type BattleUnitDef } from './data';
+import { div } from './core';
+import { drawPool, fixedCards, type BattleSetup } from './battle';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const P = progressionJson as any;
@@ -11,8 +12,6 @@ const CL = P.cardLevel;
 
 export interface Realm { id: string; from: number; to: number; nameTh: string; descTh: string; color: string }
 export interface ForgeSlot { id: string; nameTh: string; itemTh: string; coins: number; buildSec: number; hpPct: number; dmgPct: number }
-export interface EggBucket { kind: string; mana: [number, number] | null; pct: number; nameTh: string; cards: string[] }
-export interface Egg { id: string; nameTh: string; cost: number; dupeXp: number; odds: EggBucket[] }
 export interface Reward { xp: number; coins: number; gold: number }
 
 export const progression = {
@@ -24,13 +23,6 @@ export const progression = {
   cannonNameTh: P.town.cannon.nameTh as string, wallNameTh: P.town.walls.nameTh as string,
   cannonTiers: (P.town.cannon.tiers as any[]).map((t) => ({ gold: t.gold as number, dmg: t.dmg as number, push: Math.round(t.pushTiles * TILE) })),
   wallTiers: (P.town.walls.tiers as any[]).map((t) => ({ gold: t.gold as number, hp: t.castleHp as number })),
-  eggs: (P.eggs.list as any[]).map((e): Egg => ({
-    id: e.id, nameTh: e.nameTh, cost: e.cost, dupeXp: e.dupeXp,
-    odds: (e.odds as any[]).map((o) => ({
-      kind: o.kind, mana: o.mana ?? null, pct: o.pct, nameTh: o.nameTh,
-      cards: battleCardIds.filter((c) => { const u = battleUnits.get(c)!; return u.kind === o.kind && (o.mana == null || (u.mana >= o.mana[0] && u.mana <= o.mana[1])); }),
-    })),
-  })),
   rewards: { win: new Map<string, Reward>(Object.entries(P.matchRewards.win as Record<string, Reward>)), draw: P.matchRewards.draw as Reward, loss: P.matchRewards.loss as Reward },
 };
 const forgeSlot = new Map(progression.forge.map((f) => [f.id, f]));
@@ -77,11 +69,33 @@ export function castleLevelOf(sum: number): number {
   return lv;
 }
 
-// One egg roll: a bucket by its shown pct, then a card of that bucket with equal chance.
-export function rollEgg(egg: Egg, r: { rng: number }): string {
-  let roll = Math.floor(nextRandom(r) * 100);
-  const b = egg.odds.find((o) => (roll -= o.pct) < 0) ?? egg.odds[egg.odds.length - 1]!;
-  return b.cards[Math.floor(nextRandom(r) * b.cards.length)]!;
+// พลังทัพ (matchmaking.md §5, progression.json > matchmaking.powerScore): round(base x A x K) in integers. A: each hand
+// card's hp% x dmg%, weighted max(n, drawSlots) for the fixed three and drawSlots for each of the n draw-pool cards (the
+// doc's 1 and min(1, drawSlots/n) times max(n, drawSlots)); K: the town's added castle HP and cannon damage.
+const PS = P.matchmaking.powerScore;
+export function powerScore(setup: BattleSetup): number {
+  const p = setup.progress ?? null, fixed = fixedCards(setup), pool = drawPool(setup, fixed);
+  const wFixed = PS.fixedWeight * Math.max(pool.length, PS.drawSlots), v = (c: string) => { const k = statPct(p, c); return k.hp * k.dmg; };
+  let num = 0, den = 0;
+  for (const c of fixed) { num += wFixed * v(c); den += wFixed * 10000; }
+  for (const c of pool) { num += PS.drawSlots * v(c); den += PS.drawSlots * 10000; }
+  const a6 = div(num * 1000000, den), t = townBonus(p);
+  const kDen = 100 * B.castle.hp * B.cannon.dmg, kNum = kDen + PS.castleHpWeightPct * t.castleHp * B.cannon.dmg + PS.cannonDmgWeightPct * t.cannonDmg * B.castle.hp;
+  const x = a6 * kNum, y = kDen * div(1000000, PS.base);
+  return div(2 * x + y, 2 * y);
+}
+// The card level (1..max) for a side whose power at each level is powerAt(level): the one closest to target, and its ratio
+// max/min as integer % (the casual AI, matchmaking.md §5.4: kept under progression.json matchmaking.casual.powerRatioMaxPct).
+export const powerRatioMaxPct = P.matchmaking.casual.powerRatioMaxPct as number;
+export function matchLevel(target: number, powerAt: (level: number) => number): { level: number; power: number; ratioPct: number } {
+  let best = { level: 1, power: powerAt(1), ratioPct: 0 };
+  const ratio = (a: number) => div(100 * Math.max(a, target), Math.max(1, Math.min(a, target)));
+  best.ratioPct = ratio(best.power);
+  for (let lv = 2; lv <= progression.maxLevel; lv++) {
+    const pw = powerAt(lv), r = ratio(pw);
+    if (r < best.ratioPct) best = { level: lv, power: pw, ratioPct: r };
+  }
+  return best;
 }
 
 // What a match pays the player: won true/false, null for a draw; type is the battle.json results key of a win.

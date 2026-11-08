@@ -4,6 +4,7 @@
 import sectsJson from '../../../docs/data/sects.json';
 import effectsJson from '../../../docs/data/effects.json';
 import battleJson from '../../../docs/data/battle.json';
+import collectionJson from '../../../docs/data/collection.json';
 
 export const TICK_HZ = 20;
 export const TILE = 1000;
@@ -86,3 +87,6 @@ for (const u of S.roster.units) {
     tagTh: u.tagTh ?? '', counters: u.counters ?? [], ability: u.ability ?? null, body: u.body ?? 'human',
   });
 }
+// The draw rules of collection.json: the draw pool keeps at least minDrawPool cards (bench cards past that are ignored), and
+// basic capturers (move capture) are never drawn when basicsInPool is false.
+export const draw = { minDrawPool: collectionJson.bench.minDrawPool as number, basicsInPool: collectionJson.draw.basicsInPool as boolean };

@@ -1,23 +1,27 @@
-// The player's save: settings, the last team set up, the match mode, the account (card levels and xp, forge items, town
-// tiers, coins, gold, egg points), ศึกปราบ stars and best times, the ศึกฝีมือ rank and the last ranked match for its replay. Anything stored that no longer fits the data (an old TD save, an old deck save, a renamed
-// card, a bad number) falls back to defaults field by field instead of a broken screen.
-import { battleCardIds, castleLevelOf, leagues, progression, stages, startRank, type BattleRecord, type Rank } from '@five-sects/sim';
+// The player's save: settings, the home sect (เลือกสำนักแรก), the cards owned, the last team set up, the match mode, the
+// account (card levels and xp, forge items, town tiers, coins, gold, egg points), ศึกปราบ stars and best times, the rewards
+// already paid (first clears, chapter stars), the ศึกฝีมือ rank and the last ranked match for its replay. Anything stored
+// that no longer fits the data (an old TD save, an old deck save, a renamed card, a bad number) falls back to defaults field
+// by field instead of a broken screen.
+import { battleCardIds, castleLevelOf, collection, homeSects, leagues, progression, stages, starterCards, startRank, type BattleRecord, type Rank } from '@five-sects/sim';
 import { fixTeam, type Team } from './decks';
 
 export type Mode = 'casual' | 'ranked'; // ศึกทั่วไป (progression applies) | ศึกฝีมือ (normalized)
-export interface CardProgress { level: number; xp: number; dupes: number }
+export interface CardProgress { level: number; xp: number; dupes: number } // dupes: training eggs bought
 export interface StageBest { stars: [boolean, boolean, boolean]; bestSec: number | null } // stars: each goal ever reached; bestSec: fastest win
 export interface Profile {
-  v: 6;
+  v: 7;
+  home: string | null; // the home sect, null until the first-run pick
+  owned: string[]; // the cards the account owns, in data order
+  claimed: string[]; // rewards already paid: stage ids (first clear) and chapter-star keys ("ch1:15")
   team: Team;
   settings: Settings;
   mode: Mode;
-  cards: Record<string, CardProgress>; // every card, by id
+  cards: Record<string, CardProgress>; // every card, by id (owned or not)
   forge: Record<string, Record<string, number>>; // card -> slot -> epoch ms the item is done (built once that time passes)
   town: { cannon: number; wall: number };
   coins: number; gold: number; eggPoints: number;
   castleLevel: number; // the highest castle level already paid out in egg points
-  eggRng: number; // the egg shop's seeded RNG state
   campaign: Record<string, StageBest>; // stages played, by id
   rank: Rank;
   lastRanked: RankedSave | null;
@@ -30,11 +34,17 @@ const obj = (x: unknown) => (x && typeof x === 'object' ? x : {}) as Record<stri
 const int = (x: unknown, lo: number, hi: number, d: number) => (typeof x === 'number' && Number.isInteger(x) && x >= lo && x <= hi ? x : d);
 const BIG = 1e9;
 
+// v6 and older had every card: such a save keeps the starter set plus every card it levelled, played (xp), trained or forged.
+function legacyOwned(cards: Record<string, CardProgress>, forge: Record<string, unknown>): string[] {
+  return battleCardIds.filter((c) => cards[c]!.level > 1 || cards[c]!.xp > 0 || cards[c]!.dupes > 0 || c in forge);
+}
+
 export function migrate(raw: unknown): Profile {
   const r = obj(raw), st = obj(r.settings), vol = st.volume, cards = obj(r.cards), forge = obj(r.forge), town = obj(r.town);
+  const v7 = r.v === 7, home = typeof r.home === 'string' && homeSects.includes(r.home) ? r.home : null;
   const p: Profile = {
-    v: 6,
-    team: fixTeam(r.team ?? { collection: r.deck }), // a v2 save named its deck by collection id, a v3 team its collection
+    v: 7, home, owned: [], claimed: [],
+    team: { leader: '', sub: '', bench: [] },
     settings: { volume: typeof vol === 'number' && vol >= 0 && vol <= 100 ? Math.round(vol) : 70, muted: st.muted === true, shake: st.shake !== false },
     mode: r.mode === 'ranked' ? 'ranked' : 'casual',
     cards: Object.fromEntries(battleCardIds.map((id) => {
@@ -47,15 +57,20 @@ export function migrate(raw: unknown): Profile {
     })),
     town: { cannon: int(town.cannon, 0, progression.cannonTiers.length, 0), wall: int(town.wall, 0, progression.wallTiers.length, 0) },
     coins: int(r.coins, 0, BIG, 0), gold: int(r.gold, 0, BIG, 0), eggPoints: int(r.eggPoints, 0, BIG, 0),
-    castleLevel: 1, eggRng: int(r.eggRng, 0, 0xffffffff, 0x2545f491),
-    campaign: Object.fromEntries(stages.flatMap((st) => {
-      const c = obj(obj(r.campaign)[st.id]), stars = Array.isArray(c.stars) ? c.stars : [];
+    castleLevel: 1,
+    campaign: Object.fromEntries(stages.flatMap((s) => {
+      const c = obj(obj(r.campaign)[s.id]), stars = Array.isArray(c.stars) ? c.stars : [];
       if (stars.length !== 3) return [];
-      return [[st.id, { stars: stars.map((x) => x === true) as [boolean, boolean, boolean], bestSec: int(c.bestSec, 0, BIG, -1) < 0 ? null : (c.bestSec as number) }]];
+      return [[s.id, { stars: stars.map((x) => x === true) as [boolean, boolean, boolean], bestSec: int(c.bestSec, 0, BIG, -1) < 0 ? null : (c.bestSec as number) }]];
     })),
     rank: fixRank(r.rank),
     lastRanked: fixRecord(r.lastRanked),
   };
+  const kept = v7 && Array.isArray(r.owned) ? r.owned : legacyOwned(p.cards, p.forge);
+  const own = new Set([...collection.starter, ...(home ? starterCards(home) : []), ...kept.filter((c): c is string => typeof c === 'string')]);
+  p.owned = battleCardIds.filter((c) => own.has(c));
+  p.claimed = v7 && Array.isArray(r.claimed) ? r.claimed.filter((x): x is string => typeof x === 'string') : [];
+  p.team = fixTeam(r.team, p.owned, home);
   p.castleLevel = Math.min(int(r.castleLevel, 1, progression.castleLevels.length, 1), castleLevelOf(levelSum(p)));
   return p;
 }
@@ -72,7 +87,8 @@ function fixRecord(raw: unknown): RankedSave | null {
   const ok = typeof r.seed === 'number' && Array.isArray(r.setups) && r.setups.length === 2 && r.commands && typeof r.commands === 'object' && r.opts && typeof r.opts === 'object' && typeof r.hash === 'string';
   return ok ? (r as unknown as RankedSave) : null;
 }
-export const levelSum = (p: Profile) => battleCardIds.reduce((a, id) => a + p.cards[id]!.level, 0);
+// The castle level's card-level sum: every owned card's level.
+export const levelSum = (p: Profile) => p.owned.reduce((a, id) => a + p.cards[id]!.level, 0);
 
 const KEY = 'five-sects.profile';
 let memory: string | null = null; // private mode can make localStorage throw; the save then lives for this page only

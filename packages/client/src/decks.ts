@@ -1,66 +1,55 @@
-// What a player takes into a match: the collection (every card in the game, for now), a leader, a sub-leader and a bench
-// of cards kept out of the draw. A sect preset is a ready-made team: the sect's default leaders, everything else benched.
-import { battle, battleCardIds, battleUnits, sectCards, sects, type BattleSetup } from '@five-sects/sim';
-import { MIXED } from '../../sim/test/battleBot';
+// What a player takes into a match: the cards the account owns (collection.json, profile.ts owned), a leader, a sub-leader
+// and a bench of owned cards kept out of the draw, never so many that the draw pool drops under bench.minDrawPool. Ranked
+// ศึกฝีมือ draws from every card (rankedPool) whatever is owned. The AI plays the next sect's disciples.
+import { battle, battleCardIds, battleUnits, draw, drawPool, fixedCards, rankedPool, sectSetup, sects, starterTeam, type BattleSetup } from '@five-sects/sim';
 
 export interface Team { leader: string; sub: string; bench: string[] }
-export interface Preset { id: string; nameTh: string; color: string; cards: readonly string[] }
 
-export const COLLECTION: readonly string[] = battleCardIds;
-export const ALL_NAME = 'ทุกตัวละคร';
-const sectIds = [...battle.sectTeams.keys()];
-export const PRESETS: Preset[] = sectIds.map((id) => ({ id, nameTh: sects.get(id)!.nameTh, color: sects.get(id)!.color, cards: sectCards(id) }));
-export const presetOf = (id: string) => PRESETS.find((p) => p.id === id);
-
-export const defaultTeam = (): Team => ({ leader: MIXED.leader, sub: MIXED.sub, bench: [] });
-export function presetTeam(id: string): Team {
-  const p = presetOf(id) ?? PRESETS[0]!, t = battle.sectTeams.get(p.id)!;
-  return { leader: t.leader, sub: t.sub, bench: COLLECTION.filter((c) => !p.cards.includes(c)) };
-}
-// The preset a team still is (same leaders, exactly the sect's disciples in the draw), or undefined.
-export function presetMatch(t: Team): Preset | undefined {
-  return PRESETS.find((p) => {
-    const d = presetTeam(p.id);
-    return d.leader === t.leader && d.sub === t.sub && d.bench.length === t.bench.length && d.bench.every((c) => t.bench.includes(c));
-  });
-}
-export const teamName = (t: Team) => presetMatch(t)?.nameTh ?? ALL_NAME;
-
-// The cards a leader or sub-leader may be: any card but a basic capturer.
 const basics = new Set(battle.hand.basic.values());
-export const leaderChoices = COLLECTION.filter((id) => !basics.has(id));
 export const isBasic = (id: string) => basics.has(id);
+// The cards a leader or sub-leader may be: any owned card but a basic capturer.
+export const leaderChoices = (owned: readonly string[]) => owned.filter((id) => !isBasic(id));
+const sectOf = (card: string) => battleUnits.get(card)?.sect ?? 'metal';
+export const teamName = (t: { leader: string }) => `ทัพ${sects.get(sectOf(t.leader))?.nameTh ?? ''}`;
 
-// A team from a save or a URL, made valid: a leader and a distinct sub-leader, a bench of known cards that are neither.
-// A v3 save named a collection: a sect id becomes that sect's preset; anything that does not fit falls back field by field.
-export function fixTeam(raw: unknown): Team {
-  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const sect = typeof r.collection === 'string' && presetOf(r.collection) ? r.collection : null, d = sect ? presetTeam(sect) : defaultTeam();
-  const leader = typeof r.leader === 'string' && leaderChoices.includes(r.leader) ? r.leader : d.leader;
-  let sub = typeof r.sub === 'string' && leaderChoices.includes(r.sub) && r.sub !== leader ? r.sub : d.sub;
-  if (sub === leader) sub = leaderChoices.find((x) => x !== leader)!;
-  const want: unknown[] = Array.isArray(r.bench) ? [...(sect ? d.bench : []), ...r.bench] : d.bench;
-  return { leader, sub, bench: COLLECTION.filter((x) => want.includes(x) && x !== leader && x !== sub) };
+export const teamSetup = (t: Team, owned: readonly string[]): BattleSetup => ({ leader: t.leader, sub: t.sub, collection: owned, bench: t.bench });
+export const rankedSetup = (t: Team): BattleSetup => ({ leader: t.leader, sub: t.sub, collection: rankedPool, bench: [] });
+// How many more cards could go on the bench before the draw pool would drop under minDrawPool.
+export function benchRoom(t: Team, owned: readonly string[]): number {
+  const s = teamSetup(t, owned);
+  return drawPool(s, fixedCards(s)).length - Math.max(draw.minDrawPool, 0);
 }
 
-export const teamSetup = (t: Team): BattleSetup => ({ leader: t.leader, sub: t.sub, collection: COLLECTION, bench: t.bench });
-// The AI answers a sect preset with the next sect's preset, and any other team with every card under the leaders of the
-// sect after its leader's element.
-export function aiTeam(t: Team): Team {
-  const p = presetMatch(t), el = p?.id ?? battleUnits.get(t.leader)!.sect, i = sectIds.indexOf(el);
-  const next = sectIds[(i + 1) % sectIds.length]!;
-  if (p) return presetTeam(next);
-  const l = battle.sectTeams.get(next)!;
-  return { leader: l.leader, sub: l.sub, bench: [] };
+// A team from a save or a URL, made valid for what is owned: an owned leader and a distinct owned sub-leader (else the
+// home sect's starter team, else the first owned cards), a bench of owned cards that are neither, cut to what the draw pool
+// allows (minDrawPool).
+export function fixTeam(raw: unknown, owned: readonly string[], home: string | null): Team {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>, ok = leaderChoices(owned);
+  const start = home ? starterTeam(home) : null;
+  const pick = (x: unknown, not: string | null, d: string | undefined) => (typeof x === 'string' && ok.includes(x) && x !== not ? x : d && ok.includes(d) && d !== not ? d : ok.find((c) => c !== not) ?? '');
+  const leader = pick(r.leader, null, start?.leader);
+  const sub = pick(r.sub, leader, start?.sub);
+  const want = Array.isArray(r.bench) ? r.bench : [];
+  const t: Team = { leader, sub, bench: [] };
+  for (const c of battleCardIds) if (want.includes(c) && owned.includes(c) && !isBasic(c) && c !== leader && c !== sub && benchRoom(t, owned) > 0) t.bench.push(c);
+  return t;
 }
 
-// ?deck=<sect>|all|mixed|<card,card,...>&leader=<card>&sub=<card> from the URL; null without a known deck. A card list is
-// the cards to draw from: everything else is benched.
-export function resolveTeam(q: URLSearchParams): Team | null {
+// The AI's side in ศึกทั่วไป: the disciples of the sect after our leader's (battle.json sectTeams leaders).
+export function aiSetup(t: { leader: string }): BattleSetup {
+  const ids = [...battle.sectTeams.keys()], next = ids[(ids.indexOf(sectOf(t.leader)) + 1) % ids.length]!;
+  return sectSetup(next);
+}
+
+// Dev and shots: ?deck=<sect>|all|mixed|<card,card,...>&leader=<card>&sub=<card> picks the cards a match draws from (instead
+// of the save's collection) and its leaders; null without a known deck.
+export function resolveTeam(q: URLSearchParams): { team: Team; cards: string[] } | null {
   const id = q.get('deck');
   if (!id) return null;
   const list = id.split(',').filter((c) => battleUnits.has(c));
-  const base = presetOf(id) ? presetTeam(id) : id === 'all' || id === 'mixed' ? defaultTeam() : list.length > 0 ? { ...defaultTeam(), bench: COLLECTION.filter((c) => !list.includes(c)) } : null;
-  if (!base) return null;
-  return fixTeam({ ...base, leader: q.get('leader') ?? base.leader, sub: q.get('sub') ?? base.sub });
+  const sect = battle.sectTeams.get(id);
+  const cards = sect ? sectSetup(id).collection : id === 'all' || id === 'mixed' ? battleCardIds : list.length > 0 ? battleCardIds.filter((c) => list.includes(c) || isBasic(c)) : null;
+  if (!cards) return null;
+  const d = sect ?? battle.sectTeams.get('wood')!;
+  return { team: fixTeam({ leader: q.get('leader') ?? (list.length > 0 ? list[0] : d.leader), sub: q.get('sub') ?? (list.length > 1 ? list[1] : d.sub) }, [...cards], null), cards: [...cards] };
 }

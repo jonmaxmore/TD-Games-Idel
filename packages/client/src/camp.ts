@@ -1,7 +1,12 @@
-// What the ค่ายฝึก screen and the result screen do to the account: level a card up with its xp, build forge items with coins
-// and real time, buy town tiers with gold, buy eggs with egg points, and pay a match out. Castle levels are paid in egg points
-// once each. All numbers come from progression.json through packages/sim; nothing here costs real money.
-import { battleCardIds, castleLevelOf, forgeOf, progression, rankAfter, rewardFor, rollEgg, type Progress, type Rank, type Reward, type Stage } from '@five-sects/sim';
+// What the screens do to the account: pick the home sect, level a card up with its xp, build forge items with coins and real
+// time, buy town tiers with gold, buy a chosen card (or a training egg) with egg points, pay a match out and claim first-clear
+// and chapter-star rewards. Castle levels are paid in egg points once each. All numbers come from progression.json and
+// collection.json through packages/sim; nothing here costs real money.
+import {
+  battleCardIds, castleLevelOf, chapter, firstClearPay, forgeOf, matchLevel, powerScore, progression, rankAfter, rewardFor, shopBlock, stages,
+  starRewards, starterCards, starterTeam, tierOf, type Account, type BattleSetup, type Progress, type Rank, type Reward, type Stage,
+} from '@five-sects/sim';
+import { fixTeam, teamSetup } from './decks';
 import { levelSum, type Profile } from './profile';
 
 export const xpNeed = (level: number) => (level >= progression.maxLevel ? null : progression.xpToNext[level - 1]!);
@@ -29,7 +34,7 @@ const giveXp = (p: Profile, card: string, xp: number) => { const c = p.cards[car
 // A match result for the player: its reward (a stage's own on a win), xp to every card of the hand, coins and gold.
 export function payMatch(p: Profile, hand: readonly string[], won: boolean | null, type: string, stage?: Stage): Reward {
   const r = won === true && stage ? stage.rewards.win : rewardFor(won, type);
-  for (const c of new Set(hand)) if (p.cards[c]) giveXp(p, c, r.xp);
+  for (const c of new Set(hand)) if (p.owned.includes(c)) giveXp(p, c, r.xp); // a ranked hand also draws cards not owned
   p.coins += r.coins;
   p.gold += r.gold;
   return r;
@@ -78,17 +83,58 @@ export function upgradeTown(p: Profile, k: TownKey): string | null {
   return null;
 }
 
-// One egg: costs egg points, rolls a card with the shop's seeded RNG, the duplicate becomes that card's xp.
-export function buyEgg(p: Profile, id: string): { card: string; xp: number } | string {
-  const egg = progression.eggs.find((e) => e.id === id);
-  if (!egg) return 'ไม่มีไข่นี้';
-  if (p.eggPoints < egg.cost) return 'แต้มไข่ไม่พอ';
-  p.eggPoints -= egg.cost;
-  const r = { rng: p.eggRng }, card = rollEgg(egg, r);
-  p.eggRng = r.rng;
+const own = (p: Profile, card: string) => { if (!p.owned.includes(card)) p.owned = battleCardIds.filter((c) => c === card || p.owned.includes(c)); };
+export const won = (p: Profile, stage: string) => p.campaign[stage]?.stars[0] === true;
+export const account = (p: Profile): Account => ({ home: p.home ?? '', owned: p.owned, castleLevel: castleLevelOf(levelSum(p)), eggPoints: p.eggPoints, won: (s) => won(p, s) });
+export const SHOP_WHY: Record<string, string> = { notForSale: 'ไม่ขายในร้านไข่', shopClosed: 'ร้านไข่เปิดเมื่อผ่านด่าน 1-10', castleLevel: 'ปราสาทยังไม่ถึง', eggPoints: 'แต้มไข่ไม่พอ' };
+
+// The egg shop (collection.json): a chosen card for its tier's egg points, owned at Lv1 at once (no hatch timer); a card
+// already owned is a training egg: its tier's dupeXp as card xp.
+export function buyCard(p: Profile, card: string): { card: string; xp: number } | string {
+  const why = shopBlock(account(p), card);
+  if (why) return SHOP_WHY[why]!;
+  const t = tierOf(card);
+  p.eggPoints -= t.eggPoints!;
+  if (!p.owned.includes(card)) { own(p, card); return { card, xp: 0 }; }
   p.cards[card]!.dupes++;
-  giveXp(p, card, egg.dupeXp);
-  return { card, xp: egg.dupeXp };
+  giveXp(p, card, t.dupeXp);
+  return { card, xp: t.dupeXp };
+}
+
+// เลือกสำนักแรก: the home sect's starter cards join the collection, its starter team leads, and stages won before the pick
+// (an older save) pay their first clears.
+export function chooseHome(p: Profile, home: string): void {
+  if (p.home) return;
+  p.home = home;
+  for (const c of starterCards(home)) own(p, c);
+  p.team = fixTeam(starterTeam(home), p.owned, home);
+  claim(p);
+}
+
+// Pays every reward the save has earned and not been paid: each won stage's first clear (a new card, or egg points), then
+// the chapter's star totals. Idempotent: what it pays goes into claimed. Waits for the home sect (a home role needs one).
+export interface Claimed { stage?: string; stars?: string; card: string | null; eggPoints: number }
+export function claim(p: Profile): Claimed[] {
+  if (!p.home) return [];
+  const got: Claimed[] = [];
+  for (const st of stages) {
+    if (!won(p, st.id) || p.claimed.includes(st.id)) continue;
+    const pay = firstClearPay(st, p.home, p.owned);
+    if (pay.card) own(p, pay.card);
+    p.eggPoints += pay.eggPoints;
+    p.claimed.push(st.id);
+    got.push({ stage: st.id, ...pay });
+  }
+  const stars = stages.reduce((a, st) => a + (p.campaign[st.id]?.stars.filter(Boolean).length ?? 0), 0);
+  for (const r of starRewards(chapter.id, stars)) {
+    if (p.claimed.includes(r.key)) continue;
+    if (r.card) own(p, r.card);
+    p.eggPoints += r.eggPoints;
+    p.claimed.push(r.key);
+    got.push({ stars: r.key, card: r.card, eggPoints: r.eggPoints });
+  }
+  payCastle(p);
+  return got;
 }
 
 // The account as the sim takes it: levels, the forge items finished by now, town tiers.
@@ -100,8 +146,12 @@ export function progressOf(p: Profile, now: number): Progress {
   }
   return { levels: Object.fromEntries(battleCardIds.map((id) => [id, p.cards[id]!.level])), gear, town: { ...p.town } };
 }
-// The AI's side in a casual match: every card at the player's average card level, no forge, no town.
-export function aiProgress(p: Profile): Progress {
-  const avg = Math.floor(levelSum(p) / battleCardIds.length);
-  return { levels: Object.fromEntries(battleCardIds.map((id) => [id, avg])) };
+// The player's พลังทัพ (matchmaking.md §5): the current team over the owned cards with the account's progress.
+export const playerPower = (p: Profile, now: number) => powerScore({ ...teamSetup(p.team, p.owned), progress: progressOf(p, now) });
+// The AI's side in a casual match: every card at the one level whose power score is closest to the player's (the ratio is
+// held under progression.json matchmaking.casual.powerRatioMaxPct), no forge, no town.
+export function aiProgress(p: Profile, ai: BattleSetup, now: number): Progress & { ratioPct: number } {
+  const at = (lv: number): Progress => ({ levels: Object.fromEntries(battleCardIds.map((id) => [id, lv])) });
+  const m = matchLevel(playerPower(p, now), (lv) => powerScore({ ...ai, progress: at(lv) }));
+  return { ...at(m.level), ratioPct: m.ratioPct };
 }

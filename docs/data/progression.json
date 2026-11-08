@@ -1,5 +1,5 @@
 {
-  "_notes": "Account level, PvP rank, sect mastery and achievements (docs/design/progression.md). None of these give combat power: they unlock features, show status and give cosmetics. The XP table is generated from time targets (accountLevel.anchors) by tools/progression/check.mjs, which also simulates a ranked season to calibrate the ladder. Run: node tools/progression/check.mjs. The castle-battle keys after achievements (cardLevel, realms, castleLevel, forge, town, eggs, matchRewards; deck-and-realms.md §5) are the one exception: they add power in ศึกทั่วไป and PvE, and packages/sim ignores all of them in a normalized (ranked ศึกฝีมือ) match. check.mjs part C prints their pacing.",
+  "_notes": "Account level, PvP rank, sect mastery and achievements (docs/design/progression.md). None of these give combat power: they unlock features, show status and give cosmetics. The XP table is generated from time targets (accountLevel.anchors) by tools/progression/check.mjs, which also simulates a ranked season to calibrate the ladder. Run: node tools/progression/check.mjs. The castle-battle keys after achievements (cardLevel, realms, castleLevel, forge, town, matchRewards, matchmaking; deck-and-realms.md §5) are the one exception: they add power in ศึกทั่วไป and PvE, and packages/sim ignores all of them in a normalized (ranked ศึกฝีมือ) match. check.mjs part C prints their pacing.",
   "accountLevel": {
     "cap": 60,
     "capRaisePerExpansion": 10,
@@ -76,7 +76,7 @@
     ]
   },
   "cardLevel": {
-    "_notes": "Character levels for the castle battle (deck-and-realms.md §5, SPEC-castle-battle §12). Every card starts at level 1 and climbs to max with card xp from matches (matchRewards) and duplicates from eggs (eggs.list[].dupeXp). xpToNext[i] is the xp from level i+1 to i+2 (length max - 1). statPctPerLevel: each level above 1 adds this % of the card's sects.json hp and dmg, so level L has (100 + (L - 1) x statPctPerLevel)% (integer, rounded down). abilityAt: from this level a card with an ability uses it at abilityLevel (the leader's level) even when it is not the leader. None of this applies in a normalized (ranked ศึกฝีมือ) match.",
+    "_notes": "Character levels for the castle battle (deck-and-realms.md §5, SPEC-castle-battle §12). Every card starts at level 1 and climbs to max with card xp from matches (matchRewards) and training eggs (collection.json tiers dupeXp). xpToNext[i] is the xp from level i+1 to i+2 (length max - 1). statPctPerLevel: each level above 1 adds this % of the card's sects.json hp and dmg, so level L has (100 + (L - 1) x statPctPerLevel)% (integer, rounded down). abilityAt: from this level a card with an ability uses it at abilityLevel (the leader's level) even when it is not the leader. None of this applies in a normalized (ranked ศึกฝีมือ) match.",
     "max": 30,
     "statPctPerLevel": 3,
     "xpToNext": [30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 115, 130, 145, 165, 190, 210, 240, 270, 305, 345, 390, 440, 500, 565, 635, 720, 815, 920],
@@ -93,28 +93,28 @@
     ]
   },
   "castleLevel": {
-    "_notes": "The castle level comes from the sum of every owned card's level (all cards are owned for now, so the sum starts at the number of cards). levels[i] is castle level i+1: cardLevels is the sum it needs, eggPoints what reaching it grants (spent in the egg shop), unlockTh what it opens (shown as coming soon until that mode exists). No power in ranked.",
+    "_notes": "The castle level comes from the sum of the levels of every card the account owns (collection.json). A new account owns its 9 starter cards, so the sum starts at 9. levels[i] is castle level i+1: cardLevels is the sum it needs, eggPoints what reaching it grants (spent in the collection.json egg shop), unlockTh what it opens (shown as coming soon until that mode exists). Thresholds from docs/design/acquisition.md §11.2; eggPoints are 3x that proposal while the cards of chapters 2-3, achievements and the casual league are sold in the egg shop (collection.json plannedRoutes), which puts every card at about 46 h of play (owner decision 2026-11-08), and come down as those routes ship; the top (1600) is below the reachable 1654 because only the leader's own banner earns xp in most hands. eggPoints is the one knob for the time to own every card (tools/progression/check.mjs part D). No power in ranked.",
     "levels": [
       { "cardLevels": 0, "eggPoints": 0 },
-      { "cardLevels": 70, "eggPoints": 10 },
-      { "cardLevels": 85, "eggPoints": 10, "unlockTh": "ศึกป้องกันเมือง" },
-      { "cardLevels": 105, "eggPoints": 10 },
-      { "cardLevels": 130, "eggPoints": 10, "unlockTh": "ลีกทั่วไป" },
-      { "cardLevels": 160, "eggPoints": 10 },
-      { "cardLevels": 200, "eggPoints": 10 },
-      { "cardLevels": 250, "eggPoints": 10, "unlockTh": "ตำแหน่งยิงบนกำแพง" },
-      { "cardLevels": 310, "eggPoints": 10 },
-      { "cardLevels": 380, "eggPoints": 15, "unlockTh": "ปราสาทสูงขึ้นหนึ่งชั้น" },
-      { "cardLevels": 460, "eggPoints": 15 },
-      { "cardLevels": 560, "eggPoints": 15 },
-      { "cardLevels": 680, "eggPoints": 15 },
-      { "cardLevels": 820, "eggPoints": 15 },
-      { "cardLevels": 1000, "eggPoints": 20, "unlockTh": "ปราสาทเปลี่ยนสีตามสำนัก" },
-      { "cardLevels": 1180, "eggPoints": 20 },
-      { "cardLevels": 1360, "eggPoints": 20 },
-      { "cardLevels": 1500, "eggPoints": 20 },
-      { "cardLevels": 1640, "eggPoints": 20 },
-      { "cardLevels": 1770, "eggPoints": 30, "unlockTh": "ปราสาทจิตก่อรูป" }
+      { "cardLevels": 20, "eggPoints": 30 },
+      { "cardLevels": 35, "eggPoints": 30, "unlockTh": "ศึกป้องกันเมือง" },
+      { "cardLevels": 55, "eggPoints": 30 },
+      { "cardLevels": 85, "eggPoints": 30, "unlockTh": "ลีกทั่วไป" },
+      { "cardLevels": 120, "eggPoints": 30 },
+      { "cardLevels": 170, "eggPoints": 30 },
+      { "cardLevels": 240, "eggPoints": 45, "unlockTh": "ตำแหน่งยิงบนกำแพง" },
+      { "cardLevels": 300, "eggPoints": 45 },
+      { "cardLevels": 370, "eggPoints": 45, "unlockTh": "ปราสาทสูงขึ้นหนึ่งชั้น" },
+      { "cardLevels": 450, "eggPoints": 45 },
+      { "cardLevels": 520, "eggPoints": 45 },
+      { "cardLevels": 620, "eggPoints": 60 },
+      { "cardLevels": 700, "eggPoints": 60 },
+      { "cardLevels": 770, "eggPoints": 60, "unlockTh": "ปราสาทเปลี่ยนสีตามสำนัก" },
+      { "cardLevels": 850, "eggPoints": 75 },
+      { "cardLevels": 950, "eggPoints": 75 },
+      { "cardLevels": 1050, "eggPoints": 75 },
+      { "cardLevels": 1200, "eggPoints": 90 },
+      { "cardLevels": 1600, "eggPoints": 90, "unlockTh": "ปราสาทจิตก่อรูป" }
     ]
   },
   "forge": {
@@ -145,22 +145,6 @@
       ]
     }
   },
-  "eggs": {
-    "_notes": "The egg shop (ร้านไข่). An egg costs cost egg points (castleLevel eggPoints; never sold for money) and rolls one card: first a bucket by pct (the odds shown to the player, summing to 100), then a card of that bucket with equal chance. A bucket matches cards of its kind and, when mana is given, a mana cost in [min, max]; nameTh is its label in the shop. Every card is already owned, so a roll gives that card dupeXp card xp.",
-    "list": [
-      {
-        "id": "mystery", "nameTh": "ไข่ปริศนา", "cost": 10, "dupeXp": 120,
-        "odds": [
-          { "kind": "disciple", "mana": [1, 2], "pct": 30, "nameTh": "ศิษย์ราคา 1–2" },
-          { "kind": "disciple", "mana": [3, 4], "pct": 32, "nameTh": "ศิษย์ราคา 3–4" },
-          { "kind": "disciple", "mana": [5, 7], "pct": 8, "nameTh": "ศิษย์ราคา 5–7" },
-          { "kind": "demon", "pct": 15, "nameTh": "สัตว์ปีศาจ" },
-          { "kind": "divine", "pct": 10, "nameTh": "สัตว์เทพ" },
-          { "kind": "dragon", "pct": 5, "nameTh": "มังกร" }
-        ]
-      }
-    ]
-  },
   "matchRewards": {
     "_notes": "What one castle-battle match pays, by result for the player (battle.json results): win.<type> for a win of that type, draw, loss. xp goes to every card in the player's hand that match; coins buy forge items, gold town upgrades. The same in normalized (ศึกฝีมือ) matches: rewards grow the account, they never change a ranked match.",
     "win": {
@@ -173,14 +157,19 @@
     "loss": { "xp": 20, "coins": 20, "gold": 10 }
   },
   "unlocks": {
-    "_notes": "Lobby features opened by progress (docs/design/ui-flow.md §4), read by packages/client/src/unlocks.ts. A feature opens when every condition it names holds: stage = that ศึกปราบ stage won, chapter = every stage of that chapter won, castleLevel = castle level reached (from the card-level sum). It also stays open on a save that already used it (a levelled card, a forge item, a town tier, an egg rolled, a ranked match kept), so older saves lose nothing. Locked features are hidden, except the first locked one in this order, shown as a locked button with its condition. Cards are not gated here (acquisition is a separate design).",
+    "_notes": "Lobby features opened by progress (docs/design/ui-flow.md §4, re-keyed to the 10 stages of chapter 1), read by packages/client/src/unlocks.ts. A feature opens when every condition it names holds: stage = that ศึกปราบ stage won, castleLevel = castle level reached (from the owned card-level sum). It also stays open on a save that already used it (a levelled card, a forge item, a town tier, an egg bought, a ranked match kept), so older saves lose nothing. Locked features are hidden, except the first locked one in this order, shown as a locked button with its condition. The card log (บันทึกการ์ด) is always open. eggShop opens with collection.json eggShop.opensAfterStage and ranked after chapter 1 (owner decision 2026-11-08), both 1-10.",
     "features": [
       { "id": "levelUp", "nameTh": "ค่ายฝึก", "stage": "1-2" },
-      { "id": "casual", "nameTh": "ศึกทั่วไป", "stage": "1-3" },
-      { "id": "forge", "nameTh": "โรงหลอม", "stage": "1-4" },
-      { "id": "eggShop", "nameTh": "ร้านไข่", "castleLevel": 2 },
-      { "id": "town", "nameTh": "เมือง", "stage": "1-6" },
-      { "id": "ranked", "nameTh": "ศึกฝีมือ", "chapter": "ch1" }
+      { "id": "casual", "nameTh": "ศึกทั่วไป", "stage": "1-5" },
+      { "id": "forge", "nameTh": "โรงหลอม", "stage": "1-6" },
+      { "id": "town", "nameTh": "เมือง", "stage": "1-8" },
+      { "id": "eggShop", "nameTh": "ร้านไข่", "stage": "1-10" },
+      { "id": "ranked", "nameTh": "ศึกฝีมือ", "stage": "1-10" }
     ]
+  },
+  "matchmaking": {
+    "_notes": "The local part of docs/design/matchmaking.md §5 (the Glicko queues wait for M1). powerScore P = round(base x A x K): A = the weighted mean over the hand of (hp%/100) x (dmg%/100) (cardLevel and forge, packages/sim progression.ts statPct), weight fixedWeight for the leader's basic, the leader and the sub and min(1, drawSlots / drawPool) for each draw-pool card (the bench left out); K = 1 + castleHpWeightPct/100 x addedCastleHp / battle.json castle.hp + cannonDmgWeightPct/100 x addedCannonDmg / battle.json castle.cannon.dmg (the doc's weights 0.5 and 0.1 as integer %). casual.powerRatioMaxPct: the casual AI's card level is the one whose power is closest to the player's, and max(P)/min(P) must stay at or under this % (the doc's hard cap 1.30); powerRatioStartPct is the doc's opening window for the M1 queue.",
+    "powerScore": { "base": 1000, "fixedWeight": 1, "drawSlots": 4, "castleHpWeightPct": 50, "cannonDmgWeightPct": 10 },
+    "casual": { "powerRatioStartPct": 110, "powerRatioMaxPct": 130 }
   }
 }

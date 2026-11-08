@@ -1,5 +1,6 @@
 // Account XP table and ranked-ladder calibration from docs/data/progression.json (docs/design/progression.md).
-//   node tools/progression/check.mjs           print the XP table, a simulated ranked season and castle-battle pacing
+//   node tools/progression/check.mjs           print the XP table, a simulated ranked season, castle-battle pacing and
+//                                              collection pacing (part D: cards owned per hour, acquisition.md §9)
 // Part A turns time targets ("level 30 by day 10") into XP-to-next-level per level: the reference player's
 // XP income gives cumulative XP per anchor, and each span between anchors grows geometrically from the
 // previous level's requirement so the table never dips. Part B plays a season of matches between players of
@@ -8,6 +9,9 @@
 import { readFileSync } from 'node:fs';
 
 const P = JSON.parse(readFileSync(new URL('../../docs/data/progression.json', import.meta.url), 'utf8'));
+const K = JSON.parse(readFileSync(new URL('../../docs/data/collection.json', import.meta.url), 'utf8'));
+const CAMP = JSON.parse(readFileSync(new URL('../../docs/data/campaign.json', import.meta.url), 'utf8'));
+const ROSTER = JSON.parse(readFileSync(new URL('../../docs/data/sects.json', import.meta.url), 'utf8')).roster.units.map((u) => u.id);
 const A = P.accountLevel;
 
 // ---------- A. account XP ----------
@@ -122,7 +126,8 @@ show(`Season 2 (reset ${R.seasonResetDivisions} divisions)`, season(players, gam
 // ---------- C. castle-battle card levels and castle level (cardLevel, castleLevel, matchRewards) ----------
 // Reference player: plays one sect preset (its basic capturer, leader and sub-leader in every hand, 4 of its other 7
 // disciples drawn), wins half, wins split like the bot sect matrix (total 55%, hp 40%, tiebreak 5%), levels up a card as
-// soon as its xp allows, about 4 minutes a match with the menus. Eggs are left out, so this is the slow side.
+// soon as its xp allows, about 4 minutes a match with the menus. Only the sect's 10 disciples gain levels and the account
+// owns just those plus its other starter cards (collection.json), so this is the slow side; part D models the collection.
 {
   const C = P.cardLevel, W = P.matchRewards.win;
   const xp = 0.5 * (0.55 * W.total.xp + 0.4 * W.hp.xp + 0.05 * W.tiebreak.xp) + 0.5 * P.matchRewards.loss.xp;
@@ -132,7 +137,7 @@ show(`Season 2 (reset ${R.seasonResetDivisions} divisions)`, season(players, gam
   console.log(`\ncastle battle: ${xp.toFixed(1)} card xp to each hand card, ${coins.toFixed(1)} coins, ${gold.toFixed(1)} gold per match`);
   console.log('card level  total xp  matches (in every hand)  matches (drawn 4 of 7)');
   for (const lv of [10, 20, 30]) console.log(String(lv).padStart(10), String(cum(lv)).padStart(9), (cum(lv) / xp).toFixed(0).padStart(24), (cum(lv) / (xp * 4 / 7)).toFixed(0).padStart(23));
-  const CARDS = 59, levels = Array(CARDS).fill(1), pool = Array(CARDS).fill(0);
+  const CARDS = 14, levels = Array(CARDS).fill(1), pool = Array(CARDS).fill(0); // 10 disciples + 4 other banners and the archer at Lv1
   const castleOf = (sum) => P.castleLevel.levels.reduce((lv, l, i) => (sum >= l.cardLevels ? i + 1 : lv), 1);
   const reached = new Map();
   for (let m = 1; m <= 2000 && reached.size < 8; m++) {
@@ -147,4 +152,76 @@ show(`Season 2 (reset ${R.seasonResetDivisions} divisions)`, season(players, gam
   for (const [cl, m] of reached) console.log(String(cl).padStart(12), String(m).padStart(8), (m * 4 / 60).toFixed(1).padStart(22));
   const forge = P.forge.slots.reduce((a, f) => a + f.coins, 0), town = (k) => P.town[k].tiers.reduce((a, t) => a + t.gold, 0);
   console.log(`forge: all 4 items of one card ${forge} coins = ${(forge / coins).toFixed(0)} matches; town: cannon tiers ${town('cannon')} gold, walls ${town('walls')} gold = ${((town('cannon') + town('walls')) / gold).toFixed(0)} matches`);
+}
+
+// ---------- D. collection pacing (collection.json, campaign.json, castleLevel; docs/design/acquisition.md §9) ----------
+// Reference free player, home sect HOME (default metal): 15 matches an hour; chapter 1 at 1.4 tries a stage (60% of
+// matches won) then 12 replays for its stars (both star rewards reached), then casual and ranked matches (50% won). Card
+// xp per match as part C to the leader's banner, the leader and the sub, and 4/n of it to each of the n draw-pool cards;
+// a card levels up as soon as its xp allows. Egg points from castle levels, stage first clears and chapter stars buy the
+// cheapest card on sale first (its tier's castle level, after 1-10), then nothing (training eggs are left out). The team:
+// the starter striker and control until a large card is owned, then that large card and the striker. Prints the rows of
+// the acquisition.md §9 table; the time to own every card moves with castleLevel.levels[].eggPoints only (EGG_SCALE=1.5 shows
+// the table with every castle level paying 1.5 times as much, HOME_SECT=wood another home).
+{
+  const HOME = process.env.HOME_SECT ?? 'metal', SCALE = Number(process.env.EGG_SCALE ?? 1), W = P.matchRewards.win, C = P.cardLevel;
+  const xpWin = 0.55 * W.total.xp + 0.4 * W.hp.xp + 0.05 * W.tiebreak.xp, xpLoss = P.matchRewards.loss.xp;
+  const roleCard = (r) => K.homeRoleCards[HOME][r];
+  const owned = new Set([...K.starter, ...K.homeStarterRoles.map(roleCard)]);
+  const level = Object.fromEntries(ROSTER.map((c) => [c, 1])), xp = Object.fromEntries(ROSTER.map((c) => [c, 0]));
+  const reward = (st) => { const r = st.rewards.firstClear; return r.card ?? (r.homeRole ? roleCard(r.homeRole) : null); };
+  const stageCards = new Set(CAMP.stages.map(reward).filter(Boolean));
+  const shopCards = ROSTER.filter((c) => K.tiers[K.cardTier[c]].eggPoints != null && !owned.has(c) && !stageCards.has(c));
+  const castleOf = (sum) => P.castleLevel.levels.reduce((lv, l, i) => (sum >= l.cardLevels ? i + 1 : lv), 1);
+  const sumLv = () => [...owned].reduce((a, c) => a + level[c], 0);
+  let eggs = 0, paidCastle = 1, matches = 0, shopOpen = false;
+  const isBasic = (c) => K.cardTier[c] === 'basic';
+  const team = () => {
+    const large = ROSTER.find((c) => owned.has(c) && K.cardTier[c] === 'elite' && c.startsWith(roleCard('large').split('_').slice(0, 2).join('_')));
+    const leader = large ?? roleCard('striker'), sub = large ? roleCard('striker') : roleCard('control');
+    return { leader, sub, basic: roleCard('banner') };
+  };
+  const play = (winPct) => {
+    matches++;
+    const t = team(), fixed = [t.basic, t.leader, t.sub], pool = [...owned].filter((c) => !isBasic(c) && !fixed.includes(c));
+    const gain = (winPct * xpWin + (1 - winPct) * xpLoss);
+    for (const c of fixed) xp[c] += gain;
+    for (const c of pool) xp[c] += gain * Math.min(1, 4 / pool.length);
+    for (const c of owned) while (level[c] < C.max && xp[c] >= C.xpToNext[level[c] - 1]) { xp[c] -= C.xpToNext[level[c] - 1]; level[c]++; }
+    const cl = castleOf(sumLv());
+    for (; paidCastle < cl; paidCastle++) eggs += Math.round(P.castleLevel.levels[paidCastle].eggPoints * SCALE);
+    if (!shopOpen) return;
+    for (;;) {
+      const buy = shopCards.filter((c) => !owned.has(c) && K.tiers[K.cardTier[c]].eggShopFromCastleLevel <= castleOf(sumLv())).sort((a, b) => K.tiers[K.cardTier[a]].eggPoints - K.tiers[K.cardTier[b]].eggPoints)[0];
+      if (!buy || K.tiers[K.cardTier[buy]].eggPoints > eggs) break;
+      eggs -= K.tiers[K.cardTier[buy]].eggPoints;
+      owned.add(buy);
+    }
+  };
+  const rows = [];
+  const row = (what) => {
+    const nb = [...owned].filter((c) => !isBasic(c));
+    rows.push([what, (matches / 15).toFixed(1), owned.size, castleOf(sumLv()), level[team().leader], (nb.reduce((a, c) => a + level[c], 0) / nb.length).toFixed(1), eggs]);
+  };
+  row('start');
+  CAMP.stages.forEach((st, i) => {
+    const tries = Math.round(1.4 * (i + 1)) - Math.round(1.4 * i);
+    for (let k = 0; k < tries; k++) play(k === tries - 1 ? 1 : 0); // the last try wins
+    const c = reward(st);
+    if (c) { if (owned.has(c)) eggs += K.tiers[K.cardTier[c]].eggPoints; else owned.add(c); } else eggs += st.rewards.firstClear.eggPoints;
+    if (st.id === '1-4') row('won 1-4');
+    if (st.id === K.eggShop.opensAfterStage) { shopOpen = true; play(1); matches--; row(`won ${st.id} (ranked and egg shop open)`); }
+  });
+  for (let k = 0; k < 12; k++) play(0.6);
+  for (const s of K.chapterStars[CAMP.chapter.id]) eggs += s.eggPoints ?? 0;
+  row('chapter 1 stars');
+  const at = [2, 3, 5, 10, 20, 30, 40];
+  while (owned.size < ROSTER.length && matches < 15 * 400) {
+    play(0.5);
+    if (at.length && matches >= at[0] * 15) row(`hour ${at.shift()}`);
+  }
+  row(owned.size >= ROSTER.length ? 'owns all cards' : 'stopped at 400 h');
+  console.log(`\ncollection pacing (home ${HOME}, ${shopCards.length} shop cards worth ${shopCards.reduce((a, c) => a + K.tiers[K.cardTier[c]].eggPoints, 0)} egg points; castle levels pay ${P.castleLevel.levels.reduce((a, l) => a + l.eggPoints, 0)})`);
+  console.log('point                                   hours  cards  castle  leader Lv  avg Lv  egg points left');
+  for (const r of rows) console.log(r[0].padEnd(40), r[1].padStart(5), String(r[2]).padStart(6), String(r[3]).padStart(7), String(r[4]).padStart(10), r[5].padStart(7), String(Math.round(r[6])).padStart(16));
 }
