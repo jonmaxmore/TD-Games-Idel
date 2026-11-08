@@ -271,6 +271,7 @@ const meter = async (p) => (await p.locator('.deck-meter').innerText()).replace(
   await toLobby(p);
   await p.locator('[data-go=casual]').click();
   await p.waitForSelector('.deck-card');
+  await p.mouse.move(5, 5);
   await sleep(200);
   await shot(p, '02-team-fire');
   await p.locator('.clear-btn').click();
