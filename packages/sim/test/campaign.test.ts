@@ -53,13 +53,16 @@ describe('stars', () => {
 
 describe('campaign balance', () => {
   // win % per stage per home sect (homeSects order), 100 seeds each
-  let bySect: number[][] = [];
-  beforeAll(() => {
-    bySect = stages.map((st, i) => homeSects.map((home) => {
-      let w = 0;
-      for (let seed = 1; seed <= 100; seed++) w += +starsOf(playStage(seed, st, ownedTeamAt(home, i, 1)).state, st)[0];
-      return w;
-    }));
+  const bySect: number[][] = [];
+  beforeAll(async () => {
+    for (const [i, st] of stages.entries()) {
+      bySect.push(homeSects.map((home) => {
+        let w = 0;
+        for (let seed = 1; seed <= 100; seed++) w += +starsOf(playStage(seed, st, ownedTeamAt(home, i, 1)).state, st)[0];
+        return w;
+      }));
+      await new Promise((r) => setImmediate(r)); // let the vitest worker answer its RPC between stages
+    }
   }, 180_000);
   const table = () => bySect.map((r, i) => `${stages[i]!.id} ${r.join(' ')}`).join('\n');
 
