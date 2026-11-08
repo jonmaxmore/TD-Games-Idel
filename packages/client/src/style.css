@@ -425,3 +425,13 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .modal .egg-line { color: #abdbff; font-size: 16px; }
 .toast.warn { font-size: 18px; font-weight: 700; background: #3a0d0acc; }
 .goals-box .first-clear { color: #ffe08a; font-weight: 700; }
+
+/* the pause menu's way out and the confirm box (quit.ts, ui.ts confirmBox) */
+.pause-why { margin: -4px 0 0; font-size: 14px; color: var(--dim); text-align: center; min-height: 20px; }
+.overlay.confirm { z-index: 30; }
+.overlay.confirm .sheet { width: 440px; gap: 12px; }
+.overlay.confirm h2 { font-size: 26px; }
+.confirm-body { font-size: 16px; }
+.confirm-row { display: flex; gap: 8px; margin-top: 8px; }
+.confirm-row > button { flex: 1; }
+.confirm-yes { background: var(--red); }

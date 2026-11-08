@@ -327,7 +327,7 @@ function match(team: Team, seed: number, redraws: number, stage?: Stage) {
     bots: stage || ranked ? [dev.bot ? 'paced' : null, 'paced'] : [dev.bot ? 'rush' : null, 'rush'],
     normalized: ranked, progress: ranked ? [null, null] : [progressOf(profile, Date.now()), stage ? null : aiProgress(profile, vs, Date.now())],
     modeTh: stage ? `ศึกปราบ ${stage.id}` : ranked ? 'ศึกฝีมือ' : 'ศึกทั่วไป',
-    stage,
+    stage, quit: ranked ? 'ranked' : 'casual',
     onQuit: () => go({ k: 'lobby' }),
   }, (r) => result(team, seed, r, stage, ranked));
 }
@@ -338,7 +338,7 @@ function replay() {
   const team: Team = { leader: s0.leader, sub: s0.sub, bench: [...s0.bench] };
   return startMatch(app, {
     seed: last.seed, team, mine: s0, vs: last.setups[1], redraws: 0, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
-    bots: [null, 'paced'], normalized: true, progress: [null, null], modeTh: 'ศึกฝีมือ', replay: last, onQuit: () => go({ k: 'lobby' }),
+    bots: [null, 'paced'], normalized: true, progress: [null, null], modeTh: 'ศึกฝีมือ', replay: last, quit: 'replay', onQuit: () => go({ k: 'lobby' }),
   }, (r) => {
     const box = el('div', 'modal result');
     const same = r.hash === last.hash;
@@ -353,6 +353,7 @@ function replay() {
 const STEP_TH: Record<string, string> = { forts: 'จำนวนป้อมที่ถือ', mana: 'ปราณที่เหลือ', units: 'ศิษย์ที่ยังรอด', kills: 'จำนวนที่ฆ่าได้' };
 // The result type in Thai (battle.json > results) as the headline, and why in one line.
 function verdict(r: MatchResult): { head: string; why: string } {
+  if (r.surrendered) return { head: 'ยอมแพ้', why: 'เรายอมแพ้ ศึกนี้นับเป็นแพ้' };
   const we = r.winner === 0, name = battle.results.get(r.type)!;
   if (r.type === 'draw') return { head: name, why: r.castles[0] <= 0 ? 'ปราสาทแตกพร้อมกันทั้งสองฝ่าย' : 'หมดเวลา และเท่ากันทุกข้อ' };
   const head = we ? name : `ศัตรู${name}`;

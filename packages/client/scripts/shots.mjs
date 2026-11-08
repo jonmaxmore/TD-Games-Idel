@@ -114,8 +114,16 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.keyboard.press('Escape');
   await sleep(300);
   check((await p.evaluate(() => window.__game.s.tick)) > t1, 'Esc resumes the match');
+  // Leaving ศึกปราบ asks first (the match will not count); Esc in the box cancels and the menu stays.
   await p.keyboard.press('Escape');
-  await p.getByRole('button', { name: 'กลับล็อบบี้' }).click();
+  await p.locator('.pause-quit').click();
+  await p.waitForSelector('.overlay.confirm');
+  await sleep(150);
+  await shot(p, '68-quit-confirm');
+  await p.keyboard.press('Escape');
+  check((await p.locator('.overlay.confirm').count()) === 0 && (await p.locator('.modal.pause').count()) === 1, 'Esc in the quit confirm cancels it and keeps the pause menu');
+  await p.locator('.pause-quit').click();
+  await p.locator('.confirm-yes').click();
   await p.waitForSelector('.lobby-bottom');
   // mute: the gear, then the sound toggle (2 clicks); the pause menu muted it, so this turns it back on.
   const muted = () => p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile')).settings.muted);
@@ -557,6 +565,38 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   const text = await p.locator('.modal.result').textContent();
   console.log('replay end:', text);
   if (!text.includes('ผลตรงกับ')) errors.push('ranked replay did not end on the saved hash');
+  await ctx.close();
+}
+
+// 8) ศึกฝีมือ by hand: ยอมแพ้ is closed before the 60th second, then a confirmed surrender is a loss on the rank, and its
+//    replay stops on the surrender tick with the same hash.
+{
+  const { ctx, p } = await open('?mode=battle&seed=3&deck=fire&speed=4', 'surrender', null, home({ mode: 'ranked', campaign: won(10), rank: { league: 0, div: 3, stars: 1, streak: 2, points: 0 } }));
+  await p.waitForFunction(() => window.__game?.s);
+  await sleep(300);
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('.modal.pause');
+  await sleep(100);
+  await shot(p, '68-surrender-closed');
+  check(await p.locator('.pause-quit').isDisabled(), 'ยอมแพ้ is closed before the 60th second');
+  console.log('surrender early:', await p.locator('.pause-quit').textContent(), '|', await p.locator('.pause-why').textContent());
+  await p.keyboard.press('Escape');
+  await p.waitForFunction(() => window.__game.s.tick >= 20 * 61, null, { timeout: 60000 });
+  await p.keyboard.press('Escape');
+  await p.locator('.pause-quit').click();
+  await p.waitForSelector('.overlay.confirm');
+  await sleep(100);
+  await shot(p, '68-surrender-confirm');
+  await p.locator('.confirm-yes').click();
+  await p.waitForSelector('.modal.result');
+  await sleep(300);
+  await shot(p, '56-surrender-result');
+  const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile')));
+  console.log('surrender:', await p.locator('.modal.result h2').textContent(), '| rank', JSON.stringify(saved.rank), '| endTick', saved.lastRanked?.endTick);
+  check(saved.rank.streak === 0 && saved.lastRanked?.endTick > 0, 'a surrender counts as a ranked loss and keeps its replay');
+  await p.locator('.replay-btn').click();
+  await p.waitForSelector('.modal.result', { timeout: 120000 });
+  check((await p.locator('.modal.result').textContent()).includes('ผลตรงกับ'), 'the surrendered match replays to the same hash');
   await ctx.close();
 }
 

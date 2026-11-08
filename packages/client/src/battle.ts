@@ -9,8 +9,10 @@ import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { Board, cannonIcon, portrait } from './board';
 import { teamName, type Team } from './decks';
 import type { Settings } from './profile';
+import { quitRule, type QuitKind } from './quit';
 import { cardArt } from './sprites';
 import { applyVolume, play } from './sound';
+import { confirmBox } from './ui';
 import { nowrapWords } from './words';
 
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
@@ -29,14 +31,15 @@ export interface MatchOpts {
   progress: [Progress | null, Progress | null]; normalized: boolean; // each side's account; normalized: ranked ศึกฝีมือ
   modeTh: string; // the mode named on our castle bar
   stage?: Stage; // a ศึกปราบ stage: its rules, enemy and star goals
-  replay?: BattleRecord; // plays this record back instead: no input, no bots
-  onQuit: () => void; // the pause menu's way out: leave the match with no result
+  replay?: BattleRecord & { endTick?: number }; // plays this record back instead: no input, no bots; endTick: it ended on a surrender
+  quit: QuitKind; // what the pause menu's way out does (quit.ts)
+  onQuit: () => void; // leave the match with no result
 }
 // record: the match as played, for the ranked replay; hash: its final state; stars: the ศึกปราบ goals reached;
-// foeDmg: the damage each enemy card dealt our side, for the loss tip.
+// foeDmg: the damage each enemy card dealt our side, for the loss tip; surrendered: we gave up (ศึกฝีมือ ยอมแพ้), a loss.
 export interface MatchResult {
   winner: Side | -1; type: ResultType; step: TiebreakStep | null; castles: [number, number]; tick: number; hand: string[];
-  record: BattleRecord; hash: string; stars: [boolean, boolean, boolean]; foeDmg: Record<string, number>;
+  record: BattleRecord & { endTick?: number }; hash: string; stars: [boolean, boolean, boolean]; foeDmg: Record<string, number>; surrendered: boolean;
 }
 
 const TOP_H = 64, BOTTOM_H = 150; // HUD bands over the canvas, in stage pixels
@@ -174,7 +177,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     return { d, ok: why == null, why };
   }
   function summonAt(p: { x: number; y: number }) {
-    if (sel == null || battleOver(s)) return;
+    if (sel == null || battleOver(s) || ended) return;
     const a = aimAt(p);
     if (!a) return;
     if (!a.ok) { toast(a.why!, 'bad'); return; }
@@ -204,23 +207,34 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const pauseBox = el('div', 'modal pause'), pauseMute = el('button', 'pause-mute');
   const showPauseMute = () => { pauseMute.textContent = set.muted ? 'เปิดเสียง' : 'ปิดเสียง'; };
   pauseMute.onclick = () => { set.muted = !set.muted; changed(); showPauseMute(); };
-  const resume = el('button', 'primary', 'เล่นต่อ'), quit = el('button', '', 'กลับล็อบบี้');
-  quit.onclick = () => o.onQuit();
+  const resume = el('button', 'primary', 'เล่นต่อ'), quit = el('button', 'pause-quit'), quitWhy = el('p', 'pause-why');
+  quit.onclick = () => {
+    const rule = quitRule(o.quit, s.tick);
+    if (rule.why) return;
+    const leave = () => { if (rule.surrender) finish(true); else o.onQuit(); };
+    if (rule.confirm) confirmBox(root, rule.confirm, leave); else leave();
+  };
+  const showQuit = () => {
+    const rule = quitRule(o.quit, s.tick);
+    quit.textContent = rule.label;
+    quit.disabled = rule.why != null;
+    quitWhy.textContent = rule.why ?? '';
+  };
   const pauseRow = el('div', 'pause-menu');
-  pauseRow.append(resume, pauseMute, quit);
+  pauseRow.append(resume, pauseMute, quit, quitWhy);
   pauseBox.append(el('h2', '', 'หยุดเกม'), pauseRow, el('p', 'dim', 'Esc เล่นต่อ'));
   let paused = false;
   const setPaused = (on: boolean) => {
     paused = on;
     pauseBtn.textContent = on ? 'เล่น' : 'หยุด';
-    if (on) { showPauseMute(); root.append(pauseBox); resume.focus(); } else pauseBox.remove();
+    if (on) { showPauseMute(); showQuit(); root.append(pauseBox); resume.focus(); } else pauseBox.remove();
   };
   resume.onclick = () => setPaused(false);
   pauseBtn.onclick = () => setPaused(!paused);
   speedBtn.onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; speedBtn.textContent = `x${speed}`; };
   // Keyboard: 1-7 pick a card, Space picks the cannon, Esc drops the pick (or pauses with none picked), P pauses.
   const onKey = (ev: KeyboardEvent) => {
-    if (ev.repeat || battleOver(s)) return;
+    if (ev.repeat || battleOver(s) || ended) return;
     const n = Number(ev.key);
     if (ev.key === 'Escape') { if (sel != null && !paused) pick(null); else setPaused(!paused); }
     else if (ev.key === 'p') setPaused(!paused);
@@ -305,13 +319,25 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
 
   // ---- loop ----
   let acc = 0, last = performance.now(), frames = 0, fpsAt = last, ended = false;
+  // A replay of a surrendered match stops on the tick the surrender came.
+  const over = () => battleOver(s) || (o.replay?.endTick != null && s.tick >= o.replay.endTick);
+  // The match is over: the sim decided it, or we surrendered (a loss on the spot, the field as it stands).
+  function finish(surrendered: boolean) {
+    ended = true;
+    paused = false;
+    pauseBox.remove();
+    const d = surrendered ? { winner: 1 as Side, type: 'castle' as ResultType, step: null } : decision(s);
+    const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick, hand: [...s.hands[0]],
+      record: { seed, setups, opts, commands: log, ...(surrendered ? { endTick: s.tick } : {}) }, hash: battleHash(s), stars: o.stage ? starsOf(s, o.stage) : [false, false, false], foeDmg, surrendered };
+    setTimeout(() => onEnd(r), surrendered ? 0 : 1200); // the last blow lands before the result covers the field
+  }
   // Hooks for scripts/shots.mjs: the state, fps, unit-on-unit hits so far, and where a path distance is on screen.
   Object.assign(window, { __game: game, __pathClient: (d: number) => { const r = canvas.getBoundingClientRect(), p = board.toClient(d); return { x: r.left + p.x, y: r.top + p.y }; } });
   function frame(now: number) {
     const dt = Math.min(250, now - last); last = now;
-    if (!paused && !battleOver(s)) {
+    if (!paused && !over() && !ended) {
       acc += dt * speed;
-      while (acc >= 1000 / TICK_HZ && !battleOver(s)) {
+      while (acc >= 1000 / TICK_HZ && !over()) {
         acc -= 1000 / TICK_HZ;
         const cmds = o.replay ? o.replay.commands[s.tick] ?? [] : [...(human ? pending : botCommands(s, 0, o.bots[0]!, rngs[0]!)), ...botCommands(s, 1, o.bots[1], rngs[1]!)];
         pending = [];
@@ -324,13 +350,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
       refresh();
       if (board.aim) aimAt(lastPointer);
     }
-    if (battleOver(s) && !ended) {
-      ended = true;
-      const d = decision(s);
-      const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick, hand: [...s.hands[0]],
-        record: { seed, setups, opts, commands: log }, hash: battleHash(s), stars: o.stage ? starsOf(s, o.stage) : [false, false, false], foeDmg };
-      setTimeout(() => onEnd(r), 1200); // the last blow lands before the result covers the field
-    }
+    if (over() && !ended) finish(o.replay?.endTick != null && !battleOver(s));
     manaFill.style.width = `${(100 * Math.min(battle.manaMax, s.mana[0] + manaProgress())) / battle.manaMax}%`;
     board.sync(s, now);
     board.render([summonZone(s, 0), summonZone(s, 1)]);
