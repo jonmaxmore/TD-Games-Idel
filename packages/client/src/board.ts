@@ -151,9 +151,9 @@ export class Board {
     return best;
   }
 
-  // A path distance to CSS pixels inside the canvas (for a test driving the mouse).
+  // A path distance to screen pixels from the canvas's corner (for a test driving the mouse), the stage's CSS scale included.
   toClient(d: number): { x: number; y: number } {
-    const p = at(d), k = this.canvas.clientWidth / this.W;
+    const p = at(d), k = this.canvas.getBoundingClientRect().width / this.W;
     return { x: this.sx(p.x) * k, y: this.sy(p.y) * k };
   }
 

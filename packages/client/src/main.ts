@@ -11,7 +11,7 @@ import {
 } from '@five-sects/sim';
 import { Lockstep, pvpSetup, type MatchEnd } from '@five-sects/protocol';
 import { el, startMatch, type MatchResult } from './battle';
-import { aiProgress, canLevel, chooseHome, claim, payMatch, progressOf, recordRanked, recordStage, stageOpen, type Claimed } from './camp';
+import { aiProgress, canLevel, chooseHome, claim, nextTeam, payMatch, settleRanked, startRanked, progressOf, recordRanked, recordStage, stageOpen, type Claimed } from './camp';
 import { campScreen } from './campScreen';
 import { portrait } from './board';
 import { aiSetup, casualRules, DECK_NAME_MAX, deckName, deckProblem, isBasic, RANKED_RULES, resolveTeam, setupOf, teamName, type DeckRules, type Team } from './decks';
@@ -22,9 +22,9 @@ import { initSound, play, unlockAudio } from './sound';
 import { cardArt, loadSprites } from './sprites';
 import { lossTip, versusTip } from './tips';
 import { unlockState } from './unlocks';
-import { button, setDisabled } from './ui';
+import { button, endScreen, screenSignal, setDisabled, typing } from './ui';
 import { nowrapWords } from './words';
-import { REJECT_TH, type RoomClient } from './net';
+import { inMatch, markMatch, REJECT_TH, type RoomClient } from './net';
 import { dropClient, pvpScreen, type Start } from './pvp';
 
 const app = document.getElementById('app')!;
@@ -44,11 +44,12 @@ const fit = () => {
 addEventListener('resize', fit);
 fit();
 // F toggles browser full screen (PC).
-addEventListener('keydown', (e) => { if (e.key === 'f') toggleFullscreen(); });
+addEventListener('keydown', (e) => { if (e.key === 'f' && !typing(e)) toggleFullscreen(); });
 const q = new URLSearchParams(location.search);
 const dev = { battle: q.get('mode') === 'battle', bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), team: resolveTeam(q), stage: stageOf(q.get('stage') ?? '')?.id };
 const profile: Profile = load();
 claim(profile); // an older save's won stages pay their first clears once a home sect is set
+if (settleRanked(profile)) save(profile); // a ranked match left by reload or a closed tab counts as lost
 initSound(profile.settings);
 
 type Fight = { team: Team; seed: number; stage?: string };
@@ -69,9 +70,24 @@ addEventListener('keydown', (e) => {
   if (back) go(back(current));
 });
 
+// The second click of a double-click lands on the next screen's button in the same place (the lobby's primary, then the
+// briefing's เข้าสู่ศึก): it is dropped, so a double-click never skips a screen.
+let shownAt = 0;
+app.addEventListener('click', (e) => { if (e.detail > 1 && performance.now() - shownAt < 600) { e.stopPropagation(); e.preventDefault(); } }, true);
+// The browser's Back stays in the game: it acts as Esc (a screen's way back; in a match, the menu), never leaves the page.
+const MATCHES: Screen['k'][] = ['match', 'pvpMatch', 'replay'];
+history.pushState({ game: 1 }, '');
+addEventListener('popstate', () => {
+  history.pushState({ game: 1 }, '');
+  if (MATCHES.includes(current.k) && document.querySelector('.modal.pause')) return; // the menu is already open
+  dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+});
+
 function go(next: Screen) {
   if (dispose) dispose();
   dispose = undefined;
+  endScreen();
+  shownAt = performance.now();
   current = next;
   app.replaceChildren();
   Object.assign(window, { __flow: { screen: next.k } });
@@ -82,7 +98,7 @@ function go(next: Screen) {
     mode: (m) => { profile.mode = m; save(profile); go({ k: 'deck' }); },
     pvp: () => go({ k: 'pvp' }),
   });
-  else if (next.k === 'pvp') dispose = pvpScreen(app, profile, { lobby: () => go({ k: 'lobby' }), start: (m, c) => { pvpLive(m, c); go({ k: 'pvpVs' }); } });
+  else if (next.k === 'pvp') dispose = pvpScreen(app, profile, { lobby: () => go({ k: 'lobby' }), start: (m, c) => { pvpLive(m, c); go({ k: m.tick > 0 ? 'pvpMatch' : 'pvpVs' }); } });
   else if (next.k === 'pvpVs') dispose = pvpVersus();
   else if (next.k === 'pvpMatch') dispose = pvpMatch();
   else if (next.k === 'deck') dispose = teamScreen(next.stage ? stageOf(next.stage) : undefined);
@@ -311,7 +327,7 @@ function versus(f: Fight): () => void {
   const start = () => go({ ...f, k: 'match' });
   const timer = setTimeout(start, 1500);
   const onKey = (e: KeyboardEvent) => { if (e.key !== 'f' && !e.repeat) start(); };
-  r.addEventListener('pointerdown', start);
+  r.addEventListener('click', start); // a click, so the second click of a double-click that opened this screen is dropped
   addEventListener('keydown', onKey);
   return () => { clearTimeout(timer); removeEventListener('keydown', onKey); };
 }
@@ -320,6 +336,7 @@ function versus(f: Fight): () => void {
 // plays at the card level whose power score is closest to ours (camp.ts aiProgress).
 function match(team: Team, seed: number, stage?: Stage) {
   const ranked = !stage && profile.mode === 'ranked', vs = aiSetup(team, seed), mine = setupOf(team);
+  if (ranked) { startRanked(profile); save(profile); }
   return startMatch(app, {
     seed, team, mine, vs, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
     bots: stage || ranked ? [dev.bot ? 'paced' : null, 'paced'] : [dev.bot ? 'rush' : null, 'rush'],
@@ -378,7 +395,11 @@ function resultPanel(headline: string, tone: string, type: string, why: string) 
   box.append(panel);
   const skip = () => box.classList.add('shown');
   box.addEventListener('pointerdown', skip);
-  addEventListener('keydown', skip, { once: true });
+  // Any key shows everything; Esc leaves for the lobby (the ล็อบบี้ button), unless an overlay over the result has it.
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !e.repeat && !document.querySelector('.overlay')) box.querySelector<HTMLButtonElement>('.result-actions .back')?.click();
+    else skip();
+  }, { signal: screenSignal() });
   const reveal = () => {
     let i = 0;
     for (const row of Array.from(panel.children) as HTMLElement[]) {
@@ -454,7 +475,7 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
   // stage after a stage win, another match after a ranked or casual win or draw, else a retry). One that does not apply is
   // hidden in its place, so nothing moves.
   const next = stage ? stages[stages.indexOf(stage) + 1] : undefined;
-  const again = () => go({ k: 'versus', team, seed: seed + 1, stage: stage?.id });
+  const again = () => { const t = nextTeam(profile, teamRules(stage)); go(t ? { k: 'versus', team: t, seed: seed + 1, stage: stage?.id } : { k: 'deck', stage: stage?.id }); };
   const last = stage && won && !next;
   const main = (text: string, f: () => void) => button(text, f, 'primary', 'lg');
   const primary = stage && won ? (next ? main('ด่านถัดไป', () => go({ k: 'brief', stage: next.id })) : main('กลับล็อบบี้', () => go({ k: 'lobby' })))
@@ -482,11 +503,12 @@ function notice(text: string, bad = true) {
 function pvpLive(m: Start, c: RoomClient) {
   live = { ls: new Lockstep(m), c, end: null };
   c.match = true;
+  markMatch(true);
   c.onMsg = (x) => {
     const L = live;
     if (!L) return;
     if (x.t === 'frame') L.ls.frame(x.tick, x.cmds);
-    else if (x.t === 'end') { L.end = x.end; c.match = false; }
+    else if (x.t === 'end') { L.end = x.end; c.match = false; markMatch(false); }
     else if (x.t === 'start') { pvpLive(x, c); go({ k: 'pvpMatch' }); notice('ต่อกลับเข้าศึกแล้ว', false); }
     else if (x.t === 'peer' && x.seat !== L.ls.seat) notice(x.online ? 'คู่แข่งกลับมาแล้ว' : `คู่แข่งหลุดการเชื่อมต่อ · ถ้าไม่กลับใน ${x.graceSec} วินาทีถือว่ายอมแพ้`, !x.online);
     else if (x.t === 'desync') notice('ข้อมูลศึกในเครื่องไม่ตรงกับเซิร์ฟเวอร์ · ผลของเซิร์ฟเวอร์คือผลจริง');
@@ -496,6 +518,7 @@ function pvpLive(m: Start, c: RoomClient) {
     if (st === 'lost') notice('การเชื่อมต่อหลุด กำลังต่อใหม่…');
     else if (st === 'gone' && live && !live.end) {
       live = null;
+      markMatch(false);
       const { box, panel, reveal } = resultPanel('หลุดการเชื่อมต่อ', 'lost', 'ยอมแพ้', 'ต่อเซิร์ฟเวอร์กลับไม่ได้ภายในเวลา ศึกนี้นับเป็นยอมแพ้');
       const row = el('div', 'row result-actions'), back = button('กลับล็อบบี้', () => { dropClient(); go({ k: 'lobby' }); }, 'primary', 'lg');
       back.dataset.primary = '1';
@@ -559,4 +582,5 @@ function pvpResult(r: MatchResult) {
   app.append(box);
 }
 
-void loadSprites().then(() => go(dev.battle ? { k: 'match', team: dev.team?.team ?? teamOf(profile), seed: dev.seed, stage: dev.stage } : { k: 'title' }));
+// A reload during a friend match goes back into it (the server holds the seat for its reconnect window), not to the title.
+void loadSprites().then(() => go(dev.battle ? { k: 'match', team: dev.team?.team ?? teamOf(profile), seed: dev.seed, stage: dev.stage } : inMatch() ? { k: 'pvp' } : { k: 'title' }));

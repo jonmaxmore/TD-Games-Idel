@@ -6,7 +6,7 @@ import {
   battleCardIds, castleLevelOf, chapter, firstClearPay, forgeOf, matchLevel, powerScore, progression, rankAfter, rewardFor, shopBlock, stages,
   starRewards, starterCards, starterTeam, tierOf, type Account, type BattleSetup, type Progress, type Rank, type Reward, type Stage,
 } from '@five-sects/sim';
-import { fixDecks, healTeam, setupOf } from './decks';
+import { deckProblem, fixDecks, healTeam, setupOf, type DeckRules, type Team } from './decks';
 import { levelSum, teamOf, type Profile } from './profile';
 
 export const xpNeed = (level: number) => (level >= progression.maxLevel ? null : progression.xpToNext[level - 1]!);
@@ -50,7 +50,16 @@ export function recordStage(p: Profile, id: string, stars: [boolean, boolean, bo
 // A stage is open once the one before it has been won (the first always is).
 export const stageOpen = (p: Profile, ids: readonly string[], i: number) => i === 0 || p.campaign[ids[i - 1]!]?.stars[0] === true;
 // A ranked result moves the rank; returns the rank before and after.
+// A ranked match counts from its start: one never settled (the tab reloaded or closed mid-match) is a loss on the next
+// boot (settleRanked), so leaving cannot dodge it. Its result or a surrender settles it (recordRanked).
+export function startRanked(p: Profile): void { p.rankedOpen = true; }
+export function settleRanked(p: Profile): boolean {
+  if (!p.rankedOpen) return false;
+  recordRanked(p, false);
+  return true;
+}
 export function recordRanked(p: Profile, won: boolean | null): { before: Rank; after: Rank } {
+  p.rankedOpen = false;
   const before = p.rank;
   p.rank = rankAfter(before, won);
   return { before, after: p.rank };
@@ -144,13 +153,17 @@ export function claim(p: Profile): Claimed[] {
 }
 
 // The account as the sim takes it: levels, the forge items finished by now, town tiers.
+// The team another match starts with: the deck in use now (edited or healed since the last match, perhaps), or null when it
+// cannot start under these rules, and the result sends the player to จัดทัพ instead.
+export const nextTeam = (p: Profile, r: DeckRules): Team | null => (deckProblem(teamOf(p), r) == null ? teamOf(p) : null);
 export function progressOf(p: Profile, now: number): Progress {
   const gear: Record<string, string[]> = {};
   for (const id of battleCardIds) {
     const built = progression.forge.filter((f) => forgeState(p, id, f.id, now).k === 'built').map((f) => f.id);
     if (built.length > 0) gear[id] = built;
   }
-  return { levels: Object.fromEntries(battleCardIds.map((id) => [id, p.cards[id]!.level])), gear, town: { ...p.town } };
+  // A card the account does not own is a loaner (SPEC-deck-budget §4): level 1, whatever its save entry holds.
+  return { levels: Object.fromEntries(battleCardIds.map((id) => [id, p.owned.includes(id) ? p.cards[id]!.level : 1])), gear, town: { ...p.town } };
 }
 // The player's พลังทัพ (matchmaking.md §5): the current team over the owned cards with the account's progress.
 export const playerPower = (p: Profile, now: number) => powerScore({ ...setupOf(teamOf(p)), progress: progressOf(p, now) });

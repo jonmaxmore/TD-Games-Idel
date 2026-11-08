@@ -78,13 +78,14 @@ export function eggShop(p: Profile, save: () => void, onChange: () => void): HTM
       }, buy);
       const b = button(tab === 'new' ? `ซื้อ ${price} แต้ม` : `ฝึก ${price} แต้ม`, ask, 'secondary', 'sm', 'buy');
       b.dataset.buy = id;
-      setDisabled(b, why ? (why === 'castleLevel' ? `ปราสาทต้องถึง Lv${tierOf(id).eggShopFromCastleLevel}` : SHOP_WHY[why]!) : null);
+      setDisabled(b, why ? (why === 'castleLevel' ? `ปราสาทต้องถึง Lv${tierOf(id).eggShopFromCastleLevel} · เลื่อนขั้นการ์ดที่ค่ายฝึกเพื่อขึ้นเลเวลปราสาท` : SHOP_WHY[why]!) : null);
       t.append(b);
       if (why) t.append(el('span', 'route', why === 'castleLevel' ? `ปราสาท Lv${tierOf(id).eggShopFromCastleLevel}` : SHOP_WHY[why]!));
       grid.append(t);
     }
-    const head = el('p', 'egg-purse', `แต้มไข่ ${p.eggPoints}`);
+    const head = el('p', 'egg-purse', `แต้มไข่ ${p.eggPoints}`), locked = cards.some((id) => shopBlock(a, id) === 'castleLevel');
     shop.replaceChildren(head, el('p', 'dim small', 'เลือกการ์ดที่อยากได้เอง ราคาตามชั้น สามัญ 10 · ชำนาญ 20 · ยอดฝีมือ 35 · ตำนาน 60 ได้ทันที ไม่ต้องรอฟัก และไม่มีหมุนร้าน'), tabs);
+    if (locked) shop.append(el('p', 'shop-lock', 'ชั้นที่สูงกว่าเปิดตามเลเวลปราสาท · ปราสาทขึ้นเมื่อเลื่อนขั้นการ์ดที่ค่ายฝึก (ล็อบบี้ → ค่ายฝึก)'));
     if (cards.length === 0) shop.append(el('p', 'dim', tab === 'new' ? 'ซื้อการ์ดในร้านครบแล้ว ใบที่เหลือได้จากด่าน' : 'ยังไม่มีการ์ดให้ฝึก'));
     shop.append(grid);
     if (msg) {

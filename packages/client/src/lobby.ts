@@ -8,6 +8,7 @@ import { cardLog, eggShop } from './collectionView';
 import { levelSum, type Mode, type Profile } from './profile';
 import { probe, serverUrl } from './net';
 import { applyVolume } from './sound';
+import { screenSignal } from './ui';
 import { conditionTh, nextStage, unlockState, type Feature } from './unlocks';
 
 export const PLAYER_NAME = 'เจ้าสำนัก'; // no account until M1, so every save has the same name
@@ -109,7 +110,7 @@ export function settingsBody(p: Profile, save: () => void): HTMLElement {
     shake.textContent = set.shake ? 'สั่น' : 'นิ่ง'; shake.classList.toggle('on', set.shake);
     full.textContent = document.fullscreenElement ? 'เต็มจออยู่' : 'หน้าต่าง'; full.classList.toggle('on', !!document.fullscreenElement);
   };
-  document.addEventListener('fullscreenchange', show);
+  document.addEventListener('fullscreenchange', show, { signal: screenSignal() });
   const row = (label: string, ...ctl: HTMLElement[]) => { const r = el('div', 'set-row'); r.append(el('span', '', label), ...ctl); return r; };
   const keys = el('table', 'keys');
   for (const [k, what] of KEYS) { const tr = el('tr'); tr.append(el('td', 'key', k), el('td', '', what)); keys.append(tr); }
@@ -151,7 +152,7 @@ function friendButton(side: HTMLElement, go: () => void) {
   if (!url) { off('ยังเล่นในหน้านี้ไม่ได้', why!); return; }
   void probe(url).then((ok) => {
     if (ok) { b.disabled = false; sub.textContent = 'รหัสห้อง · ค่าเท่ากัน'; b.title = 'สร้างห้องหรือใส่รหัสห้องของเพื่อน'; }
-    else off('ยังไม่มีเซิร์ฟเวอร์', 'ต่อเซิร์ฟเวอร์ศึกกับเพื่อนไม่ได้ · ถ้าเล่นในเครื่องตัวเอง ให้เปิดเซิร์ฟเวอร์ด้วย npm run dev:server แล้วกลับมาที่ล็อบบี้');
+    else off('ยังไม่มีเซิร์ฟเวอร์', `ต่อเซิร์ฟเวอร์ศึกกับเพื่อนไม่ได้ตอนนี้ ลองใหม่ภายหลัง${import.meta.env.DEV ? ' (dev: npm run dev:server)' : ''}`);
   });
 }
 

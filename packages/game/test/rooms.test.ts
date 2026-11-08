@@ -81,6 +81,30 @@ describe('friend rooms', () => {
     expect((await a.next('room')).seats[0]?.team).toEqual(t);
   });
 
+  it('hides the friend\'s picks until start, and any team change takes back both readies', async () => {
+    const { url } = await server();
+    const a = await TestClient.open(url), b = await TestClient.open(url);
+    await a.hello('a'); await b.hello('b');
+    a.send({ t: 'create' });
+    const { code } = await a.next('room');
+    b.send({ t: 'join', code });
+    await a.next('room', (m) => m.seats[1] != null);
+    const ta = autoTeam(L0!, S0!), tb = autoTeam(L1!, S1!);
+    a.send({ t: 'team', team: ta });
+    a.send({ t: 'ready', on: true });
+    const seen = await b.next('room', (m) => m.seats[0]?.ready === true);
+    expect(seen.seats[0]?.team).toEqual({ leader: ta.leader, sub: ta.sub });
+    b.send({ t: 'team', team: tb });
+    const after = await a.next('room', (m) => m.seats[1]?.team != null);
+    expect(after.seats[0]).toMatchObject({ team: ta, ready: false });
+    expect(after.seats[1]).toMatchObject({ team: { leader: tb.leader, sub: tb.sub }, ready: false });
+    expect(JSON.stringify(after.seats[1])).not.toContain(tb.picks[0]!);
+    a.send({ t: 'ready', on: true }); b.send({ t: 'ready', on: true });
+    const [sa, sb] = await Promise.all([a.next('start'), b.next('start')]);
+    expect(sa.teams).toEqual([ta, tb]);
+    expect(sb.teams).toEqual([ta, tb]);
+  });
+
   it('an expired room code: the host is told it closed and a join finds nothing', async () => {
     const { url } = await server({ roomTtlMs: 150 });
     const a = await TestClient.open(url), b = await TestClient.open(url);

@@ -690,6 +690,104 @@ for (const [w, h, k] of [[1920, 1080, 1.5], [2560, 1080, 1.5], [1366, 768, 1]]) 
   await ctx.close();
 }
 
+// 9) QA systems (docs/design/reviews/qa-systems.md): F typed into a text field, a double-click on the lobby primary, the
+//    browser's Back, Esc on the result, listeners left behind by results and settings, the egg shop right after 1-10
+//    without training, and a summon through __pathClient at 1.5x.
+const listeners = async (p, cdp, expr, type) => {
+  const { result } = await cdp.send('Runtime.evaluate', { expression: expr });
+  const { listeners: ls } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+  return ls.filter((l) => l.type === type).length;
+};
+{
+  const { ctx, p } = await open('', 'qa-typing', null, DONE);
+  await ctx.addInitScript(() => { Element.prototype.requestFullscreen = function () { window.__fs = (window.__fs ?? 0) + 1; return Promise.resolve(); }; });
+  await p.reload();
+  await toLobby(p);
+  const cdp = await ctx.newCDPSession(p);
+  const fs0 = await listeners(p, cdp, 'document', 'fullscreenchange');
+  for (let i = 0; i < 3; i++) { await p.locator('.gear').click(); await sleep(100); await p.keyboard.press('Escape'); }
+  await p.locator('.cta').click();
+  await p.waitForSelector('.deck-name');
+  check((await listeners(p, cdp, 'document', 'fullscreenchange')) === fs0, 'settings opened three times leave no fullscreenchange listener once the lobby is gone');
+  await p.locator('.deck-name').click();
+  await p.keyboard.type('fire fox');
+  check((await p.evaluate(() => window.__fs ?? 0)) === 0, 'typing f into a text field does not toggle full screen');
+  await p.locator('.screen.team').click({ position: { x: 5, y: 5 } });
+  await p.keyboard.press('f');
+  check((await p.evaluate(() => window.__fs ?? 0)) === 1, 'F outside a text field still toggles full screen');
+  await p.goBack().catch(() => null);
+  await sleep(200);
+  check((await p.evaluate(() => window.__flow.screen)) === 'lobby', 'Back on the team screen goes to the lobby, inside the game');
+  await p.goBack().catch(() => null);
+  await sleep(200);
+  check(p.url().startsWith(base) && (await p.evaluate(() => window.__flow.screen)) === 'lobby', 'Back on the lobby stays in the game');
+  await ctx.close();
+}
+{
+  const { ctx, p } = await open('', 'qa-dblclick', null, NINE);
+  await toLobby(p);
+  await p.locator('.cta').dblclick();
+  await sleep(800);
+  check((await p.evaluate(() => window.__flow.screen)) === 'brief', 'a double-click on the lobby primary stops at the briefing');
+  await p.getByRole('button', { name: 'เข้าสู่ศึก' }).dblclick();
+  await sleep(300);
+  check((await p.evaluate(() => window.__flow.screen)) === 'versus', 'a double-click on เข้าสู่ศึก stops at the versus screen');
+  await ctx.close();
+}
+{
+  const { ctx, p } = await open('?mode=battle&bot=1&speed=8&seed=2&deck=fire', 'qa-result', null, DONE);
+  const cdp = await ctx.newCDPSession(p);
+  const lose = async () => {
+    await p.waitForFunction(() => window.__game?.s?.tick > 40, null, { timeout: 20000 });
+    await p.evaluate(() => { window.__game.s.castles[0].hp = 0; });
+    await p.waitForSelector('.modal.result', { timeout: 20000 });
+    return listeners(p, cdp, 'window', 'keydown');
+  };
+  const k1 = await lose();
+  await p.locator('.modal.result [data-primary]').click();
+  await p.waitForFunction(() => window.__flow.screen === 'match', null, { timeout: 10000 });
+  await p.waitForFunction(() => window.__game?.s?.tick > 20, null, { timeout: 20000 });
+  await p.goBack().catch(() => null);
+  await p.waitForSelector('.modal.pause', { timeout: 3000 }).catch(() => null);
+  await shot(p, '95-back-mid-match');
+  check((await p.locator('.modal.pause').count()) === 1 && p.url().startsWith(base), 'Back mid-match opens the menu and stays in the game');
+  await p.keyboard.press('Escape');
+  const k2 = await lose();
+  console.log('window keydown listeners on the result, match 1/2:', k1, k2);
+  check(k2 <= k1, 'a result leaves no keydown listener behind');
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('.lobby-bottom', { timeout: 3000 }).catch(() => null);
+  check((await p.evaluate(() => window.__flow.screen)) === 'lobby', 'Esc on the result goes to the lobby');
+  await ctx.close();
+}
+{
+  const fresh10 = home({ campaign: won(10), castleLevel: 1, eggPoints: 40 });
+  const { ctx, p } = await open('', 'qa-eggshop', null, fresh10);
+  await toLobby(p);
+  await p.locator('[data-go=eggShop]').click();
+  await sleep(200);
+  await shot(p, '96-egg-shop-after-1-10');
+  const open1 = await p.locator('.shop-grid [data-buy]:not([disabled])').count();
+  console.log('egg shop right after 1-10 at castle Lv1: buyable', open1, '|', await p.locator('.shop-lock').textContent().catch(() => '-'));
+  check(open1 > 0, 'right after 1-10, with no training, a common card can be bought');
+  check((await p.locator('.shop-lock').count()) === 1, 'the shop says the higher tiers open with the castle level, trained at ค่ายฝึก');
+  await ctx.close();
+}
+{
+  const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => errors.push(`qa-scale: ${e.message}`));
+  await p.goto(base + '?mode=battle&seed=2&deck=fire');
+  await p.waitForFunction(() => window.__game?.s?.tick > 30, null, { timeout: 20000 });
+  await p.locator('.hud-bottom .card').first().click();
+  const pt = await p.evaluate(() => window.__pathClient(0));
+  await p.mouse.move(pt.x, pt.y);
+  await p.mouse.click(pt.x, pt.y);
+  const ok = await p.waitForFunction(() => window.__game.s.units.some((u) => u.side === 0), null, { timeout: 5000 }).then(() => true, () => false);
+  check(ok, '__pathClient lands a summon at 1920x1080 (stage x1.5)');
+  await ctx.close();
+}
+
 await browser.close();
 await server.close();
 console.log('saved to', out);

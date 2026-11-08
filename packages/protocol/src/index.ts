@@ -6,7 +6,7 @@ import {
   type TiebreakStep,
 } from '@five-sects/sim';
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 export const TICK_MS = 1000 / TICK_HZ;
 // A client stamps each command for its latest frame + INPUT_DELAY; the server runs it at that tick, or at the next one when
 // it came late by at most LATE_TICKS, and refuses one stamped more than AHEAD_TICKS past its own tick.
@@ -43,7 +43,9 @@ export type ClientMsg =
   | { t: 'hash'; tick: number; h: string }
   | { t: 'ping'; n: number };
 
-export interface Seat { name: string; team: TeamPick | null; ready: boolean; online: boolean }
+// A seat's team in the room: picks only on your own seat; the friend's leader and sub alone until start reveals both teams.
+export interface SeatTeam { leader: string; sub: string; picks?: string[] }
+export interface Seat { name: string; team: SeatTeam | null; ready: boolean; online: boolean }
 export type EndType = ResultType | 'forfeit';
 export interface MatchEnd { winner: Side | -1; type: EndType; step: TiebreakStep | null; tick: number; hash: string; castles: [number, number]; flagged: boolean }
 export type ErrorCode =
@@ -135,7 +137,8 @@ const CLIENT: Record<ClientMsg['t'], Check<unknown>> = {
   hash: obj({ t: oneOf('hash'), tick: tickNum, h: str(8, /^[0-9a-f]{8}$/) }),
   ping: obj({ t: oneOf('ping'), n: int(0, 2 ** 31) }),
 };
-const seat = nullable(obj({ name: str(NAME_MAX), team: nullable(team), ready: bool, online: bool }));
+const seatTeam = obj({ leader: card, sub: card, picks: arr(card, battle.deck.pick, battle.deck.pick) }, ['picks']);
+const seat = nullable(obj({ name: str(NAME_MAX), team: nullable(seatTeam), ready: bool, online: bool }));
 const end = obj({
   winner: (x, at) => (x === -1 ? -1 : sideNum(x, at)), type: oneOf('total', 'castle', 'hp', 'tiebreak', 'draw', 'forfeit'),
   step: nullable(oneOf('forts', 'mana', 'units', 'kills')), tick: tickNum, hash: str(8), castles: pair(int(-1_000_000, 1_000_000)), flagged: bool,

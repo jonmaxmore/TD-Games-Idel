@@ -51,6 +51,18 @@ export function deckProblem(t: Team, r: DeckRules): string | null {
 }
 // A leader and sub with at least one legal hand under these rules (autoPicks finds one whenever one exists).
 export const pairOk = (leader: string, sub: string, r: DeckRules) => autoPicks(leader, sub, r.owned, r.budget).length === battle.deck.pick;
+// The team a friend room starts from (ศึกฝีมือ rules): this one when legal, else the first leader pair (this team's own
+// first, then pool order) whose autoPicks hand is legal. Only a legal team is ever sent: the server answers bad_team.
+export function rankedTeam(t: Team, pool: readonly string[] = pickPool(RANKED_RULES)): Team {
+  const legal = (d: Team) => validateDeck(d, RANKED_RULES.owned, RANKED_RULES.budget) == null;
+  if (legal(t)) return { ...t, picks: [...t.picks] };
+  for (const [leader, sub] of [[t.leader, t.sub], ...pool.flatMap((l) => pool.map((s) => [l, s]))] as [string, string][]) {
+    if (leader === sub || !pool.includes(leader) || !pool.includes(sub)) continue;
+    const d = { leader, sub, picks: autoPicks(leader, sub, RANKED_RULES.owned, RANKED_RULES.budget) };
+    if (legal(d)) return d;
+  }
+  throw new Error('no legal ศึกฝีมือ team in the pool');
+}
 
 // ---- the editing steps: each returns the next team, or a Thai reason it cannot be done ----
 export type Step = { team: Team } | { why: string };

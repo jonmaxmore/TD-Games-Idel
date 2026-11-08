@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   battle, battleCardIds, castleLevelOf, collection, createBattle, homeCard, leagues, powerRatioMaxPct, powerScore, progression, rewardFor, routeOf, stages,
-  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool, battleUnits, loanerRoom,
+  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool, battleUnits, loanerRoom, autoPicks, rankAfter,
 } from '@five-sects/sim';
-import { aiProgress, build, buyCard, chooseHome, claim, levelUp, payMatch, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
-import { addPick, aiSetup, autoFill, casualRules, DECK_SLOTS, deckPoints, deckProblem, fixTeam, isLoaner, pairOk, pickPool, RANKED_RULES, resolveTeam, setRole, setupOf } from '../src/decks';
+import { aiProgress, build, buyCard, chooseHome, claim, levelUp, nextTeam, payMatch, settleRanked, startRanked, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
+import { addPick, aiSetup, autoFill, casualRules, DECK_SLOTS, deckPoints, deckProblem, fixTeam, isLoaner, pairOk, pickPool, RANKED_RULES, rankedTeam, resolveTeam, setRole, setupOf } from '../src/decks';
 import { levelSum, migrate, teamOf, type Profile } from '../src/profile';
 
 const won = (n: number) => Object.fromEntries(stages.slice(0, n).map((s) => [s.id, { stars: [true, false, false], bestSec: 100 }]));
@@ -143,6 +143,18 @@ describe('rewards and the egg shop', () => {
     expect(p.owned).toContain(homeCard('wood', 'large'));
   });
 
+  it('a player who just finished chapter 1 without training can buy a common card the moment the shop opens', () => {
+    const p = fresh('water');
+    p.campaign = won(10);
+    claim(p);
+    expect(castleLevelOf(levelSum(p))).toBe(1);
+    const card = battleCardIds.find((c) => !p.owned.includes(c) && routeOf(c, 'water').kind === 'shop' && tierOf(c).id === 'common')!;
+    const before = p.eggPoints;
+    expect(before).toBeGreaterThanOrEqual(tierOf(card).eggPoints!);
+    expect(buyCard(p, card)).not.toBeTypeOf('string');
+    expect([p.owned.includes(card), p.eggPoints]).toEqual([true, before - tierOf(card).eggPoints!]);
+  });
+
   it('the shop sells a chosen card after 1-10 at its tier price, from its castle level; an owned one trains for its dupeXp', () => {
     const p = fresh('fire'), card = battleCardIds.find((c) => routeOf(c, 'fire').kind === 'shop' && tierOf(c).id === 'common')!;
     expect(buyCard(p, card)).toBe('ร้านไข่เปิดเมื่อผ่านด่าน 1-10');
@@ -224,5 +236,57 @@ describe('saved decks follow the collection', () => {
     expect([loanerRoom(p.owned), lent(after)]).toEqual([1, 1]);
     expect(deckProblem(after, casualRules(p.owned))).toBeNull();
     expect(after.picks).toEqual(expect.arrayContaining(before.picks.filter((c) => p.owned.includes(c))));
+  });
+});
+
+describe('match progress', () => {
+  it('a card the account does not own (a loaner) plays at level 1, whatever its save entry holds', () => {
+    const p = fresh('fire'), lend = battle.deck.loaners.find((c) => !p.owned.includes(c))!, mine = p.owned.find((c) => battleUnits.has(c))!;
+    p.cards[lend]!.level = 5;
+    p.cards[mine]!.level = 3;
+    const g = progressOf(p, 0);
+    expect([g.levels![lend], g.levels![mine]]).toEqual([1, 3]);
+  });
+});
+
+describe('a ranked match left mid-way', () => {
+  it('counts as a loss on the next boot, once; one that reached its result settles nothing more', () => {
+    const p = fresh('fire');
+    p.rank = { ...p.rank, stars: 2, streak: 3 };
+    startRanked(p);
+    const back = migrate(JSON.parse(JSON.stringify(p))), lost = rankAfter(p.rank, false);
+    expect(settleRanked(back)).toBe(true);
+    expect(back.rank).toEqual(lost);
+    expect(settleRanked(migrate(JSON.parse(JSON.stringify(back))))).toBe(false);
+    const done = fresh('fire');
+    startRanked(done);
+    recordRanked(done, true);
+    const after = done.rank;
+    expect(settleRanked(migrate(JSON.parse(JSON.stringify(done))))).toBe(false);
+    expect(done.rank).toEqual(after);
+  });
+});
+
+describe('another match', () => {
+  it('starts with the deck in use now, or none when it is not legal under the rules (the result sends the player to จัดทัพ)', () => {
+    const p = fresh('fire'), rules = casualRules(p.owned);
+    p.deck = 1;
+    p.decks[1]!.team = { ...teamOf(p), picks: autoPicks(teamOf(p).leader, teamOf(p).sub, p.owned) };
+    expect(nextTeam(p, rules)).toEqual(p.decks[1]!.team);
+    p.decks[1]!.team = { ...p.decks[1]!.team, picks: p.decks[1]!.team.picks.slice(1) };
+    expect(nextTeam(p, rules)).toBeNull();
+  });
+});
+
+describe('the friend-room team', () => {
+  it('keeps a legal saved team, else starts from the first leader pair with a legal hand, never an illegal one', () => {
+    const t = teamOf(fresh('fire')), legal = { ...t, picks: autoPicks(t.leader, t.sub, rankedPool) };
+    expect(rankedTeam(legal)).toEqual(legal);
+    // Two large leaders first in the pool: no hand of theirs fits the budget, so the first pair that does wins.
+    const pool = ['cloud_sword_elder', 'frost_tide_naga', 'vajra_stone_guardian', 'wandering_archer', 'ember_imp'];
+    expect(pairOk(pool[0]!, pool[1]!, RANKED_RULES)).toBe(false);
+    const got = rankedTeam({ leader: 'gone_card', sub: 'ember_imp', picks: [] }, pool);
+    expect(deckProblem(got, RANKED_RULES)).toBeNull();
+    expect([pool.includes(got.leader), pool.includes(got.sub)]).toEqual([true, true]);
   });
 });

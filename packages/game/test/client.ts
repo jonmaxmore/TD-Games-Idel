@@ -67,6 +67,7 @@ export async function room(url: string, guest: ClientOptions = {}) {
   expect(r.seats[0]?.name).toBe('เจ้าบ้าน');
   a.send({ t: 'team', team: autoTeam(L0!, S0!) });
   b.send({ t: 'team', team: autoTeam(L1!, S1!) });
+  await a.next('room', (m) => m.seats[0]?.team != null && m.seats[1]?.team != null); // a team change takes back both readies
   a.send({ t: 'ready', on: true });
   b.send({ t: 'ready', on: true });
   const [sa, sb] = await Promise.all([a.next('start'), b.next('start')]);
