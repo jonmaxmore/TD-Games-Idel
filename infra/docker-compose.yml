@@ -1,0 +1,20 @@
+# Local stack. For now only the friend-room game server; PostgreSQL 16 and Redis 7 join here in M1 (guests, match
+# records and the room registry move out of memory then).
+#   docker compose -f infra/docker-compose.yml up --build    -> ws://localhost:8787/v1/ws, then npm run dev for the client
+services:
+  game:
+    build:
+      context: ..
+      dockerfile: infra/game.Dockerfile
+    ports:
+      - "127.0.0.1:8787:8787" # this machine only; nothing is exposed to the network
+    environment:
+      ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+    volumes:
+      - replays:/data/replays
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+volumes:
+  replays:
