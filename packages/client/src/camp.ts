@@ -6,7 +6,7 @@ import {
   battleCardIds, castleLevelOf, chapter, firstClearPay, forgeOf, matchLevel, powerScore, progression, rankAfter, rewardFor, shopBlock, stages,
   starRewards, starterCards, starterTeam, tierOf, type Account, type BattleSetup, type Progress, type Rank, type Reward, type Stage,
 } from '@five-sects/sim';
-import { fixDecks, healTeam, setupOf } from './decks';
+import { deckProblem, fixDecks, healTeam, setupOf, type DeckRules, type Team } from './decks';
 import { levelSum, teamOf, type Profile } from './profile';
 
 export const xpNeed = (level: number) => (level >= progression.maxLevel ? null : progression.xpToNext[level - 1]!);
@@ -144,6 +144,9 @@ export function claim(p: Profile): Claimed[] {
 }
 
 // The account as the sim takes it: levels, the forge items finished by now, town tiers.
+// The team another match starts with: the deck in use now (edited or healed since the last match, perhaps), or null when it
+// cannot start under these rules, and the result sends the player to จัดทัพ instead.
+export const nextTeam = (p: Profile, r: DeckRules): Team | null => (deckProblem(teamOf(p), r) == null ? teamOf(p) : null);
 export function progressOf(p: Profile, now: number): Progress {
   const gear: Record<string, string[]> = {};
   for (const id of battleCardIds) {

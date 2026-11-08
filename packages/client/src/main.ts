@@ -11,7 +11,7 @@ import {
 } from '@five-sects/sim';
 import { Lockstep, pvpSetup, type MatchEnd } from '@five-sects/protocol';
 import { el, startMatch, type MatchResult } from './battle';
-import { aiProgress, canLevel, chooseHome, claim, payMatch, progressOf, recordRanked, recordStage, stageOpen, type Claimed } from './camp';
+import { aiProgress, canLevel, chooseHome, claim, nextTeam, payMatch, progressOf, recordRanked, recordStage, stageOpen, type Claimed } from './camp';
 import { campScreen } from './campScreen';
 import { portrait } from './board';
 import { aiSetup, casualRules, DECK_NAME_MAX, deckName, deckProblem, isBasic, RANKED_RULES, resolveTeam, setupOf, teamName, type DeckRules, type Team } from './decks';
@@ -454,7 +454,7 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
   // stage after a stage win, another match after a ranked or casual win or draw, else a retry). One that does not apply is
   // hidden in its place, so nothing moves.
   const next = stage ? stages[stages.indexOf(stage) + 1] : undefined;
-  const again = () => go({ k: 'versus', team, seed: seed + 1, stage: stage?.id });
+  const again = () => { const t = nextTeam(profile, teamRules(stage)); go(t ? { k: 'versus', team: t, seed: seed + 1, stage: stage?.id } : { k: 'deck', stage: stage?.id }); };
   const last = stage && won && !next;
   const main = (text: string, f: () => void) => button(text, f, 'primary', 'lg');
   const primary = stage && won ? (next ? main('ด่านถัดไป', () => go({ k: 'brief', stage: next.id })) : main('กลับล็อบบี้', () => go({ k: 'lobby' })))

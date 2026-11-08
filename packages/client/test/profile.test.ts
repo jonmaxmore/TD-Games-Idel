@@ -3,7 +3,7 @@ import {
   battle, battleCardIds, castleLevelOf, collection, createBattle, homeCard, leagues, powerRatioMaxPct, powerScore, progression, rewardFor, routeOf, stages,
   starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool, battleUnits, loanerRoom, autoPicks,
 } from '@five-sects/sim';
-import { aiProgress, build, buyCard, chooseHome, claim, levelUp, payMatch, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
+import { aiProgress, build, buyCard, chooseHome, claim, levelUp, nextTeam, payMatch, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
 import { addPick, aiSetup, autoFill, casualRules, DECK_SLOTS, deckPoints, deckProblem, fixTeam, isLoaner, pairOk, pickPool, RANKED_RULES, rankedTeam, resolveTeam, setRole, setupOf } from '../src/decks';
 import { levelSum, migrate, teamOf, type Profile } from '../src/profile';
 
@@ -234,6 +234,17 @@ describe('match progress', () => {
     p.cards[mine]!.level = 3;
     const g = progressOf(p, 0);
     expect([g.levels![lend], g.levels![mine]]).toEqual([1, 3]);
+  });
+});
+
+describe('another match', () => {
+  it('starts with the deck in use now, or none when it is not legal under the rules (the result sends the player to จัดทัพ)', () => {
+    const p = fresh('fire'), rules = casualRules(p.owned);
+    p.deck = 1;
+    p.decks[1]!.team = { ...teamOf(p), picks: autoPicks(teamOf(p).leader, teamOf(p).sub, p.owned) };
+    expect(nextTeam(p, rules)).toEqual(p.decks[1]!.team);
+    p.decks[1]!.team = { ...p.decks[1]!.team, picks: p.decks[1]!.team.picks.slice(1) };
+    expect(nextTeam(p, rules)).toBeNull();
   });
 });
 
