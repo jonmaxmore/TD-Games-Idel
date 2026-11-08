@@ -2,10 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  battle, battleCardIds, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, draw, drawPool, fixedCards, fixedHand, fwd, sectSetup, stepBattle,
+  battle, battleCardIds, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fixedHand, fwd, handOf, sectCards, sectSetup, stepBattle, validateDeck,
   replayBattle, summonZone, TICK_HZ, sects, COUNTER_CLASSES, classesOf, counterPct, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
 } from '../src';
-import { bandOf, cardTable, MIXED, playBattle, type Policy } from './battleBot';
+import { bandOf, cardTable, MIXED, mirrorTeam, playBattle, type Policy } from './battleBot';
 import { BATTLE_GOLDEN, battleGolden, type BattleGolden } from './goldens';
 
 const STRIKER = 'crimson_phoenix_striker', BANNER = 'crimson_phoenix_banner', BLADE = 'jade_bamboo_blade';
@@ -62,64 +62,19 @@ function duel(c0: string, a: number, c1: string, b: number): BattleState {
 const hitIds = (ev: BattleEvent[], from: number) => ev.filter((e) => e.e === 'hit' && e.from === from).map((e) => e.to);
 
 describe('castle battle hand', () => {
-  const isLarge = (c: string) => battleUnits.get(c)!.size === 'large';
-  it('deals the basic capturer, the leader, the sub-leader and 4 drawn cards, never the bench, at most 2 large', () => {
-    const bench = ['cloud_sword_rider', 'frost_tide_naga', 'vajra_stone_hawk'];
-    const setup = { ...MIXED, bench };
-    const seen = new Set<string>(), h0basic = battle.hand.basic.get(battleUnits.get(MIXED.leader)!.sect)!;
-    for (let seed = 1; seed <= 300; seed++) {
-      const h = createBattle(seed, setup, setup).hands[0];
-      expect(h.slice(0, 3)).toEqual([battle.hand.basic.get(battleUnits.get(MIXED.leader)!.sect), MIXED.leader, MIXED.sub]);
-      expect(new Set(h).size).toBe(7);
-      expect(h.filter(isLarge).length).toBeLessThanOrEqual(2);
-      for (const c of h) { expect(bench).not.toContain(c); seen.add(c); }
-    }
-    expect([...seen].sort()).toEqual(battleCardIds.filter((c) => !bench.includes(c) && (c === h0basic || battleUnits.get(c)!.move !== 'capture')).sort()); // every other card comes up
+  it("is the basic capturer of the leader's sect, the leader, the sub-leader and the picks, the same on every seed", () => {
+    const setup = { leader: 'jade_bamboo_striker', sub: 'jade_bamboo_control', picks: ['wandering_archer', 'ember_imp', 'jade_bamboo_blade', 'cloud_sword_blade'] };
+    for (let seed = 1; seed <= 20; seed++) expect(createBattle(seed, setup, MIXED).hands[0]).toEqual(['jade_bamboo_banner', 'jade_bamboo_striker', 'jade_bamboo_control', ...setup.picks]);
+    expect(handOf({ ...setup, leader: 'wandering_archer', picks: ['ember_imp'] })[0]).toBe(battle.hand.basic.get('yinyang'));
+    expect(handOf(MIXED).length).toBe(battle.hand.size);
     const sect = sectSetup('wood');
-    expect(createBattle(9, sect, sect).hands[0].every((c) => battleUnits.get(c)!.sect === 'wood')).toBe(true);
+    expect(handOf(sect).every((c) => battleUnits.get(c)!.sect === 'wood')).toBe(true);
+    expect(validateDeck(sect, sectCards('wood'))).toBeNull();
   });
 
-  it('the hand draws only from the owned collection, never another sect\'s basic capturer', () => {
-    const owned = ['jade_bamboo_striker', 'jade_bamboo_control', 'jade_bamboo_blade', 'wandering_archer', 'ember_imp', ...battle.hand.basic.values()];
-    const setup = { leader: 'jade_bamboo_striker', sub: 'jade_bamboo_control', collection: owned, bench: [] };
-    for (let seed = 1; seed <= 200; seed++) {
-      const h = createBattle(seed, setup, setup).hands[0];
-      expect(h, `seed ${seed}`).toEqual(['jade_bamboo_banner', 'jade_bamboo_striker', 'jade_bamboo_control', ...h.slice(3)]);
-      expect(h.slice(3).sort()).toEqual(['ember_imp', 'jade_bamboo_blade', 'wandering_archer']);
-    }
-    for (let seed = 1; seed <= 200; seed++) for (const c of createBattle(seed, MIXED, MIXED).hands[0].slice(1)) expect(battleUnits.get(c)!.move, `seed ${seed} ${c}`).not.toBe('capture');
-  });
-
-  it(`the bench never shrinks the draw pool below ${draw.minDrawPool}: bench cards past that stay in, in data order`, () => {
-    const pool = battleCardIds.filter((c) => battleUnits.get(c)!.move !== 'capture' && c !== MIXED.leader && c !== MIXED.sub);
-    const setup = { ...MIXED, bench: pool.slice(0, pool.length - 3) };
-    expect(drawPool(setup, fixedCards(setup))).toEqual(pool.slice(pool.length - draw.minDrawPool));
-    const few = { ...MIXED, collection: pool.slice(0, 6), bench: pool.slice(0, 2) };
-    expect(drawPool(few, fixedCards(few))).toEqual(pool.slice(0, 6));
-    const enough = { ...MIXED, collection: pool.slice(0, 10), bench: [pool[0]!, pool[5]!, pool[9]!] };
-    expect(drawPool(enough, fixedCards(enough))).toEqual(pool.slice(0, 10).filter((c) => c !== pool[0] && c !== pool[5]));
-  });
-
-  it('a large leader and sub-leader leave no room for a drawn large card', () => {
-    const setup = { ...MIXED, leader: 'crimson_phoenix_beast', sub: 'jade_bamboo_warden' };
-    for (let seed = 1; seed <= 100; seed++) expect(createBattle(seed, setup, setup).hands[1].filter(isLarge)).toEqual(['crimson_phoenix_beast', 'jade_bamboo_warden']);
-  });
-
-  it('redraws deal the drawn cards again, the same way every replay, only before the first tick and only so often', () => {
-    const a = createBattle(4, MIXED, MIXED), b = createBattle(4, MIXED, MIXED);
-    expect(a.hands).toEqual(b.hands);
-    const first = [...a.hands[0]];
-    const redraw = (side: Side): BattleCommand => ({ t: 'redraw', side });
-    const ev = stepBattle(a, Array.from({ length: battle.hand.redraws + 1 }, () => redraw(0)));
-    stepBattle(b, Array.from({ length: battle.hand.redraws }, () => redraw(0)));
-    expect(ev.filter((e) => e.e === 'error').map((e) => e.msg)).toEqual(['no redraws left']);
-    expect(a.hands).toEqual(b.hands);
-    expect(a.hands[0].slice(0, 3)).toEqual(first.slice(0, 3));
-    expect(a.hands[0]).not.toEqual(first);
-    expect(a.hands[1]).toEqual(createBattle(4, MIXED, MIXED).hands[1]);
-    expect(stepBattle(createBattle(4, MIXED, MIXED), [redraw(1)]).some((e) => e.e === 'error')).toBe(false);
-    expect(stepBattle(a, [redraw(1)]).find((e) => e.e === 'error')?.msg).toBe('redraw only before the match');
-    expect(stepBattle(fresh(), [redraw(0)]).find((e) => e.e === 'error')?.msg).toBe('no redraws left'); // a fixed hand
+  it('a redraw is not a command', () => {
+    const ev = stepBattle(fresh(), [{ t: 'redraw', side: 0 } as unknown as BattleCommand]);
+    expect(ev.find((e) => e.e === 'error')?.msg).toBe('unknown command');
   });
 });
 
@@ -657,12 +612,14 @@ describe('castle battle balance', () => {
     expect(early / 20).toBeLessThanOrEqual(battle.manaStart / 2);
   });
 
-  it('rush vs defend on mirror decks, 200 seeds, both side orders: left wins 45-55%, draws at most 5%, a castle falls in 40-60%, 120-170 s', () => {
+  // Mirror decks: MIXED's leaders with seeded legal picks, the same for both sides. The deck budget keeps a second big card
+  // out of most hands, so castles fall less often than with the old random draw (42% before the budget, 31% after).
+  it('rush vs defend on mirror decks, 200 seeds, both side orders: left wins 45-55%, draws at most 5%, a castle falls in 25-60%, 120-170 s', () => {
     const SEEDS = 200;
     let left = 0, draws = 0, games = 0, ko = 0, ticks = 0;
     for (const [p0, p1] of [['rush', 'defend'], ['defend', 'rush']] as [Policy, Policy][])
       for (let seed = 1; seed <= SEEDS; seed++) {
-        const s = playBattle(seed, p0, p1).state, w = s.winner;
+        const t = mirrorTeam(seed), s = playBattle(seed, p0, p1, t, t).state, w = s.winner;
         games++;
         ticks += s.tick;
         if (s.castles[0].hp <= 0 || s.castles[1].hp <= 0) ko++;
@@ -672,7 +629,7 @@ describe('castle battle balance', () => {
     expect((left * 100) / games).toBeGreaterThanOrEqual(45);
     expect((left * 100) / games).toBeLessThanOrEqual(55);
     expect((draws * 100) / games).toBeLessThanOrEqual(5);
-    expect((ko * 100) / games).toBeGreaterThanOrEqual(40);
+    expect((ko * 100) / games).toBeGreaterThanOrEqual(25);
     expect((ko * 100) / games).toBeLessThanOrEqual(60);
     expect(ticks / games / TICK_HZ).toBeGreaterThanOrEqual(120);
     expect(ticks / games / TICK_HZ).toBeLessThanOrEqual(170);

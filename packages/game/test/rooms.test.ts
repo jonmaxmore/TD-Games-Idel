@@ -44,14 +44,14 @@ function bot(c: TestClient, seat: Side, policy: Policy, seed: number, opts: { ba
   const mind = botRng(seed, seat);
   c.onMsg = (m: ServerMsg) => {
     if (m.t !== 'frame' || !c.ls) return;
-    const hashes = c.ls.run(() => { for (const cmd of botCommands(c.ls!.s, seat, policy, mind)) if (cmd.t !== 'redraw') c.send(c.ls!.cmd(cmd)); });
+    const hashes = c.ls.run(() => { for (const cmd of botCommands(c.ls!.s, seat, policy, mind)) c.send(c.ls!.cmd(cmd)); });
     for (const h of hashes) c.send(h.t === 'hash' && h.tick === opts.badHashAt ? { ...h, h: '00000000' } : h);
   };
 }
 
 describe('friend rooms', () => {
   it('a bot-vs-bot match through a room: both clients end on the server hash, and the saved record replays to it', async () => {
-    const { url, store } = await server();
+    const { url, store } = await server({ tickMs: 5 }); // at 2 ms a tick the bots outrun the per-second message limits
     const { a, b, sa } = await room(url);
     expect(sa.teams).toEqual([{ leader: L0, sub: S0 }, { leader: L1, sub: S1 }]);
     bot(a, 0, 'rush', sa.seed); bot(b, 1, 'defend', sa.seed);
@@ -105,7 +105,7 @@ describe('friend rooms', () => {
   });
 
   it('a dropped player reconnects with its token inside the window and both still end on the server hash', async () => {
-    const { url, store } = await server({ tickMs: 4 });
+    const { url, store } = await server({ tickMs: 8 }); // faster ticks let the bots outrun the per-second message limits
     const { a, b, sa, tokens } = await room(url);
     bot(a, 0, 'rush', sa.seed);
     await a.next('frame', (m) => m.tick === 200, 60_000);

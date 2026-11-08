@@ -60,8 +60,8 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const s: BattleState = net ? net.ls.s : createBattle(seed, setups[0], setups[1], opts);
   // our side (left unless we are a friend room's guest) and theirs; d values in commands are our own depth
   const me: Side = net?.ls.seat ?? 0, foe: Side = me === 0 ? 1 : 0;
-  // the team screen's redraws, as the replay has them
-  const firstTick: BattleCommand[] = net ? [] : o.replay ? o.replay.commands[0] ?? [] : Array.from({ length: o.redraws }, () => ({ t: 'redraw', side: 0 }));
+  // a replay's tick-0 commands
+  const firstTick: BattleCommand[] = net ? [] : o.replay ? o.replay.commands[0] ?? [] : [];
   const log: Record<number, BattleCommand[]> = firstTick.length > 0 ? { 0: firstTick } : {};
   const rngs = [botRng(seed, 0), botRng(seed, 1)];
   const human = net != null || (o.bots[0] == null && !o.replay);
@@ -114,7 +114,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   manaBar.append(manaFill);
   manaBox.append(el('span', '', 'ปราณ'), manaNum, manaBar);
   const cardRow = el('div', 'cards');
-  if (!net) stepBattle(s, firstTick); // tick 0 before the hand is shown, so the cards are the redrawn ones
+  if (!net) stepBattle(s, firstTick); // tick 0 before the hand is shown
   const cards = s.hands[me].map((card, slot) => {
     const def = battleUnits.get(card)!;
     const b = el('button', `card${def.move === 'guard' ? ' guard' : ''}`);

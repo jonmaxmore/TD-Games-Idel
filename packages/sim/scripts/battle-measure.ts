@@ -8,7 +8,7 @@
 // 2. every sect team vs every other (its whole roster, battle.json > sectTeams leader and sub), both side orders, all four bot pairings:
 //    row sect's win % over its games (draws count half), and each sect's overall average. The diagonal is the mirror
 //    match's left-side win %.
-import { battle, battleUnits, decision, sectSetup, type ResultType } from '../src';
+import { battle, battleUnits, decision, handOf, sectSetup, type ResultType } from '../src';
 import { bandOf, cardTable, CONTROL_TEAMS, PACED_MIXED_PAIRS, PACED_PAIRS, PAIRS, playBattle, type Policy } from '../test/battleBot';
 
 const seeds = Number(process.env.BATTLE_SEEDS ?? 200);
@@ -69,7 +69,7 @@ if (process.env.SECTS !== '0') {
   // in the games it was summoned at least once.
   const sideGames = n - mirrorN.reduce((a, x) => a + x, 0);
   console.log('\ncard usage (sect games): card, in hand %, summons per game held, win % when summoned');
-  for (const id of ids) for (const c of sectSetup(id).collection) {
+  for (const id of ids) for (const c of handOf(sectSetup(id))) {
     const u = use(c);
     console.log(`${c.padEnd(26)} ${pct(u.dealt, sideGames * 2 / ids.length * 1).padStart(6)} ${(u.n / Math.max(1, u.dealt)).toFixed(2).padStart(6)} ${(u.games ? pct(u.pts, u.games * 2) : '-').padStart(6)}`);
   }

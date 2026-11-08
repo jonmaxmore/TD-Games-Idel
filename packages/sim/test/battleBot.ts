@@ -3,27 +3,36 @@
 // once it is under siege, push like rush when rich) and paced (keep a mana reserve, one summon every few seconds and
 // never onto a crowd of its own small units, guards first when enemies come near). Each side has its own seeded RNG.
 import {
-  battle, battleCardIds, ownedAt, starterTeam, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, stepBattle, summonZone,
-  type BattleCommand, type BattleOpts, type BattleSetup, type BattleState, type Side, type Stage,
+  autoPicks, battle, battleCardIds, fillPicks, isBasic, ownedAt, stages, starterTeam, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd,
+  nextRandom, stepBattle, summonZone, validateDeck, type BattleCommand, type BattleOpts, type BattleSetup, type BattleState, type Side, type Stage,
 } from '../src';
 
 export type Policy = 'rush' | 'defend' | 'paced';
-// The mirror team of the balance gate: every card in the collection, a large wood leader and a fire sub-leader.
-export const MIXED: BattleSetup = { leader: 'jade_bamboo_warden', sub: 'crimson_phoenix_striker', collection: battleCardIds, bench: [] };
-// Stress teams for control resistance: only the earth and water cards that stun or push (leader, sub and draws).
+// The golden's team: a large wood leader, a fire sub-leader and the picks autoPicks makes from every card.
+const team = (leader: string, sub: string, owned: readonly string[], skip: readonly string[] = []): BattleSetup => ({ leader, sub, picks: autoPicks(leader, sub, owned, battle.deck.budget, skip) });
+export const MIXED: BattleSetup = team('jade_bamboo_warden', 'crimson_phoenix_striker', battleCardIds);
+// Stress teams for control resistance: only the earth and water cards that stun or push.
 const CONTROL_CARDS = ['vajra_stone_striker', 'vajra_stone_burst', 'vajra_stone_control', 'vajra_stone_guardian', 'frost_tide_stacker', 'frost_tide_burst', 'frost_tide_control', 'frost_tide_naga'];
 export const CONTROL_TEAMS: Record<string, BattleSetup> = {
-  earth: { leader: 'vajra_stone_guardian', sub: 'vajra_stone_control', collection: CONTROL_CARDS, bench: ['frost_tide_naga'] },
-  water: { leader: 'frost_tide_naga', sub: 'frost_tide_stacker', collection: CONTROL_CARDS, bench: ['vajra_stone_guardian'] },
+  earth: team('vajra_stone_guardian', 'vajra_stone_control', CONTROL_CARDS, ['frost_tide_naga']),
+  water: team('frost_tide_naga', 'frost_tide_stacker', CONTROL_CARDS, ['vajra_stone_guardian']),
 };
-// A random team over every card for the per-card table: a seeded leader and a different sub-leader, never a basic capturer.
-const BASICS = new Set(battle.hand.basic.values());
-export function randomTeam(seed: number, side: Side): BattleSetup {
-  const r = { rng: (seed * 7919 + 17 + side * 104729) >>> 0 };
-  const ok = battleCardIds.filter((c) => !BASICS.has(c));
-  const leader = ok[Math.floor(nextRandom(r) * ok.length)]!, rest = ok.filter((c) => c !== leader);
-  return { leader, sub: rest[Math.floor(nextRandom(r) * rest.length)]!, collection: battleCardIds, bench: [] };
+// Seeded legal picks for a leader and sub: the owned cards in a seeded order, then loaners (deck.ts fillPicks).
+export function randomPicks(r: { rng: number }, leader: string, sub: string, owned: readonly string[], budget = battle.deck.budget): string[] {
+  const shuffle = (a: string[]) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(nextRandom(r) * (i + 1)); [a[i], a[j]] = [a[j]!, a[i]!]; } return a; };
+  return fillPicks(leader, sub, [...shuffle(battleCardIds.filter((c) => owned.includes(c))), ...shuffle(battle.deck.loaners.filter((c) => !owned.includes(c)))], owned, budget);
 }
+// A random legal team over every card (the per-card table): a seeded leader, a different sub-leader and seeded picks.
+export function randomTeam(seed: number, side: Side): BattleSetup {
+  const r = { rng: (seed * 7919 + 17 + side * 104729) >>> 0 }, ok = battleCardIds.filter((c) => !isBasic(c));
+  const draw = (from: string[]) => from[Math.floor(nextRandom(r) * from.length)]!;
+  for (;;) {
+    const leader = draw(ok), sub = draw(ok.filter((c) => c !== leader)), t = { leader, sub, picks: randomPicks(r, leader, sub, battleCardIds) };
+    if (validateDeck(t, battleCardIds) == null) return t;
+  }
+}
+// The mirror gate's team on a seed, the same for both sides: MIXED's leader and sub-leader with seeded picks.
+export const mirrorTeam = (seed: number): BattleSetup => ({ ...MIXED, picks: randomPicks({ rng: (seed * 7919 + 3) >>> 0 }, MIXED.leader, MIXED.sub, battleCardIds) });
 
 // Per card over random-team games (one seed per game, so every game deals new teams and hands; the four bot pairings
 // in turn): win % (draws half) of the side in the side-games it summoned the card at least once (winPct) or held it in the
@@ -181,7 +190,11 @@ export function withoutAntiAir<T>(cards: readonly string[], fn: () => T): T {
 
 // A ศึกปราบ stage, paced bot against the stage's paced enemy: the player's setup (with its progress) on side 0.
 export const playStage = (seed: number, st: Stage, player: BattleSetup): BattleResult => playBattle(seed, 'paced', 'paced', player, st.enemy, { stage: st.rules });
-// The balance gate's player at stage i: what a home sect owns when it first plays it (collection.ts ownedAt), led by the
-// starter team (collection.json starterTeam), every card at level, no bench.
-export const ownedTeamAt = (home: string, i: number, level: number): BattleSetup =>
-  ({ ...starterTeam(home), collection: ownedAt(home, i), bench: [], progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, level])) } });
+// The balance gate's player at stage i on a seed: what a home sect owns when it first plays it (collection.ts ownedAt), led
+// by the starter team (collection.json starterTeam), seeded legal picks within the stage's budget (loaners when it owns too
+// few), so the gate averages over the hands a player could take as the old random draw did; owned cards at level, loaners
+// at 1.
+export function ownedTeamAt(home: string, i: number, level: number, seed: number): BattleSetup {
+  const t = starterTeam(home), owned = ownedAt(home, i), r = { rng: (seed * 2654435761 + i * 97 + 1) >>> 0 };
+  return { ...t, picks: randomPicks(r, t.leader, t.sub, owned, stages[i]!.deckBudget), progress: { levels: Object.fromEntries(owned.map((c) => [c, level])) } };
+}

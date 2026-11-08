@@ -1,7 +1,7 @@
 // Friend-room PvP wire protocol (SPEC-pvp-rooms): every message between the client and the game server, versioned, and
 // checked at the boundary by parseClient / parseServer. A message that is too large, not JSON, of an unknown type, or that
 // carries an unknown or malformed field is rejected whole. Shared by packages/client and packages/game.
-import { battle, battleUnits, rankedPool, TICK_HZ, type BattleCommand, type BattleSetup, type ResultType, type Side, type TiebreakStep } from '@five-sects/sim';
+import { autoPicks, battle, battleUnits, rankedPool, TICK_HZ, type BattleCommand, type BattleSetup, type ResultType, type Side, type TiebreakStep } from '@five-sects/sim';
 
 export const PROTOCOL_VERSION = 1;
 export const TICK_MS = 1000 / TICK_HZ;
@@ -64,7 +64,7 @@ export function teamError(t: TeamPick): string | null {
   if (t.leader === t.sub) return 'leader and sub must differ';
   return null;
 }
-export const pvpSetup = (t: TeamPick): BattleSetup => ({ leader: t.leader, sub: t.sub, collection: rankedPool, bench: [] });
+export const pvpSetup = (t: TeamPick): BattleSetup => ({ leader: t.leader, sub: t.sub, picks: autoPicks(t.leader, t.sub, rankedPool) });
 export const PVP_OPTS = { normalized: true } as const;
 
 // ---- the validator: a check returns the value or throws ----

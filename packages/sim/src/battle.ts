@@ -2,21 +2,20 @@
 // One tick at a time, integers only, seeded RNG. Every unit picks its action from where things stood at the start
 // of the tick, then the moves are applied and the dead removed, so neither side acts first.
 // Positions are path distances in milli-tiles from side 0's castle; fwd() turns one into a side's own depth.
-import { battle as B, battleCardIds, battleUnits, draw as DRAW, type BattleUnitDef } from './data';
-import { div, fnv1a, nextRandom, pathLength, pointAt, rollPct, toMilli, wuxingPct } from './core';
+import { battle as B, battleCardIds, battleUnits, type BattleUnitDef } from './data';
+import { div, fnv1a, pathLength, pointAt, rollPct, toMilli, wuxingPct } from './core';
 import { abilityUnlocked, cardStats, progression, townBonus, type Progress } from './progression';
+import { autoPicks } from './deck';
 
 export type Side = 0 | 1;
-// d: depth from the side's own castle. redraw: deal the drawn part of the hand again, only before the first tick.
-// cannon: the castle's own shot at depth d.
+// d: depth from the side's own castle. cannon: the castle's own shot at depth d.
 export type BattleCommand =
   | { t: 'summon'; side: Side; card: string; d: number }
-  | { t: 'cannon'; side: Side; d: number }
-  | { t: 'redraw'; side: Side };
-// A side's team: the cards it owns (collection), the owned cards kept out of the draw (bench), its leader and sub-leader.
-// hand: a fixed hand used as dealt, with no redraw (unit tests, scripted PvE sides). progress: the side's card levels, forge
-// items and town tiers (progression.ts); a normalized match ignores it.
-export interface BattleSetup { leader: string; sub: string; collection: readonly string[]; bench: readonly string[]; hand?: readonly string[]; progress?: Progress }
+  | { t: 'cannon'; side: Side; d: number };
+// A side's team (SPEC-deck-budget): its leader, sub-leader and picked cards (deck.ts checks them against what it owns);
+// handOf gives the hand. progress: the side's card levels, forge items and town tiers (progression.ts); a normalized match
+// ignores it. A scripted side (unit tests, ศึกปราบ enemies) has no leader and its picks are the whole hand (fixedHand).
+export interface BattleSetup { leader: string; sub: string; picks: readonly string[]; progress?: Progress }
 // A ศึกปราบ stage (campaign.json, campaign.ts): side 1 is the stage's enemy. manaStart: each side's mana at the start;
 // regenPct: the enemy's regen as % of the normal rate; fortBonus: mana side 0 gains the first time it takes each fort;
 // fortsAtPct: the fort layout; castleHpPct: each castle's starting HP as % of its HP (below 100 damaged, over 100 reinforced);
@@ -33,7 +32,7 @@ export const plainStage = (): StageRules => ({
 });
 // normalized: ranked ศึกฝีมือ, every card at its base stats whatever either side's progress says. stage: a ศึกปราบ stage.
 export interface BattleOpts { normalized?: boolean; stage?: StageRules }
-export const fixedHand = (cards: readonly string[], leader = '', sub = ''): BattleSetup => ({ leader, sub, collection: cards, bench: [], hand: cards });
+export const fixedHand = (cards: readonly string[], leader = '', sub = ''): BattleSetup => ({ leader, sub, picks: cards });
 // What a tick did, for the view and sound (never read back by the rules). x, y: where, in milli-tiles.
 // side: who summoned, captured or won (-1 on end = draw); heal: amount = HP restored; hit on a structure: to = -1,
 // type 'fort' | 'castle' and id = fort index or castle side; from < 0 is a structure shooting (-1 - side castle, -10 - i fort).
@@ -60,7 +59,7 @@ export interface Fort { d: number; owner: Side | null; hp: number; cd: number; c
 export interface Castle { hp: number; maxHp: number; cd: number; cannonCd: number; cannonDmg: number; cannonPush: number }
 export interface BattleState {
   tick: number; rng: number; nextId: number;
-  setups: [BattleSetup, BattleSetup]; progress: [Progress | null, Progress | null]; deal: [{ rng: number }, { rng: number }]; redraws: [number, number];
+  setups: [BattleSetup, BattleSetup]; progress: [Progress | null, Progress | null];
   hands: [string[], string[]]; uses: [number[], number[]]; mana: [number, number]; // uses: summons per hand slot
   castles: [Castle, Castle]; forts: Fort[]; units: Fighter[]; zones: Zone[];
   kills: [number, number]; // enemy units each side has killed
@@ -81,42 +80,17 @@ const at = (d: number) => pointAt(BATTLE_PATH, d);
 const isOver = (s: BattleState) => s.winner !== null;
 export { isOver as battleOver };
 
-// The draw pool: the collection minus the fixed cards and every basic capturer (collection.json draw.basicsInPool), then
-// minus the bench, but never below minDrawPool cards: bench cards past that (in data order) stay in.
-export function drawPool(setup: BattleSetup, fixed: readonly string[]): string[] {
-  const owned = battleCardIds.filter((c) => setup.collection.includes(c) && !fixed.includes(c) && (DRAW.basicsInPool || battleUnits.get(c)!.move !== 'capture'));
-  const benched = owned.filter((c) => setup.bench.includes(c)).slice(0, Math.max(0, owned.length - DRAW.minDrawPool));
-  return owned.filter((c) => !benched.includes(c));
-}
-// The fixed part of a hand: the basic capturer of the leader's sect, the leader and the sub-leader.
-export function fixedCards(setup: BattleSetup): string[] {
+// The hand: the basic capturer of the leader's sect, the leader, the sub-leader, then the picks, each card once.
+export function handOf(setup: BattleSetup): string[] {
   const sect = battleUnits.get(setup.leader)?.sect ?? '';
-  return [B.hand.basic.get(sect) ?? '', setup.leader, setup.sub].filter((c, i, a) => battleUnits.has(c) && a.indexOf(c) === i);
-}
-// The hand: the fixed cards, then the draw pool in a seeded shuffle, skipping large cards once the hand holds maxLarge of
-// them, until it has hand.size cards.
-function dealHand(setup: BattleSetup, r: { rng: number }): string[] {
-  if (setup.hand) return [...setup.hand];
-  const fixed = fixedCards(setup), pool = drawPool(setup, fixed);
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(nextRandom(r) * (i + 1));
-    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
-  }
-  const hand = [...fixed];
-  let large = hand.filter((c) => battleUnits.get(c)!.size === 'large').length;
-  for (const c of pool) {
-    if (hand.length >= B.hand.size) break;
-    if (battleUnits.get(c)!.size === 'large') { if (large >= B.hand.maxLarge) continue; large++; }
-    hand.push(c);
-  }
-  return hand;
+  return [B.hand.basic.get(sect) ?? '', setup.leader, setup.sub, ...setup.picks].filter((c, i, a) => battleUnits.has(c) && a.indexOf(c) === i);
 }
 
-// A sect's disciples as the collection, with its default leader and sub-leader (battle.json > sectTeams).
+// A sect's disciples, its default leader and sub-leader (battle.json > sectTeams) and the picks autoPicks makes from them.
 export const sectCards = (sect: string) => battleCardIds.filter((c) => battleUnits.get(c)!.kind === 'disciple' && battleUnits.get(c)!.sect === sect);
 export function sectSetup(sect: string): BattleSetup {
   const t = B.sectTeams.get(sect)!;
-  return { leader: t.leader, sub: t.sub, collection: sectCards(sect), bench: [] };
+  return { leader: t.leader, sub: t.sub, picks: autoPicks(t.leader, t.sub, sectCards(sect)) };
 }
 
 export function createBattle(seed: number, setup0: BattleSetup, setup1: BattleSetup, opts: BattleOpts = {}): BattleState {
@@ -126,11 +100,10 @@ export function createBattle(seed: number, setup0: BattleSetup, setup1: BattleSe
     const t = townBonus(p), hp = B.castle.hp + t.castleHp;
     return { hp: div(hp * pct, 100), maxHp: div(hp * Math.max(100, pct), 100), cd: 0, cannonCd: 0, cannonDmg: B.cannon.dmg + t.cannonDmg, cannonPush: B.cannon.push + t.cannonPush };
   };
-  const deal: [{ rng: number }, { rng: number }] = [{ rng: (seed ^ 0x9e3779b9) >>> 0 }, { rng: (seed ^ 0x7f4a7c15) >>> 0 }];
-  const hands: [string[], string[]] = [dealHand(setup0, deal[0]), dealHand(setup1, deal[1])];
+  const hands: [string[], string[]] = [handOf(setup0), handOf(setup1)];
   return {
     tick: 0, rng: seed >>> 0, nextId: 1,
-    setups: [setup0, setup1], progress, deal, redraws: [0, 0],
+    setups: [setup0, setup1], progress,
     hands, uses: [hands[0].map(() => 0), hands[1].map(() => 0)], mana: stage ? [...stage.manaStart] : [B.manaStart, B.manaStart],
     castles: [castle(progress[0], hpPct[0]), castle(progress[1], hpPct[1])],
     forts: (stage?.fortsAtPct ?? B.forts.atPct).map((p) => ({ d: div(BATTLE_LEN * p, 100), owner: null, hp: B.forts.hp, cd: 0, capSide: null, capT: 0 })),
@@ -148,14 +121,6 @@ export function summonZone(s: BattleState, side: Side): number {
 }
 
 const err = (ev: BattleEvent[], msg: string): void => void ev.push({ e: 'error', msg });
-
-function redraw(s: BattleState, side: Side, ev: BattleEvent[]): void {
-  if (s.tick !== 0) return err(ev, 'redraw only before the match');
-  if (s.setups[side].hand || s.redraws[side] >= B.hand.redraws) return err(ev, 'no redraws left');
-  s.redraws[side]++;
-  s.hands[side] = dealHand(s.setups[side], s.deal[side]);
-  s.uses[side] = s.hands[side].map(() => 0);
-}
 
 // A card's ability level on a team: 3 as the leader, 2 as the sub-leader, 1 otherwise, and the leader's level for a card at
 // progression abilityAt (never in a normalized match: pass that side's effective progress); its value at that level (0: none).
@@ -486,7 +451,6 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
   if (isOver(s)) return ev;
   for (const c of cmds) {
     if (c.side !== 0 && c.side !== 1) err(ev, 'bad side');
-    else if (c.t === 'redraw') redraw(s, c.side, ev);
     else if (c.t === 'summon') summon(s, c, ev);
     else if (c.t === 'cannon') fireCannon(s, c.side, c.d, ev);
     else err(ev, 'unknown command');
@@ -512,10 +476,10 @@ export function stepBattle(s: BattleState, cmds: readonly BattleCommand[] = []):
   return ev;
 }
 
-// Engine-neutral fingerprint: tick|rng|mana|hands|redraws|uses|castles hp,cd,cannonCd|forts owner,hp,cd,capSide,capT|units|zones|kills|winner.
+// Engine-neutral fingerprint: tick|rng|mana|hands|uses|castles hp,cd,cannonCd|forts owner,hp,cd,capSide,capT|units|zones|kills|winner.
 export function battleString(s: BattleState): string {
   const n = (x: number | null) => (x === null ? '-' : String(x));
-  let o = `${s.tick}|${s.rng}|${s.mana.join(',')}|${s.hands[0].join(',')}/${s.hands[1].join(',')}|${s.redraws.join(',')}|${s.uses[0].join(',')}/${s.uses[1].join(',')}|`;
+  let o = `${s.tick}|${s.rng}|${s.mana.join(',')}|${s.hands[0].join(',')}/${s.hands[1].join(',')}|${s.uses[0].join(',')}/${s.uses[1].join(',')}|`;
   for (const c of s.castles) o += `${c.hp},${c.cd},${c.cannonCd};`;
   o += '|';
   for (const f of s.forts) o += `${n(f.owner)},${f.hp},${f.cd},${n(f.capSide)},${f.capT};`;

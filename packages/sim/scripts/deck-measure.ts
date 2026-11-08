@@ -3,8 +3,8 @@
 // each shape draws real cards for its slots (the dearest leads, the next is sub), and every pairing plays both side
 // orders on that seed with the same cards. Per bot: each shape's win % over all its games (draws half), then per card the
 // win % of the hands that held it, then leaders with an ability against leaders without.
-// Guards stay out of the shapes unless GUARDS=1: rush never summons a guard and paced and defend only when enemies are in
-// their half, so a guard slot reads as a dead card (research §5.5); the per-card table shows them with GUARDS=1.
+// GUARDS=0 leaves guards out of the shapes: rush never summons a guard and paced and defend only when enemies are in their
+// half, so a guard slot reads as a dead card for those bots (research §5.5).
 // DECK_SEEDS (default 100), BOTS=paced,rush,defend, and levers for tuning without editing data: BUDGET, SMALL, MEDIUM, LARGE
 // (sizePoints), CARD_POINTS='{"frost_tide_naga":11}', SHAPES='L9,L9,S2,S2,S2,S2;...' (else representatives are enumerated).
 import { battle, battleCardIds, battleUnits, deckPoints, nextRandom, type BattleSetup } from '../src';
@@ -22,7 +22,7 @@ const SIZE = ['small', 'medium', 'large'];
 const slotOf = (c: string) => `${battleUnits.get(c)!.size[0]!.toUpperCase()}${deckPoints(c)}`;
 const pts = (slot: string) => Number(slot.slice(1));
 const pool = new Map<string, string[]>();
-const guards = process.env.GUARDS === '1';
+const guards = process.env.GUARDS !== '0';
 for (const c of battleCardIds) if (!basics.has(c) && (guards || battleUnits.get(c)!.move !== 'guard')) pool.set(slotOf(c), [...(pool.get(slotOf(c)) ?? []), c]);
 const sizeRank = (slot: string) => SIZE.findIndex((z) => z[0] === slot[0]!.toLowerCase());
 const slots = [...pool.keys()].sort((a, b) => sizeRank(a) - sizeRank(b) || pts(a) - pts(b));
@@ -62,12 +62,12 @@ function team(si: number, seed: number): BattleSetup {
     const c = pool.get(slot)!.filter((x) => !used.includes(x));
     used.push(c[Math.floor(nextRandom(r) * c.length)]!);
   }
-  const [leader, sub] = used as [string, string], basic = battle.hand.basic.get(battleUnits.get(leader)!.sect)!;
-  return { leader, sub, collection: used, bench: [], hand: [basic, ...used] };
+  const [leader, sub, ...picks] = used as [string, string, ...string[]];
+  return { leader, sub, picks };
 }
 
 const pct = (w: number, n: number) => (n === 0 ? '   -' : ((100 * w) / n).toFixed(1).padStart(5));
-console.log(`deck budget ${budget}${guards ? '' : ', no guards'}, sizePoints ${JSON.stringify(Object.fromEntries(battle.deck.sizePoints))}, cardPoints ${JSON.stringify(Object.fromEntries(battle.deck.cardPoints))}, ${seeds} seeds x 2 side orders per pairing, normalized`);
+console.log(`deck budget ${budget}${guards ? '' : ', no guards (GUARDS=0)'}, sizePoints ${JSON.stringify(Object.fromEntries(battle.deck.sizePoints))}, cardPoints ${JSON.stringify(Object.fromEntries(battle.deck.cardPoints))}, ${seeds} seeds x 2 side orders per pairing, normalized`);
 const shapeWin = new Map<string, number[]>(), cardWin = new Map<string, number[]>(), cardN = new Map<string, number[]>(), abil = [[0, 0], [0, 0]];
 const add = (m: Map<string, number[]>, k: string, b: number, v: number) => { const x = m.get(k) ?? bots.map(() => 0); x[b]! += v; m.set(k, x); };
 bots.forEach((bot, b) => {
@@ -78,7 +78,7 @@ bots.forEach((bot, b) => {
         const w = playBattle(seed, bot, bot, x, y, { normalized: true }).state.winner, s0 = w === 0 ? 2 : w === -1 ? 1 : 0;
         for (const [t, si, sc] of [[x, xi, s0], [y, yi, 2 - s0]] as [BattleSetup, number, number][]) {
           add(shapeWin, name(shapes[si]!), b, sc);
-          for (const c of t.collection) { add(cardWin, c, b, sc); add(cardN, c, b, 2); }
+          for (const c of [t.leader, t.sub, ...t.picks]) { add(cardWin, c, b, sc); add(cardN, c, b, 2); }
           if (bot === 'paced') { const a = battleUnits.get(t.leader)!.ability ? 1 : 0; abil[a]![0]! += sc; abil[a]![1]! += 2; }
         }
       }

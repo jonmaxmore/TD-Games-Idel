@@ -33,7 +33,7 @@ describe('timing at 20 Hz', () => {
       c.onMsg = (m) => {
         if (m.t === 'frame' && seat === 0) { const t = performance.now(); if (lastAt) gaps.push(t - lastAt); lastAt = t; }
         if (m.t !== 'frame' || !c.ls) return;
-        for (const h of c.ls.run(() => { for (const cmd of botCommands(c.ls!.s, seat, 'rush', mind)) if (cmd.t !== 'redraw') c.send(c.ls!.cmd(cmd)); })) c.send(h);
+        for (const h of c.ls.run(() => { for (const cmd of botCommands(c.ls!.s, seat, 'rush', mind)) c.send(c.ls!.cmd(cmd)); })) c.send(h);
       };
     }
     const pings = setInterval(() => { const t0 = performance.now(), n = Math.floor(t0) % 1e9; a.send({ t: 'ping', n }); void a.next('pong', (m) => m.n === n).then(() => rtt.push(performance.now() - t0), () => {}); }, 200);
