@@ -24,12 +24,18 @@ import { button, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 const app = document.getElementById('app')!;
-// The UI is designed 720 px tall; scale it to the window height and let the width fill the whole window (no bars).
+// The stage is a fixed 1280x720 (16:9), centred with black bars on any other window shape. From 1x up it scales in half
+// steps (1, 1.5, 2...): a board pixel is 2 stage pixels, so it always lands on whole screen pixels (1080p is exactly 1.5).
+// A window under 1280x720 shrinks it to fit as it is.
+function stageScale(w: number, h: number): number {
+  const k = Math.min(w / 1280, h / 720);
+  return k >= 1 ? Math.floor(k * 2) / 2 : k;
+}
 const fit = () => {
-  const k = Math.min(innerHeight / 720, innerWidth / 1100);
+  const k = stageScale(innerWidth, innerHeight);
   app.style.setProperty('--k', String(k));
-  app.style.width = `${innerWidth / k}px`;
-  app.style.height = `${innerHeight / k}px`;
+  app.style.left = `${Math.floor((innerWidth - 1280 * k) / 2)}px`;
+  app.style.top = `${Math.floor((innerHeight - 720 * k) / 2)}px`;
 };
 addEventListener('resize', fit);
 fit();

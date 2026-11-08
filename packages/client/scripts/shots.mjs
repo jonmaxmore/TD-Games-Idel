@@ -632,6 +632,21 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await ctx.close();
 }
 
+// 9) The stage on other PC windows: 1080p (x1.5, no bars), 2560x1080 (x1.5 with bars left and right), 1366x768 (x1, bars).
+for (const [w, h, k] of [[1920, 1080, 1.5], [2560, 1080, 1.5], [1366, 768, 1]]) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  await ctx.addInitScript((t) => localStorage.setItem('five-sects.profile', t), JSON.stringify(MID));
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => errors.push(`fit-${w}: ${e.message}`));
+  await p.goto(base);
+  await toLobby(p);
+  await shot(p, `90-fit-${w}x${h}`);
+  const r = await p.locator('#app').boundingBox();
+  console.log(`fit ${w}x${h}:`, JSON.stringify(r));
+  check(Math.abs(r.width - 1280 * k) < 1 && Math.abs(r.height - 720 * k) < 1 && Math.abs(r.x - (w - 1280 * k) / 2) <= 1, `the stage is 1280x720 x${k}, centred, at ${w}x${h}`);
+  await ctx.close();
+}
+
 await browser.close();
 await server.close();
 console.log('saved to', out);

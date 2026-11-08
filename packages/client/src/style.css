@@ -1,6 +1,6 @@
 @font-face { font-family: 'Sarabun'; src: url('/fonts/Sarabun-Regular.ttf'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Sarabun'; src: url('/fonts/Sarabun-Bold.ttf'); font-weight: 700; font-display: swap; }
-/* Black lacquer, cinnabar and gold. PC only: the UI is laid out 720 px tall and main.ts scales it to fill the whole window.
+/* Black lacquer, cinnabar and gold. PC only: a fixed 1280x720 stage that main.ts fit() scales and letterboxes.
    Design tokens (ux-audit.md "ข้อเสนอโทเค็น"): every colour, size, gap, radius and duration below comes from here.
    Gold = clickable, important or selected; the red seal = the one primary button of a screen; our side blue, the foe red;
    beats / loses to = orange / purple with ▲ ▼ (never colour alone). */
