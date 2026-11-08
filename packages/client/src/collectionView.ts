@@ -22,13 +22,17 @@ export function routeTh(r: Route): string {
   return `ร้านไข่ ${r.price} แต้ม · ปราสาท Lv${r.castleLevel}`;
 }
 
-// A tile shows its card's full tooltip (cardTip, on the player's current team with the account's progress: what a ศึกทั่วไป
-// summon gets) while hovered or focused; tip is the .card-tip inside root.
+// A tile shows its card's full tooltip (cardTip, on the player's current team in the lobby's mode: the account's progress in
+// ศึกทั่วไป, base stats in ศึกฝีมือ, with a line that says which) while hovered or focused; tip is the .card-tip inside root.
 function tile(id: string, cls: string, p: Profile, root: HTMLElement, tip: HTMLElement, line: () => string): HTMLElement {
   const u = battleUnits.get(id)!, t = el('div', `log-card ${cls} kind-${u.kind}`);
   t.dataset.id = id;
   t.tabIndex = 0;
-  hoverTip(root, tip, t, () => cardTip(id, setupOf(teamOf(p)), progressOf(p, Date.now()), line()));
+  hoverTip(root, tip, t, () => {
+    const ranked = p.mode === 'ranked';
+    const ctx = el('p', 'dim small tip-ctx', ranked ? 'ในศึกฝีมือ: ค่าพื้นฐาน ไม่นับเลเวลและอุปกรณ์' : 'ในศึกทั่วไปกับทัพปัจจุบัน');
+    return cardTip(id, setupOf(teamOf(p)), ranked ? null : progressOf(p, Date.now()), line(), [ctx]);
+  });
   t.style.borderColor = sects.get(u.sect)?.color ?? '#E3B04B';
   t.append(face(id), el('span', 'cost', String(u.mana)), nowrapWords(el('b'), u.nameTh), el('small', 'tier', tierOf(id).nameTh));
   return t;

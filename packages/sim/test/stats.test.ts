@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  battle, battleCardIds, battleUnits, createBattle, progression, stepBattle, unitStats, type BattleOpts, type BattleSetup, type Progress,
+  battleCardIds, battleUnits, createBattle, progression, stepBattle, unitStats, type BattleOpts, type BattleSetup, type Progress,
 } from '../src';
 
 // Every card summoned for real in each context a screen shows numbers for: the HP and damage the sim gives the unit are
@@ -14,11 +14,11 @@ const contexts: [string, Progress | null, BattleOpts][] = [
 
 function summoned(setup: BattleSetup, card: string, opts: BattleOpts) {
   const s = createBattle(1, setup, { leader: '', sub: '', picks: ['crimson_phoenix_banner'] }, opts);
-  s.mana = [battle.manaMax, battle.manaMax];
+  s.mana = [battleUnits.get(card)!.mana, 0]; // just the cost: what side 0 has left over side 1 after the step is its refund
   stepBattle(s, [{ t: 'summon', side: 0, card, d: 500 }]);
   const u = s.units.find((x) => x.side === 0 && x.card === card);
   expect(u, `${card} summoned`).toBeDefined();
-  return u!;
+  return { u: u!, refund: s.mana[0] - s.mana[1] };
 }
 
 describe('unitStats is what a summon gets', () => {
@@ -30,10 +30,11 @@ describe('unitStats is what a summon gets', () => {
         const [other, third] = battleCardIds.filter((c) => c !== card);
         const roles: BattleSetup[] = [{ leader: other!, sub: third!, picks: [card] }, { leader: card, sub: other!, picks: [] }, { leader: other!, sub: card, picks: [] }];
         for (const t of roles) {
-          const setup = p ? { ...t, progress: p } : t, u = summoned(setup, card, opts), shown = unitStats(setup, card, opts.normalized ? null : p);
+          const setup = p ? { ...t, progress: p } : t, { u, refund } = summoned(setup, card, opts), shown = unitStats(setup, card, opts.normalized ? null : p);
           expect([u.maxHp, u.dmg], `${name} ${card} leader=${t.leader === card} sub=${t.sub === card}`).toEqual([shown.hp, shown.dmg]);
           if (def.ability?.kind === 'aura') expect(u.aura).toBe(shown.ability);
           if (def.ability?.kind === 'ward') expect(u.ward).toBe(shown.ability);
+          expect(refund, `${name} ${card} refund`).toBe(def.ability?.kind === 'refund' ? shown.ability : 0);
         }
       }
     });

@@ -50,15 +50,25 @@ export function confirmBox(host: HTMLElement, c: Confirm, onYes: () => void, onN
   return close;
 }
 
-// A .card-tip inside root shown over node (under it near the top) once the pointer rests there or the node has focus;
-// build makes its lines each time. Positions are in root's own pixels (the stage is scaled by main.ts fit()).
+// A .card-tip inside root shown over node (under it near the top) once the pointer rests there or the node has keyboard
+// focus (a mouse click's focus opens nothing); build makes its lines each time. Positions are in root's own pixels (the
+// stage is scaled by main.ts fit()). The focused node names the tip with aria-describedby.
 const TIP_MS = 250;
 const tipTimers = new WeakMap<HTMLElement, number>();
+let tipIds = 0;
 export function hideTip(tip: HTMLElement): void { clearTimeout(tipTimers.get(tip)); tip.classList.remove('on'); }
+// Keyboard focus on node shows its tip (show) and names it (aria-describedby); blur hides it.
+export function focusTip(node: HTMLElement, tip: HTMLElement, show: () => void, hide: () => void): void {
+  tip.setAttribute('role', 'tooltip');
+  if (!tip.id) tip.id = `card-tip-${++tipIds}`;
+  node.addEventListener('focus', () => { if (!node.matches(':focus-visible')) return; node.setAttribute('aria-describedby', tip.id); show(); });
+  node.addEventListener('blur', () => { node.removeAttribute('aria-describedby'); hide(); });
+}
 export function hoverTip(root: HTMLElement, tip: HTMLElement, node: HTMLElement, build: () => HTMLElement[]): void {
   const show = (delay: number) => {
-    clearTimeout(tipTimers.get(tip));
+    hideTip(tip);
     tipTimers.set(tip, window.setTimeout(() => {
+      if (!node.isConnected) return;
       tip.replaceChildren(...build());
       const box = root.getBoundingClientRect(), k = box.width / root.offsetWidth, n = node.getBoundingClientRect();
       const x = (n.left + n.width / 2 - box.left) / k, above = (n.top - box.top) / k, below = (n.bottom - box.top) / k;
@@ -70,9 +80,8 @@ export function hoverTip(root: HTMLElement, tip: HTMLElement, node: HTMLElement,
     }, delay));
   };
   node.addEventListener('pointerenter', () => show(TIP_MS));
-  node.addEventListener('focus', () => show(0));
   node.addEventListener('pointerleave', () => hideTip(tip));
-  node.addEventListener('blur', () => hideTip(tip));
+  focusTip(node, tip, () => show(0), () => hideTip(tip));
 }
 
 // A key typed into a text field belongs to the field: the game's shortcuts (F for full screen) leave it alone.

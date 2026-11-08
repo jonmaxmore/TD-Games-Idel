@@ -156,6 +156,11 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await shot(p, '64-card-log');
   const routes = await p.locator('.log-card.locked .route').allTextContents();
   console.log('card log: owned', await p.locator('.log-card.owned').count(), '| routes', [...new Set(routes)].join(' / '));
+  await p.locator('.log-card.owned').first().hover();
+  await sleep(450);
+  await shot(p, '64-card-log-tip');
+  check((await p.locator('.card-log .card-tip.on').textContent()).includes('ในศึกทั่วไป'), 'the card log tip says its numbers are for ศึกทั่วไป');
+  await p.mouse.move(5, 5);
   await p.locator('.sheet').evaluate((e) => { e.scrollTop = e.scrollHeight; });
   await sleep(150);
   await shot(p, '64-card-log-bottom');
@@ -288,6 +293,17 @@ const meter = async (p) => (await p.locator('.deck-meter').innerText()).replace(
   await p.mouse.move(5, 5);
   await sleep(150);
   check(!(await p.locator('.enter-btn').isDisabled()), 'four legal picks open เข้าสู่ศึก');
+  check(!(await p.locator('.deck-tip.on').count()), 'a mouse click leaves no tip once the pointer moves off');
+  // Keyboard: Tab onto the next card opens its tip at once and names it; the fixed basic slot takes focus and tips too.
+  await p.keyboard.press('Tab');
+  await sleep(50);
+  const described = await p.evaluate(() => { const id = document.activeElement?.getAttribute('aria-describedby'); return id ? document.getElementById(id)?.getAttribute('role') : null; });
+  check((await p.locator('.deck-tip.on').count()) === 1 && described === 'tooltip', 'keyboard focus opens the card tip (role tooltip, aria-describedby)');
+  await p.locator('.deck-slot.basic').focus();
+  await sleep(50);
+  await shot(p, '03-team-basic-tip');
+  check((await p.locator('.deck-tip.on').count()) === 1, 'the basic slot takes keyboard focus and shows its tip');
+  await p.locator('.deck-slot.basic').blur();
   // An expensive leader on a full hand: the meter goes over, the reason shows and เข้าสู่ศึก stays off.
   await p.locator('.deck-card[data-id=storm_dragon]').click({ button: 'right' });
   await sleep(150);
@@ -551,6 +567,20 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
     console.log(name, 'castle hp', await m.p.evaluate(() => window.__game.s.castles.map((c) => c.maxHp).join('/')));
     await m.ctx.close();
   }
+  // A ศึกทั่วไป match with these levels, by bots: its replay keeps the hand's levels and ends on the recorded hash.
+  const m = await open('?mode=battle&seed=3&deck=fire&bot=1&speed=8', 'casual-replay', null, save);
+  await m.p.waitForSelector('.cards .realm');
+  const played = await m.p.locator('.cards .realm').allTextContents();
+  await m.p.waitForSelector('.modal.result', { timeout: 120000 });
+  await settle();
+  await m.p.locator('.replay-btn').click();
+  await m.p.waitForSelector('.cards .realm');
+  check(JSON.stringify(await m.p.locator('.cards .realm').allTextContents()) === JSON.stringify(played), 'a casual replay shows the levels the match was played at');
+  await m.p.waitForSelector('.modal.result', { timeout: 120000 });
+  await settle();
+  await shot(m.p, '47-casual-replay-end');
+  check((await m.p.locator('.modal.result').textContent()).includes('ผลตรงกับ'), 'a casual match replays to the same hash');
+  await m.ctx.close();
 }
 
 // 6) ศึกปราบ from a save that has won 1-1 (all stars) and 1-2 (one star): the map, 1-3's briefing, its team screen; then
