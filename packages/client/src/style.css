@@ -97,7 +97,7 @@ kbd { font: inherit; }
 .clock { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
 .clock .time { font-size: var(--fs-xl); letter-spacing: 1px; text-shadow: 0 2px 0 var(--c-black); }
 .clock .time.late { color: var(--c-foe); }
-.clock small { color: var(--c-text-dim); font-size: 11px; white-space: nowrap; }
+.clock small { color: var(--c-text-dim); font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; }
 .forts { display: flex; gap: var(--sp-2); margin: 2px 0; }
 .forts i { width: 10px; height: 10px; transform: rotate(45deg); background: var(--c-neutral); border: 1px solid var(--c-outline); }
 .forts i.side0 { background: var(--c-ally); }
@@ -121,24 +121,24 @@ kbd { font: inherit; }
 .card .face { position: absolute; left: 0; right: 0; top: 0; height: 76px; overflow: hidden; }
 .card .face canvas { position: absolute; left: 50%; top: 0; margin-left: -42px; }
 .card .name { position: relative; font-size: var(--fs-sm); text-align: center; text-shadow: 0 1px 2px var(--c-black), 0 0 3px var(--c-black); }
-.card small { position: relative; color: var(--c-text-dim); font-size: 11px; white-space: nowrap; }
+.card small { position: relative; color: var(--c-text-dim); font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; }
 .card .cost {
   position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
   background: var(--c-mana-deep); border: 2px solid var(--c-mana-hi); color: var(--c-text-on-accent); font-weight: 700; font-size: var(--fs-md);
 }
 .card .uses { position: absolute; top: 4px; right: 5px; font-size: var(--fs-sm); color: var(--c-accent); font-weight: 700; text-shadow: 0 1px 2px var(--c-black); }
-.card kbd { position: absolute; top: 30px; left: 6px; font-size: 11px; color: var(--c-text-dim); }
+.card kbd { position: absolute; bottom: 40px; right: 4px; min-width: 18px; padding: 0 var(--sp-1); font-size: var(--fs-xs); font-weight: 700; line-height: 16px; text-align: center; color: var(--c-text); background: var(--c-outline); border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); }
 .card.sel { background: var(--c-surface-sel); box-shadow: 0 0 0 2px var(--c-accent), 0 0 14px var(--c-accent-glow); transform: translateY(-8px); }
 .card.poor { filter: grayscale(0.7) brightness(0.7); }
 .card.poor .cost { background: var(--c-disabled); border-color: var(--c-muted); }
 .card.spent { filter: grayscale(1) brightness(0.45); }
-.card .rank { position: absolute; top: 22px; right: 4px; font-style: normal; font-size: 10px; font-weight: 700; padding: 0 var(--sp-1); border-radius: var(--r-sm); background: var(--c-accent); color: var(--c-outline); }
+.card .rank { position: absolute; top: 22px; right: 4px; font-style: normal; font-size: var(--fs-xs); font-weight: 700; padding: 0 var(--sp-1); border-radius: var(--r-sm); background: var(--c-accent); color: var(--c-outline); }
 .card.guard .role { color: var(--c-mana-hi); }
 .card.guard { border-bottom-width: 5px; border-bottom-color: var(--c-mana); }
 .cannon { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; margin-top: var(--sp-2); padding: 2px var(--sp-1); position: relative; overflow: hidden; }
 .cannon b { position: relative; font-size: var(--fs-sm); color: var(--c-accent); }
 .cannon small { position: relative; font-size: var(--fs-xs); color: var(--c-text); }
-.cannon kbd { position: absolute; top: 3px; right: 5px; font-size: 10px; color: var(--c-text-dim); }
+.cannon kbd { position: absolute; top: 3px; right: 5px; font-size: var(--fs-xs); font-weight: 700; color: var(--c-text); }
 .cannon canvas { position: relative; }
 .cannon .cost {
   position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
@@ -191,7 +191,7 @@ kbd { font: inherit; }
 .deck-cards { display: grid; grid-template-columns: repeat(4, 1fr); align-content: start; gap: var(--sp-2); min-height: 0; }
 .deck-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: var(--sp-2) var(--sp-2) var(--sp-2); background: var(--c-surface-1); border: 2px solid; border-radius: var(--r-md); min-width: 0; }
 .deck-card b { font-size: var(--fs-md); text-align: center; }
-.deck-card small { font-size: var(--fs-xs); color: var(--c-text-dim); text-align: center; line-height: 1.35; }
+.deck-card small { font-size: var(--fs-sm); color: var(--c-text-dim); text-align: center; line-height: 1.35; }
 .deck-card .does { color: var(--c-text); }
 .deck-card .stats { color: var(--c-accent-hi); }
 .deck-card .cost {
@@ -214,8 +214,8 @@ kbd { font: inherit; }
 .team-card .face canvas { margin: 0 auto; }
 .team-card .face img.art { position: absolute; left: 50%; top: -18px; margin-left: -64px; }
 .team-card b { font-size: var(--fs-sm); text-align: center; }
-.team-card small { font-size: 11px; color: var(--c-text-dim); white-space: nowrap; }
-.team-card em { position: absolute; top: 4px; right: 4px; font-style: normal; font-size: 11px; font-weight: 700; padding: 1px var(--sp-1); border-radius: var(--r-md); background: var(--c-outline); color: var(--c-text-dim); }
+.team-card small { font-size: var(--fs-xs); font-weight: 700; color: var(--c-text-dim); white-space: nowrap; }
+.team-card em { position: absolute; top: 4px; right: 4px; font-style: normal; font-size: var(--fs-xs); font-weight: 700; padding: 1px var(--sp-1); border-radius: var(--r-md); background: var(--c-outline); color: var(--c-text-dim); }
 .team-card.leader { box-shadow: 0 0 0 2px var(--c-accent), 0 0 12px var(--c-accent-glow); }
 .team-card.leader em { background: var(--c-accent); color: var(--c-outline); }
 .team-card.sub { box-shadow: 0 0 0 2px var(--c-neutral); }
@@ -226,7 +226,7 @@ kbd { font: inherit; }
   background: var(--c-mana-deep); border: 2px solid var(--c-mana-hi); color: var(--c-text-on-accent); font-weight: 700; font-size: var(--fs-xs);
 }
 .team-card .acts { display: flex; gap: 2px; margin-top: 3px; width: 100%; }
-.team-card .acts button { flex: 1; min-height: 22px; padding: 0 1px; font-size: 11px; border-color: var(--c-line); }
+.team-card .acts button { flex: 1; min-height: 24px; padding: 0 1px; font-size: var(--fs-xs); font-weight: 700; border-color: var(--c-line); }
 .team-card .acts button.on { border-color: var(--c-accent); background: var(--c-surface-sel); color: var(--c-accent); }
 .team-cards.many .team-card .face { height: 44px; }
 .team-cards.many .team-card .face img.art { top: -30px; }
@@ -238,21 +238,21 @@ kbd { font: inherit; }
 .hand-card .face img.art { position: absolute; left: 50%; top: -14px; margin-left: -64px; }
 .hand-card .face canvas { margin: 0 auto; }
 .hand-card b { font-size: var(--fs-sm); text-align: center; }
-.hand-card small { font-size: 11px; color: var(--c-text-dim); }
+.hand-card small { font-size: var(--fs-xs); font-weight: 700; color: var(--c-text-dim); }
 .hand-card.fixed small { color: var(--c-accent); }
 .team .actions > .btn:not(.back) { flex: 0 0 220px; }
 .team-cards:not(.many) .team-card .face { height: 120px; }
 .team-cards:not(.many) .team-card .face img.art { top: 0; }
 .team-cards:not(.many) .team-card .face canvas { margin-top: var(--sp-6); }
-.team-cards.many .team-card b { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; max-width: 100%; }
+.team-cards.many .team-card b { font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; overflow: hidden; max-width: 100%; }
 /* collection filters (main.ts teamScreen): chips per key over the card grid, the preset list on the left */
 .team-main { display: flex; flex-direction: column; gap: var(--sp-2); min-height: 0; }
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) 14px; }
 .chips { display: flex; align-items: center; gap: 3px; }
-.chip-label { color: var(--c-text-dim); font-size: var(--fs-xs); margin-right: 2px; }
-.chip { min-height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-xs); border-color: var(--c-line); }
+.chip-label { color: var(--c-text-dim); font-size: var(--fs-xs); font-weight: 700; margin-right: 2px; }
+.chip { min-height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-xs); font-weight: 700; border-color: var(--c-line); }
 .chip.on { border-color: var(--c-accent); background: var(--c-surface-sel); color: var(--c-accent); }
-.filters .count { color: var(--c-text-dim); font-size: var(--fs-xs); margin-left: auto; }
+.filters .count { color: var(--c-text-dim); font-size: var(--fs-xs); font-weight: 700; margin-left: auto; }
 .list-label { color: var(--c-accent); font-weight: 700; font-size: var(--fs-sm); }
 .team-card.kind-demon { background: #241016; }
 .team-card.kind-divine { background: #1c1a10; }
@@ -260,9 +260,9 @@ kbd { font: inherit; }
 .team-cards.many .team-card:not(.kind-disciple) .face canvas { height: 46px; width: auto; image-rendering: pixelated; }
 
 /* ---- progression (campScreen.ts, battle.ts realmBadge): realm badges, mode buttons, ค่ายฝึก, match rewards ---- */
-.realm { font-style: normal; font-size: 10px; font-weight: 700; line-height: 1.3; padding: 0 var(--sp-1); border-radius: var(--r-sm); white-space: nowrap; background: var(--realm); color: var(--c-outline); }
+.realm { font-style: normal; font-size: var(--fs-xs); font-weight: 700; line-height: 1.3; padding: 0 var(--sp-1); border-radius: var(--r-sm); white-space: nowrap; background: var(--realm); color: var(--c-outline); }
 .team-card .realm, .hand-card .realm { position: relative; margin: 1px 0; }
-.card .realm { position: absolute; top: 46px; right: 3px; font-size: 9px; opacity: 0.95; }
+.card .realm { position: absolute; top: 36px; right: 3px; }
 .mode { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 66px; }
 .mode b { font-size: var(--fs-lg); }
 .mode small { font-size: var(--fs-sm); color: var(--c-text); opacity: 0.85; }
@@ -279,15 +279,15 @@ kbd { font: inherit; }
 .panel h2, .panel h3 { margin: 0; color: var(--c-accent); }
 .panel h2 { font-size: var(--fs-lg); } .panel h3 { font-size: var(--fs-md); margin-top: var(--sp-1); }
 .panel p { margin: 0; }
-.small { font-size: var(--fs-xs); }
+.small { font-size: var(--fs-sm); }
 .camp-cards { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); align-content: start; gap: var(--sp-1); overflow-y: auto; min-height: 0; padding-right: 4px; }
 .camp-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 2px var(--sp-1); min-height: auto; border: 2px solid; background: var(--c-surface-1); line-height: 1.2; min-width: 0; }
 .camp-card .face { position: relative; display: block; width: 84px; height: 52px; overflow: hidden; }
 .camp-card .face img.art { position: absolute; left: 50%; top: -22px; margin-left: -64px; }
 .camp-card .face canvas { margin: -14px auto 0; }
-.camp-card b { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; max-width: 100%; }
+.camp-card b { font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; overflow: hidden; max-width: 100%; }
 .camp-card.sel { background: var(--c-surface-sel); box-shadow: 0 0 0 2px var(--c-accent); }
-.camp-card.ready::after { content: 'เลื่อนขั้นได้'; position: absolute; top: 2px; right: 2px; font-size: 9px; font-weight: 700; background: var(--c-mana); color: var(--c-bg); padding: 0 3px; border-radius: var(--r-sm); }
+.camp-card.ready::after { content: 'เลื่อนขั้นได้'; position: absolute; top: 2px; right: 2px; font-size: var(--fs-xs); font-weight: 700; background: var(--c-mana); color: var(--c-bg); padding: 0 3px; border-radius: var(--r-sm); }
 .xp { display: block; width: 90%; height: 4px; background: var(--c-surface-2); position: relative; overflow: hidden; }
 .xp i { position: absolute; inset: 0 auto 0 0; background: var(--c-mana); }
 .camp-detail { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); text-align: center; }
@@ -298,16 +298,16 @@ kbd { font: inherit; }
 .slots { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); width: 100%; }
 .slot { display: flex; flex-direction: column; align-items: center; gap: 0; padding: var(--sp-1); min-height: 0; border-color: var(--c-line); line-height: 1.25; }
 .slot b { color: var(--c-accent); font-size: var(--fs-sm); }
-.slot small { font-size: 11px; color: var(--c-text-dim); }
+.slot small { font-size: var(--fs-xs); font-weight: 700; color: var(--c-text-dim); }
 .slot .bonus { color: var(--c-accent-hi); }
-.slot .state { font-size: var(--fs-xs); }
+.slot .state { font-size: var(--fs-xs); font-weight: 700; }
 .slot.built { border-color: var(--c-accent); opacity: 1; background: var(--c-surface-warm); }
 .slot.building { border-color: var(--c-mana); opacity: 1; }
 .slot.building .state { color: var(--c-mana-hi); }
 .camp-side { width: 300px; display: flex; flex-direction: column; gap: var(--sp-2); min-height: 0; }
 .town { display: flex; flex-direction: column; gap: var(--sp-2); }
 .town-row { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 0 var(--sp-2); align-items: center; }
-.town-row small { color: var(--c-text-dim); font-size: var(--fs-xs); }
+.town-row small { color: var(--c-text-dim); font-size: var(--fs-sm); }
 .town-row .up { grid-row: 1 / 3; grid-column: 2; }
 .eggs { display: flex; flex-direction: column; gap: var(--sp-2); flex: 1; }
 .odds { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
@@ -333,7 +333,7 @@ kbd { font: inherit; }
 .stage-node .id { font-size: var(--fs-sm); color: var(--c-text-dim); }
 .stage-node b { font-size: var(--fs-md); color: var(--c-accent); }
 .stage-node .stars { font-size: var(--fs-lg); color: var(--c-star); letter-spacing: 2px; line-height: 1.1; }
-.stage-node small { font-size: var(--fs-xs); color: var(--c-mana-hi); }
+.stage-node small { font-size: var(--fs-xs); font-weight: 700; color: var(--c-mana-hi); }
 .stage-node.won { background: var(--c-surface-warm); }
 .stage-node.locked:disabled { opacity: 1; border: 2px solid var(--c-line); background: var(--c-surface-deep); } /* opaque, so the road never shows through its text */
 .stage-node.locked b { color: var(--c-muted); }
@@ -346,14 +346,14 @@ kbd { font: inherit; }
 .goals-box p { font-size: var(--fs-md); margin-top: var(--sp-1); } .goals-box p.got { color: var(--c-star); }
 .enemy-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--sp-2); margin-top: var(--sp-2); }
 .enemy-card { display: flex; flex-direction: column; align-items: center; padding: var(--sp-1) 2px; border: 2px solid; border-radius: var(--r-md); background: var(--c-surface-deep); min-width: 0; line-height: 1.2; }
-.enemy-card b { font-size: var(--fs-sm); text-align: center; } .enemy-card small { font-size: 11px; color: var(--c-text-dim); }
+.enemy-card b { font-size: var(--fs-sm); text-align: center; } .enemy-card small { font-size: var(--fs-xs); font-weight: 700; color: var(--c-text-dim); }
 .clock .gimmick { font-style: normal; font-size: var(--fs-xs); font-weight: 700; color: var(--c-outline); background: var(--c-warn); padding: 0 var(--sp-2); border-radius: var(--r-sm); margin-top: 2px; white-space: nowrap; }
 .star-row { display: flex; gap: var(--sp-3); }
 .star-row .star { position: relative; display: flex; flex-direction: column; align-items: center; width: 170px; padding: var(--sp-1) 6px; border: 1px solid var(--c-line); border-radius: var(--r-md); background: var(--c-surface-1); }
 .star-row .star b { font-size: var(--fs-2xl); line-height: 1; color: var(--c-disabled); }
 .star-row .star.got b { color: var(--c-star); text-shadow: 0 0 12px color-mix(in srgb, var(--c-star) 53%, transparent); }
 .star-row .star small { font-size: var(--fs-sm); text-align: center; }
-.star-row .star em { position: absolute; top: -8px; right: -6px; font-style: normal; font-size: 11px; font-weight: 700; background: var(--c-foe); color: var(--c-text-on-accent); padding: 0 var(--sp-1); border-radius: var(--r-sm); }
+.star-row .star em { position: absolute; top: -8px; right: -6px; font-style: normal; font-size: var(--fs-xs); font-weight: 700; background: var(--c-foe); color: var(--c-text-on-accent); padding: 0 var(--sp-1); border-radius: var(--r-sm); }
 .rank-change { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-lg); }
 .rank-change .rank-badge { font-size: var(--fs-md); padding: 3px var(--sp-3); }
 
@@ -379,13 +379,13 @@ kbd { font: inherit; }
 .lobby-buttons { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-content: end; }
 .lobby-buttons .mode { width: 154px; min-height: 70px; padding: 6px var(--sp-1); border-color: var(--c-line); }
 .lobby-buttons .mode b { color: var(--c-accent); }
-.lobby-buttons .mode small { font-size: var(--fs-xs); color: var(--c-text-dim); opacity: 1; }
+.lobby-buttons .mode small { font-size: var(--fs-sm); color: var(--c-text-dim); opacity: 1; }
 .lobby-buttons .mode.locked:disabled { opacity: 1; border: 1px dashed var(--c-disabled); background: var(--c-surface-deep); }
 .lobby-buttons .mode.locked b { color: var(--c-text-dim); }
 .cta { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; min-height: 118px; padding: var(--sp-2) var(--sp-4);
-  background: linear-gradient(var(--c-primary-glow), var(--c-primary)); border: 2px solid var(--c-accent-hi); box-shadow: 0 0 0 2px var(--c-outline), 0 0 26px color-mix(in srgb, var(--c-primary-glow) 53%, transparent); }
+  background: linear-gradient(var(--c-primary-hi), var(--c-primary)); border: 2px solid var(--c-accent-hi); box-shadow: 0 0 0 2px var(--c-outline), 0 0 26px color-mix(in srgb, var(--c-primary-glow) 53%, transparent); }
 .cta b { font-size: var(--fs-xl); color: var(--c-text-on-accent); text-shadow: 0 2px 0 var(--c-shadow-red); line-height: 1.25; }
-.cta small { font-size: var(--fs-md); color: var(--c-accent-hi); }
+.cta small { font-size: var(--fs-md); color: var(--c-text-on-accent); }
 .cta:hover { filter: brightness(1.12); }
 .overlay { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: var(--c-scrim); }
 .sheet { width: 560px; max-height: 660px; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-4); border-color: var(--c-accent); }
@@ -439,7 +439,7 @@ kbd { font: inherit; }
 .pick-faces .face { position: relative; display: block; width: 62px; height: 78px; overflow: hidden; }
 .pick-faces .face img.art { position: absolute; left: 50%; top: -12px; margin-left: -64px; }
 .pick-card small { font-size: var(--fs-sm); color: var(--c-text); }
-.pick-tag { margin: var(--sp-2) 0 0; font-size: var(--fs-xs); color: var(--c-text-dim); min-height: 48px; }
+.pick-tag { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--c-text-dim); min-height: 48px; }
 
 /* บันทึกการ์ด and ร้านไข่ */
 .log-sheet .sheet { width: 1040px; max-height: 680px; }
@@ -448,13 +448,14 @@ kbd { font: inherit; }
 .log-card .face { position: relative; display: block; width: 84px; height: 48px; overflow: hidden; }
 .log-card .face img.art { position: absolute; left: 50%; top: -24px; margin-left: -64px; }
 .log-card .face canvas { margin: -14px auto 0; }
-.log-card b { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; max-width: 100%; }
-.log-card .tier { font-size: 10px; color: var(--c-text-dim); }
-.log-card .cost { position: absolute; top: 2px; left: 2px; font-size: 11px; font-weight: 700; background: var(--c-outline); color: var(--c-mana-hi); padding: 0 var(--sp-1); border-radius: var(--r-sm); }
-.log-card .route { font-size: 10px; color: var(--c-accent-hi); text-align: center; }
-.log-card .planned { font-size: 9px; color: var(--c-text-dim); text-align: center; }
+.log-card b { font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.log-card .tier { font-size: var(--fs-xs); font-weight: 700; color: var(--c-text-dim); }
+.log-card .cost { position: absolute; top: 2px; left: 2px; font-size: var(--fs-xs); font-weight: 700; background: var(--c-outline); color: var(--c-mana-hi); padding: 0 var(--sp-1); border-radius: var(--r-sm); }
+.log-card .route { font-size: var(--fs-xs); font-weight: 700; line-height: 1.3; color: var(--c-accent-hi); text-align: center; }
+.log-card .planned { font-size: var(--fs-xs); font-weight: 700; color: var(--c-text-dim); text-align: center; }
 .log-card.locked { border-style: dashed; border-color: var(--c-disabled) !important; background: var(--c-surface-deep); }
-.log-card.locked .face, .log-card.locked b { filter: grayscale(1) brightness(0.45); }
+.log-card.locked .face { filter: grayscale(1) brightness(0.55); }
+.log-card.locked b { color: var(--c-text-dim); }
 .log-card .buy { width: 100%; margin-top: var(--sp-1); padding: 0 var(--sp-1); }
 
 /* ได้การ์ดใหม่ on the stage result */
