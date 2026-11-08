@@ -1,7 +1,7 @@
 // Visual proof: opens the game in Chromium at 1280x720 (16:9 PC), plays it, and saves screenshots + a video to shots/.
 //   npm run shots    title, the lobby for a fresh, a mid-progress and a chapter-1-done save (primary button, unlocks, the
 //                    locked next one), its overlays (settings, profile, egg shop), the clicks from the lobby to each main
-//                    action, the versus screen, a loss with its tip, the pause menu; team setup (leader, sub, bench, redraw); a match played by hand (aim, a red marker off the
+//                    action, the versus screen, a loss with its tip, the pause menu; team setup (leader, sub, bench, picked hand); a match played by hand (aim, a red marker off the
 //                    zone, a click summon, a drag summon, counter highlights, the cannon aimed and fired); then a bot-vs-bot
 //                    match at x4, recorded, with frames of an early field, a fight, a fort capture and the result screen;
 //                    burn/poison marks, burning ground and the stun-resistance halo; the collection filters, a hand led
@@ -224,7 +224,7 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
 }
 
 // 1) Front screens: the team setup of a young fire account (no bench room yet), then of an account that owns every card: a
-//    leader and a bench picked, the dealt hand, a redraw, the filters.
+//    leader and a bench picked, the picked hand, the filters.
 {
   const { ctx, p } = await open('', 'front-new', null, MID);
   await toLobby(p);
@@ -248,12 +248,7 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.locator('.team-card[data-id=crimson_phoenix_beast]').hover();
   await sleep(200);
   await shot(p, '03-team-sub-bench');
-  const before = await p.locator('.hand-card b').allTextContents();
-  await p.getByRole('button', { name: /สับมือใหม่/ }).click();
-  await sleep(200);
-  const after = await p.locator('.hand-card b').allTextContents();
-  console.log('hand before redraw:', before.join(','), '| after:', after.join(','));
-  await shot(p, '03-team-redraw');
+  console.log('picked hand (autoPicks, bench left out):', (await p.locator('.hand-card b').allTextContents()).join(','));
   // The collection filters: by kind, by cost, by role, then a hand led by a dragon and a divine beast.
   for (const [f, name] of [['kind:demon', '05-filter-demons'], ['kind:divine', '05-filter-divine'], ['kind:dragon', '05-filter-dragons'], ['kind:all', null], ['cost:1', '05-filter-cost1'], ['cost:all', null], ['role:สกัด', '05-filter-guards'], ['role:all', null]]) {
     await p.locator(`.chip[data-f="${f}"]`).click();
