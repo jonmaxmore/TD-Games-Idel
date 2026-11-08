@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  battle, battleCardIds, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fixedHand, fwd, sectSetup, stepBattle,
+  battle, battleCardIds, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, draw, drawPool, fixedCards, fixedHand, fwd, sectSetup, stepBattle,
   replayBattle, summonZone, TICK_HZ, sects, COUNTER_CLASSES, classesOf, counterPct, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
 } from '../src';
 import { bandOf, cardTable, MIXED, playBattle, type Policy } from './battleBot';
@@ -66,7 +66,7 @@ describe('castle battle hand', () => {
   it('deals the basic capturer, the leader, the sub-leader and 4 drawn cards, never the bench, at most 2 large', () => {
     const bench = ['cloud_sword_rider', 'frost_tide_naga', 'vajra_stone_hawk'];
     const setup = { ...MIXED, bench };
-    const seen = new Set<string>();
+    const seen = new Set<string>(), h0basic = battle.hand.basic.get(battleUnits.get(MIXED.leader)!.sect)!;
     for (let seed = 1; seed <= 300; seed++) {
       const h = createBattle(seed, setup, setup).hands[0];
       expect(h.slice(0, 3)).toEqual([battle.hand.basic.get(battleUnits.get(MIXED.leader)!.sect), MIXED.leader, MIXED.sub]);
@@ -74,9 +74,30 @@ describe('castle battle hand', () => {
       expect(h.filter(isLarge).length).toBeLessThanOrEqual(2);
       for (const c of h) { expect(bench).not.toContain(c); seen.add(c); }
     }
-    expect(seen.size).toBe(battleCardIds.length - bench.length); // every other card comes up
+    expect([...seen].sort()).toEqual(battleCardIds.filter((c) => !bench.includes(c) && (c === h0basic || battleUnits.get(c)!.move !== 'capture')).sort()); // every other card comes up
     const sect = sectSetup('wood');
     expect(createBattle(9, sect, sect).hands[0].every((c) => battleUnits.get(c)!.sect === 'wood')).toBe(true);
+  });
+
+  it('the hand draws only from the owned collection, never another sect\'s basic capturer', () => {
+    const owned = ['jade_bamboo_striker', 'jade_bamboo_control', 'jade_bamboo_blade', 'wandering_archer', 'ember_imp', ...battle.hand.basic.values()];
+    const setup = { leader: 'jade_bamboo_striker', sub: 'jade_bamboo_control', collection: owned, bench: [] };
+    for (let seed = 1; seed <= 200; seed++) {
+      const h = createBattle(seed, setup, setup).hands[0];
+      expect(h, `seed ${seed}`).toEqual(['jade_bamboo_banner', 'jade_bamboo_striker', 'jade_bamboo_control', ...h.slice(3)]);
+      expect(h.slice(3).sort()).toEqual(['ember_imp', 'jade_bamboo_blade', 'wandering_archer']);
+    }
+    for (let seed = 1; seed <= 200; seed++) for (const c of createBattle(seed, MIXED, MIXED).hands[0].slice(1)) expect(battleUnits.get(c)!.move, `seed ${seed} ${c}`).not.toBe('capture');
+  });
+
+  it(`the bench never shrinks the draw pool below ${draw.minDrawPool}: bench cards past that stay in, in data order`, () => {
+    const pool = battleCardIds.filter((c) => battleUnits.get(c)!.move !== 'capture' && c !== MIXED.leader && c !== MIXED.sub);
+    const setup = { ...MIXED, bench: pool.slice(0, pool.length - 3) };
+    expect(drawPool(setup, fixedCards(setup))).toEqual(pool.slice(pool.length - draw.minDrawPool));
+    const few = { ...MIXED, collection: pool.slice(0, 6), bench: pool.slice(0, 2) };
+    expect(drawPool(few, fixedCards(few))).toEqual(pool.slice(0, 6));
+    const enough = { ...MIXED, collection: pool.slice(0, 10), bench: [pool[0]!, pool[5]!, pool[9]!] };
+    expect(drawPool(enough, fixedCards(enough))).toEqual(pool.slice(0, 10).filter((c) => c !== pool[0] && c !== pool[5]));
   });
 
   it('a large leader and sub-leader leave no room for a drawn large card', () => {
@@ -613,11 +634,13 @@ describe('castle battle determinism', () => {
 });
 
 describe('castle battle balance', () => {
-  // The per-card table (battleBot.ts > cardTable) over 4000 random-team games: no card this roster step added (the beasts,
+  // The per-card table (battleBot.ts > cardTable) over 8000 random-team games: no card this roster step added (the beasts,
   // the dragons and the archer) wins more than 8 points over its band's average when it is summoned. The rush and defend
-  // bots summon a large guard in about 1 side-game in 25, so fewer games leave too few of them to read 8 points.
+  // bots summon a large guard in about 1 side-game in 25: at 4000 games a large guard reads on about 150 side-games, a
+  // standard error near 4 points, and venom_toad swung from 7.1 to 10.1 when the basics left the draw pool (6.1 and 6.5
+  // at 8000 games).
   it('per card over random teams: no beast, dragon or the archer is more than 8 points over its band', () => {
-    const t = cardTable(4000);
+    const t = cardTable(8000);
     const added = t.rows.filter((r) => battleUnits.get(r.card)!.kind !== 'disciple' || r.card === 'wandering_archer');
     expect(added.length).toBe(14);
     for (const r of added) expect(r.winPct - t.band.get(bandOf(r.card))!, r.card).toBeLessThanOrEqual(8);

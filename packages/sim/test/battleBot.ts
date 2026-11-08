@@ -3,7 +3,7 @@
 // once it is under siege, push like rush when rich) and paced (keep a mana reserve, one summon every few seconds and
 // never onto a crowd of its own small units, guards first when enemies come near). Each side has its own seeded RNG.
 import {
-  battle, battleCardIds, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, sectSetup, stepBattle, summonZone,
+  battle, battleCardIds, ownedAt, starterTeam, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, stepBattle, summonZone,
   type BattleCommand, type BattleOpts, type BattleSetup, type BattleState, type Side, type Stage,
 } from '../src';
 
@@ -173,5 +173,7 @@ export function playBattle(seed: number, p0: Policy, p1: Policy, setup0 = MIXED,
 
 // A ศึกปราบ stage, paced bot against the stage's paced enemy: the player's setup (with its progress) on side 0.
 export const playStage = (seed: number, st: Stage, player: BattleSetup): BattleResult => playBattle(seed, 'paced', 'paced', player, st.enemy, { stage: st.rules });
-// The balance gate's player: the default fire team (battle.json > sectTeams.fire) with every card at level.
-export const fireTeamAt = (level: number): BattleSetup => ({ ...sectSetup('fire'), progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, level])) } });
+// The balance gate's player at stage i: what a home sect owns when it first plays it (collection.ts ownedAt), led by the
+// starter team (collection.json starterTeam), every card at level, no bench.
+export const ownedTeamAt = (home: string, i: number, level: number): BattleSetup =>
+  ({ ...starterTeam(home), collection: ownedAt(home, i), bench: [], progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, level])) } });

@@ -5,7 +5,7 @@
 // Dev and shots shortcut: ?mode=battle jumps straight into a match, without the versus screen (&stage=1-4 a ศึกปราบ stage); &bot=1 lets bots play both sides, &speed=4 fast-forwards,
 // &seed=N picks the match, &deck=fire|wood|metal|water|earth (a sect preset), all|mixed (every card) or a comma list of
 // card ids to draw from (&leader=, &sub= the leaders).
-import { battle, battleUnits, chapter, createBattle, sects, stageOf, stages, STARS, stepBattle, TICK_HZ, type Side, type Stage } from '@five-sects/sim';
+import { battle, battleUnits, chapter, createBattle, gimmickNames, sects, stageOf, stages, starName, stepBattle, TICK_HZ, type Side, type Stage } from '@five-sects/sim';
 import { el, realmBadge, startMatch, type MatchResult } from './battle';
 import { aiProgress, canLevel, payMatch, progressOf, recordRanked, recordStage, stageOpen } from './camp';
 import { campScreen } from './campScreen';
@@ -220,7 +220,7 @@ function campaignMap() {
     b.style.left = `${MAP_AT[i]![0]}%`;
     b.style.top = `${MAP_AT[i]![1]}%`;
     b.append(el('span', 'id', st.id), nowrapWords(el('b'), st.nameTh), el('span', 'stars', open ? stars(got) : 'ยังไม่เปิด'));
-    if (open) b.append(el('small', '', st.gimmickTh));
+    if (open && st.gimmicks.length > 0) b.append(el('small', '', gimmickNames(st)));
     map.append(b);
   });
   const row = el('div', 'row actions');
@@ -234,7 +234,7 @@ function briefing(st: Stage) {
   const best = profile.campaign[st.id];
   r.append(el('h1', '', `ด่าน ${st.id} · ${st.nameTh}`), el('p', 'brief-text', st.briefTh));
   const gim = el('div', 'panel gimmick-box');
-  gim.append(el('h2', '', `กลไก: ${st.gimmickTh}`), el('p', '', st.gimmickDescTh));
+  gim.append(el('h2', '', `สอน: ${st.teachTh}`), ...st.gimmicks.map((g) => el('p', '', `${g.nameTh}: ${g.descTh}`)));
   const foe = el('div', 'panel enemy-box');
   const cards = el('div', 'enemy-cards');
   for (const c of st.enemy.collection) {
@@ -244,10 +244,11 @@ function briefing(st: Stage) {
     cards.append(t);
   }
   const regen = st.rules.regenPct === 100 ? 'ไหลปกติ' : `ไหล ${st.rules.regenPct}% ของปกติ`;
-  foe.append(el('h2', '', `ทัพศัตรู · ทุกตัว Lv${st.level}`), el('p', 'dim', `ปราณเริ่ม ${st.rules.manaStart} · ${regen} · ป้อม ${st.rules.fortsAtPct.length} แห่ง`), cards);
+  foe.append(el('h2', '', `ทัพศัตรู · ทุกตัว Lv${st.level}`), el('p', 'dim', `ปราณเริ่ม ${st.rules.manaStart[1]} · ${regen} · ป้อม ${st.rules.fortsAtPct.length} แห่ง`), cards);
+  gim.append(el('p', 'dim', `ปราณเราเริ่ม ${st.rules.manaStart[0]}${st.rules.fortBonus > 0 ? ` · ยึดป้อมครั้งแรกได้ปราณ +${st.rules.fortBonus} ต่อป้อม` : ''}`));
   const goals = el('div', 'panel goals-box');
   goals.append(el('h2', '', 'เป้าหมายดาว'));
-  STARS.namesTh.forEach((name, i) => goals.append(el('p', best?.stars[i] ? 'got' : '', `${best?.stars[i] ? '★' : '☆'} ${name}`)));
+  st.stars.forEach((g, i) => goals.append(el('p', best?.stars[i] ? 'got' : '', `${best?.stars[i] ? '★' : '☆'} ${starName(g)}`)));
   const w = st.rewards.win;
   goals.append(el('p', 'dim', `ชนะได้ แต้มฝึก +${w.xp} · เหรียญ +${w.coins} · ทองคำ +${w.gold}`));
   if (best?.bestSec != null) goals.append(el('p', 'dim', `ชนะเร็วสุด ${Math.floor(best.bestSec / 60)}:${String(best.bestSec % 60).padStart(2, '0')}`));
@@ -294,7 +295,7 @@ function match(team: Team, seed: number, redraws: number, stage?: Stage) {
     bots: stage || ranked ? [dev.bot ? 'paced' : null, 'paced'] : [dev.bot ? 'rush' : null, 'rush'],
     normalized: ranked, progress: ranked ? [null, null] : [progressOf(profile, Date.now()), aiProgress(profile)],
     modeTh: stage ? `ศึกปราบ ${stage.id}` : ranked ? 'ศึกฝีมือ' : 'ศึกทั่วไป',
-    stage: stage ? { rules: stage.rules, enemy: stage.enemy, nameTh: stage.nameTh, gimmickTh: stage.gimmickTh } : undefined,
+    stage,
     onQuit: () => go({ k: 'lobby' }),
   }, (r) => result(team, seed, r, stage, ranked));
 }
@@ -341,7 +342,7 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
   if (stage) {
     const fresh = recordStage(profile, stage.id, r.stars, t);
     const row = el('div', 'star-row');
-    STARS.namesTh.forEach((name, i) => {
+    stage.stars.map(starName).forEach((name, i) => {
       const s = el('div', `star${r.stars[i] ? ' got' : ''}${fresh[i] ? ' new' : ''}`);
       s.append(el('b', '', r.stars[i] ? '★' : '☆'), el('small', '', name));
       if (fresh[i]) s.append(el('em', '', 'ใหม่'));
