@@ -31,13 +31,14 @@ export type Kind = 'disciple' | 'demon' | 'divine' | 'dragon';
 export interface BattleUnitDef {
   // sect: the card's element (Wu Xing, colour); for a disciple also its sect. kind: what it is (beasts have no sect).
   // perMatch: times it may be summoned in one match (null = unlimited), the card's own cap or its size's.
-  id: string; sect: string; kind: Kind; kit: string; nameTh: string; nameEn: string; move: Move; size: Size; mana: number; hp: number; perMatch: number | null;
+  id: string; sect: string; kind: Kind; kit: string; role: string; nameTh: string; nameEn: string; move: Move; size: Size; mana: number; hp: number; perMatch: number | null;
   dmg: number; cooldown: number; range: number; hitsAir: boolean; hitsGround: boolean; dot: string | null;
   // On-hit kit (ticks or milli-tiles, 0 = none): splash hits every enemy it can hit this close to the target too.
   splash: number; slow: number; root: number; stun: number; push: number; ground: number; armor: number; pierce: boolean;
   raise: number; // a small enemy this card's hit kills rises on its side with this % of its HP (0 = none)
   tagTh: string; descTh: string; counters: string[]; // tagTh: one line for the card; descTh: what it does, in full
-  body: string; // how the client draws it: human (default), archer, ghoul, imp, beast, wing, serpent, mass, shell, dragon
+  body: string; // how the client draws it: human (default), archer, ghoul, imp, beast, wing, serpent, mass, shell, dragon, phoenix, naga, treant, statue
+  // role: a sect disciple's role (striker, burst, control, stacker, support), '' otherwise; the client picks its weapon from it
   ability: { kind: 'aura' | 'ward' | 'hp' | 'refund'; lv: [number, number, number] } | null; // lv: value as a normal card, sub-leader, leader
 }
 const BT = J(battleJson);
@@ -82,7 +83,7 @@ export const battleUnits = new Map<string, BattleUnitDef>();
 export const battleCardIds: string[] = S.roster.units.map((u: any) => u.id as string); // data order, for anything iterated
 for (const u of S.roster.units) {
   battleUnits.set(u.id, {
-    id: u.id, sect: u.sect, kind: u.kind ?? 'disciple', kit: u.kit, nameTh: u.nameTh, nameEn: u.nameEn, move: u.move, size: u.size, mana: u.mana, hp: u.hp,
+    id: u.id, sect: u.sect, kind: u.kind ?? 'disciple', kit: u.kit, role: u.role ?? '', nameTh: u.nameTh, nameEn: u.nameEn, move: u.move, size: u.size, mana: u.mana, hp: u.hp,
     perMatch: 'perMatch' in u ? u.perMatch : BT.sizes[u.size].perMatch,
     dmg: u.dmg, cooldown: ticks(1.0 / u.rate), range: Math.max(tiles(u.range), tiles(BT.meleeRange)),
     hitsAir: u.target.includes('air'), hitsGround: u.target.includes('ground'), dot: u.dot ?? null,

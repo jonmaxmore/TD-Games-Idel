@@ -7,6 +7,7 @@ import {
   type BattleEvent, type BattleState, type BattleUnitDef, type Side,
 } from '@five-sects/sim';
 import { boardSprite, rim, silhouette, type Frame } from './sprites';
+import { lookOf } from './looks';
 
 const PAD = 6;
 const GRID = battle.grid;
@@ -17,11 +18,11 @@ export const SIDE = ['#E3B04B', '#D2412F'] as const;
 const NEUTRAL = '#C8C4CC';
 const HP_BAR = ['#4FB3FF', '#E23B2E'] as const;
 const FX = { gold: '#E3B04B', star: '#FFE08A', glint: '#FFFFFF', fire: '#FF5A1F', poison: '#5BC46A', heal: '#9FDCA7', ice: '#C9E6F7' };
-const KIT_LOOK: Record<string, [string, string]> = { // projectile [body, highlight] per kit
+const KIT_LOOK: Record<string, [string, string]> = { // projectile [body, highlight] per sect (element): a fire disciple shoots fire
   metal: ['#9FB3CA', '#FFFFFF'], fire: ['#FF5A1F', '#FFE08A'], water: ['#4FB3FF', '#ABDBFF'], earth: ['#836127', '#DEC191'],
   wood: ['#3DA94C', '#9FDCA7'], yinyang: ['#1A1423', '#F2F2F2'],
 };
-const TRAIL: Record<string, string[]> = { // trail colours per kit, newest first
+const TRAIL: Record<string, string[]> = { // trail colours per sect (element), newest first
   metal: ['#FFFFFF', '#D9E1EA', '#9FB3CA'], fire: ['#FFE08A', '#FF5A1F', '#B12F00'], water: ['#ABDBFF', '#4FB3FF', '#0076CF'],
   earth: ['#DEC191', '#A97D33', '#5F471C'], wood: ['#9FDCA7', '#3DA94C', '#225F2B'], yinyang: ['#F2F2F2', '#1A1423', '#F2F2F2'],
 };
@@ -171,7 +172,7 @@ export class Board {
 
   // A unit's drawn ground point in board units: its eased path point, each side a little up or down the road, spread by id.
   private spot(id: number, q: { x: number; y: number; side: Side }): [number, number] {
-    return [this.sx(q.x) + (((id * 13) % 7) - 3) * 2, this.sy(q.y) + (q.side === 0 ? -4 : 4) + (((id * 7) % 5) - 2) * 2];
+    return [this.sx(q.x) + (((id * 13) % 7) - 3) * 3, this.sy(q.y) + (q.side === 0 ? -4 : 4) + (((id * 7) % 5) - 2) * 2];
   }
   private castleAt(side: Side): [number, number] {
     const p = BATTLE_PATH[side === 0 ? 0 : BATTLE_PATH.length - 1]!;
@@ -251,7 +252,7 @@ export class Board {
     const unitDef = e.from >= 1 ? defOf(this.seen.get(e.from)!.card) : null;
     const far = !unitDef || ranged(unitDef);
     const fly = far ? Math.min(240, Math.max(90, len * 5)) : 60;
-    if (far) Object.assign(this.shots.take(now, now + fly), { x0, y0, x1: tx, y1: ty, kit: unitDef?.kit ?? 'metal', big: !unitDef, crit: !!e.crit });
+    if (far) Object.assign(this.shots.take(now, now + fly), { x0, y0, x1: tx, y1: ty, kit: unitDef?.sect ?? 'metal', big: !unitDef, crit: !!e.crit });
     else Object.assign(this.rings.take(now + fly, now + fly + 200), { x: tx, y: ty, rx: 0, ry: 0, c: FX.glint, slash: true });
     if (e.from >= 1) {
       const l = this.lunges.get(e.from);
@@ -400,7 +401,7 @@ export class Board {
     }
     if (m.ok) {
       g.globalAlpha = 0.55;
-      g.drawImage(figure(m.card, this.me, this.me === 1, 0, null), x - FIG_X, y - 3 - FIG_Y);
+      this.figureAt(m.card, this.me, x, y - 3 - flyHeight(defOf(m.card), now, 0), 0, null);
       g.globalAlpha = 1;
       ring(g, x, y - 3, 8, 4, FX.gold);
       const b = Math.round(Math.sin(now / 120) * 2);
@@ -421,7 +422,7 @@ export class Board {
       if (now < p.t0 || now >= p.t1) continue;
       const k = (now - p.t0) / (p.t1 - p.t0);
       g.globalAlpha = 1 - k;
-      g.drawImage(figure(p.card, p.side, p.side === 1, 0, k < 0.15 ? 'white' : null), p.x - FIG_X, p.y - FIG_Y);
+      this.figureAt(p.card, p.side, p.x, p.y - flyHeight(defOf(p.card), p.t0, 0) * (1 - k), 0, k < 0.15 ? 'white' : null); // a flier falls as it fades
       for (let i = 0; i < 5; i++) {
         const a = i * 1.2566 + p.t0, r = 2 + Math.round(3 * k);
         g.drawImage(disc(PUFF[i % 3]!, r), Math.round(p.x + Math.cos(a) * (2 + 6 * k)) - r, Math.round(p.y - 6 + Math.sin(a) * (1 + 3 * k) - 4 * k) - r);
@@ -607,10 +608,10 @@ export class Board {
     if (white) q.white--;
     const kk = q.kickT && now >= q.kickT ? (now - q.kickT) / KICK_MS : 1;
     if (kk < 1) { x += Math.round(q.kx * (1 - kk) * KICK) + ((Math.floor(now / 16) & 1) * 2 - 1); y += Math.round(q.ky * (1 - kk) * KICK * 0.6); }
-    const def = defOf(q.card), fly = def.move === 'fly' ? 8 + Math.round(Math.sin(now / 200 + id) * 2) : 0;
+    const def = defOf(q.card), fly = flyHeight(def, now, id);
     const walking = now - q.walk < 200 && !stunned;
     const b = walking ? ((Math.floor(now / 140 + id) & 1) ? -1 : 0) : Math.round(Math.sin(now / 300 + id));
-    const big = def.size === 'large' ? 2 : 1; // a large card's procedural figure is drawn twice the size
+    const big = FIG_SCALE[def.size]!;
     const mark = this.counter && q.side !== this.me ? counterMark(defOf(this.counter), def) : null;
     if (mark) { // a pulsing ring on the ground under the enemy, outside the shadow
       const r = (def.size === 'small' ? 8 : 9 * big) + Math.round(Math.sin(now / 140));
@@ -619,13 +620,8 @@ export class Board {
     }
     shadow(g, x, y, def.size === 'small' ? 5 : 6 * big);
     const over = white ? 'white' : stunned ? 'stun' : tint;
-    const sp = boardSprite(q.card, q.side === 0 ? 'east' : 'west');
-    let top = y - (def.size === 'small' ? 25 : 27) * big - fly;
-    if (sp) { // a PixelLab figure 1:1 with the same rim and overlays; the procedural one otherwise
-      this.blit(sp.f, x, y - fly - b, sp.flip, over === 'white' ? ['#FFFFFF', 1] : over === 'stun' ? ['#5A5266', 0.6] : over ? [over, 0.5] : undefined, SIDE[q.side]);
-      top = y - fly - Math.ceil((sp.f.foot - sp.f.top + 1) / this.K) - 4;
-    } else g.drawImage(figure(q.card, q.side, q.side === 1, b, over), x - FIG_X * big, y - FIG_Y * big - fly, FIG_W * big, FIG_H * big);
-    this.bar(x, top, 12 * big, hp, HP_BAR[q.side]);
+    const { top, w } = this.figureAt(q.card, q.side, x, y - fly, b, over);
+    this.bar(x, top, w, hp, HP_BAR[q.side]);
     if (mark) { // and ▲ (we beat it) or ▼ (it beats us) over the head, outlined, bobbing: the shape says it, not only the colour
       const b2 = Math.round(Math.sin(now / 120) * 1.5), ty = top - 9 + b2, up = mark === COUNTER_GLOW.strong;
       const rows = up ? [[0, 1], [1, 3], [2, 5], [3, 7]] : [[0, 7], [1, 5], [2, 3], [3, 1]];
@@ -651,11 +647,26 @@ export class Board {
     }
   }
 
-  // A sprite 1:1 in buffer pixels, its lowest opaque row on the ground point (x, y) in board units. edge: the 1 px rim colour;
-  // over: a silhouette colour laid on top at alpha (hit flash, status tint, stun grey).
-  private blit(f: Frame, x: number, y: number, flip: boolean, over?: [string, number], edge?: string) {
+  // A card's figure with its feet at (x, y) (a flier's height already taken off y) at its size: the live unit, the death ghost
+  // and the aim preview all draw through this so they match. The PixelLab sprite when there is one, else the procedural
+  // figure. Returns where the HP bar goes and how wide it is.
+  private figureAt(card: string, side: Side, x: number, y: number, b: number, over: Over): { top: number; w: number } {
+    const size = defOf(card).size, sp = boardSprite(card, side === 0 ? 'east' : 'west');
+    if (sp) {
+      const k = SPRITE_SCALE[size]!;
+      this.blit(sp.f, x, y - b, sp.flip, k, over === 'white' ? ['#FFFFFF', 1] : over === 'stun' ? ['#5A5266', 0.6] : over ? [over, 0.5] : undefined, SIDE[side]);
+      return { top: y - Math.ceil(((sp.f.foot - sp.f.top + 1) * k) / this.K) - 4, w: Math.max(10, Math.round(((sp.f.right - sp.f.left + 1) * k) / this.K * 0.6)) };
+    }
+    const big = FIG_SCALE[size]!;
+    this.g.drawImage(figure(card, side, side === 1, b, over), x - FIG_X * big, y - FIG_Y * big, FIG_W * big, FIG_H * big);
+    return { top: y - (size === 'small' ? 25 : 27) * big, w: 12 * big };
+  }
+
+  // A sprite in buffer pixels times k (its card's size), its lowest opaque row on the ground point (x, y) in board units.
+  // edge: the 1 px rim colour; over: a silhouette colour laid on top at alpha (hit flash, status tint, stun grey).
+  private blit(f: Frame, x: number, y: number, flip: boolean, k: number, over?: [string, number], edge?: string) {
     const g = this.g, K = this.K, l = -(f.w >> 1), t = -f.foot;
-    g.setTransform(flip ? -1 : 1, 0, 0, 1, (x + this.shx) * K, (y + this.shy) * K - 1);
+    g.setTransform(flip ? -k : k, 0, 0, k, (x + this.shx) * K, (y + this.shy) * K - 1);
     if (edge) g.drawImage(rim(f, edge), l - 1, t - 1);
     g.drawImage(f.img, l, t);
     if (over) { g.globalAlpha *= over[1]; g.drawImage(silhouette(f, over[0]), l, t); g.globalAlpha /= over[1]; }
@@ -668,6 +679,12 @@ export class Board {
 // ---- figures: drawn once per card, side, facing, bob and overlay into a small canvas, then blitted ----
 const FIG_W = 32, FIG_H = 36, FIG_X = 16, FIG_Y = 32; // canvas size and the feet point inside it
 const figs = new Map<string, HTMLCanvasElement>();
+// How big each size stands on the board: the procedural figure is drawn at FIG_SCALE, a PixelLab sprite (96 px, one per card
+// whatever its size) at SPRITE_SCALE, so a dragon never stands as tall as an archer.
+const FIG_SCALE: Record<string, number> = { small: 1, medium: 1, large: 2 };
+const SPRITE_SCALE: Record<string, number> = { small: 0.75, medium: 1, large: 1.75 };
+// How high a flier hovers over its shadow, bobbing (board units); 0 on the ground.
+const flyHeight = (d: BattleUnitDef, now: number, id: number) => (d.move === 'fly' ? 8 + Math.round(Math.sin(now / 200 + id) * 2) : 0);
 type Over = 'white' | 'stun' | string | null; // a tint colour, or white (hit flash), or stun (greyed)
 
 export function figure(card: string, side: Side, flip: boolean, b: number, over: Over): HTMLCanvasElement {
@@ -701,37 +718,130 @@ export function figure(card: string, side: Side, flip: boolean, b: number, over:
   return c;
 }
 
-// The figure facing right, feet at (FIG_X, FIG_Y): sect-coloured robe, dark hat, and what its card carries.
+// The figure facing right, feet at (FIG_X, FIG_Y): a robe in its sect colour with a sash in the side colour, its sect's
+// headgear (looks.ts) and the weapon of its slot; a flier sits on its sect's mount. A large disciple (the elder) has a
+// white beard and a long coat; the board draws it twice the size.
 function drawFigure(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b: number) {
-  if (d.body !== 'human' && d.body !== 'archer' && d.body !== 'ghoul') return drawBeast(g, d, side, b);
-  const x = FIG_X, y = FIG_Y, sm = d.size === 'small' ? 2 : 0, robe = d.body === 'ghoul' ? palette.get('enemy')![0]! : sects.get(d.sect)?.color ?? NEUTRAL;
+  const look = lookOf(d);
+  if (look.body !== 'human' && look.body !== 'archer' && look.body !== 'ghoul') return drawBeast(g, d, side, b);
+  const P = palette.get(d.sect) ?? palette.get('yinyang')!, M = palette.get('metal')!, E = palette.get('earth')!, O = '#1A1418', SKIN = '#E9C9A4';
+  const x = FIG_X, lift = look.mount ? -3 : 0, y = FIG_Y + lift, sm = d.size === 'small' ? 2 : 0, elder = d.size === 'large';
+  const robe = d.body === 'ghoul' ? palette.get('enemy')![0]! : sects.get(d.sect)?.color ?? NEUTRAL, sash = SIDE[side];
   const R = (dx: number, dy: number, w: number, h: number, c: string) => { g.fillStyle = c; g.fillRect(x + dx, y + dy, w, h); };
-  if (d.move === 'fly') { R(-10, -14 + b, 5, 2, '#C8C4CC'); R(5, -14 + b, 5, 2, '#C8C4CC'); }
-  R(-4, -1, 3, 1, '#1A1418'); R(1, -1, 3, 1, '#1A1418'); // feet
-  R(-5, -14 + sm + b, 10, 13 - sm, '#1A1418'); // outline
-  R(-4, -13 + sm + b, 8, 12 - sm, robe);
-  R(-4, -13 + sm + b, 1, 12 - sm, '#1A1423'); // shade on the back
-  R(-4, -5 + b, 8, 1, '#1A1418'); // belt
-  R(-3, -19 + sm + b, 6, 6, '#E9C9A4'); R(1, -17 + sm + b, 1, 1, '#1A1418'); // face and eye, looking ahead
-  R(-5, -21 + sm + b, 10, 3, '#1A1418'); R(-2, -23 + sm + b, 4, 2, '#1A1418'); // hat
-  R(-5, -19 + sm + b, 10, 1, SIDE[side]); // hat band in the side colour
-  const kit = KIT_LOOK[d.kit] ?? KIT_LOOK.metal!;
-  if (d.body === 'ghoul') { // a pale mask and black threads hanging from the hands
-    R(-3, -19 + sm + b, 6, 6, palette.get('yinyang')![1]!); R(-2, -17 + sm + b, 1, 1, '#E23B2E'); R(1, -17 + sm + b, 1, 1, '#E23B2E');
-    for (const tx of [5, 8, 11]) R(tx, -12 + b, 1, 9 + (tx % 3), '#1A1418');
+  if (look.mount) drawMount(g, look.mount, b, P, side);
+  const top = -13 + sm + b, face = -19 + sm + b, legs = look.mount ? 4 : 0; // a rider sits: its robe stops short
+  if (!look.mount) { R(-4, -1, 3, 1, O); R(1, -1, 3, 1, O); } // feet
+  R(-5, top - 1, 10, 14 - sm - legs, O); // outline
+  R(-4, top, 8, 12 - sm - legs, robe);
+  R(-4, top, 1, 12 - sm - legs, P[4]!); // shade on the back
+  if (elder) { R(-6, top + 1, 2, 11 - legs, O); R(-5, top + 2, 1, 9 - legs, P[3]!); } // the long coat behind
+  R(-4, -5 + b - legs, 8, 1, sash); // sash in the side colour
+  if (look.head === 'bald') { R(-1, top, 2, 1, E[1]!); R(1, top + 1, 2, 1, E[1]!); R(3, top + 2, 1, 1, E[1]!); } // a monk's shoulder cloth
+  // head: face, eye, then the headgear
+  R(-4, face - 1, 8, 7, O); R(-3, face, 6, 6, d.body === 'ghoul' ? palette.get('yinyang')![1]! : SKIN);
+  if (d.body === 'ghoul') { R(-2, face + 2, 1, 1, '#E23B2E'); R(1, face + 2, 1, 1, '#E23B2E'); } else R(1, face + 2, 1, 1, O);
+  if (elder) { R(0, face + 4, 4, 4, '#F2F2F2'); R(1, face + 8, 2, 2, '#F2F2F2'); R(-4, face, 1, 4, '#F2F2F2'); } // white beard and hair
+  switch (look.head) {
+    case 'guan': R(-4, face - 1, 8, 2, O); R(-2, face - 4, 4, 3, O); R(-1, face - 3, 2, 2, M[3]!); R(-4, face - 3, 8, 1, M[0]!); break; // scholar crown, pin
+    case 'straw': R(-7, face, 14, 1, E[3]!); R(-6, face - 1, 12, 1, E[0]!); R(-4, face - 2, 8, 1, E[1]!); R(-2, face - 3, 4, 1, E[0]!); R(-1, face - 4, 2, 1, E[2]!); break; // a wide bamboo hat
+    case 'hood': R(-4, face - 2, 8, 3, P[3]!); R(-5, face - 1, 2, 8, P[3]!); R(-3, face - 1, 6, 1, P[0]!); R(-6, face + 2, 1, 6, P[4]!); break; // hood and veil
+    case 'topknot': R(-4, face - 1, 7, 2, O); R(-2, face - 3, 3, 2, O); R(0, face - 6, 1, 3, P[1]!); R(1, face - 7, 1, 2, P[0]!); break; // hair bun and a flame feather
+    case 'bald': R(-3, face - 1, 6, 1, SKIN); R(-1, face - 1, 1, 1, E[2]!); R(1, face - 1, 1, 1, E[2]!); break; // a shaved head with two marks
+    case 'hat': R(-5, face - 2, 10, 3, O); R(-2, face - 4, 4, 2, O); R(-5, face, 10, 1, sash); break; // a wanderer's hat
+  }
+  if (d.body === 'ghoul') { // black threads hanging from the hands
+    for (const tx of [5, 8, 11]) R(tx, -12 + b, 1, 9 + (tx % 3), O);
     R(4, -13 + b, 9, 1, '#5A5266');
-  } else if (d.body === 'archer') { // a long bow held forward with an arrow nocked
+    return;
+  }
+  if (d.body === 'archer') { // a long bow held forward with an arrow nocked, a quiver on the back
     R(6, -24 + b, 1, 2, '#6E4A30'); R(7, -22 + b, 1, 16, '#6E4A30'); R(6, -6 + b, 1, 2, '#6E4A30');
-    R(4, -14 + b, 9, 1, '#E5EAF0'); R(13, -15 + b, 1, 3, '#FFFFFF'); R(-6, -18 + sm + b, 2, 9, '#7A4A2A'); // arrow, quiver
-  } else if (d.move === 'capture') { // a banner pole over the shoulder
-    R(5, -30 + sm + b, 1, 29, '#C8C4CC'); R(6, -30 + sm + b, 7, 5, SIDE[side]); R(6, -26 + sm + b, 6, 1, robe);
-  } else if (d.move === 'guard') { R(4, -12 + b, 4, 10, '#1A1418'); R(5, -11 + b, 2, 8, kit[0]); R(5, -11 + b, 1, 1, kit[1]); } // a shield in front
-  else if (d.move === 'support') { R(-1, -29 + sm + b, 1, 6, '#3A2A24'); R(-2, -32 + sm + b, 3, 3, FX.star); R(-1, -31 + sm + b, 1, 1, '#FFFFFF'); } // lantern overhead
-  else if (!ranged(d)) { for (let i = 0; i < 5; i++) R(5 + i, -9 - i + b, 1, 1, i === 4 ? '#FFFFFF' : '#D9E1EA'); R(4, -8 + b, 2, 1, '#6E4A30'); } // a short blade held forward
-  else if (d.kit === 'metal') R(5, -22 + sm + b, 1, 14, '#E5EAF0'); // a sword up
-  else if (d.kit === 'fire') { R(5, -15 + b, 5, 2, '#F2A23A'); R(6, -17 + b, 3, 2, '#FFE08A'); } // a fan
-  else if (d.kit === 'wood') { R(3, -14 + b, 8, 1, '#9FDCA7'); R(10, -14 + b, 1, 1, '#FFFFFF'); } // a flute
-  else { R(5, -15 + b, 3, 3, kit[0]); R(5, -15 + b, 1, 1, kit[1]); } // a charm
+    R(4, -14 + b, 9, 1, M[0]!); R(13, -15 + b, 1, 3, '#FFFFFF'); R(-6, -18 + sm + b, 2, 9, '#7A4A2A');
+    return;
+  }
+  R(2, top + 2, 2, 5, P[3]!); R(3, top + 6, 2, 2, SKIN); // the front arm and hand
+  weapon(R, look.weapon ?? '', top, face, b, P, side);
+}
+
+// What a disciple holds, from its hand at (4, top + 7); R draws in figure units from its feet.
+function weapon(R: (dx: number, dy: number, w: number, h: number, c: string) => void, w: string, top: number, face: number, b: number, P: readonly string[], side: Side) {
+  const M = palette.get('metal')!, E = palette.get('earth')!, W = palette.get('wood')!, F = palette.get('fire')!, A = palette.get('water')!, O = '#1A1418';
+  const h = top + 7; // hand height
+  const blade = (c: readonly string[], n: number) => { for (let i = 0; i < n; i++) R(5 + i, h - 1 - i, 1, 1, i === n - 1 ? '#FFFFFF' : c[1]!); R(4, h, 2, 1, '#6E4A30'); };
+  switch (w) {
+    case 'banner': R(5, top - 17, 1, 29, '#C8C4CC'); R(6, top - 17, 7, 5, SIDE[side]); R(6, top - 13, 6, 1, P[1]!); R(8, top - 16, 2, 2, P[0]!); break;
+    case 'shortsword': blade(M, 6); break;
+    case 'emberblade': blade(F, 6); R(7, h - 4, 1, 1, F[1]!); R(9, h - 6, 1, 1, '#FFE08A'); break;
+    case 'thornblade': blade(W, 6); R(6, h - 3, 1, 1, W[4]!); R(8, h - 5, 1, 1, W[4]!); break;
+    case 'iceblade': blade(A, 6); R(8, h - 2, 1, 1, A[0]!); R(10, h - 4, 1, 1, '#FFFFFF'); break;
+    case 'shortstaff': for (let i = 0; i < 9; i++) R(2 + i, h + 2 - i, 1, 1, E[3]!); R(10, h - 7, 1, 1, E[0]!); break;
+    case 'quills': for (const [dx, dy] of [[5, -6], [6, -8], [8, -7]] as const) { R(dx, h + dy, 1, 4, F[1]!); R(dx, h + dy, 1, 1, '#FFE08A'); } break; // three phoenix quills fanned up
+    case 'fan': for (let r = 0; r < 5; r++) R(5, h - 6 + r, 2 + r, 1, r % 2 ? F[1]! : '#FFE08A'); R(5, h - 1, 7, 1, F[3]!); break; // an open fan
+    case 'flameshield': R(4, h - 6, 5, 10, O); R(5, h - 5, 3, 8, F[2]!); R(5, h - 8, 1, 2, F[1]!); R(7, h - 9, 1, 3, '#FFE08A'); R(6, h - 3, 1, 3, '#FFE08A'); break;
+    case 'coals': R(5, h - 1, 5, 4, O); R(6, h, 3, 2, '#6E4A30'); R(6, h - 2, 3, 1, F[1]!); R(7, h - 3, 1, 1, '#FFE08A'); break; // a brazier of live coals
+    case 'hammer': R(5, h - 9, 1, 10, '#6E4A30'); R(3, h - 12, 5, 3, O); R(4, h - 11, 3, 1, F[1]!); break; // a forge hammer, glowing
+    case 'blowpipe': R(2, face + 3, 13, 1, W[1]!); R(14, face + 3, 1, 1, '#FFFFFF'); R(7, face + 3, 1, 1, W[3]!); break; // a long bamboo pipe at the mouth
+    case 'leaves': for (const [dx, dy] of [[6, -4], [9, -6], [8, -1], [11, -3], [5, -8]] as const) { R(dx, h + dy, 2, 1, W[1]!); R(dx + 1, h + dy - 1, 1, 1, W[0]!); } break; // a whirl of leaves
+    case 'vine': R(4, h - 6, 5, 10, O); R(5, h - 5, 3, 8, W[3]!); for (let i = 0; i < 4; i++) R(8 + (i % 2), h - 4 + i * 2, 2, 1, W[1]!); R(10, h - 6, 1, 3, W[2]!); break; // a vine-bound shield and whip
+    case 'flute': R(3, face + 3, 10, 1, '#7A4A2A'); R(5, face + 3, 1, 1, O); R(8, face + 3, 1, 1, O); R(13, face + 1, 1, 1, '#5BC46A'); R(14, face, 1, 1, '#5BC46A'); break; // flute held sideways, a poison note
+    case 'gourd': R(5, h, 3, 3, E[1]!); R(6, h - 1, 1, 1, E[3]!); R(-6, h - 3, 2, 3, W[1]!); R(-7, h - 4, 1, 1, W[0]!); break; // medicine gourd, herbs on the back
+    case 'qisword': R(5, top - 9, 1, 14, M[0]!); R(5, top - 10, 1, 1, '#FFFFFF'); R(7, top - 8, 1, 4, M[1]!); R(8, top - 4, 1, 3, M[2]!); break; // a sword up, its qi crescent
+    case 'swords': for (const dx of [-4, 0, 4]) { R(dx, face - 9, 1, 5, M[1]!); R(dx - 1, face - 5, 3, 1, E[3]!); R(dx, face - 10, 1, 1, '#FFFFFF'); } blade(M, 4); break; // three flying swords overhead
+    case 'crossguard': R(1, h - 2, 13, 1, M[0]!); R(13, h - 2, 1, 1, '#FFFFFF'); R(3, h - 3, 1, 3, E[3]!); break; // a sword held across to bar the road
+    case 'broadsword': for (let i = 0; i < 7; i++) R(5 + i, h - i, 2, 1, i === 6 ? '#FFFFFF' : M[2]!); R(4, h + 1, 2, 1, '#6E4A30'); break; // a broad executioner's dao
+    case 'greatsword': R(4, top - 15, 2, 20, M[0]!); R(4, top - 16, 2, 1, '#FFFFFF'); R(2, top + 4, 6, 1, E[3]!); break; // a long sword raised to split the sky
+    case 'whetstone': blade(M, 5); R(-6, h - 1, 3, 2, '#8F8A96'); R(-5, h - 2, 1, 1, '#FFE08A'); break; // a sword and the stone that hones it
+    case 'palm': R(4, h - 4, 4, 4, '#E9C9A4'); R(8, h - 5, 2, 6, A[0]!); R(10, h - 3, 1, 2, '#FFFFFF'); break; // an open freezing palm
+    case 'ribbon': for (let i = 0; i < 10; i++) R(4 + i, h - 3 + Math.round(Math.sin(i / 1.6 + b) * 2), 1, 1, i % 3 ? A[1]! : A[0]!); break; // a ribbon in waves
+    case 'veil': for (let i = 0; i < 3; i++) R(6 + i * 2, top - 2 + (i % 2), 1, 12, i % 2 ? A[0]! : A[2]!); R(5, top - 3, 6, 1, A[3]!); break; // a curtain of water
+    case 'lotus': R(5, h - 3, 1, 1, '#FFFFFF'); R(4, h - 2, 3, 1, A[0]!); R(3, h - 1, 5, 1, A[1]!); R(5, h, 1, 2, W[3]!); break; // an ice lotus
+    case 'bowl': R(4, h - 1, 5, 2, E[2]!); R(5, h - 2, 3, 1, A[1]!); R(6, h - 5, 1, 2, A[0]!); break; // a bowl of spring water
+    case 'fist': R(4, h - 3, 4, 4, E[1]!); R(5, h - 2, 2, 2, '#FFE08A'); R(8, h - 2, 1, 2, '#FFE08A'); break; // a golden vajra fist
+    case 'longstaff': R(-8, top - 3, 22, 1, E[3]!); R(-8, top - 3, 1, 1, E[0]!); R(13, top - 3, 1, 1, E[0]!); R(3, top - 2, 2, 3, '#E9C9A4'); break; // a long staff held overhead
+    case 'bell': R(5, h - 5, 1, 2, E[3]!); R(4, h - 3, 4, 4, O); R(5, h - 3, 2, 3, E[1]!); R(5, h, 2, 1, '#FFE08A'); break; // a golden bell
+    case 'iron': R(-5, top + 1, 2, 3, M[3]!); R(3, top + 1, 2, 3, M[3]!); R(-2, top + 3, 4, 2, M[2]!); R(4, h - 1, 3, 3, M[3]!); break; // iron skin over arms and chest
+    case 'beads': for (const [dx, dy] of [[4, 0], [5, 1], [6, 2], [7, 1], [8, 0], [6, -1]] as const) R(dx, h + dy - 2, 1, 1, dy % 2 ? E[1]! : '#7A4A2A'); break; // prayer beads
+    case 'torch': R(5, h - 6, 1, 7, '#6E4A30'); R(4, h - 9, 3, 3, F[1]!); R(5, h - 10, 1, 2, '#FFE08A'); break;
+    case 'darts': for (const dy of [-2, 0]) { R(5, h + dy, 5, 1, W[3]!); R(10, h + dy, 1, 1, '#FFFFFF'); } break;
+  }
+}
+
+// A flier's mount under it (looks.ts per sect), drawn first so the rider sits on it.
+function drawMount(g: CanvasRenderingContext2D, m: string, b: number, P: readonly string[], side: Side) {
+  const x = FIG_X, y = FIG_Y, O = '#1A1418', M = palette.get('metal')!, E = palette.get('earth')!, Y = palette.get('yinyang')!;
+  const R = (dx: number, dy: number, w: number, h: number, c: string) => { g.fillStyle = c; g.fillRect(x + dx, y + dy, w, h); };
+  const f = b ? -1 : 0; // wingbeat
+  switch (m) {
+    case 'kite': // a fire kite behind the rider, its tail streaming back
+      for (let r = 0; r < 9; r++) { const w = 2 * Math.min(r, 8 - r) + 1; R(-w - 1, -18 + r + b, 2 * w + 2, 1, O); }
+      for (let r = 1; r < 8; r++) { const w = 2 * Math.min(r, 8 - r); R(-w, -18 + r + b, 2 * w, 1, r % 3 ? P[1]! : P[0]!); }
+      R(-1, -18 + b, 1, 9, P[3]!); R(-8, -14 + b, 16, 1, P[3]!);
+      for (let k = 0; k < 4; k++) R(-10 - k * 2, -9 + (k % 2) + b, 2, 1, k % 2 ? P[0]! : P[2]!);
+      break;
+    case 'crane': // a white crane, long neck forward, wings out
+      R(-9, -7 + b, 16, 5, O); R(-8, -6 + b, 14, 3, Y[0]!); R(-8, -4 + b, 14, 1, Y[2]!);
+      R(6, -12 + b, 2, 7, O); R(7, -11 + b, 1, 6, Y[0]!); R(7, -13 + b, 4, 2, O); R(8, -13 + b, 2, 1, Y[0]!); R(11, -13 + b, 2, 1, E[1]!); R(8, -14 + b, 1, 1, '#D2412F'); // neck, head, beak, red crown
+      R(-14, -10 + f + b, 9, 2, O); R(-13, -10 + f + b, 7, 1, Y[1]!); R(-12, -9 + f + b, 2, 1, O); // a wing
+      R(-12, -2, 1, 2, O); R(-2, -2, 1, 2, O); // legs trailing
+      break;
+    case 'flysword': // a long sword flying flat under the rider's feet, a streak of qi behind
+      R(-11, -4 + b, 24, 2, O); R(-10, -4 + b, 22, 1, M[0]!); R(12, -4 + b, 1, 1, '#FFFFFF'); R(-11, -5 + b, 3, 4, E[3]!); R(-12, -4 + b, 1, 2, P[0]!);
+      for (let k = 0; k < 3; k++) R(-15 - k * 2, -3 + b, 1, 1, M[1 + k]!);
+      break;
+    case 'swallow': // a swallow in the mist, forked tail
+      R(-7, -7 + b, 13, 4, O); R(-6, -6 + b, 11, 2, P[4]!); R(-6, -5 + b, 11, 1, Y[0]!);
+      R(5, -9 + b, 4, 4, O); R(6, -8 + b, 2, 2, P[4]!); R(9, -7 + b, 2, 1, E[1]!);
+      R(-12, -8 + b, 5, 1, O); R(-13, -9 + b, 2, 1, O); R(-12, -6 + b, 5, 1, O); R(-13, -5 + b, 2, 1, O); // forked tail
+      R(-4, -12 + f + b, 8, 2, O); R(-3, -12 + f + b, 6, 1, P[3]!); // a wing up
+      break;
+    case 'hawk': // a cliff hawk, brown, hooked beak, wings wide
+      R(-8, -7 + b, 15, 5, O); R(-7, -6 + b, 13, 3, E[3]!); R(-7, -4 + b, 13, 1, E[4]!);
+      R(6, -10 + b, 5, 5, O); R(7, -9 + b, 3, 3, E[2]!); R(10, -8 + b, 2, 2, '#FFE08A'); R(8, -9 + b, 1, 1, O);
+      R(-15, -11 + f + b, 10, 2, O); R(-14, -11 + f + b, 8, 1, E[2]!); R(5, -11 + f + b, 6, 1, O);
+      R(-11, -5 + b, 3, 1, E[0]!);
+      break;
+  }
+  R(-3, -3 + b, 6, 1, SIDE[side]); // a strap in the side colour
 }
 
 // A beast's figure facing right, feet at (FIG_X, FIG_Y), in its element's palette shades (effects.json render.palette:
@@ -795,6 +905,53 @@ function drawBeast(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b:
       if (d.ability?.kind === 'ward') { R(-6, -20 + b, 12, 1, P[0]!); R(-9, -19 + b, 3, 1, P[0]!); R(6, -19 + b, 3, 1, P[0]!); } // the ward's halo
       break;
     }
+    case 'phoenix': { // a fire phoenix: one great wing raised, a crested head, long tail plumes streaming back
+      const f = b ? -1 : 0;
+      for (let k = 0; k < 8; k++) { R(-3 - k, -18 - k + f, 4 + Math.min(k, 3), 2, O); }
+      for (let k = 0; k < 8; k++) { R(-2 - k, -18 - k + f, 2 + Math.min(k, 3), 1, k % 2 ? P[1]! : P[0]!); R(-2 - k, -17 - k + f, 1, 1, P[3]!); }
+      for (let k = 0; k < 4; k++) R(-13 + k * 2, -26 + f, 1, 2, EYE); // flaming feather tips
+      body(-6, -17 + b, 12, 6, P[1]); R(-5, -13 + b, 10, 1, P[0]!);
+      for (const [px, len, c] of [[-7, 9, P[1]!], [-7, 7, P[0]!], [-7, 5, P[2]!]] as const) { for (let k = 0; k < len; k++) R(px - k, -13 + Math.round(k * 0.6) + (len - 7) + b, 1, 2, k % 3 ? c : EYE); }
+      R(4, -23 + b, 6, 7, O); R(5, -22 + b, 4, 5, P[0]!); eye(7, -21 + b); R(10, -20 + b, 3, 2, O); R(10, -20 + b, 2, 1, EYE); // head and beak
+      R(5, -27 + b, 1, 4, P[1]!); R(7, -28 + b, 1, 5, EYE); R(9, -26 + b, 1, 3, P[1]!); // crest
+      R(3, -16 + b, 3, 2, SIDE[side]); // collar
+      R(-1, -11 + b, 1, 3, O); R(2, -11 + b, 1, 3, O); // talons tucked
+      break;
+    }
+    case 'naga': { // a great water serpent: coils on the ground, its neck reared up under a spread hood and a crown
+      body(-13, -6, 17, 4, P[2]); body(-10, -9, 13, 3, P[1]); R(-12, -4, 15, 1, P[0]!);
+      R(-15, -5, 3, 2, O); R(-16, -6, 2, 1, P[0]!); // the tail tip and its fin
+      for (let k = 0; k < 6; k++) { R(2 + Math.round(k * 0.6) - 1, -10 - k * 2 + b - 1, 6, 3, O); R(2 + Math.round(k * 0.6), -10 - k * 2 + b, 4, 2, k % 2 ? P[2]! : P[1]!); R(5 + Math.round(k * 0.6), -10 - k * 2 + b, 1, 2, P[0]!); }
+      R(1, -27 + b, 12, 7, O); R(2, -26 + b, 10, 5, P[3]!); R(3, -25 + b, 2, 3, P[0]!); R(9, -25 + b, 2, 3, P[0]!); // the hood
+      R(5, -26 + b, 5, 5, P[1]!); eye(6, -25 + b); eye(9, -25 + b); R(12, -22 + b, 2, 1, '#E23B2E'); // the head, eyes, tongue
+      R(5, -29 + b, 1, 2, EYE); R(7, -30 + b, 1, 3, EYE); R(9, -29 + b, 1, 2, EYE); // the crown
+      R(-8, -10, 6, 1, SIDE[side]);
+      break;
+    }
+    case 'treant': { // the bamboo warden: a giant of bound bamboo stalks, root feet, leaf crown, glowing eyes
+      const W = P;
+      for (const lx of [-5, 2]) { R(lx - 1, -9, 5, 9, O); R(lx, -8, 3, 8, W[3]!); R(lx, -5, 3, 1, W[4]!); R(lx - 2, -1, 7, 1, W[4]!); } // trunk legs, roots
+      R(-8, -26 + b, 16, 18, O);
+      [-7, -4, -1, 2, 5].forEach((sx, k) => { R(sx, -25 + (k % 2) + b, 3, 17 - (k % 2), k % 2 ? W[2]! : W[1]!); for (let ny = -21; ny < -9; ny += 4) R(sx, ny + (k % 2) + b, 3, 1, W[4]!); });
+      R(0, -21 + b, 2, 1, EYE); R(4, -21 + b, 2, 1, EYE); // eyes in the trunk
+      for (const [lx, ly] of [[-8, -28], [-4, -30], [0, -29], [4, -30], [7, -28]] as const) { R(lx, ly + b, 3, 2, W[0]!); R(lx + 1, ly + 2 + b, 1, 1, W[2]!); } // the leaf crown
+      R(8, -18 + b, 2, 2, O); R(9, -17 + b, 4, 1, W[3]!); R(12, -18 + b, 2, 2, W[0]!); R(13, -15 + b, 2, 2, W[0]!); // a branch arm, leaves
+      R(-7, -13 + b, 15, 1, SIDE[side]); // a binding cord in the side colour
+      break;
+    }
+    case 'statue': { // the stone door guardian: a block body on a slab, fierce square head under a gold helm, a stone club
+      const Y = palette.get('yinyang')!, G = palette.get('earth')!;
+      R(-9, -1, 18, 1, Y[3]!); // its slab
+      for (const lx of [-6, 1]) { R(lx - 1, -8, 6, 8, O); R(lx, -7, 4, 6, Y[2]!); R(lx, -2, 4, 1, Y[3]!); }
+      R(-8, -21 + b, 16, 14, O); R(-7, -20 + b, 14, 12, Y[2]!); R(-7, -20 + b, 3, 12, Y[3]!); // the block body
+      R(-9, -21 + b, 4, 4, O); R(-8, -20 + b, 3, 2, G[1]!); R(5, -21 + b, 4, 4, O); R(6, -20 + b, 3, 2, G[1]!); // gold shoulder plates
+      R(-7, -11 + b, 14, 2, G[1]!); R(-1, -11 + b, 2, 2, SIDE[side]); // the belt and its buckle in the side colour
+      R(-1, -17 + b, 1, 4, Y[3]!); R(2, -15 + b, 2, 1, Y[3]!); // cracks
+      R(-4, -28 + b, 9, 8, O); R(-3, -27 + b, 7, 6, Y[1]!); R(-2, -25 + b, 2, 1, O); R(2, -25 + b, 2, 1, O); eye(-2, -24 + b); eye(2, -24 + b); R(-1, -22 + b, 4, 1, O); // the fierce face
+      R(-5, -30 + b, 11, 3, O); R(-4, -29 + b, 9, 1, G[1]!); R(0, -31 + b, 1, 2, G[0]!); // the gold helm
+      R(7, -25 + b, 5, 7, O); R(8, -24 + b, 3, 5, Y[3]!); R(8, -24 + b, 1, 1, Y[1]!); R(10, -22 + b, 1, 1, Y[1]!); R(8, -18 + b, 2, 8, G[3]!); // the club
+      break;
+    }
     case 'dragon': { // the biggest silhouettes on the field: horns, spines and a tail; the flier coils like a serpent
       if (d.move === 'fly') {
         const wave = (k: number) => Math.round(Math.sin(k / 4 + b) * 3);
@@ -826,15 +983,26 @@ function drawBeast(g: CanvasRenderingContext2D, d: BattleUnitDef, side: Side, b:
   }
 }
 
-// A card's face for the HUD: the figure at 3 css pixels per board unit, cropped to the body.
+// A card's face for the HUD: its whole figure, never cropped (fitted from its drawn bounds), in board pixels that CSS scales
+// up crisp (canvas.portrait). A small card stands smaller in its frame and a large one fills it, so size reads at a glance.
+const FILL: Record<string, number> = { small: 0.66, medium: 0.82, large: 1 };
+const boundsOf = new Map<string, { l: number; t: number; r: number; b: number }>();
 export function portrait(card: string, side: Side = 0, flip = false): HTMLCanvasElement {
+  const f = figure(card, side, flip, 0, null), key = `${card}|${side}|${flip}`;
+  let bb = boundsOf.get(key);
+  if (!bb) {
+    const a = f.getContext('2d')!.getImageData(0, 0, FIG_W, FIG_H).data;
+    bb = { l: FIG_W, t: FIG_H, r: 0, b: 0 };
+    for (let y = 0; y < FIG_H; y++) for (let x = 0; x < FIG_W; x++) if (a[(y * FIG_W + x) * 4 + 3]) { bb.l = Math.min(bb.l, x); bb.r = Math.max(bb.r, x); bb.t = Math.min(bb.t, y); bb.b = Math.max(bb.b, y); }
+    boundsOf.set(key, bb);
+  }
+  const w = bb.r - bb.l + 1, h = bb.b - bb.t + 1, n = Math.ceil(Math.max(w, h) / (FILL[defOf(card).size] ?? 0.82)) + 2;
   const c = document.createElement('canvas');
-  c.width = 28 * 3; c.height = 30 * 3;
+  c.width = n; c.height = n;
   c.className = 'portrait';
   const g = c.getContext('2d')!;
   g.imageSmoothingEnabled = false;
-  const body = defOf(card).body, low = body !== 'dragon' && !['human', 'archer', 'ghoul'].includes(body); // beasts sit low in the figure: crop lower
-  g.drawImage(figure(card, side, flip, 0, null), 2, low ? 6 : 2, 28, 30, 0, 0, 28 * 3, 30 * 3);
+  g.drawImage(f, bb.l, bb.t, w, h, Math.floor((n - w) / 2), n - 1 - h, w, h); // centred, standing on the bottom edge
   return c;
 }
 

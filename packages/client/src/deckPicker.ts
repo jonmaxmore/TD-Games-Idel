@@ -19,7 +19,7 @@ type Filter = { kind: string; cost: string; role: string };
 const FILTERS: { key: keyof Filter; label: string; opts: [string, string][]; test: (c: string, v: string) => boolean }[] = [
   { key: 'kind', label: 'ชนิด', opts: [...battle.kinds], test: (c, v) => battleUnits.get(c)!.kind === v },
   { key: 'cost', label: 'ปราณ', opts: [1, 2, 3, 4, 5, 6, 7].map((n) => [String(n), String(n)]), test: (c, v) => battleUnits.get(c)!.mana === Number(v) },
-  { key: 'role', label: 'บทบาท', opts: [['บุก', 'ตัวบุก'], ['สกัด', 'ตัวสกัด']], test: (c, v) => battle.moves.get(battleUnits.get(c)!.move)!.roleTh === v },
+  { key: 'role', label: 'บทบาท', opts: [...new Set([...battle.moves.values()].map((m) => m.roleTh))].map((r) => [r, `ตัว${r}`]), test: (c, v) => battle.moves.get(battleUnits.get(c)!.move)!.roleTh === v },
 ];
 type Role = 'leader' | 'sub';
 const ROLE_TH: Record<Role, string> = { leader: 'แม่ทัพ', sub: 'รองแม่ทัพ' };

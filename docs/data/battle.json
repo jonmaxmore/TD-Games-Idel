@@ -27,7 +27,7 @@
     "capture": { "role": "บุก", "speed": 0.6, "nameTh": "ยึด", "doesTh": "เดินช้า ยืนบนป้อมกลางจนยึดได้" },
     "guard": { "role": "สกัด", "speed": 0.8, "nameTh": "สกัด", "doesTh": "เฝ้าจุดที่ลง ออกไปสกัดศัตรูที่เข้าใกล้ แล้วกลับที่เดิม" },
     "fly": { "role": "บุก", "speed": 1.2, "nameTh": "เหาะ", "doesTh": "บินข้ามแนวศัตรูภาคพื้น" },
-    "support": { "role": "บุก", "speed": 1.0, "nameTh": "หนุน", "doesTh": "ตามแนวหน้า รักษาพวก" }
+    "support": { "role": "หนุน", "speed": 1.0, "nameTh": "หนุน", "doesTh": "ตามแนวหน้า รักษาพวก" }
   },
   "guardLeashTiles": 4,
   "meleeRange": 0.8,

@@ -20,8 +20,9 @@ import { nowrapWords } from './words';
 
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
 // A card's level and realm (progression.json realms) as a small badge in the realm's colour; the tooltip says what it is.
-export function realmBadge(level: number): HTMLElement {
-  const r = realmOf(level), b = el('i', `realm realm-${r.id}`, `Lv${level} ${r.nameTh}`);
+// short: the level alone (the hand, where the badge must stay off the face).
+export function realmBadge(level: number, short = false): HTMLElement {
+  const r = realmOf(level), b = el('i', `realm realm-${r.id}`, short ? `Lv${level}` : `Lv${level} ${r.nameTh}`);
   b.style.setProperty('--realm', r.color);
   b.title = `ขั้น${r.nameTh}: ${r.descTh}`;
   return b;
@@ -153,7 +154,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     const rank = card === o.team.leader ? 'แม่ทัพ' : card === o.team.sub ? 'รอง' : null;
     b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses);
     if (rank) b.append(el('em', 'rank', rank));
-    if (!o.normalized) b.append(realmBadge(levelOf(o.progress[0], card)));
+    if (!o.normalized) b.append(realmBadge(levelOf(o.progress[0], card), true));
     b.append(nowrapWords(el('b', 'name'), def.nameTh), el('small', 'role', m.roleTh));
     b.addEventListener('pointerdown', (ev) => { hideTip(); if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
     b.addEventListener('pointerenter', () => { hover = slot; showTip(slot); });
