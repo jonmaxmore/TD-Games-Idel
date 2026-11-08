@@ -5,6 +5,7 @@ import { buildServer, DirStore, localOrigins, originList } from './server';
 const port = Number(process.env.PORT ?? 8787), host = process.env.HOST ?? '127.0.0.1';
 const { app } = await buildServer({
   logger: true,
+  log: (msg, data) => app.log.info(data ?? {}, msg), // room events; never a token or a message body
   origins: process.env.ORIGINS ? originList(process.env.ORIGINS) : localOrigins,
   store: process.env.REPLAY_DIR ? new DirStore(process.env.REPLAY_DIR) : undefined,
 });

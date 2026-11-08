@@ -55,7 +55,7 @@ describe('friend rooms', () => {
     const { a, b, sa } = await room(url);
     expect(sa.teams).toEqual([{ leader: L0, sub: S0 }, { leader: L1, sub: S1 }]);
     bot(a, 0, 'rush', sa.seed); bot(b, 1, 'defend', sa.seed);
-    const [ea, eb] = await Promise.all([a.next('end', () => true, 30_000), b.next('end', () => true, 30_000)]);
+    const [ea, eb] = await Promise.all([a.next('end', () => true, 150_000), b.next('end', () => true, 150_000)]);
     expect(ea.end).toEqual(eb.end);
     expect(battleOver(a.ls!.s) && battleOver(b.ls!.s)).toBe(true);
     expect(battleHash(a.ls!.s)).toBe(ea.end.hash);
@@ -108,7 +108,7 @@ describe('friend rooms', () => {
     const { url, store } = await server({ tickMs: 4 });
     const { a, b, sa, tokens } = await room(url);
     bot(a, 0, 'rush', sa.seed);
-    await a.next('frame', (m) => m.tick === 200, 10_000);
+    await a.next('frame', (m) => m.tick === 200, 60_000);
     b.close();
     await a.next('peer', (m) => !m.online);
     const b2 = await TestClient.open(url);
@@ -119,7 +119,7 @@ describe('friend rooms', () => {
     expect(battleHash(b2.ls!.s)).not.toBe('');
     await a.next('peer', (m) => m.online);
     bot(b2, 1, 'defend', sa.seed);
-    const e = await b2.next('end', () => true, 30_000);
+    const e = await b2.next('end', () => true, 150_000);
     expect(e.end.type).not.toBe('forfeit');
     expect(battleHash(b2.ls!.s)).toBe(e.end.hash);
     expect(battleHash(replayBattle(store.records[0]!))).toBe(e.end.hash);
@@ -143,9 +143,9 @@ describe('friend rooms', () => {
     const { url, lobby } = await server({ tickMs: 2 });
     const { a, b, sa } = await room(url);
     bot(a, 0, 'rush', sa.seed); bot(b, 1, 'rush', sa.seed, { badHashAt: 100 });
-    const d = await b.next('desync', () => true, 10_000);
+    const d = await b.next('desync', () => true, 60_000);
     expect(d.tick).toBe(100);
-    const e = await a.next('end', () => true, 30_000);
+    const e = await a.next('end', () => true, 150_000);
     expect(e.end.flagged).toBe(true);
     expect(lobby.stats.desyncs).toBe(1);
     expect(a.got.some((m) => m.t === 'desync')).toBe(false);

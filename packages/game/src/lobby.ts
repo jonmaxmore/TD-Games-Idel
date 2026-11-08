@@ -63,6 +63,7 @@ export class Lobby {
   private createLimit = new Limiter(5, 5 / 60);
   private joinLimit = new Limiter(10, 10 / 60);
   private cmdLimit = new Limiter(10, 6);
+  private guestLimit = new Limiter(10, 10 / 60); // new guest identities per IP
   private sweeper: NodeJS.Timeout;
   readonly stats = { matches: 0, desyncs: 0, rejects: {} as Record<string, number>, lateMs: [] as number[], slack: [] as number[] };
 
@@ -109,6 +110,7 @@ export class Lobby {
     if (m.v !== PROTOCOL_VERSION) { this.send(conn, { t: 'error', code: 'version' }); conn.close(1008, 'version'); return null; }
     let token = m.token, p = token ? this.players.get(sha(token)) : undefined;
     if (!p) {
+      if (!this.guestLimit.take(conn.ip)) { this.send(conn, { t: 'error', code: 'rate_limited' }); conn.close(1008, 'rate'); return null; }
       if (this.players.size >= this.o.maxPlayers) { this.send(conn, { t: 'error', code: 'server_full' }); conn.close(1013, 'full'); return null; }
       token = randomBytes(32).toString('base64url');
       p = { id: randomBytes(8).toString('hex'), tokenHash: sha(token), name: '', conn: null, room: null, seat: 0, leftAt: 0 };
@@ -249,9 +251,14 @@ export class Lobby {
     m.timer = setTimeout(() => {
       m.timer = null;
       let n = 0;
-      while (r.match === m && !battleOver(m.s) && Date.now() >= m.startAt + m.s.tick * this.o.tickMs && n++ < 5) {
-        m.timing.lateMs.push(Date.now() - (m.startAt + m.s.tick * this.o.tickMs));
-        this.step(r);
+      try {
+        while (r.match === m && !battleOver(m.s) && Date.now() >= m.startAt + m.s.tick * this.o.tickMs && n++ < 5) {
+          m.timing.lateMs.push(Date.now() - (m.startAt + m.s.tick * this.o.tickMs));
+          this.step(r);
+        }
+      } catch (e) { // one broken match must not take the process (and every other room) down with it
+        this.log('match failed', { room: r.code, err: String(e) });
+        return this.closeRoom(r, 'room_closed');
       }
       if (r.match === m && !battleOver(m.s)) this.schedule(r);
     }, Math.max(0, m.startAt + m.s.tick * this.o.tickMs - Date.now()));
@@ -334,8 +341,9 @@ export class Lobby {
     if (m.timer) clearTimeout(m.timer);
     for (const g of m.grace) if (g) clearTimeout(g);
     m.s.winner ??= end.winner; // a forfeit stops the sim where it stands
-    this.stats.lateMs.push(...m.timing.lateMs);
-    this.stats.slack.push(...m.slack);
+    const keep = (xs: number[], add: number[]) => { xs.push(...add); if (xs.length > 20_000) xs.splice(0, xs.length - 20_000); };
+    keep(this.stats.lateMs, m.timing.lateMs);
+    keep(this.stats.slack, m.slack);
     const rec: MatchRecord = {
       id: randomBytes(8).toString('hex'), code: r.code, names: [r.seats[0]!.name, r.seats[1]!.name], end, playedAt: new Date().toISOString(),
       seed: m.seed, setups: [pvpSetup(m.teams[0]), pvpSetup(m.teams[1])], opts: { ...PVP_OPTS }, commands: framesToCommands(m.frames),
@@ -348,10 +356,11 @@ export class Lobby {
     this.rooms.delete(r.code);
   }
 
-  // Guests with no connection and no room for an hour are forgotten; idle limiter entries too.
+  // Guests with no connection and no room for 10 minutes are forgotten (a later hello just gets a new token); idle
+  // limiter entries too.
   private sweep(): void {
     const t = Date.now();
-    for (const [k, p] of this.players) if (!p.conn && !p.room && t - p.leftAt > 3_600_000) this.players.delete(k);
-    this.createLimit.sweep(); this.joinLimit.sweep(); this.cmdLimit.sweep();
+    for (const [k, p] of this.players) if (!p.conn && !p.room && t - p.leftAt > 600_000) this.players.delete(k);
+    this.createLimit.sweep(); this.joinLimit.sweep(); this.cmdLimit.sweep(); this.guestLimit.sweep();
   }
 }
