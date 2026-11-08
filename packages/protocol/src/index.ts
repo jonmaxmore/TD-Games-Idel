@@ -19,6 +19,10 @@ export const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTWXYZ';
 export const CODE_LEN = 6;
 export const NAME_MAX = 16;
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/; // 32 random bytes, base64url
+// The token travels in hello, so a release build only talks to wss://; plain ws:// is for a server on this machine in dev.
+export const LOOPBACK_WS = /^wss?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?\/[\w/]*$/;
+export const wsUrlError = (url: string, prod: boolean): string | null =>
+  url.startsWith('wss://') ? null : !url.startsWith('ws://') ? 'not a WebSocket URL' : prod ? 'ws:// in a release build' : LOOPBACK_WS.test(url) ? null : 'ws:// off this machine';
 
 // ---- the shapes ----
 export interface TeamPick { leader: string; sub: string }
@@ -31,6 +35,7 @@ export type ClientMsg =
   | { t: 'team'; team: TeamPick }
   | { t: 'ready'; on: boolean }
   | { t: 'leave' }
+  | { t: 'kick' } // the host sends the guest out of the room (before the match) and keeps them out
   | { t: 'cmd'; tick: number; c: NetCommand }
   | { t: 'hash'; tick: number; h: string }
   | { t: 'ping'; n: number };
@@ -40,7 +45,7 @@ export type EndType = ResultType | 'forfeit';
 export interface MatchEnd { winner: Side | -1; type: EndType; step: TiebreakStep | null; tick: number; hash: string; castles: [number, number]; flagged: boolean }
 export type ErrorCode =
   | 'bad_message' | 'version' | 'need_hello' | 'rate_limited' | 'room_not_found' | 'room_full' | 'room_closed' | 'not_in_room'
-  | 'bad_team' | 'no_team' | 'in_match' | 'server_full' | 'replaced';
+  | 'bad_team' | 'no_team' | 'in_match' | 'server_full' | 'replaced' | 'kicked' | 'idle';
 export type RejectCode = 'wrong_side' | 'late' | 'too_early' | 'not_in_hand' | 'too_many' | 'not_running' | 'sim';
 export type ServerMsg =
   | { t: 'welcome'; v: number; token: string; name: string; delay: number; tickMs: number }
@@ -126,6 +131,7 @@ const CLIENT: Record<ClientMsg['t'], Check<unknown>> = {
   team: obj({ t: oneOf('team'), team }),
   ready: obj({ t: oneOf('ready'), on: bool }),
   leave: obj({ t: oneOf('leave') }),
+  kick: obj({ t: oneOf('kick') }),
   cmd: obj({ t: oneOf('cmd'), tick: tickNum, c: command }),
   hash: obj({ t: oneOf('hash'), tick: tickNum, h: str(8, /^[0-9a-f]{8}$/) }),
   ping: obj({ t: oneOf('ping'), n: int(0, 2 ** 31) }),
@@ -144,7 +150,7 @@ const SERVER: Record<ServerMsg['t'], Check<unknown>> = {
   peer: obj({ t: oneOf('peer'), seat: sideNum, online: bool, graceSec: int(0, 3600) }),
   desync: obj({ t: oneOf('desync'), tick: tickNum }),
   end: obj({ t: oneOf('end'), end }),
-  error: obj({ t: oneOf('error'), code: oneOf('bad_message', 'version', 'need_hello', 'rate_limited', 'room_not_found', 'room_full', 'room_closed', 'not_in_room', 'bad_team', 'no_team', 'in_match', 'server_full', 'replaced') }),
+  error: obj({ t: oneOf('error'), code: oneOf('bad_message', 'version', 'need_hello', 'rate_limited', 'room_not_found', 'room_full', 'room_closed', 'not_in_room', 'bad_team', 'no_team', 'in_match', 'server_full', 'replaced', 'kicked', 'idle') }),
   pong: obj({ t: oneOf('pong'), n: int(0, 2 ** 31), tick: tickNum }),
 };
 
