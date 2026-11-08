@@ -29,11 +29,13 @@ export interface MatchOpts {
   modeTh: string; // the mode named on our castle bar
   stage?: { rules: StageRules; enemy: BattleSetup; nameTh: string; gimmickTh: string }; // a ศึกปราบ stage: its rules and enemy
   replay?: BattleRecord; // plays this record back instead: no input, no bots
+  onQuit: () => void; // the pause menu's way out: leave the match with no result
 }
-// record: the match as played, for the ranked replay; hash: its final state; stars: the ศึกปราบ goals reached.
+// record: the match as played, for the ranked replay; hash: its final state; stars: the ศึกปราบ goals reached;
+// foeDmg: the damage each enemy card dealt our side, for the loss tip.
 export interface MatchResult {
   winner: Side | -1; type: ResultType; step: TiebreakStep | null; castles: [number, number]; tick: number; hand: string[];
-  record: BattleRecord; hash: string; stars: [boolean, boolean, boolean];
+  record: BattleRecord; hash: string; stars: [boolean, boolean, boolean]; foeDmg: Record<string, number>;
 }
 
 const TOP_H = 64, BOTTOM_H = 150; // HUD bands over the canvas, in stage pixels
@@ -130,7 +132,6 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   let sel: number | 'cannon' | null = null; // the hand slot picked, or the cannon
   let hover: number | null = null; // the hand slot under the pointer
   let drag: { x: number; y: number; moved: boolean } | null = null;
-  let paused = false;
   let lastPointer: { x: number; y: number } | null = null;
 
   function toast(msg: string, cls = '') {
@@ -198,16 +199,33 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   canvas.addEventListener('pointerdown', (ev) => { if (human && !drag) summonAt({ x: ev.clientX, y: ev.clientY }); });
   canvas.addEventListener('pointerleave', () => { board.aim = null; });
 
-  pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'เล่น' : 'หยุด'; };
+  // The pause menu (Esc, P or หยุด): the sim does not step while it is open.
+  const pauseBox = el('div', 'modal pause'), pauseMute = el('button', 'pause-mute');
+  const showPauseMute = () => { pauseMute.textContent = set.muted ? 'เปิดเสียง' : 'ปิดเสียง'; };
+  pauseMute.onclick = () => { set.muted = !set.muted; changed(); showPauseMute(); };
+  const resume = el('button', 'primary', 'เล่นต่อ'), quit = el('button', '', 'กลับล็อบบี้');
+  quit.onclick = () => o.onQuit();
+  const pauseRow = el('div', 'pause-menu');
+  pauseRow.append(resume, pauseMute, quit);
+  pauseBox.append(el('h2', '', 'หยุดเกม'), pauseRow, el('p', 'dim', 'Esc เล่นต่อ'));
+  let paused = false;
+  const setPaused = (on: boolean) => {
+    paused = on;
+    pauseBtn.textContent = on ? 'เล่น' : 'หยุด';
+    if (on) { showPauseMute(); root.append(pauseBox); resume.focus(); } else pauseBox.remove();
+  };
+  resume.onclick = () => setPaused(false);
+  pauseBtn.onclick = () => setPaused(!paused);
   speedBtn.onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; speedBtn.textContent = `x${speed}`; };
-  // Keyboard: 1-7 pick a card, Space picks the cannon, Esc drops the pick, P pauses.
+  // Keyboard: 1-7 pick a card, Space picks the cannon, Esc drops the pick (or pauses with none picked), P pauses.
   const onKey = (ev: KeyboardEvent) => {
     if (ev.repeat || battleOver(s)) return;
     const n = Number(ev.key);
-    if (human && n >= 1 && n <= cards.length) pick(n - 1);
+    if (ev.key === 'Escape') { if (sel != null && !paused) pick(null); else setPaused(!paused); }
+    else if (ev.key === 'p') setPaused(!paused);
+    else if (paused) return;
+    else if (human && n >= 1 && n <= cards.length) pick(n - 1);
     else if (ev.code === 'Space') { ev.preventDefault(); if (human) pick('cannon'); }
-    else if (ev.key === 'Escape') pick(null);
-    else if (ev.key === 'p') pauseBtn.click();
   };
   addEventListener('keydown', onKey);
 
@@ -260,9 +278,13 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   }
 
   let lastPhase = 0;
+  const foeCard = new Map<number, string>(), foeDmg: Record<string, number> = {}; // enemy unit id -> card; card -> damage dealt us
   function onEvents(ev: BattleEvent[]) {
     for (const e of ev) {
+      if (e.e === 'spawn' && e.side === 1) foeCard.set(e.id!, e.type!);
       if (e.e === 'hit') {
+        const foe = foeCard.get(e.from ?? 0);
+        if (foe) foeDmg[foe] = (foeDmg[foe] ?? 0) + (e.dmg ?? 0);
         play(e.from != null && e.from < 0 ? 'shoot' : 'hit', 0.08);
         if (e.type === 'castle') play('castle', 0.1);
         if ((e.from ?? 0) >= 1 && (e.to ?? 0) >= 1) game.fights++;
@@ -303,7 +325,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
       ended = true;
       const d = decision(s);
       const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick, hand: [...s.hands[0]],
-        record: { seed, setups, opts, commands: log }, hash: battleHash(s), stars: starsOf(s) };
+        record: { seed, setups, opts, commands: log }, hash: battleHash(s), stars: starsOf(s), foeDmg };
       setTimeout(() => onEnd(r), 1200); // the last blow lands before the result covers the field
     }
     manaFill.style.width = `${(100 * Math.min(battle.manaMax, s.mana[0] + manaProgress())) / battle.manaMax}%`;
