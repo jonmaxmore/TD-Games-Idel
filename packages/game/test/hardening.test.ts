@@ -158,6 +158,19 @@ describe('rooms', () => {
     vi.spyOn(Date, 'now').mockReturnValue(t - 3_600_000);
     expect((await a.next('frame', (m) => m.tick === 30, 2000)).tick).toBe(30);
   });
+
+  it('message and command rates count match time, so a sped-up match does not cut a client within them', async () => {
+    const { url } = await server({ tickMs: 5, startDelayMs: 0 }); // 10x speed: 200 ticks are 10 s of match time in 1 s
+    const { a } = await room(url);
+    a.onMsg = (m) => {
+      if (m.t !== 'frame') return;
+      a.send({ t: 'ping', n: m.tick }); // 20 a match second, under 30
+      if (m.tick % 4 === 0) a.send({ t: 'cmd', tick: m.tick + 3, c: { t: 'cannon', side: 0, d: 0 } }); // 5, under 6
+    };
+    const cut = a.waitClose(5000).catch(() => null);
+    expect(await Promise.race([a.next('frame', (m) => m.tick === 200, 5000).then(() => null), cut])).toBe(null);
+    expect(a.got.filter((m) => m.t === 'reject' && m.code === 'too_many')).toEqual([]);
+  });
 });
 
 describe('replays and start-up', () => {
