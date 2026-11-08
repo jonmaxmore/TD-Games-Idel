@@ -171,6 +171,14 @@ export function playBattle(seed: number, p0: Policy, p1: Policy, setup0 = MIXED,
   return { state: s, commands };
 }
 
+// The anti-air lesson check (pve-campaign.md §9 item 4): run fn with these cards unable to hit fliers, then restore them.
+// It edits the shared card defs, so pass only the player's cards, none the stage's enemy plays.
+export function withoutAntiAir<T>(cards: readonly string[], fn: () => T): T {
+  const off = cards.map((c) => battleUnits.get(c)!).filter((d) => d.hitsAir);
+  for (const d of off) d.hitsAir = false;
+  try { return fn(); } finally { for (const d of off) d.hitsAir = true; }
+}
+
 // A ศึกปราบ stage, paced bot against the stage's paced enemy: the player's setup (with its progress) on side 0.
 export const playStage = (seed: number, st: Stage, player: BattleSetup): BattleResult => playBattle(seed, 'paced', 'paced', player, st.enemy, { stage: st.rules });
 // The balance gate's player at stage i: what a home sect owns when it first plays it (collection.ts ownedAt), led by the

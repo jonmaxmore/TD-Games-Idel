@@ -1,9 +1,10 @@
 // ศึกปราบ chapter 1 (campaign.json, SPEC-castle-battle §13): the data holds together, stars follow each stage's goals, and
 // the difficulty gate: the paced bot on the collection each home sect owns when it first plays a stage, Lv1, wins 1-1 at
-// least 80% and the boss 1-10 30-60%, and each stage is at least 2 points harder than the one before (mean over homes).
-import { describe, expect, it } from 'vitest';
-import { battle, createBattle, homeSects, rewardCard, stageCards, stages, starsOf, TICK_HZ } from '../src';
-import { ownedTeamAt, playStage } from './battleBot';
+// least 80% and the boss 1-10 30-60%, and each stage is at least 2 points harder than the one before (mean over homes);
+// no single home sect falls under a floor, and 1-6 is lost without anti-air.
+import { beforeAll, describe, expect, it } from 'vitest';
+import { battle, createBattle, homeSects, ownedAt, rewardCard, stageCards, stages, starsOf, TICK_HZ } from '../src';
+import { ownedTeamAt, playStage, withoutAntiAir } from './battleBot';
 
 describe('campaign data', () => {
   it('10 stages 1-1..1-10, the last the boss; every card known; leaders among the enemy cards; mana and rewards set', () => {
@@ -51,15 +52,46 @@ describe('stars', () => {
 });
 
 describe('campaign balance', () => {
+  // win % per stage per home sect (homeSects order), 100 seeds each
+  const bySect: number[][] = [];
+  beforeAll(async () => {
+    for (const [i, st] of stages.entries()) {
+      bySect.push(homeSects.map((home) => {
+        let w = 0;
+        for (let seed = 1; seed <= 100; seed++) w += +starsOf(playStage(seed, st, ownedTeamAt(home, i, 1)).state, st)[0];
+        return w;
+      }));
+      await new Promise((r) => setImmediate(r)); // let the vitest worker answer its RPC between stages
+    }
+  }, 180_000);
+  const table = () => bySect.map((r, i) => `${stages[i]!.id} ${r.join(' ')}`).join('\n');
+
   it('owned collection Lv1, paced bot, 100 seeds per home sect: 1-1 >= 80%, 1-10 30-60%, every stage >= 2 points below the last', () => {
-    const win = stages.map((st, i) => {
-      let w = 0;
-      for (const home of homeSects) for (let seed = 1; seed <= 100; seed++) w += +starsOf(playStage(seed, st, ownedTeamAt(home, i, 1)).state, st)[0];
-      return w / homeSects.length;
-    });
+    const win = bySect.map((r) => r.reduce((a, b) => a + b, 0) / homeSects.length);
     expect(win[0]!).toBeGreaterThanOrEqual(80);
     expect(win[9]!).toBeGreaterThanOrEqual(30);
     expect(win[9]!).toBeLessThanOrEqual(60);
     for (let i = 1; i < win.length; i++) expect(win[i]!, `stage ${stages[i]!.id} after ${win.join(',')}`).toBeLessThanOrEqual(win[i - 1]! - 2);
+  });
+
+  it('no home sect hits a wall: each wins 1-1..1-9 at least 40% and the boss 1-10 at least 30%, and the boss is its hardest stage', () => {
+    homeSects.forEach((home, h) => {
+      for (let i = 0; i < 9; i++) expect(bySect[i]![h]!, `${home} ${stages[i]!.id}\n${table()}`).toBeGreaterThanOrEqual(40);
+      expect(bySect[9]![h]!, `${home} 1-10\n${table()}`).toBeGreaterThanOrEqual(30);
+      expect(bySect[9]![h]!, `${home} 1-10\n${table()}`).toBeLessThan(Math.min(...bySect.slice(0, 9).map((r) => r[h]!)));
+    });
+  });
+
+  it('1-6 teaches anti-air: with its own cards unable to hit fliers, every home sect wins at least 25 points less', () => {
+    const i = stages.findIndex((s) => s.id === '1-6'), st = stages[i]!;
+    homeSects.forEach((home, h) => {
+      const theirs = new Set(stageCards(st).map((d) => d.id));
+      const blind = withoutAntiAir(ownedAt(home, i).filter((c) => !theirs.has(c)), () => {
+        let w = 0;
+        for (let seed = 1; seed <= 100; seed++) w += +starsOf(playStage(seed, st, ownedTeamAt(home, i, 1)).state, st)[0];
+        return w;
+      });
+      expect(blind, `${home}: ${bySect[i]![h]} -> ${blind}`).toBeLessThanOrEqual(bySect[i]![h]! - 25);
+    });
   });
 });
