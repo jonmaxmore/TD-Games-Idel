@@ -70,6 +70,10 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await sleep(150);
   await shot(p, '59-pick-sect-hover');
   await p.locator('.pick-card[data-home=fire]').click();
+  await sleep(150);
+  await shot(p, '59-pick-sect-selected');
+  check(await p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile') ?? '{}').home ?? null) === null, 'a click on a sect only selects it');
+  await p.locator('.pick-ok').click();
   await p.waitForSelector('.brief-body');
   await sleep(200);
   await shot(p, '59-pick-then-1-1');

@@ -90,15 +90,28 @@ function title(): () => void {
 }
 
 // ---- เลือกสำนักแรก (first run, ui-flow.md §2.1): one of five home sects; its blade, striker and control join the starter
-// cards everyone owns (collection.json), the striker leads. Then straight to stage 1-1. ----
+// cards everyone owns (collection.json), the striker leads. A click only selects; the pick is kept by the confirm button
+// under the cards, which says it is for good. Then straight to stage 1-1. ----
 function pickHome() {
   const r = el('div', 'screen pick');
   r.append(el('h1', '', 'เลือกสำนักแรก'), el('p', 'dim center', 'สำนักแรกคือบ้านเกิดของเรา ได้ศิษย์ 3 คนของสำนักนั้น พร้อมธงยึดป้อมทั้ง 5 สำนักและนักธนูพเนจร การ์ดสำนักอื่นได้ทีหลังจากด่านและร้านไข่'));
   const row = el('div', 'pick-row');
+  let chosen: string | null = null;
+  const ok = btn('', 'primary pick-ok', () => { if (!chosen) return; chooseHome(profile, chosen); save(profile); go({ k: 'brief', stage: stages[0]!.id }); });
+  const select = (home: string) => {
+    chosen = home;
+    for (const c of Array.from(row.children) as HTMLElement[]) { c.classList.toggle('sel', c.dataset.home === home); c.setAttribute('aria-pressed', String(c.dataset.home === home)); }
+    ok.textContent = `เริ่มที่${sects.get(home)!.nameTh}`;
+    ok.disabled = false;
+    ok.focus();
+  };
+  ok.textContent = 'เลือกสำนักก่อน';
+  ok.disabled = true;
   for (const home of homeSects) {
     const sc = sects.get(home)!, t = starterTeam(home), mine = starterCards(home).filter((c) => battleUnits.get(c)!.sect === home && !isBasic(c));
-    const b = btn('', 'pick-card', () => { chooseHome(profile, home); save(profile); go({ k: 'brief', stage: stages[0]!.id }); });
+    const b = btn('', 'pick-card', () => select(home));
     b.dataset.home = home;
+    b.setAttribute('aria-pressed', 'false');
     b.style.setProperty('--sect', sc.color);
     const faces = el('div', 'pick-faces');
     for (const c of mine) { const f = el('span', 'face'); f.append(cardArt(c) ?? portrait(c)); faces.append(f); }
@@ -106,7 +119,9 @@ function pickHome() {
       el('p', 'pick-tag', battleUnits.get(t.leader)!.tagTh));
     row.append(b);
   }
-  r.append(row, el('p', 'dim center small', 'ศึกฝีมือ (จัดอันดับ) ใช้การ์ดทุกใบที่ค่าเท่ากัน สำนักแรกจึงไม่ทำให้ได้เปรียบหรือเสียเปรียบ'));
+  const bar = el('div', 'pick-confirm');
+  bar.append(el('p', 'pick-warn', 'เลือกได้ครั้งเดียว เปลี่ยนภายหลังไม่ได้ · การ์ดสำนักอื่นยังได้จากด่านและร้านไข่'), ok);
+  r.append(row, el('p', 'dim center small', 'ศึกฝีมือ (จัดอันดับ) ใช้การ์ดทุกใบที่ค่าเท่ากัน สำนักแรกจึงไม่ทำให้ได้เปรียบหรือเสียเปรียบ'), bar);
   app.append(r);
 }
 

@@ -435,3 +435,9 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .confirm-row { display: flex; gap: 8px; margin-top: 8px; }
 .confirm-row > button { flex: 1; }
 .confirm-yes { background: var(--red); }
+
+/* เลือกสำนักแรก: the selected sect and the confirm bar */
+.pick-card.sel { box-shadow: 0 0 0 3px var(--gold), 0 0 22px color-mix(in srgb, var(--sect) 70%, transparent); transform: translateY(-4px); }
+.pick-confirm { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
+.pick-warn { margin: 0; font-size: 16px; color: #ffe08a; }
+.pick-ok { min-width: 260px; min-height: 56px; font-size: 20px; font-weight: 700; }
