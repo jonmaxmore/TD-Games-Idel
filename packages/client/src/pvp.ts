@@ -107,7 +107,9 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
     if (!s) { box.append(el('b', 'pvp-wait', 'รอเพื่อนเข้าห้อง…'), el('p', 'dim small', 'ส่งรหัสห้องให้เพื่อน แล้วให้เพื่อนกด "เข้าห้อง"')); return box; }
     box.append(nowrapWords(el('b', 'pvp-who'), `${s.name}${mine ? ' (เรา)' : ''}`));
     if (!s.online) box.append(el('p', 'bad', 'หลุดการเชื่อมต่อ'));
-    box.append(el('p', '', s.team ? `แม่ทัพ ${battleUnits.get(s.team.leader)!.nameTh} · รอง ${battleUnits.get(s.team.sub)!.nameTh} · แต้มทัพ ${spendOf(s.team)}` : 'กำลังเลือกทัพ…'));
+    const t = s.team, lead = t ? `แม่ทัพ ${battleUnits.get(t.leader)!.nameTh} · รอง ${battleUnits.get(t.sub)!.nameTh}` : 'กำลังเลือกทัพ…';
+    box.append(el('p', '', t?.picks ? `${lead} · แต้มทัพ ${spendOf({ ...t, picks: t.picks })}` : lead));
+    if (t && !t.picks) box.append(el('p', 'dim small pvp-hidden', 'ทัพของเพื่อนจะเปิดตอนเริ่มศึก'));
     box.append(el('em', s.ready ? 'pvp-ready on' : 'pvp-ready', s.ready ? 'พร้อมแล้ว' : 'ยังไม่พร้อม'));
     if (host && i === 1) box.append(button('ให้ออกจากห้อง', () => kick(s.name), 'ghost', 'sm', 'kick-btn'));
     return box;

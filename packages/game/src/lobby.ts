@@ -200,7 +200,7 @@ export class Lobby {
         if (r.match) return this.send(p.conn, { t: 'error', code: 'in_match' });
         if (teamError(m.team)) return this.send(p.conn, { t: 'error', code: 'bad_team' });
         r.teams[p.seat] = { leader: m.team.leader, sub: m.team.sub, picks: [...m.team.picks] };
-        r.ready[p.seat] = false;
+        r.ready = [false, false]; // a ready seat agreed to the friend's team as it was
         return this.roomState(r);
       }
       case 'ready': {
@@ -235,9 +235,13 @@ export class Lobby {
   }
 
   private roomState(r: Room): void {
-    const seat = (i: Side): Seat | null => { const p = r.seats[i]; return p ? { name: p.name, team: r.teams[i], ready: r.ready[i], online: p.conn != null } : null; };
+    // Each seat sees its own picks; the friend's stay hidden until start, so the last to ready cannot counter them.
+    const seat = (i: Side, to: Side): Seat | null => {
+      const p = r.seats[i], t = r.teams[i];
+      return p ? { name: p.name, team: t && (i === to ? t : { leader: t.leader, sub: t.sub }), ready: r.ready[i], online: p.conn != null } : null;
+    };
     const left = Math.max(0, Math.ceil((r.createdAt + this.o.roomTtlMs - Date.now()) / 1000));
-    this.toRoom(r, (i) => ({ t: 'room', code: r.code, seat: i, seats: [seat(0), seat(1)], expiresSec: left }));
+    this.toRoom(r, (i) => ({ t: 'room', code: r.code, seat: i, seats: [seat(0, i), seat(1, i)], expiresSec: left }));
   }
 
   // Out of a room before its match: the host leaving closes it, the guest leaving frees the seat.
