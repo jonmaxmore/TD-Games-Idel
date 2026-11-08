@@ -4,7 +4,7 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { battleHash, battleOver, createBattle, decision, stepBattle, type BattleRecord, type BattleState, type Side } from '@five-sects/sim';
 import {
-  AHEAD_TICKS, CODE_ALPHABET, CODE_LEN, HASH_EVERY, INPUT_DELAY, LATE_TICKS, PROTOCOL_VERSION, PVP_OPTS, ProtocolError, cleanName, framesToCommands,
+  AHEAD_TICKS, CODE_ALPHABET, CODE_LEN, HASH_EVERY, INPUT_DELAY, LATE_TICKS, PROTOCOL_VERSION, PVP_OPTS, ProtocolError, TICK_MS, cleanName, framesToCommands,
   normalizeCode, parseClient, pvpSetup, teamError, type ClientMsg, type ErrorCode, type MatchEnd, type NetCommand, type RejectCode, type Seat, type ServerMsg, type TeamPick,
 } from '@five-sects/protocol';
 
@@ -77,14 +77,19 @@ export class Lobby {
   private players = new Map<string, Player>(); // by token hash
   private createLimit = new Limiter(5, 5 / 60);
   private joinLimit = new Limiter(10, 10 / 60);
-  private cmdLimit = new Limiter(10, 6);
+  private readonly cmdLimit: Limiter;
   private guestLimit = new Limiter(10, 10 / 60); // new guest identities per IP
   private reconnectLimit = new Limiter(3, 1); // hellos with a known token, per guest
   private joinFails: Limiter;
   private sweeper: NodeJS.Timeout;
   readonly stats = { matches: 0, desyncs: 0, rejects: {} as Record<string, number>, lateMs: [] as number[], slack: [] as number[] };
 
+  // Message and command rates are per second of match time: a client's traffic is paced by ticks, and tests run faster.
+  private readonly speed: number;
+
   constructor(readonly o: LobbyOpts) {
+    this.speed = TICK_MS / o.tickMs;
+    this.cmdLimit = new Limiter(10, 6 * this.speed);
     this.joinFails = new Limiter(o.joinFailsPerMin, o.joinFailsPerMin / 60);
     this.sweeper = setInterval(() => this.sweep(), Math.min(60_000, o.idleMs));
     this.sweeper.unref();
@@ -93,7 +98,7 @@ export class Lobby {
   // One connection's handler: parse, then dispatch; a message outside the protocol closes the connection.
   connect(conn: Conn): { message(raw: unknown): void; close(): void } {
     let me: Player | null = null;
-    const msgLimit = new Limiter(40, 30);
+    const msgLimit = new Limiter(40, 30 * this.speed);
     const helloTimer = setTimeout(() => { if (!me) conn.close(1008, 'hello timeout'); }, this.o.helloMs);
     helloTimer.unref();
     return {
