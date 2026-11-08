@@ -9,7 +9,7 @@
   },
   "tiers": {
     "basic": { "nameTh": "พื้นฐาน", "eggPoints": null, "eggShopFromCastleLevel": null, "dupeXp": 0 },
-    "common": { "nameTh": "สามัญ", "eggPoints": 10, "eggShopFromCastleLevel": 3, "dupeXp": 120 },
+    "common": { "nameTh": "สามัญ", "eggPoints": 10, "eggShopFromCastleLevel": 1, "dupeXp": 120 },
     "adept": { "nameTh": "ชำนาญ", "eggPoints": 20, "eggShopFromCastleLevel": 5, "dupeXp": 240 },
     "elite": { "nameTh": "ยอดฝีมือ", "eggPoints": 35, "eggShopFromCastleLevel": 8, "dupeXp": 420 },
     "legendary": { "nameTh": "ตำนาน", "eggPoints": 60, "eggShopFromCastleLevel": 12, "dupeXp": 720 }
