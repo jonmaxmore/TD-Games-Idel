@@ -49,3 +49,15 @@ export function confirmBox(host: HTMLElement, c: Confirm, onYes: () => void, onN
   no.focus();
   return close;
 }
+
+// A key typed into a text field belongs to the field: the game's shortcuts (F for full screen) leave it alone.
+export const typing = (e: KeyboardEvent): boolean => {
+  const t = e.target as HTMLElement | null;
+  return !!t && (t.isContentEditable || (t instanceof HTMLInputElement && t.type !== 'range' && t.type !== 'checkbox') || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement);
+};
+
+// Listeners that live as long as the screen on show: the screen change (main.ts go) aborts them all, so a screen that
+// never got its closing key or event leaves nothing behind.
+let screen = new AbortController();
+export const screenSignal = () => screen.signal;
+export function endScreen(): void { screen.abort(); screen = new AbortController(); }

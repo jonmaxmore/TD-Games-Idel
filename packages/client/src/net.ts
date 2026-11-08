@@ -3,12 +3,12 @@
 // match, reconnects by itself inside the server's reconnect window.
 import { LOOPBACK_WS, PROTOCOL_VERSION, RECONNECT_SEC, parseServer, wsUrlError, type ClientMsg, type ErrorCode, type RejectCode, type ServerMsg } from '@five-sects/protocol';
 
-const TOKEN_KEY = 'five-sects.pvp.token', NAME_KEY = 'five-sects.pvp.name';
+const TOKEN_KEY = 'five-sects.pvp.token', NAME_KEY = 'five-sects.pvp.name', MATCH_KEY = 'five-sects.pvp.match';
 // The token lives in sessionStorage: it survives a reload of this tab (a reconnect) and each tab is its own guest, so two
 // tabs on one machine can play each other. The name is remembered across tabs.
-const store = (k: string) => (k === TOKEN_KEY ? sessionStorage : localStorage);
+const store = (k: string) => (k === NAME_KEY ? localStorage : sessionStorage);
 const get = (k: string) => { try { return store(k).getItem(k); } catch { return null; } };
-const put = (k: string, v: string) => { try { store(k).setItem(k, v); } catch { /* storage blocked: the token lasts this page */ } };
+const put = (k: string, v: string | null) => { try { if (v == null) store(k).removeItem(k); else store(k).setItem(k, v); } catch { /* storage blocked: the token lasts this page */ } };
 
 // The server URL, or null with the reason it cannot be used from this page. ?server= may point at another port on this
 // machine only (dev and the shots script); a release build talks to wss:// only, and a page served over https cannot open
@@ -26,8 +26,8 @@ let probed: { at: number; ok: boolean } | null = null;
 export function probe(url: string, ms = 1500): Promise<boolean> {
   if (probed && performance.now() - probed.at < 10_000) return Promise.resolve(probed.ok);
   return new Promise((res) => {
-    let ws: WebSocket;
-    const done = (ok: boolean) => { clearTimeout(t); probed = { at: performance.now(), ok }; try { ws.close(); } catch { /* already closed */ } res(ok); };
+    let ws: WebSocket, settled = false;
+    const done = (ok: boolean) => { if (settled) return; settled = true; clearTimeout(t); probed = { at: performance.now(), ok }; try { ws.close(); } catch { /* already closed */ } res(ok); };
     const t = setTimeout(() => done(false), ms);
     try { ws = new WebSocket(url); } catch { done(false); return; }
     ws.onopen = () => done(true);
@@ -36,7 +36,7 @@ export function probe(url: string, ms = 1500): Promise<boolean> {
 }
 
 export const ERROR_TH: Record<ErrorCode, string> = {
-  bad_message: 'ข้อความถึงเซิร์ฟเวอร์ผิดรูปแบบ ลองโหลดหน้าใหม่', version: 'เกมเวอร์ชันนี้ไม่ตรงกับเซิร์ฟเวอร์ กรุณาโหลดหน้าใหม่',
+  bad_message: 'ข้อความถึงเซิร์ฟเวอร์ผิดรูปแบบ ลองโหลดหน้าใหม่', version: 'เวอร์ชันเกมไม่ตรงกับเซิร์ฟเวอร์ รีเฟรชหน้า',
   need_hello: 'ยังเชื่อมต่อไม่เสร็จ ลองอีกครั้ง', rate_limited: 'ทำรายการถี่เกินไป รอสักครู่แล้วลองใหม่',
   room_not_found: 'ไม่พบห้องนี้ รหัสอาจผิดหรือห้องหมดอายุแล้ว', room_full: 'ห้องนี้เต็มแล้ว หรือเริ่มศึกไปแล้ว',
   room_closed: 'ห้องถูกปิดแล้ว (เจ้าของห้องออกหรือหมดเวลา)', not_in_room: 'ยังไม่ได้อยู่ในห้อง',
@@ -50,6 +50,11 @@ export const REJECT_TH: Record<RejectCode, string> = {
 };
 
 export const savedName = () => get(NAME_KEY);
+// This tab is in a friend match (set on start, cleared on its end): a reload goes back into it with the saved token.
+export const inMatch = () => get(MATCH_KEY) === '1';
+export const markMatch = (on: boolean) => put(MATCH_KEY, on ? '1' : null);
+// Why open() failed: the server's own error before its welcome (a version mismatch, a full server), else no connection.
+export class LinkError extends Error { constructor(readonly code: ErrorCode | null) { super(code ?? 'no connection'); } }
 export const saveName = (n: string) => put(NAME_KEY, n);
 
 export class RoomClient {
@@ -64,7 +69,7 @@ export class RoomClient {
   open(name: string): Promise<Extract<ServerMsg, { t: 'welcome' }>> {
     this.name = name;
     return new Promise((res, rej) => {
-      let welcomed = false;
+      let welcomed = false, refused: ErrorCode | null = null;
       const ws = new WebSocket(this.url);
       this.ws = ws;
       ws.onopen = () => {
@@ -75,12 +80,14 @@ export class RoomClient {
         let m: ServerMsg;
         try { m = parseServer(e.data); } catch { ws.close(4001, 'bad server message'); return; }
         if (m.t === 'welcome') { put(TOKEN_KEY, m.token); if (!welcomed) { welcomed = true; this.onLink('open'); res(m); } return; }
+        if (!welcomed && m.t === 'error') { refused = m.code; return; }
         this.onMsg(m);
       };
       ws.onclose = () => {
         if (this.ws !== ws) return;
         this.ws = null;
-        if (!welcomed) { rej(new Error('no connection')); return; }
+        probed = null; // the lobby asks the server again instead of trusting an answer from before the drop
+        if (!welcomed) { rej(new LinkError(refused)); return; }
         if (this.keep) void this.retry(); else this.onLink('gone');
       };
     });

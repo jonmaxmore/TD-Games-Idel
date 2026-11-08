@@ -8,7 +8,7 @@ import { el } from './battle';
 import { colorOf, deckPicker } from './deckPicker';
 import { deckPoints, largeOf, rankedTeam, RANKED_RULES, spendOf } from './decks';
 import { PLAYER_NAME } from './lobby';
-import { ERROR_TH, RoomClient, saveName, savedName, serverUrl } from './net';
+import { ERROR_TH, inMatch, LinkError, markMatch, RoomClient, saveName, savedName, serverUrl } from './net';
 import { teamOf, type Profile } from './profile';
 import { button, confirmBox, setDisabled } from './ui';
 import { nowrapWords } from './words';
@@ -33,7 +33,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
 
   const nameIn = el('input', 'pvp-name');
   nameIn.maxLength = 16;
-  nameIn.value = savedName() ?? PLAYER_NAME;
+  nameIn.value = savedName() ?? `${PLAYER_NAME}${Math.floor(Math.random() * 900) + 100}`; // two new players are told apart
   nameIn.setAttribute('aria-label', 'ชื่อในศึก');
   const codeIn = el('input', 'pvp-code');
   codeIn.maxLength = CODE_LEN + 1;
@@ -56,10 +56,11 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
       status.textContent = `เชื่อมต่อแล้ว · ชื่อในศึก: ${w.name}`;
       nameIn.value = w.name;
       saveName(w.name);
-    } catch {
+    } catch (e) {
       client = null;
       status.textContent = '';
-      say('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ · ต้องเปิดเซิร์ฟเวอร์ในเครื่องก่อน (npm run dev:server) แล้วลองใหม่');
+      const code = e instanceof LinkError ? e.code : null;
+      say(code ? ERROR_TH[code] : `เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่ภายหลัง${import.meta.env.DEV ? ' (dev: npm run dev:server)' : ''}`);
       return null;
     }
     c.onMsg = onMsg;
@@ -95,7 +96,9 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
     const box = el('div', `panel pvp-seat side${i}${s?.ready ? ' ready' : ''}`);
     box.append(el('small', 'dim', i === 0 ? 'เจ้าของห้อง · ฝั่งซ้าย' : 'ผู้มาเยือน · ฝั่งขวา'));
     if (!s) { box.append(el('b', 'pvp-wait', 'รอเพื่อนเข้าห้อง…'), el('p', 'dim small', 'ส่งรหัสห้องให้เพื่อน แล้วให้เพื่อนกด "เข้าห้อง"')); return box; }
-    box.append(nowrapWords(el('b', 'pvp-who'), `${s.name}${mine ? ' (เรา)' : ''}`));
+    const who = nowrapWords(el('b', 'pvp-who'), s.name);
+    if (mine) who.append(el('em', 'pvp-me', 'เรา'));
+    box.append(who);
     if (!s.online) box.append(el('p', 'bad', 'หลุดการเชื่อมต่อ'));
     const t = s.team, lead = t ? `แม่ทัพ ${battleUnits.get(t.leader)!.nameTh} · รอง ${battleUnits.get(t.sub)!.nameTh}` : 'กำลังเลือกทัพ…';
     box.append(el('p', '', t?.picks ? `${lead} · แต้มทัพ ${spendOf({ ...t, picks: t.picks })}` : lead));
@@ -190,5 +193,12 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
   addEventListener('keydown', onKey);
   if (client?.connected) { client.onMsg = onMsg; status.textContent = 'เชื่อมต่อแล้ว'; }
   show();
+  // Back from a reload mid-match: the saved token's hello brings the match's start; none soon means it is over.
+  if (inMatch() && !client) {
+    void act(() => {
+      status.textContent = 'กำลังกลับเข้าศึก…';
+      setTimeout(() => { if (!gone) { markMatch(false); status.textContent = 'เชื่อมต่อแล้ว'; say('ศึกก่อนหน้าจบไปแล้ว'); } }, 3000);
+    });
+  }
   return () => { closeSheet?.(); removeEventListener('keydown', onKey); if (!gone && client) client.onMsg = () => {}; r.remove(); };
 }
