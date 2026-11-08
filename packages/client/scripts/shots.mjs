@@ -194,6 +194,11 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   const buy = p.locator('.shop-grid [data-buy]:not([disabled])').first();
   const bought = await buy.getAttribute('data-buy');
   await buy.click();
+  await p.waitForSelector('.overlay.confirm');
+  await sleep(150);
+  await shot(p, '65-egg-confirm');
+  check(!(await p.evaluate((c) => JSON.parse(localStorage.getItem('five-sects.profile')).owned.includes(c), bought)), 'a buy waits for its confirm');
+  await p.locator('.confirm-yes').click();
   await sleep(200);
   await shot(p, '65-egg-bought');
   console.log('egg shop: bought', bought, '|', await p.locator('.egg-got').textContent());
@@ -490,6 +495,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await p.getByRole('button', { name: 'กลับ', exact: true }).click();
   await p.locator('[data-go=eggShop]').click();
   await p.locator('.shop-grid [data-buy]:not([disabled])').first().click();
+  await p.locator('.confirm-yes').click();
   await sleep(300);
   await shot(p, '44-egg-buy');
   await ctx.close();
