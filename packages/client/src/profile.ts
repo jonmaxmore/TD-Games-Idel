@@ -26,7 +26,7 @@ export interface Profile {
   rank: Rank;
   lastRanked: RankedSave | null;
 }
-export type RankedSave = BattleRecord & { hash: string }; // the last ranked match and the hash it ended on
+export type RankedSave = BattleRecord & { hash: string; endTick?: number }; // the last ranked match, the hash it ended on, the tick of a surrender
 
 export interface Settings { volume: number; muted: boolean; shake: boolean } // volume 0..100
 
@@ -85,7 +85,9 @@ function fixRank(raw: unknown): Rank {
 function fixRecord(raw: unknown): RankedSave | null {
   const r = obj(raw);
   const ok = typeof r.seed === 'number' && Array.isArray(r.setups) && r.setups.length === 2 && r.commands && typeof r.commands === 'object' && r.opts && typeof r.opts === 'object' && typeof r.hash === 'string';
-  return ok ? (r as unknown as RankedSave) : null;
+  if (!ok) return null;
+  const { endTick, ...rest } = r;
+  return { ...(rest as unknown as RankedSave), ...(Number.isInteger(endTick) && (endTick as number) >= 0 ? { endTick: endTick as number } : {}) };
 }
 // The castle level's card-level sum: every owned card's level.
 export const levelSum = (p: Profile) => p.owned.reduce((a, id) => a + p.cards[id]!.level, 0);

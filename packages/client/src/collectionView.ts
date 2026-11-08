@@ -7,6 +7,7 @@ import { portrait } from './board';
 import { account, buyCard, SHOP_WHY } from './camp';
 import type { Profile } from './profile';
 import { cardArt } from './sprites';
+import { button, confirmBox, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 const btn = (text: string, cls: string, onclick: () => void) => { const b = el('button', cls, text); b.onclick = onclick; return b; };
@@ -61,15 +62,23 @@ export function eggShop(p: Profile, save: () => void, onChange: () => void): HTM
     const grid = el('div', 'log-grid shop-grid');
     for (const id of cards) {
       const t = tile(id, 'shop'), why = shopBlock(a, id), price = tierOf(id).eggPoints!;
-      const b = btn(tab === 'new' ? `ซื้อ ${price} แต้ม` : `ฝึก ${price} แต้ม`, why ? 'buy' : 'primary buy', () => {
+      const name = battleUnits.get(id)!.nameTh;
+      const buy = () => {
         const res = buyCard(p, id);
         if (typeof res === 'string') { msg = res; bad = true; return show(); }
         save(); last = id; bad = false;
         msg = res.xp > 0 ? `${battleUnits.get(id)!.nameTh} ได้แต้มฝึก +${res.xp}` : `ได้ ${battleUnits.get(id)!.nameTh} เข้าทัพแล้ว`;
         show(); onChange();
-      });
+      };
+      // Egg points are slow to earn and a buy cannot be undone, so it is confirmed with its price and what is left.
+      const ask = () => confirmBox(shop.closest('.overlay')?.parentElement ?? shop, {
+        title: tab === 'new' ? `ซื้อ ${name}?` : `ฝึก ${name}?`,
+        body: `ใช้ ${price} แต้มไข่ · เหลือ ${p.eggPoints - price} แต้ม${tab === 'new' ? ' · ได้การ์ดเข้าทัพทันที' : ` · ได้แต้มฝึก +${tierOf(id).dupeXp}`}`,
+        yes: tab === 'new' ? `ซื้อ ${price} แต้มไข่` : `ฝึก ${price} แต้มไข่`,
+      }, buy);
+      const b = button(tab === 'new' ? `ซื้อ ${price} แต้ม` : `ฝึก ${price} แต้ม`, ask, 'secondary', 'sm', 'buy');
       b.dataset.buy = id;
-      b.disabled = why != null;
+      setDisabled(b, why ? (why === 'castleLevel' ? `ปราสาทต้องถึง Lv${tierOf(id).eggShopFromCastleLevel}` : SHOP_WHY[why]!) : null);
       t.append(b);
       if (why) t.append(el('span', 'route', why === 'castleLevel' ? `ปราสาท Lv${tierOf(id).eggShopFromCastleLevel}` : SHOP_WHY[why]!));
       grid.append(t);

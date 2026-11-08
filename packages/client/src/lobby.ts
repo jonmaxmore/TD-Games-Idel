@@ -11,7 +11,7 @@ import { applyVolume } from './sound';
 import { conditionTh, nextStage, unlockState, type Feature } from './unlocks';
 
 export const PLAYER_NAME = 'เจ้าสำนัก'; // no account until M1, so every save has the same name
-const btn = (text: string, cls: string, onclick: () => void) => { const b = el('button', cls, text); b.onclick = onclick; return b; };
+const btn = (text: string, cls: string, onclick: () => void) => { const b = el('button', cls, text); b.type = 'button'; b.onclick = onclick; return b; };
 
 // The rank as a badge in its league's place on the ladder (progression.json > ranked).
 export function rankBadge(r: Rank): HTMLElement {
@@ -72,7 +72,7 @@ export function overlay(host: HTMLElement, title: string, body: HTMLElement, cls
   back.setAttribute('role', 'dialog');
   back.setAttribute('aria-modal', 'true');
   back.setAttribute('aria-label', title);
-  const x = btn('✕', 'close', () => close());
+  const x = btn('✕', 'btn btn-icon btn-sm close', () => close());
   x.setAttribute('aria-label', 'ปิด');
   head.append(el('h2', '', title), x);
   sheet.append(head, body);
@@ -161,7 +161,7 @@ export function lobbyScreen(app: HTMLElement, p: Profile, save: () => void, nav:
   const sheet = (title: string, body: () => HTMLElement, cls = '') => { closeSheet?.(); closeSheet = overlay(r, title, body(), cls); };
   const top = el('div', 'lobby-top'), purse = el('div', 'purse'), mid = el('div', 'lobby-mid'), bottom = el('div', 'lobby-bottom');
   const chip = btn('', 'profile-chip', () => sheet('โปรไฟล์', () => profileBody(p)));
-  const gear = btn('ตั้งค่า', 'gear', () => sheet('ตั้งค่า', () => settingsBody(p, save)));
+  const gear = btn('ตั้งค่า', 'btn btn-secondary btn-md gear', () => sheet('ตั้งค่า', () => settingsBody(p, save)));
   top.append(chip, el('div', 'grow'), purse, gear);
   r.append(top, mid, bottom);
   app.append(r);
