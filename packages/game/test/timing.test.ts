@@ -1,7 +1,10 @@
 // Real time: 20 Hz on loopback for 6 s of play with both bots summoning. Measures the server tick lateness, the client's
 // round trip, the gap between frames at the client, and how much of the INPUT_DELAY window each command had left when
 // it reached the server (negative: it arrived late and ran on the next tick instead).
-import { describe, expect, it } from 'vitest';
+// Wall clock on a shared machine: vitest.config.ts runs this file alone, and a measurement that another process spoiled
+// (the OS took the CPU for a few hundred ms) is taken again, up to two more times. A slow or drifting server fails all three.
+import { readFileSync } from 'node:fs';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { botCommands, botRng } from '../../sim/test/battleBot';
 import { INPUT_DELAY, autoTeam, leaderPool } from '@five-sects/protocol';
 import { buildServer, MemoryStore } from '../src/server';
@@ -9,10 +12,13 @@ import { TestClient } from './client';
 
 const pct = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))]! : NaN; };
 const r1 = (x: number) => Math.round(x * 10) / 10;
+// Linux: ms this thread spent runnable but waiting for a CPU (schedstat run_delay); a failure with a large value was the OS.
+const runQueueMs = () => { try { return Number(readFileSync('/proc/thread-self/schedstat', 'utf8').split(' ')[1]) / 1e6; } catch { return NaN; } };
 
 describe('timing at 20 Hz', () => {
-  it('ticks on schedule and commands land inside the input-delay window', async () => {
+  it('ticks on schedule and commands land inside the input-delay window', { retry: 2, timeout: 30_000 }, async () => {
     const { app, lobby } = await buildServer({ startDelayMs: 100, store: new MemoryStore() });
+    onTestFinished(() => app.close());
     await app.listen({ port: 0, host: '127.0.0.1' });
     const port = (app.server.address() as { port: number }).port, url = `ws://127.0.0.1:${port}/v1/ws`;
     const [L0, S0, L1, S1] = leaderPool();
@@ -28,6 +34,7 @@ describe('timing at 20 Hz', () => {
     await b.next('start');
     const gaps: number[] = [], rtt: number[] = [];
     let lastAt = 0;
+    const waited0 = runQueueMs();
     for (const [c, seat] of [[a, 0], [b, 1]] as const) {
       const mind = botRng(st.seed, seat);
       c.onMsg = (m) => {
@@ -46,13 +53,12 @@ describe('timing at 20 Hz', () => {
       ticks: late.length, tickLateMs: { p50: pct(late, 50), p99: pct(late, 99), max: Math.max(...late) },
       frameGapMs: { p50: r1(pct(gaps, 50)), p1: r1(pct(gaps, 1)), p99: r1(pct(gaps, 99)) }, rttMs: { p50: r1(pct(rtt, 50)), max: r1(Math.max(...rtt)) },
       commands: slack.length, slackTicks: { min: Math.min(...slack), p50: pct(slack, 50) }, arrivedLate: slack.filter((x) => x < 0).length, inputDelayTicks: INPUT_DELAY,
-      rejects: lobby.stats.rejects,
+      rejects: lobby.stats.rejects, cpuWaitMs: r1(runQueueMs() - waited0),
     };
     console.log('timing', JSON.stringify(report));
-    await app.close();
     expect(report.ticks).toBeGreaterThanOrEqual(120);
     expect(report.tickLateMs.p99).toBeLessThan(25);
     expect(report.commands).toBeGreaterThan(2);
     expect(report.arrivedLate).toBe(0);
-  }, 30_000);
+  });
 });

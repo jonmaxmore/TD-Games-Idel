@@ -594,8 +594,8 @@ describe('castle battle balance', () => {
   // bots summon a large guard in about 1 side-game in 25: at 4000 games a large guard reads on about 150 side-games, a
   // standard error near 4 points, and venom_toad swung from 7.1 to 10.1 when the basics left the draw pool (6.1 and 6.5
   // at 8000 games).
-  it('per card over random teams: no beast, dragon or the archer is more than 8 points over its band', () => {
-    const t = cardTable(8000);
+  it('per card over random teams: no beast, dragon or the archer is more than 8 points over its band', async () => {
+    const t = await cardTable(8000);
     const added = t.rows.filter((r) => battleUnits.get(r.card)!.kind !== 'disciple' || r.card === 'wandering_archer');
     expect(added.length).toBe(14);
     for (const r of added) expect(r.winPct - t.band.get(bandOf(r.card))!, r.card).toBeLessThanOrEqual(8);

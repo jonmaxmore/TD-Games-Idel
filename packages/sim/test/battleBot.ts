@@ -47,9 +47,12 @@ export interface CardRow { card: string; games: number; winPct: number; handPct:
 export const PAIRS: [Policy, Policy][] = [['rush', 'defend'], ['defend', 'rush'], ['rush', 'rush'], ['defend', 'defend']];
 export const PACED_PAIRS: [Policy, Policy][] = [['paced', 'paced']];
 export const PACED_MIXED_PAIRS: [Policy, Policy][] = [['paced', 'rush'], ['rush', 'paced'], ['paced', 'defend'], ['defend', 'paced']];
-export function cardTable(games: number, pairs = PAIRS): { rows: CardRow[]; band: Map<string, number>; games: number } {
+// It yields to the event loop every 500 games: 8000 games are about a minute of CPU, and a vitest worker that never
+// yields cannot read the answer to its own RPC, which times out at 60 s ("Timeout calling onTaskUpdate").
+export async function cardTable(games: number, pairs = PAIRS): Promise<{ rows: CardRow[]; band: Map<string, number>; games: number }> {
   const pts = new Map<string, [number, number]>(), held = new Map<string, [number, number]>(); // lookups; rows come out in data order
   for (let seed = 1; seed <= games; seed++) {
+    if (seed % 500 === 0) await new Promise((r) => setImmediate(r));
     const [p0, p1] = pairs[seed % pairs.length]!;
     const { state: s, commands } = playBattle(seed, p0, p1, randomTeam(seed, 0), randomTeam(seed, 1));
     const w0 = s.winner === 0 ? 2 : s.winner === -1 ? 1 : 0;
