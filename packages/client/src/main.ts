@@ -9,6 +9,7 @@ import {
   battle, battleCardIds, battleUnits, chapter, createBattle, draw, gimmickNames, homeSects, rewardCard, sectCards, sects, stageOf, stages, starName, starterCards, starterTeam, stepBattle, TICK_HZ,
   type BattleSetup, type Side, type Stage,
 } from '@five-sects/sim';
+import { Lockstep, pvpSetup, type MatchEnd } from '@five-sects/protocol';
 import { el, realmBadge, startMatch, type MatchResult } from './battle';
 import { aiProgress, canLevel, chooseHome, claim, payMatch, progressOf, recordRanked, recordStage, stageOpen, type Claimed } from './camp';
 import { campScreen } from './campScreen';
@@ -21,6 +22,8 @@ import { cardArt, loadSprites } from './sprites';
 import { lossTip, versusTip } from './tips';
 import { unlockState } from './unlocks';
 import { nowrapWords } from './words';
+import { REJECT_TH, type RoomClient } from './net';
+import { dropClient, pvpScreen, type Start } from './pvp';
 
 const app = document.getElementById('app')!;
 // The UI is designed 720 px tall; scale it to the window height and let the width fill the whole window (no bars).
@@ -43,7 +46,7 @@ initSound(profile.settings);
 type Fight = { team: Team; seed: number; redraws: number; stage?: string };
 type Screen =
   | { k: 'title' } | { k: 'pick' } | { k: 'lobby' } | { k: 'deck'; stage?: string } | { k: 'camp' } | { k: 'campaign' } | { k: 'brief'; stage: string } | { k: 'replay' }
-  | ({ k: 'versus' } & Fight) | ({ k: 'match' } & Fight);
+  | ({ k: 'versus' } & Fight) | ({ k: 'match' } & Fight) | { k: 'pvp' } | { k: 'pvpVs' } | { k: 'pvpMatch' };
 let dispose: (() => void) | void;
 
 function go(next: Screen) {
@@ -56,7 +59,11 @@ function go(next: Screen) {
   else if (next.k === 'lobby') dispose = lobbyScreen(app, profile, () => save(profile), {
     stage: (id) => go({ k: 'brief', stage: id }), map: () => go({ k: 'campaign' }), camp: () => go({ k: 'camp' }),
     mode: (m) => { profile.mode = m; save(profile); go({ k: 'deck' }); },
+    pvp: () => go({ k: 'pvp' }),
   });
+  else if (next.k === 'pvp') dispose = pvpScreen(app, profile, { lobby: () => go({ k: 'lobby' }), start: (m, c) => { pvpLive(m, c); go({ k: 'pvpVs' }); } });
+  else if (next.k === 'pvpVs') dispose = pvpVersus();
+  else if (next.k === 'pvpMatch') dispose = pvpMatch();
   else if (next.k === 'deck') teamScreen(next.stage ? stageOf(next.stage) : undefined);
   else if (next.k === 'camp') dispose = campScreen(app, profile, () => save(profile), () => go({ k: 'lobby' }));
   else if (next.k === 'versus') dispose = versus(next);
@@ -425,6 +432,89 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
   if (camp) row.append(btn('ค่ายฝึก', '', () => go({ k: 'camp' })));
   if (ranked) row.append(btn('ดูรีเพลย์', 'replay-btn', () => go({ k: 'replay' })));
   if (!last) row.append(btn('กลับล็อบบี้', '', () => go({ k: 'lobby' })));
+  box.append(row);
+  app.append(box);
+}
+
+// ---- ศึกกับเพื่อน: the room screen (pvp.ts) hands over the server's start; the frames drive the match from then on ----
+// live: the match in play, its socket and the server's end once sent; a second start message (a reconnect) rebuilds it.
+let live: { ls: Lockstep; c: RoomClient; end: MatchEnd | null } | null = null;
+// A short line over whatever screen is up (a dropped peer, our own reconnect, a desync, a refused command).
+function notice(text: string, bad = true) {
+  const n = el('div', `net-notice${bad ? ' bad' : ''}`, text);
+  app.append(n);
+  setTimeout(() => n.remove(), 4000);
+}
+function pvpLive(m: Start, c: RoomClient) {
+  live = { ls: new Lockstep(m), c, end: null };
+  c.match = true;
+  c.onMsg = (x) => {
+    const L = live;
+    if (!L) return;
+    if (x.t === 'frame') L.ls.frame(x.tick, x.cmds);
+    else if (x.t === 'end') { L.end = x.end; c.match = false; }
+    else if (x.t === 'start') { pvpLive(x, c); go({ k: 'pvpMatch' }); notice('ต่อกลับเข้าศึกแล้ว', false); }
+    else if (x.t === 'peer' && x.seat !== L.ls.seat) notice(x.online ? 'คู่แข่งกลับมาแล้ว' : `คู่แข่งหลุดการเชื่อมต่อ · ถ้าไม่กลับใน ${x.graceSec} วินาทีถือว่ายอมแพ้`, !x.online);
+    else if (x.t === 'desync') notice('ข้อมูลศึกในเครื่องไม่ตรงกับเซิร์ฟเวอร์ · ผลของเซิร์ฟเวอร์คือผลจริง');
+    else if (x.t === 'reject') notice(`คำสั่งไม่ผ่าน: ${REJECT_TH[x.code]}`);
+  };
+  c.onLink = (st) => {
+    if (st === 'lost') notice('การเชื่อมต่อหลุด กำลังต่อใหม่…');
+    else if (st === 'gone' && live && !live.end) {
+      live = null;
+      const box = el('div', 'modal result');
+      box.append(el('h2', 'lost', 'หลุดการเชื่อมต่อ'), el('p', 'why', 'ต่อเซิร์ฟเวอร์กลับไม่ได้ภายในเวลา ศึกนี้นับเป็นยอมแพ้'), btn('กลับล็อบบี้', 'primary', () => { dropClient(); go({ k: 'lobby' }); }));
+      app.append(box);
+    }
+  };
+}
+const pvpTeam = (t: { leader: string; sub: string }): Team => ({ leader: t.leader, sub: t.sub, bench: [] });
+function pvpVersus(): () => void {
+  const L = live!, me = L.ls.seat, st = L.ls.start;
+  if (st.inMs <= 0) { queueMicrotask(() => go({ k: 'pvpMatch' })); return () => {}; }
+  const r = el('div', 'screen versus pvp-vs');
+  const side = (s: Side) => {
+    const t = st.teams[s], box = el('div', `vs-side side${s}`), face = el('div', 'vs-face');
+    face.append(portrait(t.leader, s, s === 1));
+    box.style.setProperty('--sect', colorOf(t.leader));
+    box.append(face, nowrapWords(el('b'), battleUnits.get(t.leader)!.nameTh), el('small', '', `แม่ทัพ${s === me ? 'เรา' : 'ของเพื่อน'} · รอง ${battleUnits.get(t.sub)!.nameTh}`), nowrapWords(el('span', 'vs-team'), st.names[s]));
+    return box;
+  };
+  const mid = el('div', 'vs-mid');
+  mid.append(el('span', 'vs-word', 'ปะทะ'), el('span', 'vs-mode', 'ศึกกับเพื่อน · ค่าเท่ากัน'));
+  const row = el('div', 'vs-row');
+  row.append(side(0), mid, side(1));
+  r.append(el('div', 'grow'), row, el('p', 'vs-tip', `เราอยู่ฝั่ง${me === 0 ? 'ซ้าย' : 'ขวา'} · ศึกออนไลน์หยุดไม่ได้ Esc เปิดเมนู`), el('p', 'dim center small', 'ศึกเริ่มพร้อมกันทั้งสองฝ่าย'), el('div', 'grow'));
+  app.append(r);
+  const timer = setTimeout(() => go({ k: 'pvpMatch' }), st.inMs);
+  return () => clearTimeout(timer);
+}
+function pvpMatch(): () => void {
+  const L = live!, me = L.ls.seat, st = L.ls.start, foe: Side = me === 0 ? 1 : 0;
+  return startMatch(app, {
+    seed: st.seed, team: pvpTeam(st.teams[me]), mine: pvpSetup(st.teams[me]), vs: pvpSetup(st.teams[foe]), redraws: 0, speed: 1, settings: profile.settings, saveSettings: () => save(profile),
+    bots: [null, 'paced'], normalized: true, progress: [null, null], modeTh: 'ศึกกับเพื่อน',
+    net: { ls: L.ls, send: (m) => L.c.send(m), names: st.names, end: () => L.end },
+    onQuit: () => L.c.send({ t: 'leave' }),
+  }, (r) => pvpResult(r));
+}
+// The server's result stands: the winner and type come from its end message, seen from our side.
+function pvpResult(r: MatchResult) {
+  const L = live, end = L?.end ?? null, me = L?.ls.seat ?? 0;
+  const w = end ? (end.winner === -1 ? -1 : end.winner === me ? 0 : 1) : r.winner;
+  const res: MatchResult = end ? { ...r, winner: w, type: end.type, step: end.step } : r;
+  const box = el('div', 'modal result pvp-result');
+  const head = w === 0 ? ['won', 'ชนะ!'] : w === 1 ? ['lost', 'พ่ายแพ้'] : ['draw', 'เสมอ'];
+  const v = res.type === 'forfeit' ? { head: w === 0 ? 'ชนะเพราะคู่แข่งออกจากศึก' : 'แพ้เพราะออกจากศึก', why: w === 0 ? 'คู่แข่งยอมแพ้ หรือหลุดการเชื่อมต่อเกินเวลา' : 'เรายอมแพ้ หรือหลุดการเชื่อมต่อเกินเวลา' } : verdict(res);
+  const names = L?.ls.start.names ?? ['', ''];
+  box.append(el('h2', head[0]!, head[1]!), el('p', `type ${head[0]}`, v.head), el('p', 'why', v.why), el('p', 'dim', `${names[me]} (เรา) ปะทะ ${names[me === 0 ? 1 : 0]}`));
+  if (end?.flagged) box.append(el('p', 'why', 'ศึกนี้ข้อมูลไม่ตรงกับเซิร์ฟเวอร์ จึงถูกบันทึกไว้ตรวจ'));
+  else if (end && end.type !== 'forfeit') box.append(el('p', 'dim', end.hash === r.hash ? 'ผลในเครื่องตรงกับเซิร์ฟเวอร์ทุกอย่าง' : 'ผลในเครื่องไม่ตรงกับเซิร์ฟเวอร์ · ยึดผลของเซิร์ฟเวอร์'));
+  box.append(el('p', 'dim small', 'ศึกกับเพื่อนไม่มีรางวัลและไม่เปลี่ยนอันดับ'));
+  const row = el('div', 'row result-actions');
+  const again = btn('ศึกกับเพื่อนอีกครั้ง', 'primary', () => { live = null; go({ k: 'pvp' }); });
+  again.dataset.primary = '1';
+  row.append(again, btn('กลับล็อบบี้', '', () => { live = null; dropClient(); go({ k: 'lobby' }); }));
   box.append(row);
   app.append(box);
 }

@@ -102,6 +102,7 @@ export class Board {
   armed = false; // a card is picked: the summon zone shows bright
   reach: number | null = null; // the cannon is picked: how far it reaches from our castle
   counter: string | null = null; // a card picked or hovered: enemies it is strong against glow orange, ones strong against it blue
+  me: Side = 0; // the player's side (a friend-room guest plays side 1, on the right)
 
   constructor(private canvas: HTMLCanvasElement, private s: BattleState, private inset: { top: number; bottom: number }) {
     this.g = canvas.getContext('2d')!;
@@ -343,9 +344,11 @@ export class Board {
 
     // Summon zones: ours from the castle to its edge (bright while a card is picked), the enemy's faint red.
     const pulse = this.armed ? 0.34 + 0.1 * Math.sin(now / 160) : 0.22;
-    if (this.reach != null) this.strip(0, this.reach, '#F2A23A', 0.45 + 0.1 * Math.sin(now / 160));
-    else this.strip(0, zones[0], '#FFE9A8', pulse);
-    this.strip(BATTLE_LEN - zones[1], BATTLE_LEN, '#D2412F', 0.2);
+    const span = (side: Side, depth: number): [number, number] => (side === 0 ? [0, depth] : [BATTLE_LEN - depth, BATTLE_LEN]);
+    const foe: Side = this.me === 0 ? 1 : 0;
+    if (this.reach != null) this.strip(...span(this.me, this.reach), '#F2A23A', 0.45 + 0.1 * Math.sin(now / 160));
+    else this.strip(...span(this.me, zones[this.me]), '#FFE9A8', pulse);
+    this.strip(...span(foe, zones[foe]), '#D2412F', 0.2);
     for (const z of this.s.zones) { // burning ground: flickering embers across its radius on the road
       const p = at(z.d), cx = this.sx(p.x), cy = this.sy(p.y), r = Math.max(2, Math.round((battle.groundRadius / TILE) * this.T));
       const h = Math.max(4, this.TH >> 1); // a glowing band across the road, edged dark, with flames standing on it
@@ -358,7 +361,7 @@ export class Board {
         g.fillStyle = FX.star; g.fillRect(fx, cy - tall - 1, 1, 2);
       }
     }
-    const edge = at(Math.max(0, this.reach ?? zones[0]));
+    const reachD = Math.max(0, this.reach ?? zones[this.me]), edge = at(this.me === 0 ? reachD : BATTLE_LEN - reachD);
     g.fillStyle = this.reach != null ? '#F2A23A' : FX.gold; g.fillRect(this.sx(edge.x) - 1, this.sy(edge.y) - (this.TH >> 1) - 2, 2, this.TH + 4);
 
     const things: { depth: number; draw: () => void }[] = [];
@@ -392,7 +395,7 @@ export class Board {
     }
     if (m.ok) {
       g.globalAlpha = 0.55;
-      g.drawImage(figure(m.card, 0, false, 0, null), x - FIG_X, y - 3 - FIG_Y);
+      g.drawImage(figure(m.card, this.me, this.me === 1, 0, null), x - FIG_X, y - 3 - FIG_Y);
       g.globalAlpha = 1;
       ring(g, x, y - 3, 8, 4, FX.gold);
       const b = Math.round(Math.sin(now / 120) * 2);
@@ -603,7 +606,7 @@ export class Board {
     const walking = now - q.walk < 200 && !stunned;
     const b = walking ? ((Math.floor(now / 140 + id) & 1) ? -1 : 0) : Math.round(Math.sin(now / 300 + id));
     const big = def.size === 'large' ? 2 : 1; // a large card's procedural figure is drawn twice the size
-    const mark = this.counter && q.side === 1 ? counterMark(defOf(this.counter), def) : null;
+    const mark = this.counter && q.side !== this.me ? counterMark(defOf(this.counter), def) : null;
     if (mark) { // a pulsing ring on the ground under the enemy, outside the shadow
       const r = (def.size === 'small' ? 8 : 9 * big) + Math.round(Math.sin(now / 140));
       ring(g, x, y, r + 1, r * 0.45 + 1, '#120A0C'); ring(g, x, y, r, r * 0.45, mark); ring(g, x, y, r - 1, r * 0.45 - 1, mark);

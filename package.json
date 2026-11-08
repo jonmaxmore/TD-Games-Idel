@@ -20,7 +20,8 @@
     "dev:server": "vite-node packages/game/src/main.ts",
     "dev": "npm run dev -w @five-sects/client",
     "build": "npm run build -w @five-sects/client",
-    "shots": "node packages/client/scripts/shots.mjs"
+    "shots": "node packages/client/scripts/shots.mjs",
+    "shots:pvp": "node packages/client/scripts/shots-pvp.mjs"
   },
   "overrides": {
     "ws": "8.22.0"

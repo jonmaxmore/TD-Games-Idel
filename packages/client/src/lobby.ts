@@ -6,6 +6,7 @@ import { el } from './battle';
 import { playerPower } from './camp';
 import { cardLog, eggShop } from './collectionView';
 import { levelSum, type Mode, type Profile } from './profile';
+import { probe, serverUrl } from './net';
 import { applyVolume } from './sound';
 import { conditionTh, nextStage, unlockState, type Feature } from './unlocks';
 
@@ -136,7 +137,23 @@ function profileBody(p: Profile): HTMLElement {
   return box;
 }
 
-export interface LobbyNav { stage: (id: string) => void; map: () => void; mode: (m: Mode) => void; camp: () => void }
+export interface LobbyNav { stage: (id: string) => void; map: () => void; mode: (m: Mode) => void; camp: () => void; pvp: () => void }
+
+// ศึกกับเพื่อน: open only when the game server answers; otherwise disabled, saying why in Thai.
+function friendButton(side: HTMLElement, go: () => void) {
+  const b = btn('', 'mode pvp-btn', go), sub = el('small', '', 'กำลังตรวจเซิร์ฟเวอร์…');
+  b.dataset.go = 'pvp';
+  b.disabled = true;
+  b.append(el('b', '', 'ศึกกับเพื่อน'), sub);
+  side.append(b);
+  const { url, why } = serverUrl();
+  const off = (text: string, tip: string) => { b.disabled = true; b.classList.add('offline'); sub.textContent = text; b.title = tip; };
+  if (!url) { off('ยังเล่นในหน้านี้ไม่ได้', why!); return; }
+  void probe(url).then((ok) => {
+    if (ok) { b.disabled = false; sub.textContent = 'รหัสห้อง · ค่าเท่ากัน'; b.title = 'สร้างห้องหรือใส่รหัสห้องของเพื่อน'; }
+    else off('ยังไม่มีเซิร์ฟเวอร์', 'ต่อเซิร์ฟเวอร์ศึกกับเพื่อนไม่ได้ · ถ้าเล่นในเครื่องตัวเอง ให้เปิดเซิร์ฟเวอร์ด้วย npm run dev:server แล้วกลับมาที่ล็อบบี้');
+  });
+}
 
 export function lobbyScreen(app: HTMLElement, p: Profile, save: () => void, nav: LobbyNav): () => void {
   const r = el('div', 'screen lobby');
@@ -174,6 +191,7 @@ export function lobbyScreen(app: HTMLElement, p: Profile, save: () => void, nav:
     add(null, 'ศึกปราบ', `แผนที่ด่าน · ดาว ${starCount(p)}/${stages.length * 3}`, nav.map);
     if (open.has('ranked') && stage) add('ranked', ...MODE_BTN.ranked, () => nav.mode('ranked'));
     if (open.has('casual')) add('casual', ...MODE_BTN.casual, () => nav.mode('casual'));
+    friendButton(side, nav.pvp);
     if (open.has('levelUp')) add('levelUp', 'ค่ายฝึก', [`เลื่อนขั้น`, open.has('forge') ? 'โรงหลอม' : '', open.has('town') ? 'เมือง' : ''].filter(Boolean).join(' · '), nav.camp);
     add('log', 'บันทึกการ์ด', `มีแล้ว ${p.owned.length}/${battleCardIds.length} ใบ`, () => sheet('บันทึกการ์ด', () => cardLog(p), 'log-sheet'));
     if (open.has('eggShop')) add('eggShop', 'ร้านไข่', `แต้มไข่ ${p.eggPoints}`, () => sheet('ร้านไข่', () => eggShop(p, save, show), 'log-sheet egg-sheet'));
