@@ -101,7 +101,7 @@ if (process.env.CARDS !== '0') {
   const tables: [string, [Policy, Policy][]][] = [['rush/defend', PAIRS]];
   if (process.env.PACED === '1') tables.push(['paced vs paced', PACED_PAIRS], ['paced vs rush/defend', PACED_MIXED_PAIRS]);
   for (const [label, pairs] of tables) {
-    const t = cardTable(Number(process.env.CARD_GAMES ?? 4000), pairs);
+    const t = await cardTable(Number(process.env.CARD_GAMES ?? 4000), pairs);
     console.log(`\nper card over ${t.games} random-team games (${label}): card, kind, cost, band, side-games summoned, win % when summoned, vs band avg, win % when in hand`);
     for (const [key, avg] of t.band) console.log(`band ${key}: avg ${avg.toFixed(1)}%`);
     for (const r of t.rows) {
