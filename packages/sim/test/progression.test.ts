@@ -2,7 +2,7 @@
 // the power score matches matchmaking.md's worked example and sizes the casual AI.
 import { describe, expect, it } from 'vitest';
 import {
-  abilityValue, addXp, battle, BATTLE_LEN, battleCardIds, battleHash, battleOver, battleUnits, castleLevelOf, createBattle, fixedHand,
+  abilityValue, addXp, autoPicks, battle, BATTLE_LEN, battleCardIds, battleHash, battleOver, battleUnits, castleLevelOf, createBattle, fixedHand,
   matchLevel, powerRatioMaxPct, powerScore, progression, sectSetup, starterCards, stepBattle, type BattleCommand, type BattleSetup, type Progress,
 } from '../src';
 import { MIXED, playBattle } from './battleBot';
@@ -97,21 +97,20 @@ describe('progression in a match', () => {
 });
 
 describe('power score (matchmaking.md §5.2)', () => {
-  // The doc's worked example: banner Lv10, leader Lv12 with a weapon and armour, sub Lv10, 8 draw-pool cards Lv5, wall and
-  // cannon tier 1: P = 1000 x 1.4576 x 1.05 = 1,530.
-  const pool = battleCardIds.filter((c) => battleUnits.get(c)!.move !== 'capture' && c !== 'cloud_sword_elder' && c !== 'cloud_sword_striker').slice(0, 8);
+  // The doc's worked example with the picked hand: banner Lv10, leader Lv12 with a weapon and armour, sub Lv10, 4 picks Lv5,
+  // wall and cannon tier 1: every hand card weighs the same (deck.pick = drawSlots).
+  const pool = battleCardIds.filter((c) => battleUnits.get(c)!.move !== 'capture' && c !== 'cloud_sword_elder' && c !== 'cloud_sword_striker').slice(0, 4);
   const example = (more: Partial<Progress> = {}): BattleSetup => ({
-    leader: 'cloud_sword_elder', sub: 'cloud_sword_striker', collection: ['cloud_sword_banner', 'cloud_sword_elder', 'cloud_sword_striker', ...pool], bench: [],
+    leader: 'cloud_sword_elder', sub: 'cloud_sword_striker', picks: pool,
     progress: { levels: { cloud_sword_banner: 10, cloud_sword_elder: 12, cloud_sword_striker: 10, ...Object.fromEntries(pool.map((c) => [c, 5])) }, gear: { cloud_sword_elder: ['weapon', 'armor'] }, town: { cannon: 1, wall: 1 }, ...more },
   });
-  it('the worked example scores 1,530; a new 9-card account 1,000', () => {
+  it('the worked example scores 1,530; a new account at level 1 1,000', () => {
     expect(powerScore(example())).toBe(1530);
-    expect(powerScore({ leader: 'cloud_sword_striker', sub: 'cloud_sword_control', collection: starterCards('metal'), bench: [] })).toBe(1000);
+    expect(powerScore({ leader: 'cloud_sword_striker', sub: 'cloud_sword_control', picks: autoPicks('cloud_sword_striker', 'cloud_sword_control', starterCards('metal')) })).toBe(1000);
   });
-  it('a benched card leaves the score; draw-pool cards share drawSlots of weight', () => {
-    const s = example(), low = { ...s, collection: [...s.collection, 'ember_imp'] };
+  it('only the hand counts: a low-level card swapped into the picks lowers the score', () => {
+    const s = example(), low = { ...s, picks: [...s.picks.slice(0, 3), 'ember_imp'] };
     expect(powerScore(low)).toBeLessThan(powerScore(s));
-    expect(powerScore({ ...low, bench: ['ember_imp'] })).toBe(powerScore(s));
   });
   it('the casual AI level keeps the power ratio under the cap for accounts from new to maxed', () => {
     const ai = (lv: number): BattleSetup => ({ ...sectSetup('wood'), progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, lv])) } });

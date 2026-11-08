@@ -3,7 +3,7 @@
 // the match). The host can send the guest out (kick: they cannot come back to that room). Esc leaves the room, or the
 // screen when not in one. Every server error shows in Thai on the screen.
 import { battleUnits, sects } from '@five-sects/sim';
-import { CODE_LEN, leaderPool, normalizeCode, teamError, type Seat, type ServerMsg, type TeamPick } from '@five-sects/protocol';
+import { autoTeam, CODE_LEN, leaderPool, normalizeCode, teamError, type Seat, type ServerMsg, type TeamPick } from '@five-sects/protocol';
 import { el } from './battle';
 import { PLAYER_NAME } from './lobby';
 import { ERROR_TH, RoomClient, saveName, savedName, serverUrl } from './net';
@@ -22,10 +22,9 @@ const cardName = (c: string) => { const u = battleUnits.get(c)!; return `${u.nam
 
 // The team a player starts from: the saved team when both cards are allowed, else the first two of the pool.
 function firstTeam(p: Profile): TeamPick {
-  const t = { leader: p.team.leader, sub: p.team.sub };
-  if (!teamError(t)) return t;
-  const pool = leaderPool();
-  return { leader: pool[0]!, sub: pool[1]! };
+  const pool = leaderPool(), { leader, sub } = p.team;
+  const t = pool.includes(leader) && pool.includes(sub) ? autoTeam(leader, sub) : null;
+  return t && !teamError(t) ? t : autoTeam(pool[0]!, pool[1]!);
 }
 
 export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void {
@@ -114,7 +113,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
   function picker(): HTMLElement {
     const box = el('div', 'panel pvp-team');
     const pool = leaderPool();
-    const sel = (label: string, key: keyof TeamPick) => {
+    const sel = (label: string, key: 'leader' | 'sub') => {
       const s = el('select');
       s.setAttribute('aria-label', label);
       for (const c of pool) { const o = el('option', '', cardName(c)); o.value = c; s.append(o); }
@@ -122,7 +121,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
       s.onchange = () => {
         const next = { ...team, [key]: s.value };
         if (next.leader === next.sub) next[key === 'leader' ? 'sub' : 'leader'] = team[key]; // picking the other's card swaps them
-        team = next;
+        team = autoTeam(next.leader, next.sub);
         client?.send({ t: 'team', team });
       };
       const row = el('label', 'pvp-pick');

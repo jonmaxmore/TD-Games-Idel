@@ -10,7 +10,7 @@ const targets = (process.env.TARGETS ?? '92,88,84,80,76,72,68,63,58,48').split('
 const only = process.env.STAGES?.split(',');
 const winPct = (i: number): number => {
   let w = 0;
-  for (const home of homeSects) for (let seed = 1; seed <= seeds; seed++) w += +starsOf(playStage(seed, stages[i]!, ownedTeamAt(home, i, 1)).state, stages[i]!)[0];
+  for (const home of homeSects) for (let seed = 1; seed <= seeds; seed++) w += +starsOf(playStage(seed, stages[i]!, ownedTeamAt(home, i, 1, seed)).state, stages[i]!)[0];
   return (100 * w) / (seeds * homeSects.length);
 };
 stages.forEach((st, i) => {

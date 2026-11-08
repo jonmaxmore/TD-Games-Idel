@@ -16,6 +16,7 @@
     "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py",
     "sim:battle": "vite-node packages/sim/scripts/battle-measure.ts",
     "sim:campaign": "vite-node packages/sim/scripts/campaign-measure.ts",
+    "sim:deck": "vite-node packages/sim/scripts/deck-measure.ts",
     "typecheck": "tsc -p packages/sim && tsc -p packages/protocol && tsc -p packages/game && tsc -p packages/client",
     "dev:server": "vite-node packages/game/src/main.ts",
     "build:server": "esbuild packages/game/src/main.ts --bundle --platform=node --format=esm --target=node22 --external:fastify --external:@fastify/websocket --external:ws --outfile=dist/game/main.mjs",

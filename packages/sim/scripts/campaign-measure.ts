@@ -17,7 +17,7 @@ for (const level of process.env.LV10 ? [1, 10] : [1]) {
     for (const home of homes) {
       let win = 0, s2 = 0, s3 = 0;
       for (let seed = 1; seed <= seeds; seed++) {
-        const { state: s } = playStage(seed, st, ownedTeamAt(home, i, level));
+        const { state: s } = playStage(seed, st, ownedTeamAt(home, i, level, seed));
         const [w, a, b] = starsOf(s, st);
         win += +w; s2 += +a; s3 += +b; ticks += s.tick;
       }
@@ -29,7 +29,7 @@ for (const level of process.env.LV10 ? [1, 10] : [1]) {
 }
 if (process.env.NOAIR) {
   const i = stages.findIndex((s) => s.id === process.env.NOAIR), st = stages[i]!, theirs = new Set(stageCards(st).map((d) => d.id));
-  const win = (home: string) => { let w = 0; for (let seed = 1; seed <= seeds; seed++) w += +starsOf(playStage(seed, st, ownedTeamAt(home, i, 1)).state, st)[0]; return w; };
+  const win = (home: string) => { let w = 0; for (let seed = 1; seed <= seeds; seed++) w += +starsOf(playStage(seed, st, ownedTeamAt(home, i, 1, seed)).state, st)[0]; return w; };
   console.log(`${st.id} without anti-air (own cards cannot hit fliers), Lv1, ${seeds} seeds: home win% -> win% without`);
   for (const home of homes) console.log(`${home} ${pct(win(home))} -> ${pct(withoutAntiAir(ownedAt(home, i).filter((c) => !theirs.has(c)), () => win(home)))}`);
 }

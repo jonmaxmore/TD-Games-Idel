@@ -84,7 +84,7 @@ function fixRank(raw: unknown): Rank {
 // The saved match is replayed as stored; one that is not even shaped like a record is dropped.
 function fixRecord(raw: unknown): RankedSave | null {
   const r = obj(raw);
-  const ok = typeof r.seed === 'number' && Array.isArray(r.setups) && r.setups.length === 2 && r.commands && typeof r.commands === 'object' && r.opts && typeof r.opts === 'object' && typeof r.hash === 'string';
+  const ok = typeof r.seed === 'number' && Array.isArray(r.setups) && r.setups.length === 2 && r.setups.every((s) => Array.isArray(obj(s).picks)) && r.commands && typeof r.commands === 'object' && r.opts && typeof r.opts === 'object' && typeof r.hash === 'string';
   if (!ok) return null;
   const { endTick, ...rest } = r;
   return { ...(rest as unknown as RankedSave), ...(Number.isInteger(endTick) && (endTick as number) >= 0 ? { endTick: endTick as number } : {}) };

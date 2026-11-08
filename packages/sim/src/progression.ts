@@ -4,7 +4,7 @@
 import progressionJson from '../../../docs/data/progression.json';
 import { battle as B, battleUnits, TILE, type BattleUnitDef } from './data';
 import { div } from './core';
-import { drawPool, fixedCards, type BattleSetup } from './battle';
+import { handOf, type BattleSetup } from './battle';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const P = progressionJson as any;
@@ -70,11 +70,12 @@ export function castleLevelOf(sum: number): number {
 }
 
 // พลังทัพ (matchmaking.md §5, progression.json > matchmaking.powerScore): round(base x A x K) in integers. A: each hand
-// card's hp% x dmg%, weighted max(n, drawSlots) for the fixed three and drawSlots for each of the n draw-pool cards (the
-// doc's 1 and min(1, drawSlots/n) times max(n, drawSlots)); K: the town's added castle HP and cannon damage.
+// card's hp% x dmg%, weighted max(n, drawSlots) for the fixed three and drawSlots for each of the n picks (the doc's 1 and
+// min(1, drawSlots/n) times max(n, drawSlots); with deck.pick = drawSlots every hand card weighs the same); K: the town's
+// added castle HP and cannon damage.
 const PS = P.matchmaking.powerScore;
 export function powerScore(setup: BattleSetup): number {
-  const p = setup.progress ?? null, fixed = fixedCards(setup), pool = drawPool(setup, fixed);
+  const p = setup.progress ?? null, hand = handOf(setup), pool = hand.filter((c) => setup.picks.includes(c)), fixed = hand.filter((c) => !pool.includes(c));
   const wFixed = PS.fixedWeight * Math.max(pool.length, PS.drawSlots), v = (c: string) => { const k = statPct(p, c); return k.hp * k.dmg; };
   let num = 0, den = 0;
   for (const c of fixed) { num += wFixed * v(c); den += wFixed * 10000; }

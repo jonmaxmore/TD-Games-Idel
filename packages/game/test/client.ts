@@ -3,7 +3,7 @@
 import type { AddressInfo } from 'node:net';
 import { expect } from 'vitest';
 import WebSocket, { type ClientOptions } from 'ws';
-import { leaderPool, Lockstep, parseServer, type ClientMsg, type ServerMsg } from '@five-sects/protocol';
+import { autoTeam, leaderPool, Lockstep, PROTOCOL_VERSION, parseServer, type ClientMsg, type ServerMsg } from '@five-sects/protocol';
 import { buildServer, MemoryStore, type ServerOpts } from '../src/server';
 
 type Of<T extends ServerMsg['t']> = Extract<ServerMsg, { t: T }>;
@@ -38,7 +38,7 @@ export class TestClient {
       this.waits.push({ pred: (m) => m.t === t && pred(m as Of<T>), res: (m) => { clearTimeout(timer); this.got.splice(this.got.indexOf(m), 1); res(m as Of<T>); } });
     });
   }
-  async hello(name: string, token?: string) { this.send({ t: 'hello', v: 1, name, ...(token ? { token } : {}) }); return this.next('welcome'); }
+  async hello(name: string, token?: string) { this.send({ t: 'hello', v: PROTOCOL_VERSION, name, ...(token ? { token } : {}) }); return this.next('welcome'); }
   waitClose(ms = 3000): Promise<{ code: number; reason: string }> {
     if (this.closed) return Promise.resolve(this.closed);
     return new Promise((res, rej) => { const t = setTimeout(() => rej(new Error('not closed')), ms); this.ws.once('close', (code, r) => { clearTimeout(t); res({ code, reason: r.toString() }); }); });
@@ -65,8 +65,8 @@ export async function room(url: string, guest: ClientOptions = {}) {
   const r = await b.next('room');
   expect(r.seat).toBe(1);
   expect(r.seats[0]?.name).toBe('เจ้าบ้าน');
-  a.send({ t: 'team', team: { leader: L0!, sub: S0! } });
-  b.send({ t: 'team', team: { leader: L1!, sub: S1! } });
+  a.send({ t: 'team', team: autoTeam(L0!, S0!) });
+  b.send({ t: 'team', team: autoTeam(L1!, S1!) });
   a.send({ t: 'ready', on: true });
   b.send({ t: 'ready', on: true });
   const [sa, sb] = await Promise.all([a.next('start'), b.next('start')]);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  battleCardIds, castleLevelOf, collection, createBattle, draw, homeCard, leagues, powerRatioMaxPct, powerScore, progression, rewardFor, routeOf, stages,
-  starterCards, starterTeam, startRank, tierOf,
+  battle, battleCardIds, castleLevelOf, collection, createBattle, homeCard, leagues, powerRatioMaxPct, powerScore, progression, rewardFor, routeOf, stages,
+  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool,
 } from '@five-sects/sim';
 import { aiProgress, build, buyCard, chooseHome, claim, levelUp, payMatch, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
 import { aiSetup, benchRoom, fixTeam, rankedSetup, resolveTeam, teamSetup } from '../src/decks';
@@ -56,20 +56,23 @@ describe('profile v7: the collection', () => {
 });
 
 describe('teams over owned cards', () => {
-  it('the hand draws only owned cards; ranked draws from every card', () => {
-    const p = fresh();
-    for (let seed = 1; seed <= 30; seed++) expect(createBattle(seed, teamSetup(p.team, p.owned), aiSetup(p.team)).hands[0].every((c) => p.owned.includes(c))).toBe(true);
-    expect(rankedSetup(p.team).collection).toEqual(battleCardIds);
+  it('the hand is a legal deck of owned cards and loaners; ranked picks from every card', () => {
+    const p = fresh(), mine = teamSetup(p.team, p.owned);
+    expect(validateDeck(mine, p.owned)).toBeNull();
+    expect(createBattle(1, mine, aiSetup(p.team)).hands[0].every((c) => p.owned.includes(c) || battle.deck.loaners.includes(c))).toBe(true);
+    expect(validateDeck(rankedSetup(p.team), rankedPool)).toBeNull();
+    expect(validateDeck(teamSetup(p.team, p.owned, 18), p.owned, 18)).toBeNull(); // the starter hand costs exactly 18
   });
 
-  it(`a bench is only kept while the draw pool stays at ${draw.minDrawPool} or more`, () => {
+  it(`a bench is only kept while ${battle.deck.pick} owned cards stay to pick from, and benched cards are not picked`, () => {
     const p = fresh();
-    expect(benchRoom(p.team, p.owned)).toBeLessThan(0); // 9 cards: a pool of 2
+    expect(benchRoom(p.team, p.owned)).toBeLessThan(0); // 9 cards: 2 to pick from
     expect(fixTeam({ ...p.team, bench: ['wandering_archer'] }, p.owned, p.home).bench).toEqual([]);
     const many = [...p.owned, ...battleCardIds.filter((c) => !p.owned.includes(c) && c.startsWith('frost_tide') && !c.endsWith('banner'))];
     const t = fixTeam({ ...p.team, bench: many }, many, p.home);
-    expect(t.bench.length).toBe(many.filter((c) => !collection.starter.includes(c) || c === 'wandering_archer').length - 2 - draw.minDrawPool);
+    expect(t.bench.length).toBe(many.filter((c) => !collection.starter.includes(c) || c === 'wandering_archer').length - 2 - battle.deck.pick);
     expect(benchRoom(t, many)).toBe(0);
+    expect(teamSetup(t, many).picks.some((c) => t.bench.includes(c))).toBe(false);
   });
 
   it('a broken team falls back to the home starter team; a sub never equals the leader', () => {
