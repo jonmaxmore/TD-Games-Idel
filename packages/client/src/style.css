@@ -562,6 +562,7 @@ input.pvp-code { font-size: var(--fs-xl); letter-spacing: 6px; text-transform: u
 .pvp-seat .bad { color: var(--c-bad); }
 .pvp-ready { font-style: normal; font-size: var(--fs-sm); font-weight: 700; align-self: flex-start; padding: 2px 10px; border-radius: var(--r-pill); border: 1px solid var(--c-line-strong); color: var(--c-text-dim); }
 .pvp-ready.on { border-color: var(--c-accent); color: var(--c-accent-hi); background: var(--c-surface-warm); }
+.pvp-seat .kick-btn { align-self: flex-start; margin-top: auto; }
 .pvp-team { display: flex; flex-direction: column; gap: var(--sp-2); }
 .net-notice { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); z-index: 20; background: var(--c-scrim); border: 1px solid var(--c-accent); border-radius: var(--r-md); padding: 6px var(--sp-4); font-size: var(--fs-md); font-weight: 700; pointer-events: none; white-space: nowrap; }
 .net-notice.bad { border-color: var(--c-foe); color: var(--c-bad); }

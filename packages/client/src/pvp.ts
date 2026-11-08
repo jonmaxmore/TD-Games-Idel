@@ -1,13 +1,14 @@
 // ศึกกับเพื่อน (SPEC-pvp-rooms): create a room or join one by code, show the code with a copy button, pick a leader and a
 // sub-leader from every card (ศึกฝีมือ rules), ready up; the server's start message hands over to main.ts (versus, then
-// the match). Esc leaves the room, or the screen when not in one. Every server error shows in Thai on the screen.
+// the match). The host can send the guest out (kick: they cannot come back to that room). Esc leaves the room, or the
+// screen when not in one. Every server error shows in Thai on the screen.
 import { battleUnits, sects } from '@five-sects/sim';
 import { CODE_LEN, leaderPool, normalizeCode, teamError, type Seat, type ServerMsg, type TeamPick } from '@five-sects/protocol';
 import { el } from './battle';
 import { PLAYER_NAME } from './lobby';
 import { ERROR_TH, RoomClient, saveName, savedName, serverUrl } from './net';
 import type { Profile } from './profile';
-import { button } from './ui';
+import { button, confirmBox } from './ui';
 import { nowrapWords } from './words';
 
 export type Start = Extract<ServerMsg, { t: 'start' }>;
@@ -76,7 +77,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
 
   function onMsg(m: ServerMsg) {
     if (m.t === 'room') { room = m; say(''); show(); }
-    else if (m.t === 'error') { if (m.code === 'room_closed' || m.code === 'replaced') room = null; say(ERROR_TH[m.code]); show(); }
+    else if (m.t === 'error') { if (m.code === 'room_closed' || m.code === 'replaced' || m.code === 'kicked') room = null; say(ERROR_TH[m.code]); show(); }
     else if (m.t === 'start') { gone = true; nav.start(m, client!); }
   }
 
@@ -97,7 +98,8 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
   const leave = () => { client?.send({ t: 'leave' }); room = null; say(''); show(); };
   codeIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
 
-  function seatBox(s: Seat | null, i: number, mine: boolean): HTMLElement {
+  const kick = (name: string) => confirmBox(r, { title: `ให้ ${name} ออกจากห้อง?`, body: 'เพื่อนคนนี้จะกลับเข้าห้องนี้อีกไม่ได้ ต้องสร้างห้องใหม่ถ้าจะเล่นด้วยกัน', yes: 'ให้ออกจากห้อง', no: 'ยกเลิก', danger: true }, () => client?.send({ t: 'kick' }));
+  function seatBox(s: Seat | null, i: number, mine: boolean, host: boolean): HTMLElement {
     const box = el('div', `panel pvp-seat side${i}${s?.ready ? ' ready' : ''}`);
     box.append(el('small', 'dim', i === 0 ? 'เจ้าของห้อง · ฝั่งซ้าย' : 'ผู้มาเยือน · ฝั่งขวา'));
     if (!s) { box.append(el('b', 'pvp-wait', 'รอเพื่อนเข้าห้อง…'), el('p', 'dim small', 'ส่งรหัสห้องให้เพื่อน แล้วให้เพื่อนกด "เข้าห้อง"')); return box; }
@@ -105,6 +107,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
     if (!s.online) box.append(el('p', 'bad', 'หลุดการเชื่อมต่อ'));
     box.append(el('p', '', s.team ? `แม่ทัพ ${battleUnits.get(s.team.leader)!.nameTh} · รอง ${battleUnits.get(s.team.sub)!.nameTh}` : 'กำลังเลือกทัพ…'));
     box.append(el('em', s.ready ? 'pvp-ready on' : 'pvp-ready', s.ready ? 'พร้อมแล้ว' : 'ยังไม่พร้อม'));
+    if (host && i === 1) box.append(button('ให้ออกจากห้อง', () => kick(s.name), 'ghost', 'sm', 'kick-btn'));
     return box;
   }
 
@@ -154,7 +157,8 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
     }, 'secondary', 'sm', 'copy-btn');
     codeBox.append(el('small', 'dim', 'รหัสห้อง'), code, copy, el('small', 'dim', `ส่งรหัสนี้ให้เพื่อน · ห้องปิดเองใน ${Math.ceil(room.expiresSec / 60)} นาทีถ้ายังไม่เริ่ม`));
     const seats = el('div', 'pvp-seats');
-    seats.append(seatBox(room.seats[0], 0, room.seat === 0), el('span', 'vs-word small', 'ปะทะ'), seatBox(room.seats[1], 1, room.seat === 1));
+    const host = room.seat === 0;
+    seats.append(seatBox(room.seats[0], 0, host, host), el('span', 'vs-word small', 'ปะทะ'), seatBox(room.seats[1], 1, !host, host));
     const ready = mine?.ready ?? false, full = room.seats[0] != null && room.seats[1] != null;
     const row = el('div', 'row actions');
     const go = button(ready ? 'ยกเลิกพร้อม' : 'พร้อม', () => {
