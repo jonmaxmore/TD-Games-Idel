@@ -520,3 +520,9 @@ kbd { font: inherit; }
 .pick-confirm { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-4); }
 .pick-warn { margin: 0; font-size: var(--fs-md); color: var(--c-accent-hi); }
 .pick-ok { min-width: 260px; min-height: 56px; font-size: var(--fs-lg); font-weight: 700; }
+
+/* the stage map's next stage (main.ts campaignMap) */
+.stage-node.next { border-color: var(--c-accent-hi); animation: beckon 1.4s ease-in-out infinite; }
+.stage-node .next-flag { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: var(--fs-xs); font-weight: 700; padding: 0 var(--sp-2); background: var(--c-primary); color: var(--c-text-on-accent); border: 1px solid var(--c-accent-hi); border-radius: var(--r-sm); white-space: nowrap; }
+@keyframes beckon { 50% { box-shadow: 0 0 0 3px var(--c-accent-hi), 0 0 18px var(--c-accent-glow); } }
+@media (prefers-reduced-motion: reduce) { .stage-node.next { animation: none; box-shadow: 0 0 0 3px var(--c-accent-hi); } }

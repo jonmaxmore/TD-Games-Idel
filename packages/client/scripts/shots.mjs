@@ -522,6 +522,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await p.waitForSelector('.stage-node');
   await sleep(200);
   await shot(p, '51-stage-map');
+  check((await p.locator('.stage-node.next').getAttribute('data-stage')) === '1-3' && (await p.locator('.play-next').count()) === 1, 'the map marks 1-3 as next and offers it as its primary');
   await p.locator('.stage-node[data-stage="1-3"]').click();
   await p.waitForSelector('.brief-body');
   await sleep(200);

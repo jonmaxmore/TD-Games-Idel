@@ -265,9 +265,12 @@ function campaignMap() {
   road.setAttribute('points', stages.map((_, i) => MAP_AT[i]!.join(',')).join(' '));
   svg.append(road);
   map.append(svg);
+  // "You are here": the first open stage not yet won pulses with a ถัดไป flag, and the map's primary plays it.
+  const ahead = stages.find((st, i) => stageOpen(profile, ids, i) && !profile.campaign[st.id]?.stars[0]);
   stages.forEach((st, i) => {
     const open = stageOpen(profile, ids, i), got = profile.campaign[st.id]?.stars ?? [false, false, false];
-    const b = btn('', `stage-node${open ? '' : ' locked'}${got[0] ? ' won' : ''}`, () => { if (open) go({ k: 'brief', stage: st.id }); });
+    const b = btn('', `stage-node${open ? '' : ' locked'}${got[0] ? ' won' : ''}${st === ahead ? ' next' : ''}`, () => { if (open) go({ k: 'brief', stage: st.id }); });
+    if (st === ahead) b.append(el('em', 'next-flag', 'ถัดไป'));
     b.dataset.stage = st.id;
     b.disabled = !open;
     b.style.left = `${MAP_AT[i]![0]}%`;
@@ -278,6 +281,7 @@ function campaignMap() {
   });
   const row = el('div', 'row actions');
   row.append(button('กลับล็อบบี้', () => go({ k: 'lobby' }), 'ghost', 'md', 'back'));
+  if (ahead) row.append(button(`เล่นด่าน ${ahead.id}`, () => go({ k: 'brief', stage: ahead.id }), 'primary', 'lg', 'play-next'));
   r.append(map, row);
   app.append(r);
 }
