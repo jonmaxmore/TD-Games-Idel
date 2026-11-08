@@ -2,10 +2,11 @@
 // The player is side 0 (left); the AI plays side 1 through the same bot the balance tests use. Every input becomes a
 // BattleCommand handed to stepBattle, exactly like a replay. It owns its root until dispose(); main.ts decides what follows.
 import {
-  battle, BATTLE_LEN, battleHash, battleOver, battleUnits, createBattle, decision, gimmickNames, levelOf, realmOf, sects, starsOf, stepBattle, summonZone, TICK_HZ,
+  battle, BATTLE_LEN, battleHash, battleOver, battleUnits, classesOf, createBattle, decision, gimmickNames, levelOf, realmOf, sects, starsOf, stepBattle, summonZone, TICK_HZ,
   type BattleCommand, type BattleOpts, type BattleRecord, type BattleSetup, type Progress, type Stage, type BattleEvent, type BattleState, type ResultType, type Side, type TiebreakStep,
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
+import ui from '../../../docs/data/ui.json';
 import { Board, cannonIcon, portrait } from './board';
 import { teamName, type Team } from './decks';
 import type { Settings } from './profile';
@@ -47,6 +48,23 @@ const OFF_PATH = 0.9; // tiles from the road centre a click still counts as on i
 const sec = (t: number) => Math.ceil(t / TICK_HZ);
 const clock = (t: number) => { const s = Math.max(0, sec(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const capOf = (card: string) => battleUnits.get(card)!.perMatch;
+const CLASS_TH: Record<string, string> = { ...(ui.lossTip.classTh as Record<string, string>), structure: 'ป้อมและปราสาท' };
+const TIP_MS = 250; // a hand card's tooltip shows after the pointer rests this long
+
+// The hand card's tooltip: stats, what it beats (▲, orange on the field) and what beats it (▼, purple), uses left.
+function cardTip(card: string, left: string): HTMLElement[] {
+  const u = battleUnits.get(card)!, m = battle.moves.get(u.move)!;
+  const beats = u.counters.map((c) => CLASS_TH[c] ?? c), weak = classesOf(u).map((c) => battle.counterTags.get(c)).filter(Boolean);
+  const line = (cls: string, mark: string, text: string) => { const p = el('p', cls); p.append(el('b', '', mark), document.createTextNode(` ${text}`)); return p; };
+  return [
+    nowrapWords(el('b', 'tip-name'), u.nameTh),
+    el('p', 'tip-stats', `HP ${u.hp} · ตี ${u.dmg} · ${m.roleTh} · ${m.nameTh} · ${battle.sizes.get(u.size)?.nameTh ?? u.size}${u.hitsAir ? ' · ตีอากาศได้' : ''}`),
+    ...(beats.length > 0 ? [line('tip-strong', '▲', `ชนะทาง: ${beats.join(' · ')}`)] : []),
+    ...(weak.length > 0 ? [line('tip-weak', '▼', `แพ้ทาง: ตัวที่${weak.join(' · ')}`)] : []),
+    nowrapWords(el('p', 'tip-tag'), u.tagTh),
+    el('p', 'tip-uses', left === '∞' ? 'ลงได้ไม่จำกัด' : `ลงได้อีก ${left} ครั้ง`),
+  ];
+}
 
 export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResult) => void): () => void {
   let speed = o.speed;
@@ -65,8 +83,9 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const canvas = el('canvas', 'field');
   const top = el('div', 'hud-top');
   const bottom = el('div', 'hud-bottom');
-  const toastBox = el('div', 'toasts');
-  root.append(canvas, top, toastBox, bottom);
+  const toastBox = el('div', 'toasts'), cursorToast = el('div', 'toast bad cursor-toast'), tip = el('div', 'card-tip'), legend = el('div', 'counter-legend');
+  legend.append(el('span', 'tip-strong', '▲ ศัตรูที่ใบนี้ชนะทาง'), el('span', 'tip-weak', '▼ ศัตรูที่ใบนี้แพ้ทาง'));
+  root.append(canvas, top, toastBox, bottom, cursorToast, tip, legend);
   app.append(root);
   const board = new Board(canvas, s, { top: TOP_H, bottom: BOTTOM_H });
   const set = o.settings;
@@ -118,11 +137,10 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses);
     if (rank) b.append(el('em', 'rank', rank));
     if (!o.normalized) b.append(realmBadge(levelOf(o.progress[0], card)));
-    b.append(nowrapWords(el('b', 'name'), def.nameTh), nowrapWords(el('small', 'role'), `${m.roleTh} · ${m.nameTh} · ${battle.sizes.get(def.size)?.nameTh ?? def.size}`));
-    b.title = def.tagTh;
-    b.addEventListener('pointerdown', (ev) => { if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
-    b.addEventListener('pointerenter', () => { hover = slot; });
-    b.addEventListener('pointerleave', () => { if (hover === slot) hover = null; });
+    b.append(nowrapWords(el('b', 'name'), def.nameTh), el('small', 'role', m.roleTh));
+    b.addEventListener('pointerdown', (ev) => { hideTip(); if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
+    b.addEventListener('pointerenter', () => { hover = slot; showTip(slot); });
+    b.addEventListener('pointerleave', () => { if (hover === slot) hover = null; hideTip(); });
     cardRow.append(b);
     return { b, uses, card };
   });
@@ -137,6 +155,35 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   let hover: number | null = null; // the hand slot under the pointer
   let drag: { x: number; y: number; moved: boolean } | null = null;
   let lastPointer: { x: number; y: number } | null = null;
+
+  // Stage pixels from a client point: the stage is #app scaled by main.ts fit().
+  const toStage = (x: number, y: number) => { const r = root.getBoundingClientRect(), k = r.width / root.offsetWidth; return { x: (x - r.left) / k, y: (y - r.top) / k }; };
+  let tipTimer = 0;
+  function showTip(slot: number) {
+    clearTimeout(tipTimer);
+    tipTimer = window.setTimeout(() => {
+      const c = cards[slot]!, cap = capOf(c.card);
+      tip.replaceChildren(...cardTip(c.card, cap == null ? '∞' : String(cap - s.uses[0][slot]!)));
+      const r = c.b.getBoundingClientRect(), p = toStage(r.left + r.width / 2, r.top);
+      tip.style.left = `${Math.max(150, Math.min(root.offsetWidth - 150, p.x))}px`;
+      tip.style.top = `${p.y - 10}px`;
+      tip.classList.add('on');
+    }, TIP_MS);
+  }
+  function hideTip() { clearTimeout(tipTimer); tip.classList.remove('on'); }
+  // A refused summon says why right at the pointer, apart from the match events at the top.
+  let cursorTimer = 0;
+  function cursorSay(msg: string, at: { x: number; y: number }) {
+    const p = toStage(at.x, at.y);
+    cursorToast.textContent = msg;
+    cursorToast.style.left = `${p.x}px`;
+    cursorToast.style.top = `${p.y - 34}px`;
+    cursorToast.classList.remove('on');
+    void cursorToast.offsetWidth; // restart the pop
+    cursorToast.classList.add('on');
+    clearTimeout(cursorTimer);
+    cursorTimer = window.setTimeout(() => cursorToast.classList.remove('on'), 1400);
+  }
 
   function toast(msg: string, cls = '') {
     const t = el('div', `toast ${cls}`, msg);
@@ -180,7 +227,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     if (sel == null || battleOver(s) || ended) return;
     const a = aimAt(p);
     if (!a) return;
-    if (!a.ok) { toast(a.why!, 'bad'); return; }
+    if (!a.ok) { cursorSay(a.why!, p); return; }
     pending.push(sel === 'cannon' ? { t: 'cannon', side: 0, d: a.d } : { t: 'summon', side: 0, card: s.hands[0][sel]!, d: a.d });
     sel = null;
     board.reach = null;
@@ -284,6 +331,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     reload.style.height = `${(100 * cd) / battle.cannon.cooldown}%`;
     const shown = hover ?? (typeof sel === 'number' ? sel : null);
     board.counter = shown == null ? null : s.hands[0][shown]!;
+    put('legend', String(shown != null), (v) => legend.classList.toggle('on', v === 'true'));
   }
   // The mana bar fills toward the next point between ticks (the sim only adds whole points).
   function manaProgress(): number {
@@ -362,6 +410,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   let raf = requestAnimationFrame(frame);
   return () => {
     cancelAnimationFrame(raf);
+    clearTimeout(tipTimer); clearTimeout(cursorTimer);
     removeEventListener('resize', onResize); removeEventListener('keydown', onKey);
     removeEventListener('pointermove', onMove); removeEventListener('pointerup', onUp);
     board.dispose(); root.remove();

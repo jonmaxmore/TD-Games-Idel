@@ -324,11 +324,11 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.waitForFunction(() => window.__game.s.units.filter((u) => u.side === 0).length >= 2, null, { timeout: 5000 });
   await p.waitForFunction(() => window.__game.s.units.filter((u) => u.side === 1).length >= 3, null, { timeout: 40000 });
   await sleep(500);
-  // Hover each card until one marks an enemy (orange: it beats it, blue: it loses to it).
+  // Hover each card: the tooltip, and enemies it beats (orange ▲) or loses to (purple ▼), with the legend.
   for (let i = 0; i < 7; i++) {
     const b = await p.locator('.card').nth(i).boundingBox();
     await p.mouse.move(b.x + b.width / 2, b.y + 20);
-    await sleep(120);
+    await sleep(350);
     await shot(p, `16-counter-hover-${i + 1}`);
   }
   // The cannon: Space arms it, the enemy nearest our castle is the aim, a click fires.

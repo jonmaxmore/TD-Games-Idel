@@ -16,7 +16,7 @@
   --c-mana: #4fb3ff; --c-mana-deep: #0076cf; --c-mana-hi: #abdbff;
   --c-ally: #4fb3ff; --c-foe: #d2412f; --c-foe-hp: #e23b2e;
   --c-good: #3fbf8f; --c-bad: #ff9e7b; --c-warn: #f2a23a; --c-star: #ffd24a;
-  --c-strong: #f2a23a; --c-weak: #b05be0;
+  --c-strong: #f2a23a; --c-weak: #eef3f8; /* silver until the palette has a purple (board.ts COUNTER_GLOW) */
   --c-neutral: #c8c4cc; --c-muted: #8f8a96; --c-disabled: #3a3442;
   --c-focus: #ffe08a;
   /* type (Thai-safe: labels at least 12px bold, body at least 14px) */
@@ -323,7 +323,7 @@ kbd { font: inherit; }
 .rank-badge { font-style: normal; font-size: var(--fs-xs); font-weight: 700; padding: 1px var(--sp-2); border-radius: var(--r-pill); margin-top: 3px; background: var(--c-surface-2); color: var(--c-text); border: 1px solid var(--c-line); white-space: nowrap; }
 .rank-badge.league-stone { border-color: var(--c-muted); } .rank-badge.league-bronze { border-color: #c27a3a; color: #f0b27a; }
 .rank-badge.league-silver { border-color: var(--c-neutral); color: #e6e3ea; } .rank-badge.league-gold { border-color: var(--c-accent); color: var(--c-accent-hi); }
-.rank-badge.league-jade { border-color: var(--c-good); color: #8fe6c2; } .rank-badge.league-master { border-color: var(--c-weak); color: #d9a6f5; }
+.rank-badge.league-jade { border-color: var(--c-good); color: #8fe6c2; } .rank-badge.league-master { border-color: #b05be0; color: #d9a6f5; }
 .rank-badge.league-legend { border-color: #ff6b4a; color: #ffb199; }
 .screen.campaign h1 { font-size: var(--fs-xl); }
 .stage-map { position: relative; flex: 1; min-height: 0; margin: var(--sp-1) 30px 0; border: 1px solid var(--c-line); border-radius: var(--r-md); background: radial-gradient(ellipse at 30% 70%, #2a1f18, var(--c-surface-deep) 70%); }
@@ -466,6 +466,27 @@ kbd { font: inherit; }
 .modal .new-card b { font-size: var(--fs-lg); color: var(--sect); }
 .modal .new-card small { font-size: var(--fs-sm); color: var(--c-text-dim); max-width: 520px; }
 .modal .egg-line { color: var(--c-mana-hi); font-size: var(--fs-md); }
+/* battle feedback: a refused summon at the pointer, the hand card tooltip and the counter legend (battle.ts) */
+.cursor-toast { position: absolute; z-index: 7; transform: translate(-50%, -100%); pointer-events: none; opacity: 0; font-size: var(--fs-sm); font-weight: 700; }
+.cursor-toast.on { animation: pop 1400ms var(--ease) forwards; }
+@keyframes pop { 0% { opacity: 0; transform: translate(-50%, calc(-100% + 6px)); } 12% { opacity: 1; transform: translate(-50%, -100%); } 80% { opacity: 1; } 100% { opacity: 0; } }
+.card-tip {
+  position: absolute; z-index: 8; width: 300px; transform: translate(-50%, -100%); pointer-events: none; opacity: 0;
+  display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) var(--sp-3); line-height: var(--lh-thai);
+  background: var(--c-surface-1); border: 1px solid var(--c-accent); border-radius: var(--r-md); box-shadow: 0 4px 0 var(--c-black);
+  transition: opacity var(--t-fast) var(--ease);
+}
+.card-tip.on { opacity: 1; }
+.card-tip p { margin: 0; font-size: var(--fs-sm); }
+.card-tip .tip-name { font-size: var(--fs-md); color: var(--c-accent); }
+.card-tip .tip-stats { color: var(--c-accent-hi); }
+.card-tip .tip-tag, .card-tip .tip-uses { color: var(--c-text-dim); }
+.tip-strong, .tip-strong b { color: var(--c-strong); }
+.tip-weak, .tip-weak b { color: var(--c-weak); }
+.counter-legend { position: absolute; z-index: 5; left: var(--sp-3); bottom: 156px; display: flex; gap: var(--sp-3); padding: var(--sp-1) var(--sp-2); font-size: var(--fs-xs); font-weight: 700; background: var(--c-scrim); border: 1px solid var(--c-line); border-radius: var(--r-md); opacity: 0; pointer-events: none; transition: opacity var(--t-fast); }
+.counter-legend.on { opacity: 1; }
+.card:hover:not(:disabled):not(.sel) { transform: translateY(-4px); border-color: var(--sect); box-shadow: 0 0 0 1px var(--c-accent-hi); }
+@media (prefers-reduced-motion: reduce) { .cursor-toast.on { animation: none; opacity: 1; } }
 .toast.warn { font-size: var(--fs-lg); font-weight: 700; background: color-mix(in srgb, var(--c-primary) 60%, transparent); }
 .goals-box .first-clear { color: var(--c-accent-hi); font-weight: 700; }
 
