@@ -4,7 +4,7 @@ import { battleUnits, cardStats, castleLevelOf, progression, sects } from '@five
 import { el, realmBadge } from './battle';
 import { portrait } from './board';
 import { build, canLevel, forgeState, levelUp, progressOf, townTiers, upgradeTown, xpNeed, type TownKey } from './camp';
-import { levelSum, type Profile } from './profile';
+import { levelSum, teamOf, type Profile } from './profile';
 import { unlockState } from './unlocks';
 import { cardArt } from './sprites';
 import { button, setDisabled } from './ui';
@@ -26,7 +26,7 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
   if (open.has('town')) body.append(side);
   r.append(head, body, note);
   app.append(r);
-  let pick = p.team.leader;
+  let pick = teamOf(p).leader;
   const say = (msg: string, bad = false) => { note.textContent = msg; note.classList.toggle('bad', bad); };
   const act = (msg: string | null, ok: string) => { if (msg) say(msg, true); else { save(); say(ok); } show(); };
 

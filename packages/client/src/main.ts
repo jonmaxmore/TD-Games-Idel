@@ -6,17 +6,18 @@
 // &seed=N picks the match, &deck=fire|wood|metal|water|earth (a sect preset), all|mixed (every card) or a comma list of
 // card ids to draw from (&leader=, &sub= the leaders).
 import {
-  battle, battleCardIds, battleUnits, chapter, createBattle, gimmickNames, homeSects, rewardCard, sectCards, sects, stageOf, stages, starName, starterCards, starterTeam, stepBattle, TICK_HZ,
-  type BattleSetup, type Side, type Stage,
+  battle, battleCardIds, battleUnits, chapter, loanerRoom, gimmickNames, homeSects, rewardCard, sectCards, sects, stageOf, stages, starName, starterCards, starterTeam, TICK_HZ,
+  type Side, type Stage,
 } from '@five-sects/sim';
 import { Lockstep, pvpSetup, type MatchEnd } from '@five-sects/protocol';
-import { el, realmBadge, startMatch, type MatchResult } from './battle';
+import { el, startMatch, type MatchResult } from './battle';
 import { aiProgress, canLevel, chooseHome, claim, payMatch, progressOf, recordRanked, recordStage, stageOpen, type Claimed } from './camp';
 import { campScreen } from './campScreen';
 import { portrait } from './board';
-import { aiSetup, benchRoom, fixTeam, isBasic, rankedSetup, resolveTeam, teamName, teamSetup, type Team } from './decks';
+import { aiSetup, casualRules, DECK_NAME_MAX, deckName, deckProblem, isBasic, RANKED_RULES, resolveTeam, setupOf, teamName, type DeckRules, type Team } from './decks';
+import { colorOf, deckPicker, kindOf } from './deckPicker';
 import { lobbyScreen, rankBadge, starCount, toggleFullscreen } from './lobby';
-import { load, save, type Mode, type Profile, type RankedSave } from './profile';
+import { load, save, setTeam, teamOf, type Mode, type Profile, type RankedSave } from './profile';
 import { initSound, play, unlockAudio } from './sound';
 import { cardArt, loadSprites } from './sprites';
 import { lossTip, versusTip } from './tips';
@@ -50,7 +51,7 @@ const profile: Profile = load();
 claim(profile); // an older save's won stages pay their first clears once a home sect is set
 initSound(profile.settings);
 
-type Fight = { team: Team; seed: number; redraws: number; stage?: string };
+type Fight = { team: Team; seed: number; stage?: string };
 type Screen =
   | { k: 'title' } | { k: 'pick' } | { k: 'lobby' } | { k: 'deck'; stage?: string } | { k: 'camp' } | { k: 'campaign' } | { k: 'brief'; stage: string } | { k: 'replay' }
   | ({ k: 'versus' } & Fight) | ({ k: 'match' } & Fight) | { k: 'pvp' } | { k: 'pvpVs' } | { k: 'pvpMatch' };
@@ -84,13 +85,13 @@ function go(next: Screen) {
   else if (next.k === 'pvp') dispose = pvpScreen(app, profile, { lobby: () => go({ k: 'lobby' }), start: (m, c) => { pvpLive(m, c); go({ k: 'pvpVs' }); } });
   else if (next.k === 'pvpVs') dispose = pvpVersus();
   else if (next.k === 'pvpMatch') dispose = pvpMatch();
-  else if (next.k === 'deck') teamScreen(next.stage ? stageOf(next.stage) : undefined);
+  else if (next.k === 'deck') dispose = teamScreen(next.stage ? stageOf(next.stage) : undefined);
   else if (next.k === 'camp') dispose = campScreen(app, profile, () => save(profile), () => go({ k: 'lobby' }));
   else if (next.k === 'versus') dispose = versus(next);
   else if (next.k === 'campaign') campaignMap();
   else if (next.k === 'brief') briefing(stageOf(next.stage)!);
   else if (next.k === 'replay') dispose = replay();
-  else dispose = match(next.team, next.seed, next.redraws, next.stage ? stageOf(next.stage) : undefined);
+  else dispose = match(next.team, next.seed, next.stage ? stageOf(next.stage) : undefined);
 }
 
 function btn(text: string, cls: string, onclick: () => void): HTMLButtonElement {
@@ -156,106 +157,56 @@ function pickHome() {
 const MODES: [Mode, string][] = [['casual', 'ศึกทั่วไป'], ['ranked', 'ศึกฝีมือ (เลเวลเท่ากัน)']];
 const modeName = (m: Mode) => MODES.find((x) => x[0] === m)![1];
 
-// ---- team setup: the owned cards, filtered by kind, cost and role; leader, sub-leader and bench (never below the minimum
-// draw pool); the dealt hand ----
-const kindOf = (c: string) => battle.kinds.get(battleUnits.get(c)!.kind)!;
-const roleLine = (c: string) => { const u = battleUnits.get(c)!, m = battle.moves.get(u.move)!; return `${kindOf(c)} · ${m.roleTh} · ${m.nameTh}`; };
-function abilityText(c: string, level: number): string | null {
-  const u = battleUnits.get(c)!;
-  if (!u.ability) return null;
-  const a = battle.abilities.get(u.ability.kind)!;
-  return `${a.nameTh} Lv${level}: ${a.doesTh.replace('{v}', String(u.ability.lv[level - 1]))}`;
-}
-const colorOf = (c: string) => sects.get(battleUnits.get(c)!.sect)?.color ?? '#E3B04B';
-// The filter bar: one row of chips per key, 'all' first; a card shows when it matches every key.
-type Filter = { kind: string; cost: string; role: string };
-const FILTERS: { key: keyof Filter; label: string; opts: [string, string][]; test: (c: string, v: string) => boolean }[] = [
-  { key: 'kind', label: 'ชนิด', opts: [...battle.kinds], test: (c, v) => battleUnits.get(c)!.kind === v },
-  { key: 'cost', label: 'ราคา', opts: [1, 2, 3, 4, 5, 6, 7].map((n) => [String(n), String(n)]), test: (c, v) => battleUnits.get(c)!.mana === Number(v) },
-  { key: 'role', label: 'บทบาท', opts: [['บุก', 'ตัวบุก'], ['สกัด', 'ตัวสกัด']], test: (c, v) => battle.moves.get(battleUnits.get(c)!.move)!.roleTh === v },
-];
-function teamScreen(stage?: Stage) {
-  const r = el('div', 'screen team');
-  r.append(el('h1', '', `จัดทัพ · ${stage ? `ศึกปราบ ${stage.id} ${stage.nameTh}` : modeName(profile.mode)}`));
-  const lv = (c: string) => realmBadge(profile.cards[c]!.level);
-  const body = el('div', 'team-body'), main = el('div', 'team-main'), bar = el('div', 'filters'), grid = el('div', 'team-cards many');
-  main.append(bar, grid);
-  body.append(main);
-  const owned = profile.owned, foe: BattleSetup = stage ? stage.enemy : aiSetup(profile.team);
-  const info = el('p', 'team-info'), handRow = el('div', 'hand-row'), redrawBtn = button('', () => { redraws++; show(); }, 'secondary', 'md', 'redraw');
-  const seed = (Date.now() % 100000) + 1;
-  const filter: Filter = { kind: '', cost: '', role: '' };
-  let redraws = 0;
-  const setTeam = (t: Team) => { profile.team = fixTeam(t, owned, profile.home); save(profile); redraws = 0; show(); };
-  const describe = (c: string) => {
-    const u = battleUnits.get(c)!, cap = u.perMatch, t = profile.team;
-    const lv = c === t.leader ? 3 : c === t.sub ? 2 : 1, ab = abilityText(c, lv);
-    info.textContent = `${u.nameTh} · ${roleLine(c)} · ${battle.sizes.get(u.size)!.nameTh} · ${cap == null ? 'ลงได้ไม่จำกัด' : `ลงได้ ${cap} ครั้ง`} · HP ${u.hp} · ตี ${u.dmg}${u.hitsAir ? ' · ตีอากาศได้' : ''} · ${u.tagTh}${ab ? ` · ${ab}` : ''}`;
-  };
-  const chips = FILTERS.map((f) => {
-    const row = el('div', 'chips');
-    row.append(el('span', 'chip-label', f.label));
-    for (const [v, name] of [['', 'ทั้งหมด'] as [string, string], ...f.opts]) {
-      const b = btn(name, 'chip', () => { filter[f.key] = v; show(); });
-      b.dataset.f = `${f.key}:${v || 'all'}`;
-      row.append(b);
-    }
-    bar.append(row);
-    return row;
+// ---- จัดทัพ: three named saved decks (kept as they are edited) over the deck picker, under the mode's rules: the owned
+// cards and their levels (a stage's own budget in ศึกปราบ), or every card at base stats in ศึกฝีมือ. เข้าสู่ศึก stays off
+// with the reason until the team is legal. ----
+const teamRules = (stage?: Stage): DeckRules => (!stage && profile.mode === 'ranked' ? RANKED_RULES : casualRules(profile.owned, stage?.deckBudget));
+function teamScreen(stage?: Stage): () => void {
+  const r = el('div', 'screen team'), rules = teamRules(stage);
+  const head = el('div', 'team-head'), tabs = el('div', 'deck-tabs'), nameIn = el('input', 'deck-name');
+  nameIn.maxLength = DECK_NAME_MAX;
+  nameIn.setAttribute('aria-label', 'ชื่อทัพ');
+  nameIn.addEventListener('input', () => { profile.decks[profile.deck]!.name = nameIn.value.trim().slice(0, DECK_NAME_MAX) || deckName(profile.deck); save(profile); showTabs(); });
+  tabs.setAttribute('role', 'tablist');
+  tabs.setAttribute('aria-label', 'ทัพที่บันทึกไว้');
+  const nameRow = el('label', 'deck-name-row');
+  nameRow.append(el('span', 'dim small', 'ชื่อทัพ'), nameIn, el('small', 'dim saved-note', 'บันทึกอัตโนมัติ'));
+  head.append(el('h1', '', `จัดทัพ · ${stage ? `ศึกปราบ ${stage.id} ${stage.nameTh}` : modeName(profile.mode)}`), tabs, nameRow);
+  const lent = loanerRoom(rules.owned);
+  const note = rules.ranked
+    ? `ศึกฝีมือ: เลือกจากการ์ดทุกใบในเกม งบแต้มทัพ ${rules.budget} เท่ากันทุกคน และทุกใบใช้ค่าพื้นฐานเท่ากัน เลเวลไม่มีผล`
+    : `${stage ? `ด่านนี้งบแต้มทัพ ${rules.budget}${rules.budget !== battle.deck.budget ? ` (ปกติ ${battle.deck.budget})` : ''}` : `ศึกทั่วไป: งบแต้มทัพ ${rules.budget}`} · ใช้การ์ดที่มี เลเวลการ์ดมีผล${lent > 0 ? ` · การ์ดยังน้อย ยืมศิษย์กระบี่ได้ ${lent} ใบ (ป้าย "ยืม")` : ''}`;
+  const picker = deckPicker({
+    rules, team: teamOf(profile), level: (c) => (rules.ranked ? null : profile.cards[c]!.level),
+    onChange: (t) => { setTeam(profile, t); save(profile); refresh(); },
   });
-  const count = el('small', 'count');
-  bar.append(count);
-  const show = () => {
-    const t = profile.team, room = benchRoom(t, owned);
-    FILTERS.forEach((f, i) => { for (const b of Array.from(chips[i]!.querySelectorAll('.chip'))) b.classList.toggle('on', (b as HTMLElement).dataset.f === `${f.key}:${filter[f.key] || 'all'}`); });
-    const shown = owned.filter((c) => FILTERS.every((f) => !filter[f.key] || f.test(c, filter[f.key])));
-    const pool = owned.filter((c) => !isBasic(c) && c !== t.leader && c !== t.sub && !t.bench.includes(c)).length;
-    count.textContent = `แสดง ${shown.length} จาก ${owned.length} ใบที่มี · ใบให้เลือก ${pool} ใบ${room > 0 ? ` · ใส่สำรองได้อีก ${room}` : ` · สำรองได้เมื่อใบให้เลือกเกิน ${battle.deck.pick} ใบ`}`;
-    grid.replaceChildren(...shown.map((id) => {
-      const u = battleUnits.get(id)!, role = id === t.leader ? 'leader' : id === t.sub ? 'sub' : t.bench.includes(id) ? 'bench' : isBasic(id) ? 'basic' : '';
-      const tile = el('div', `team-card ${role} kind-${u.kind}`);
-      tile.dataset.id = id;
-      tile.style.borderColor = colorOf(id);
-      const face = el('span', 'face');
-      face.append(cardArt(id) ?? portrait(id));
-      const badge = { leader: 'แม่ทัพ', sub: 'รองแม่ทัพ', bench: 'สำรอง', basic: 'ยึดป้อม', '': '' }[role];
-      tile.append(face, el('span', 'cost', String(u.mana)), lv(id), nowrapWords(el('b'), u.nameTh), el('small', '', roleLine(id)));
-      if (badge) tile.append(el('em', '', badge));
-      if (!isBasic(id)) {
-        const acts = el('div', 'acts');
-        acts.append(
-          btn('แม่ทัพ', id === t.leader ? 'on' : '', () => setTeam({ ...t, leader: id, sub: id === t.sub ? t.leader : t.sub })),
-          btn('รอง', id === t.sub ? 'on' : '', () => setTeam({ ...t, sub: id, leader: id === t.leader ? t.sub : t.leader })),
-          btn('สำรอง', role === 'bench' ? 'on' : '', () => setTeam({ ...t, bench: t.bench.includes(id) ? t.bench.filter((x) => x !== id) : [...t.bench, id] })),
-        );
-        const benchBtn = acts.lastElementChild as HTMLButtonElement;
-        benchBtn.disabled = role !== 'bench' && (room <= 0 || id === t.leader || id === t.sub);
-        benchBtn.title = `ต้องเหลือการ์ดให้เลือกอย่างน้อย ${battle.deck.pick} ใบ`;
-        tile.append(acts);
-      }
-      tile.addEventListener('pointerenter', () => describe(id));
-      return tile;
+  const seed = (Date.now() % 100000) + 1;
+  const enter = button('เข้าสู่ศึก', () => go({ k: 'versus', team: teamOf(profile), seed, stage: stage?.id }), 'primary', 'lg', 'enter-btn');
+  const why = el('p', 'enter-why');
+  function showTabs() {
+    tabs.replaceChildren(...profile.decks.map((d, i) => {
+      const ok = deckProblem(d.team, rules) == null, on = i === profile.deck;
+      const b = button('', () => { profile.deck = i; save(profile); picker.set(teamOf(profile)); refresh(); }, on ? 'secondary' : 'ghost', 'sm', `deck-tab${on ? ' on' : ''}`);
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(on));
+      b.append(nowrapWords(el('span'), d.name), el('i', ok ? 'tab-ok' : 'tab-bad', ok ? '✓' : '!'));
+      b.title = ok ? 'ทัพนี้พร้อมเข้าศึก' : `ยังเข้าศึกไม่ได้: ${deckProblem(d.team, rules)}`;
+      return b;
     }));
-    // The deal the match will start from: the same seed and redraws, played through the sim's own redraw command.
-    const s = createBattle(seed, profile.mode === 'ranked' && !stage ? rankedSetup(t) : teamSetup(t, owned, stage?.deckBudget), stage ? foe : aiSetup(t));
-    handRow.replaceChildren(el('span', 'hand-label', 'มือในศึกนี้'), ...s.hands[0].map((id, i) => {
-      const u = battleUnits.get(id)!, m = el('div', `hand-card${i < 3 ? ' fixed' : ''}`);
-      m.dataset.id = id;
-      m.style.borderColor = colorOf(id);
-      const face = el('span', 'face');
-      face.append(cardArt(id) ?? portrait(id));
-      m.append(face, el('span', 'cost', String(u.mana)), lv(id), nowrapWords(el('b'), u.nameTh), el('small', '', i === 0 ? 'ยึดป้อม' : i === 1 ? 'แม่ทัพ' : i === 2 ? 'รอง' : `สุ่ม · ${kindOf(id)}`));
-      m.addEventListener('pointerenter', () => describe(id));
-      return m;
-    }));
-    describe(t.leader);
-  };
-  if (profile.mode === 'ranked' && !stage) bar.append(el('small', 'count', 'ศึกฝีมือ: มือสุ่มจากการ์ดทุกใบในเกม ค่าเท่ากัน ใช้แค่แม่ทัพและรองที่เลือก'));
+  }
+  function refresh() {
+    const problem = picker.problem();
+    setDisabled(enter, problem);
+    why.textContent = problem ? `ยังเข้าศึกไม่ได้: ${problem}` : '';
+    if (document.activeElement !== nameIn) nameIn.value = profile.decks[profile.deck]!.name;
+    showTabs();
+  }
   const row = el('div', 'row actions');
-  row.append(button('กลับ', () => go(stage ? { k: 'brief', stage: stage.id } : { k: 'lobby' }), 'ghost', 'md', 'back'), button('เข้าสู่ศึก', () => go({ k: 'versus', team: profile.team, seed, redraws: 0, stage: stage?.id }), 'primary', 'lg'));
-  r.append(body, info, handRow, row);
+  row.append(button('กลับ (Esc)', () => go(stage ? { k: 'brief', stage: stage.id } : { k: 'lobby' }), 'ghost', 'md', 'back'), why, enter);
+  r.append(head, el('p', 'team-note', note), picker.root, row);
   app.append(r);
-  show();
+  refresh();
+  return () => picker.dispose();
 }
 
 // ---- ศึกปราบ: the stage map, then a stage's briefing ----
@@ -325,9 +276,12 @@ function briefing(st: Stage) {
   const left = el('div', 'brief-col');
   left.append(gim, goals);
   body.append(left, foe);
+  const enter = button('เข้าสู่ศึก', () => go({ k: 'versus', team: teamOf(profile), seed: (Date.now() % 100000) + 1, stage: st.id }), 'primary', 'lg', 'enter-btn');
+  const problem = deckProblem(teamOf(profile), teamRules(st));
+  setDisabled(enter, problem ? `ทัพยังเข้าศึกไม่ได้: ${problem} · กด จัดทัพ` : null);
   const row = el('div', 'row actions');
   row.append(button('แผนที่', () => go({ k: 'campaign' }), 'ghost', 'md', 'back'), button('จัดทัพ', () => go({ k: 'deck', stage: st.id })),
-    button('เข้าสู่ศึก', () => go({ k: 'versus', team: profile.team, seed: (Date.now() % 100000) + 1, redraws: 0, stage: st.id }), 'primary', 'lg'));
+    enter);
   r.append(body, row);
   app.append(r);
 }
@@ -336,7 +290,7 @@ function briefing(st: Stage) {
 // About 1.5 s before every match: our leader against theirs, both team names, the mode or stage, and one tip. A click or any
 // key (but F, full screen) skips it.
 function versus(f: Fight): () => void {
-  const stage = f.stage ? stageOf(f.stage) : undefined, foe = stage ? stage.enemy : aiSetup(f.team);
+  const stage = f.stage ? stageOf(f.stage) : undefined, foe = stage ? stage.enemy : aiSetup(f.team, f.seed);
   const foeLeader = foe.leader || foe.picks.find((c) => !isBasic(c)) || foe.picks[0]!;
   const ai = !stage && profile.mode === 'casual' ? aiProgress(profile, foe, Date.now()).levels![foeLeader] : null;
   const r = el('div', 'screen versus');
@@ -364,11 +318,10 @@ function versus(f: Fight): () => void {
 
 // Our side: ranked draws from every card (normalized), else the owned cards (a dev ?deck= the cards it names). The casual AI
 // plays at the card level whose power score is closest to ours (camp.ts aiProgress).
-function match(team: Team, seed: number, redraws: number, stage?: Stage) {
-  const ranked = !stage && profile.mode === 'ranked', vs = aiSetup(team);
-  const mine = ranked ? rankedSetup(team) : teamSetup(team, dev.battle && dev.team ? dev.team.cards : profile.owned, stage?.deckBudget);
+function match(team: Team, seed: number, stage?: Stage) {
+  const ranked = !stage && profile.mode === 'ranked', vs = aiSetup(team, seed), mine = setupOf(team);
   return startMatch(app, {
-    seed, team, mine, vs, redraws, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
+    seed, team, mine, vs, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
     bots: stage || ranked ? [dev.bot ? 'paced' : null, 'paced'] : [dev.bot ? 'rush' : null, 'rush'],
     normalized: ranked, progress: ranked ? [null, null] : [progressOf(profile, Date.now()), stage ? null : aiProgress(profile, vs, Date.now())],
     modeTh: stage ? `ศึกปราบ ${stage.id}` : ranked ? 'ศึกฝีมือ' : 'ศึกทั่วไป',
@@ -384,9 +337,9 @@ let lastPlay: Played | null = null;
 const replayable = (): Played | null => lastPlay ?? (profile.lastRanked ? { record: profile.lastRanked, modeTh: 'ศึกฝีมือ', normalized: true } : null);
 function replay() {
   const play = replayable()!, last = play.record, s0 = last.setups[0];
-  const team: Team = { leader: s0.leader, sub: s0.sub, bench: [] };
+  const team: Team = { leader: s0.leader, sub: s0.sub, picks: [...s0.picks] };
   return startMatch(app, {
-    seed: last.seed, team, mine: s0, vs: last.setups[1], redraws: 0, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
+    seed: last.seed, team, mine: s0, vs: last.setups[1], speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
     bots: [null, 'paced'], normalized: play.normalized, progress: [null, null], modeTh: play.modeTh, replay: last, quit: 'replay', onQuit: () => go({ k: 'lobby' }),
   }, (r) => {
     const same = r.hash === last.hash;
@@ -491,7 +444,7 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
   }
   const toDeck = () => go({ k: 'deck', stage: stage?.id });
   // A loss names its likeliest cause and one card that answers it, with the way to act on it.
-  const tip = won === false ? lossTip(r.foeDmg, [...profile.owned.filter((c) => !team.bench.includes(c)), ...team.bench, ...battleCardIds]) : null; // an owned answer first, else any (the card log says where to get it)
+  const tip = won === false ? lossTip(r.foeDmg, [...profile.owned, ...battleCardIds]) : null; // an owned answer first, else any (the card log says where to get it)
   if (tip) {
     const line = el('div', 'loss-tip');
     line.append(nowrapWords(el('p'), `คำแนะนำ: ${tip}`), button('จัดทัพ', toDeck, 'secondary', 'sm', 'tip-deck'));
@@ -501,7 +454,7 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
   // stage after a stage win, another match after a ranked or casual win or draw, else a retry). One that does not apply is
   // hidden in its place, so nothing moves.
   const next = stage ? stages[stages.indexOf(stage) + 1] : undefined;
-  const again = () => go({ k: 'versus', team, seed: seed + 1, redraws: 0, stage: stage?.id });
+  const again = () => go({ k: 'versus', team, seed: seed + 1, stage: stage?.id });
   const last = stage && won && !next;
   const main = (text: string, f: () => void) => button(text, f, 'primary', 'lg');
   const primary = stage && won ? (next ? main('ด่านถัดไป', () => go({ k: 'brief', stage: next.id })) : main('กลับล็อบบี้', () => go({ k: 'lobby' })))
@@ -553,7 +506,7 @@ function pvpLive(m: Start, c: RoomClient) {
     }
   };
 }
-const pvpTeam = (t: { leader: string; sub: string }): Team => ({ leader: t.leader, sub: t.sub, bench: [] });
+const pvpTeam = (t: Team): Team => ({ leader: t.leader, sub: t.sub, picks: [...t.picks] });
 function pvpVersus(): () => void {
   const L = live!, me = L.ls.seat, st = L.ls.start;
   if (st.inMs <= 0) { queueMicrotask(() => go({ k: 'pvpMatch' })); return () => {}; }
@@ -577,7 +530,7 @@ function pvpVersus(): () => void {
 function pvpMatch(): () => void {
   const L = live!, me = L.ls.seat, st = L.ls.start, foe: Side = me === 0 ? 1 : 0;
   return startMatch(app, {
-    seed: st.seed, team: pvpTeam(st.teams[me]), mine: pvpSetup(st.teams[me]), vs: pvpSetup(st.teams[foe]), redraws: 0, speed: 1, settings: profile.settings, saveSettings: () => save(profile),
+    seed: st.seed, team: pvpTeam(st.teams[me]), mine: pvpSetup(st.teams[me]), vs: pvpSetup(st.teams[foe]), speed: 1, settings: profile.settings, saveSettings: () => save(profile),
     bots: [null, 'paced'], normalized: true, progress: [null, null], modeTh: 'ศึกกับเพื่อน',
     net: { ls: L.ls, send: (m) => L.c.send(m), names: st.names, end: () => L.end },
     quit: 'online', onQuit: () => L.c.send({ t: 'leave' }),
@@ -606,4 +559,4 @@ function pvpResult(r: MatchResult) {
   app.append(box);
 }
 
-void loadSprites().then(() => go(dev.battle ? { k: 'match', team: dev.team?.team ?? profile.team, seed: dev.seed, redraws: 0, stage: dev.stage } : { k: 'title' }));
+void loadSprites().then(() => go(dev.battle ? { k: 'match', team: dev.team?.team ?? teamOf(profile), seed: dev.seed, stage: dev.stage } : { k: 'title' }));

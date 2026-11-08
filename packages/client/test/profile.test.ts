@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   battle, battleCardIds, castleLevelOf, collection, createBattle, homeCard, leagues, powerRatioMaxPct, powerScore, progression, rewardFor, routeOf, stages,
-  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool,
+  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool, battleUnits, loanerRoom,
 } from '@five-sects/sim';
 import { aiProgress, build, buyCard, chooseHome, claim, levelUp, payMatch, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
-import { aiSetup, benchRoom, fixTeam, rankedSetup, resolveTeam, teamSetup } from '../src/decks';
-import { levelSum, migrate, type Profile } from '../src/profile';
+import { addPick, aiSetup, autoFill, casualRules, DECK_SLOTS, deckPoints, deckProblem, fixTeam, isLoaner, pairOk, pickPool, RANKED_RULES, resolveTeam, setRole, setupOf } from '../src/decks';
+import { levelSum, migrate, teamOf, type Profile } from '../src/profile';
 
 const won = (n: number) => Object.fromEntries(stages.slice(0, n).map((s) => [s.id, { stars: [true, false, false], bestSec: 100 }]));
 const fresh = (home = 'metal'): Profile => { const p = migrate(null); chooseHome(p, home); return p; };
@@ -17,7 +17,7 @@ describe('profile v7: the collection', () => {
     expect([p.coins, p.gold, p.eggPoints, p.castleLevel, p.town.cannon, p.town.wall]).toEqual([0, 0, 0, 1, 0, 0]);
     chooseHome(p, 'water');
     expect([p.home, p.owned]).toEqual(['water', starterCards('water')]);
-    expect([p.team.leader, p.team.sub, p.team.bench]).toEqual([starterTeam('water').leader, starterTeam('water').sub, []]);
+    expect([teamOf(p).leader, teamOf(p).sub, teamOf(p).picks.length]).toEqual([starterTeam('water').leader, starterTeam('water').sub, battle.deck.pick]);
     chooseHome(p, 'fire');
     expect(p.home).toBe('water'); // picked once
     expect(levelSum(p)).toBe(9);
@@ -31,7 +31,7 @@ describe('profile v7: the collection', () => {
     const kept = ['golden_lion', 'ember_imp', 'lava_dragon', 'storm_dragon'];
     expect([p.v, p.home, p.settings.volume]).toEqual([7, null, 40]);
     expect(p.owned).toEqual(battleCardIds.filter((c) => collection.starter.includes(c) || kept.includes(c)));
-    expect(p.team.leader).toBe('storm_dragon'); // still owned: kept
+    expect(teamOf(p).leader).toBe('storm_dragon'); // still owned: kept
     expect(p.owned).not.toContain('blood_bat');
     expect(claim(p)).toEqual([]); // the won stages wait for the home sect
     chooseHome(p, 'earth');
@@ -55,30 +55,69 @@ describe('profile v7: the collection', () => {
   });
 });
 
-describe('teams over owned cards', () => {
-  it('the hand is a legal deck of owned cards and loaners; ranked picks from every card', () => {
-    const p = fresh(), mine = teamSetup(p.team, p.owned);
-    expect(validateDeck(mine, p.owned)).toBeNull();
-    expect(createBattle(1, mine, aiSetup(p.team)).hands[0].every((c) => p.owned.includes(c) || battle.deck.loaners.includes(c))).toBe(true);
-    expect(validateDeck(rankedSetup(p.team), rankedPool)).toBeNull();
-    expect(validateDeck(teamSetup(p.team, p.owned, 18), p.owned, 18)).toBeNull(); // the starter hand costs exactly 18
+describe('saved decks and the deck picker steps', () => {
+  it('a new account plays its first saved deck as a legal hand of owned cards and loaners; the AI hand is legal and seeded', () => {
+    const p = fresh(), t = teamOf(p), rules = casualRules(p.owned);
+    expect([p.decks.length, p.deck, p.decks.map((d) => d.name)]).toEqual([DECK_SLOTS, 0, ['ทัพ 1', 'ทัพ 2', 'ทัพ 3']]);
+    expect(deckProblem(t, rules)).toBeNull();
+    expect(createBattle(1, setupOf(t), aiSetup(t, 1)).hands[0].every((c) => p.owned.includes(c) || battle.deck.loaners.includes(c))).toBe(true);
+    expect(t.picks.some((c) => isLoaner(c, rules))).toBe(true); // 9 starter cards: 2 to pick from, so it borrows
+    const hands = new Set([1, 2, 3, 4, 5, 6].map((seed) => aiSetup(t, seed).picks.join()));
+    expect(hands.size).toBeGreaterThan(1);
+    for (let seed = 1; seed < 30; seed++) expect(validateDeck(aiSetup(t, seed), battleCardIds)).toBeNull();
+    expect(aiSetup(t, 7)).toEqual(aiSetup(t, 7));
   });
 
-  it(`a bench is only kept while ${battle.deck.pick} owned cards stay to pick from, and benched cards are not picked`, () => {
-    const p = fresh();
-    expect(benchRoom(p.team, p.owned)).toBeLessThan(0); // 9 cards: 2 to pick from
-    expect(fixTeam({ ...p.team, bench: ['wandering_archer'] }, p.owned, p.home).bench).toEqual([]);
-    const many = [...p.owned, ...battleCardIds.filter((c) => !p.owned.includes(c) && c.startsWith('frost_tide') && !c.endsWith('banner'))];
-    const t = fixTeam({ ...p.team, bench: many }, many, p.home);
-    expect(t.bench.length).toBe(many.filter((c) => !collection.starter.includes(c) || c === 'wandering_archer').length - 2 - battle.deck.pick);
-    expect(benchRoom(t, many)).toBe(0);
-    expect(teamSetup(t, many).picks.some((c) => t.bench.includes(c))).toBe(false);
-  });
-
-  it('a broken team falls back to the home starter team; a sub never equals the leader', () => {
+  it('an older save keeps its team, without the bench, in the first slot; the other slots wait with nothing picked', () => {
     const p = fresh('fire');
-    expect(fixTeam({ leader: 'storm_dragon', sub: 'storm_dragon' }, p.owned, p.home)).toEqual({ ...starterTeam('fire'), bench: [] });
-    expect(fixTeam({ leader: 'wandering_archer', sub: 'wandering_archer' }, p.owned, p.home)).toEqual({ leader: 'wandering_archer', sub: starterTeam('fire').sub, bench: [] });
+    p.owned = battleCardIds.filter((c) => c.startsWith('crimson_phoenix') || p.owned.includes(c));
+    const old = migrate({ ...JSON.parse(JSON.stringify(p)), decks: undefined, deck: undefined, team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_control', bench: ['crimson_phoenix_blade'] } });
+    expect(teamOf(old).picks).not.toContain('crimson_phoenix_blade');
+    expect(deckProblem(teamOf(old), casualRules(old.owned))).toBeNull();
+    expect(old.decks[1]!.team.picks).toEqual([]);
+    expect(deckProblem(old.decks[1]!.team, casualRules(old.owned))).toBe('เลือกการ์ดอีก 4 ใบให้ครบ 4 ช่อง');
+    old.deck = 2;
+    old.decks[2]!.name = 'ทัพบุก';
+    expect(migrate(JSON.parse(JSON.stringify(old)))).toEqual(old);
+  });
+
+  it('adding stops at a full hand, the large cap, the loaner count and a budget the open slots cannot fit', () => {
+    const rules = RANKED_RULES, t = { leader: 'storm_dragon', sub: 'jade_tortoise', picks: [] as string[] };
+    const large = rankedPool.filter((c) => battleUnits.get(c)!.size === 'large' && c !== t.leader && c !== t.sub);
+    const step = addPick(t, large[0]!, rules);
+    expect(step).toEqual({ why: `ตัวใหญ่ได้ไม่เกิน ${battle.hand.maxLarge} ตัวต่อทัพ` });
+    const full = autoFill(t, rules);
+    expect([full.picks.length, deckProblem(full, rules)]).toEqual([battle.deck.pick, null]);
+    expect('why' in addPick(full, pickPool(rules).find((c) => !full.picks.includes(c) && c !== t.leader && c !== t.sub)!, rules)).toBe(true);
+    const cheap = { leader: 'crimson_phoenix_blade', sub: 'jade_bamboo_blade', picks: [] as string[] };
+    const dear = pickPool(rules).filter((c) => battleUnits.get(c)!.size !== 'large').sort((a, b) => deckPoints(b) - deckPoints(a));
+    let x = cheap;
+    for (const c of dear) { const s = addPick(x, c, rules); if ('team' in s) x = s.team; }
+    expect(deckProblem(x, rules)).toBeNull(); // every add that went in kept the hand completable
+    const p = fresh(), lent = casualRules(p.owned), mine = { ...teamOf(p), picks: [] };
+    const loaners = pickPool(lent).filter((c) => isLoaner(c, lent));
+    let y = mine;
+    for (const c of loaners) { const s = addPick(y, c, lent); if ('team' in s) y = s.team; }
+    expect(y.picks.length).toBe(loanerRoom(p.owned));
+  });
+
+  it('a leader or sub swaps with the other role or with its pick slot; a loaner and a pair with no legal hand are refused', () => {
+    const p = fresh(), rules = casualRules(p.owned), t = teamOf(p);
+    expect(setRole(t, 'leader', t.sub, rules)).toEqual({ team: { ...t, leader: t.sub, sub: t.leader } });
+    const owned = t.picks.find((c) => !isLoaner(c, rules));
+    if (owned) expect(setRole(t, 'sub', owned, rules)).toEqual({ team: { ...t, sub: owned, picks: t.picks.map((c) => (c === owned ? t.sub : c)) } });
+    expect('why' in setRole(t, 'leader', t.picks.find((c) => isLoaner(c, rules))!, rules)).toBe(true);
+    const big = rankedPool.filter((c) => battleUnits.get(c)!.size === 'large').sort((a, b) => deckPoints(b) - deckPoints(a));
+    const s = setRole({ leader: big[0]!, sub: 'jade_tortoise', picks: [] }, 'sub', big[1]!, RANKED_RULES);
+    expect(pairOk(big[0]!, big[1]!, RANKED_RULES) ? 'team' in s : 'why' in s).toBe(true);
+  });
+
+  it('a broken team falls back to the home starter pair; a sub never equals the leader; picks are distinct and at most four', () => {
+    const p = fresh('fire');
+    expect(fixTeam({ leader: 'storm_dragon', sub: 'storm_dragon', picks: [] }, p.owned, p.home)).toEqual({ leader: 'storm_dragon', sub: starterTeam('fire').sub, picks: [] });
+    expect(fixTeam({ leader: 'nope', sub: 3, picks: [] }, p.owned, p.home)).toEqual({ ...starterTeam('fire'), picks: [] });
+    const f = fixTeam({ leader: 'storm_dragon', sub: 'jade_tortoise', picks: ['storm_dragon', 'ember_imp', 'ember_imp', 'nope', 'golden_lion', 'lava_dragon', 'blood_bat', 'frost_tide_naga'] }, p.owned, p.home);
+    expect(f.picks).toEqual(['ember_imp', 'golden_lion', 'lava_dragon', 'blood_bat']);
   });
 
   it('a URL deck names the cards a dev match draws from: a sect, all or a card list', () => {
@@ -148,7 +187,7 @@ describe('rewards and the egg shop', () => {
     for (const lv of [1, 5, 12, 25]) {
       const p = fresh();
       for (const c of p.owned) p.cards[c]!.level = lv;
-      const ai = aiSetup(p.team), prog = aiProgress(p, ai, 0);
+      const ai = aiSetup(teamOf(p), lv), prog = aiProgress(p, ai, 0);
       const mine = playerPower(p, 0), theirs = powerScore({ ...ai, progress: prog });
       expect(Math.max(mine, theirs) * 100, `Lv${lv}: ${mine} vs ${theirs}`).toBeLessThanOrEqual(powerRatioMaxPct * Math.min(mine, theirs));
     }
@@ -172,5 +211,18 @@ describe('ศึกปราบ and ศึกฝีมือ records', () => {
     expect(payMatch(p, [p.owned[0]!], false, 'castle', st)).toEqual(rewardFor(false, 'castle'));
     const { before, after } = recordRanked(p, true);
     expect([before, after.stars, p.rank]).toEqual([startRank(), 1, after]);
+  });
+});
+
+describe('saved decks follow the collection', () => {
+  it('a first-clear card ends a loaner: the deck gives one back, keeps its owned picks and stays legal', () => {
+    const p = fresh('fire'), before = teamOf(p), lent = (t: { picks: string[] }) => t.picks.filter((c) => !p.owned.includes(c)).length;
+    expect(lent(before)).toBe(2);
+    recordStage(p, '1-1', [true, false, false], 100);
+    claim(p);
+    const after = teamOf(p);
+    expect([loanerRoom(p.owned), lent(after)]).toEqual([1, 1]);
+    expect(deckProblem(after, casualRules(p.owned))).toBeNull();
+    expect(after.picks).toEqual(expect.arrayContaining(before.picks.filter((c) => p.owned.includes(c))));
   });
 });
