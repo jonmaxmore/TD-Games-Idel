@@ -3,10 +3,10 @@
 // the match). The host can send the guest out (kick: they cannot come back to that room). Esc leaves the room, or the
 // screen when not in one. Every server error shows in Thai on the screen.
 import { battle, battleUnits } from '@five-sects/sim';
-import { autoTeam, CODE_LEN, leaderPool, normalizeCode, teamError, type Seat, type ServerMsg, type TeamPick } from '@five-sects/protocol';
+import { CODE_LEN, normalizeCode, type Seat, type ServerMsg, type TeamPick } from '@five-sects/protocol';
 import { el } from './battle';
 import { colorOf, deckPicker } from './deckPicker';
-import { deckPoints, largeOf, pairOk, RANKED_RULES, spendOf } from './decks';
+import { deckPoints, largeOf, rankedTeam, RANKED_RULES, spendOf } from './decks';
 import { PLAYER_NAME } from './lobby';
 import { ERROR_TH, RoomClient, saveName, savedName, serverUrl } from './net';
 import { teamOf, type Profile } from './profile';
@@ -20,16 +20,6 @@ let client: RoomClient | null = null; // one socket for the whole visit: the roo
 export const roomClient = () => client;
 export function dropClient() { client?.close(); client = null; }
 
-// The team a player starts from: the saved deck in use when it is legal under ศึกฝีมือ rules, else its leaders with the
-// autoPicks hand, else the first legal pair of the pool. Only a legal team is ever sent (the server would answer bad_team).
-function firstTeam(p: Profile): TeamPick {
-  const t = teamOf(p), pool = leaderPool();
-  const mine = { leader: t.leader, sub: t.sub, picks: [...t.picks] };
-  if (!teamError(mine)) return mine;
-  if (pool.includes(t.leader) && pool.includes(t.sub) && pairOk(t.leader, t.sub, RANKED_RULES)) return autoTeam(t.leader, t.sub);
-  return autoTeam(pool[0]!, pool[1]!);
-}
-
 export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void {
   const r = el('div', 'screen pvp');
   const status = el('p', 'pvp-status dim center'), error = el('p', 'pvp-error');
@@ -38,7 +28,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
   r.append(el('h1', '', 'ศึกกับเพื่อน'), el('p', 'dim center', 'เล่นกับเพื่อนด้วยรหัสห้อง · กติกาศึกฝีมือ: เลือกมือเองจากการ์ดทุกใบ งบแต้มทัพเท่ากัน ค่าเท่ากันทุกใบ'), status, body, error);
   app.append(r);
   let room: Extract<ServerMsg, { t: 'room' }> | null = null;
-  let team = firstTeam(p), busy = false, gone = false;
+  let team = rankedTeam(teamOf(p)), busy = false, gone = false;
   const say = (msg: string) => { error.textContent = msg; };
 
   const nameIn = el('input', 'pvp-name');

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   battle, battleCardIds, castleLevelOf, collection, createBattle, homeCard, leagues, powerRatioMaxPct, powerScore, progression, rewardFor, routeOf, stages,
-  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool, battleUnits, loanerRoom,
+  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool, battleUnits, loanerRoom, autoPicks,
 } from '@five-sects/sim';
 import { aiProgress, build, buyCard, chooseHome, claim, levelUp, payMatch, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
-import { addPick, aiSetup, autoFill, casualRules, DECK_SLOTS, deckPoints, deckProblem, fixTeam, isLoaner, pairOk, pickPool, RANKED_RULES, resolveTeam, setRole, setupOf } from '../src/decks';
+import { addPick, aiSetup, autoFill, casualRules, DECK_SLOTS, deckPoints, deckProblem, fixTeam, isLoaner, pairOk, pickPool, RANKED_RULES, rankedTeam, resolveTeam, setRole, setupOf } from '../src/decks';
 import { levelSum, migrate, teamOf, type Profile } from '../src/profile';
 
 const won = (n: number) => Object.fromEntries(stages.slice(0, n).map((s) => [s.id, { stars: [true, false, false], bestSec: 100 }]));
@@ -224,5 +224,18 @@ describe('saved decks follow the collection', () => {
     expect([loanerRoom(p.owned), lent(after)]).toEqual([1, 1]);
     expect(deckProblem(after, casualRules(p.owned))).toBeNull();
     expect(after.picks).toEqual(expect.arrayContaining(before.picks.filter((c) => p.owned.includes(c))));
+  });
+});
+
+describe('the friend-room team', () => {
+  it('keeps a legal saved team, else starts from the first leader pair with a legal hand, never an illegal one', () => {
+    const t = teamOf(fresh('fire')), legal = { ...t, picks: autoPicks(t.leader, t.sub, rankedPool) };
+    expect(rankedTeam(legal)).toEqual(legal);
+    // Two large leaders first in the pool: no hand of theirs fits the budget, so the first pair that does wins.
+    const pool = ['cloud_sword_elder', 'frost_tide_naga', 'vajra_stone_guardian', 'wandering_archer', 'ember_imp'];
+    expect(pairOk(pool[0]!, pool[1]!, RANKED_RULES)).toBe(false);
+    const got = rankedTeam({ leader: 'gone_card', sub: 'ember_imp', picks: [] }, pool);
+    expect(deckProblem(got, RANKED_RULES)).toBeNull();
+    expect([pool.includes(got.leader), pool.includes(got.sub)]).toEqual([true, true]);
   });
 });
