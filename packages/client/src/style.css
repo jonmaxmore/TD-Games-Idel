@@ -103,7 +103,7 @@ kbd { font: inherit; }
 .cannon.sel { background: #3a1410; box-shadow: 0 0 0 2px #f2a23a, 0 0 14px #f2a23a88; transform: translateY(-8px); }
 .cannon.poor canvas { filter: grayscale(0.7) brightness(0.7); }
 
-.toasts { position: absolute; top: 72px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; z-index: 6; }
+.toasts { position: absolute; top: 96px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; z-index: 6; }
 .toast { background: #000c; border: 1px solid var(--gold); border-radius: 6px; padding: 4px 14px; font-size: 15px; white-space: nowrap; }
 .toast.bad { border-color: var(--foe); color: #ff9e7b; }
 
@@ -119,7 +119,7 @@ kbd { font: inherit; }
 .modal .type.lost { color: #ff9e7b; }
 .modal .type.draw { color: var(--ink); }
 .modal p { margin: 0; }
-.modal .row { margin-top: 14px; width: 560px; }
+.modal .row { margin-top: 14px; width: 760px; }
 
 /* ---- title and deck pick ---- */
 .screen { position: relative; flex: 1; width: 100%; max-width: 1100px; margin: 0 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 24px 24px; }
@@ -220,7 +220,7 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .realm { font-style: normal; font-size: 10px; font-weight: 700; line-height: 1.3; padding: 0 4px; border-radius: 3px; white-space: nowrap; background: var(--realm); color: #1a1423; }
 .team-card .realm, .hand-card .realm { position: relative; margin: 1px 0; }
 .card .realm { position: absolute; top: 46px; right: 3px; font-size: 9px; opacity: 0.95; }
-.modes { display: grid; grid-template-columns: repeat(3, 260px); gap: 10px; margin-top: 8px; }
+.modes { display: grid; grid-template-columns: repeat(4, 240px); gap: 10px; margin-top: 8px; }
 .mode { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 66px; }
 .mode b { font-size: 20px; }
 .mode small { font-size: 13px; color: var(--ink); opacity: 0.85; }
@@ -280,3 +280,41 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .camp-note.bad { color: #ff9e7b; }
 .modal .rewards { display: flex; gap: 18px; align-items: baseline; font-size: 20px; padding: 8px 18px; border: 1px solid var(--gold); border-radius: 6px; background: #17111a; }
 .modal .rewards b { color: var(--gold); }
+
+/* ---- ศึกปราบ and ศึกฝีมือ (main.ts): the rank badge, the stage map, the briefing, stars on the result ---- */
+.rank-badge { font-style: normal; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 10px; margin-top: 3px; background: #2a2236; color: var(--ink); border: 1px solid var(--line); white-space: nowrap; }
+.rank-badge.league-stone { border-color: #8f8a96; } .rank-badge.league-bronze { border-color: #c27a3a; color: #f0b27a; }
+.rank-badge.league-silver { border-color: #c8c4cc; color: #e6e3ea; } .rank-badge.league-gold { border-color: var(--gold); color: #ffe08a; }
+.rank-badge.league-jade { border-color: #3fbf8f; color: #8fe6c2; } .rank-badge.league-master { border-color: #b05be0; color: #d9a6f5; }
+.rank-badge.league-legend { border-color: #ff6b4a; color: #ffb199; }
+.mode.campaign-btn b { color: #ffe08a; }
+.screen.campaign h1 { font-size: 32px; }
+.stage-map { position: relative; flex: 1; min-height: 0; margin: 4px 30px 0; border: 1px solid var(--line); border-radius: 8px; background: radial-gradient(ellipse at 30% 70%, #2a1f18, #120d14 70%); }
+.stage-map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage-map polyline { fill: none; stroke: #8a6436; stroke-dasharray: 10 8; vector-effect: non-scaling-stroke; stroke-width: 6px; }
+.stage-node { position: absolute; transform: translate(-50%, -50%); width: 168px; line-height: 1.3; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 6px 8px; background: #241a20; border: 2px solid var(--gold); }
+.stage-node .id { font-size: 13px; color: var(--dim); }
+.stage-node b { font-size: 17px; color: var(--gold); }
+.stage-node .stars { font-size: 22px; color: #ffd24a; letter-spacing: 2px; line-height: 1.1; }
+.stage-node small { font-size: 12px; color: #abdbff; }
+.stage-node.won { background: #2e2116; }
+.stage-node.locked { border-color: var(--line); background: #1a1520; filter: grayscale(1) brightness(0.8); }
+.stage-node.locked .stars { font-size: 13px; color: var(--dim); letter-spacing: 0; }
+.screen.brief { gap: 10px; }
+.brief-text { font-size: 19px; margin: 0; text-align: center; color: var(--ink); }
+.brief-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 380px 1fr; gap: 12px; }
+.brief-col { display: flex; flex-direction: column; gap: 12px; }
+.gimmick-box { border-color: #f2a23a; } .gimmick-box h2 { color: #f2a23a; } .gimmick-box p { font-size: 18px; margin-top: 4px; }
+.goals-box p { font-size: 16px; margin-top: 4px; } .goals-box p.got { color: #ffd24a; }
+.enemy-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.enemy-card { display: flex; flex-direction: column; align-items: center; padding: 4px 2px; border: 2px solid; border-radius: 6px; background: #120d14; min-width: 0; line-height: 1.2; }
+.enemy-card b { font-size: 13px; text-align: center; } .enemy-card small { font-size: 11px; color: var(--dim); }
+.clock .gimmick { font-style: normal; font-size: 12px; font-weight: 700; color: #1a1423; background: #f2a23a; padding: 0 8px; border-radius: 3px; margin-top: 2px; white-space: nowrap; }
+.star-row { display: flex; gap: 14px; }
+.star-row .star { position: relative; display: flex; flex-direction: column; align-items: center; width: 170px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: #17111a; }
+.star-row .star b { font-size: 40px; line-height: 1; color: #5a5466; }
+.star-row .star.got b { color: #ffd24a; text-shadow: 0 0 12px #ffd24a88; }
+.star-row .star small { font-size: 13px; text-align: center; }
+.star-row .star em { position: absolute; top: -8px; right: -6px; font-style: normal; font-size: 11px; font-weight: 700; background: var(--foe); color: #fff; padding: 0 5px; border-radius: 3px; }
+.rank-change { display: flex; align-items: center; gap: 6px; font-size: 18px; }
+.rank-change .rank-badge { font-size: 16px; padding: 3px 12px; }

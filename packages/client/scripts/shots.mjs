@@ -4,7 +4,9 @@
 //                    match at x4, recorded, with frames of an early field, a fight, a fort capture and the result screen;
 //                    burn/poison marks, burning ground and the stun-resistance halo; the collection filters, a hand led
 //                    by beasts and a dragon match; ค่ายฝึก (a level-up, a forge slot building, a town upgrade, the egg odds
-//                    and a roll), hand cards with realm badges in ศึกทั่วไป and without them in ศึกฝีมือ.
+//                    and a roll), hand cards with realm badges in ศึกทั่วไป and without them in ศึกฝีมือ; ศึกปราบ (the stage
+//                    map with stars and locks, a briefing, the team screen for a stage, a waves stage mid-fight, the
+//                    stars result); ศึกฝีมือ (the rank change on the result, the replay of that match ending on its hash).
 // Exits non-zero on any console error or page crash.
 import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -292,6 +294,56 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
     console.log(name, 'castle hp', await m.p.evaluate(() => window.__game.s.castles.map((c) => c.maxHp).join('/')));
     await m.ctx.close();
   }
+}
+
+// 6) ศึกปราบ from a save that has won 1-1 (all stars) and 1-2 (one star): the map, 1-3's briefing, its team screen; then
+//    stage 1-2 (waves) by bots at x4, mid-fight once the scripted hounds are out, and its result with stars.
+{
+  const save = { v: 6, mode: 'casual', campaign: { '1-1': { stars: [true, true, true], bestSec: 74 }, '1-2': { stars: [true, false, false], bestSec: null } } };
+  const { ctx, p } = await open('', 'campaign', null, save);
+  await p.waitForSelector('.title');
+  await shot(p, '50-title-modes');
+  await p.locator('.campaign-btn').click();
+  await p.waitForSelector('.stage-node');
+  await sleep(200);
+  await shot(p, '51-stage-map');
+  await p.locator('.stage-node[data-stage="1-3"]').click();
+  await p.waitForSelector('.brief-body');
+  await sleep(200);
+  await shot(p, '52-briefing');
+  await p.getByRole('button', { name: 'จัดทัพ' }).click();
+  await p.waitForSelector('.team-card');
+  await sleep(200);
+  await shot(p, '53-team-stage');
+  await ctx.close();
+  const m = await open('?mode=battle&stage=1-2&bot=1&speed=4&seed=3&deck=fire', 'stage-waves', null, save);
+  await m.p.waitForFunction(() => window.__game?.s);
+  await m.p.waitForFunction(() => window.__game.s.tick >= 20 * 22 && window.__game.s.units.filter((u) => u.card === 'shade_hound').length >= 2, null, { timeout: 90000, polling: 'raf' });
+  await shot(m.p, '54-stage-waves');
+  await m.p.waitForSelector('.modal.result', { timeout: 120000 });
+  await sleep(400);
+  await shot(m.p, '55-stage-result');
+  console.log('stage 1-2 result:', await m.p.locator('.star-row').textContent());
+  await m.ctx.close();
+}
+
+// 7) ศึกฝีมือ by bots at x4: the result with the rank change, then the replay of that match from its record to the end.
+{
+  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=3&deck=fire', 'ranked', null, { v: 6, mode: 'ranked' });
+  await p.waitForSelector('.modal.result', { timeout: 120000 });
+  await sleep(400);
+  await shot(p, '56-ranked-result');
+  console.log('ranked:', await p.locator('.rank-change').textContent());
+  await p.locator('.replay-btn').click();
+  await p.waitForFunction(() => window.__game?.s?.tick > 600, null, { timeout: 60000 });
+  await shot(p, '57-replay');
+  await p.waitForSelector('.modal.result', { timeout: 120000 });
+  await sleep(300);
+  await shot(p, '58-replay-end');
+  const text = await p.locator('.modal.result').textContent();
+  console.log('replay end:', text);
+  if (!text.includes('ผลตรงกับ')) errors.push('ranked replay did not end on the saved hash');
+  await ctx.close();
 }
 
 await browser.close();

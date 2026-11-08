@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { battle, battleCardIds, battleUnits, castleLevelOf, createBattle, progression, rewardFor } from '@five-sects/sim';
-import { aiProgress, build, buyEgg, levelUp, payMatch, progressOf, upgradeTown } from '../src/camp';
+import { battle, battleCardIds, battleUnits, castleLevelOf, createBattle, leagues, progression, rewardFor, stages, startRank } from '@five-sects/sim';
+import { aiProgress, build, buyEgg, levelUp, payMatch, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
 import { aiTeam, defaultTeam, fixTeam, PRESETS, presetMatch, presetTeam, resolveTeam, teamSetup } from '../src/decks';
 import { levelSum, migrate } from '../src/profile';
 
 describe('profile', () => {
   it('starts with the all-cards default team and default settings, and keeps a known team', () => {
     const fresh = migrate(null);
-    expect({ v: fresh.v, team: fresh.team, settings: fresh.settings, mode: fresh.mode }).toEqual({ v: 5, team: defaultTeam(), settings: { volume: 70, muted: false, shake: true }, mode: 'casual' });
+    expect({ v: fresh.v, team: fresh.team, settings: fresh.settings, mode: fresh.mode }).toEqual({ v: 6, team: defaultTeam(), settings: { volume: 70, muted: false, shake: true }, mode: 'casual' });
     expect(Object.keys(fresh.cards)).toEqual(battleCardIds);
     expect([fresh.coins, fresh.gold, fresh.eggPoints, fresh.castleLevel, fresh.town.cannon, fresh.town.wall]).toEqual([0, 0, 0, 1, 0, 0]);
     for (const c of Object.values(fresh.cards)) expect(c).toEqual({ level: 1, xp: 0, dupes: 0 });
@@ -26,7 +26,7 @@ describe('profile', () => {
     const old = migrate({ v: 1, consented: true, sect: 'fire', cleared: ['1-1'], settings: { volume: 30, muted: true, shake: false } });
     expect([old.team, old.settings]).toEqual([defaultTeam(), { volume: 30, muted: true, shake: false }]);
     expect(migrate({ deck: 'gone', settings: { volume: 500, muted: 'yes' } }).settings).toEqual({ volume: 70, muted: false, shake: true });
-    expect(migrate('garbage').v).toBe(5);
+    expect(migrate('garbage').v).toBe(6);
   });
 });
 
@@ -34,7 +34,7 @@ describe('profile v5: the account', () => {
   it('a v4 save keeps its team and settings and starts the account at level 1; bad numbers fall back field by field', () => {
     const v4 = { v: 4, team: { leader: 'storm_dragon', sub: 'jade_bamboo_warden', bench: [] }, settings: { volume: 40, muted: false, shake: true } };
     const p = migrate(v4);
-    expect([p.v, p.team.leader, p.settings.volume, p.mode]).toEqual([5, 'storm_dragon', 40, 'casual']);
+    expect([p.v, p.team.leader, p.settings.volume, p.mode]).toEqual([6, 'storm_dragon', 40, 'casual']);
     const bad = migrate({ v: 5, mode: 'ranked', coins: -5, gold: 1.5, cards: { ember_imp: { level: 99, xp: 10 }, nope: { level: 5 } }, town: { cannon: 9, wall: 2 }, forge: { ember_imp: { helm: 123, junk: 1 } } });
     expect([bad.mode, bad.coins, bad.gold, bad.cards.ember_imp!.level, bad.town.cannon, bad.town.wall]).toEqual(['ranked', 0, 0, 1, 0, 2]);
     expect(bad.cards.nope).toBeUndefined();
@@ -72,6 +72,36 @@ describe('profile v5: the account', () => {
     const got = buyEgg(p, egg.id) as { card: string; xp: number };
     expect([p.eggPoints, p.cards[got.card]!.dupes, p.cards[got.card]!.xp]).toEqual([0, 1, egg.dupeXp]);
     expect(aiProgress(p).levels!.ember_imp).toBe(1);
+  });
+});
+
+describe('profile v6: ศึกปราบ and ศึกฝีมือ', () => {
+  it('a v5 save keeps its account and starts with no stars, the starting rank and no saved match; bad entries fall back', () => {
+    const p = migrate({ v: 5, coins: 40, cards: { ember_imp: { level: 7, xp: 3 } } });
+    expect([p.v, p.coins, p.cards.ember_imp!.level, p.campaign, p.rank, p.lastRanked]).toEqual([6, 40, 7, {}, startRank(), null]);
+    const bad = migrate({ v: 6, campaign: { '1-1': { stars: [true, 'x', true], bestSec: 70 }, '1-2': { stars: [true] }, nope: { stars: [true, true, true] } }, rank: { league: 99 }, lastRanked: { seed: 'x' } });
+    expect(bad.campaign).toEqual({ '1-1': { stars: [true, false, true], bestSec: 70 } });
+    expect([bad.rank, bad.lastRanked]).toEqual([startRank(), null]);
+    expect(migrate({ rank: { league: 1, div: 9, stars: 99, streak: 2, points: 0 } }).rank).toEqual({ league: 1, div: leagues[1]!.divisions, stars: 0, streak: 2, points: 0 });
+  });
+
+  it('stage stars add up over tries, the best time is the fastest win, and the next stage opens once this one is won', () => {
+    const p = migrate(null), ids = stages.map((s) => s.id);
+    expect([stageOpen(p, ids, 0), stageOpen(p, ids, 1)]).toEqual([true, false]);
+    expect(recordStage(p, ids[0]!, [false, false, false], 180)).toEqual([false, false, false]);
+    expect(stageOpen(p, ids, 1)).toBe(false);
+    expect(recordStage(p, ids[0]!, [true, false, true], 100)).toEqual([true, false, true]);
+    expect(recordStage(p, ids[0]!, [true, true, false], 130)).toEqual([false, true, false]);
+    expect(p.campaign[ids[0]!]).toEqual({ stars: [true, true, true], bestSec: 100 });
+    expect(stageOpen(p, ids, 1)).toBe(true);
+  });
+
+  it('a stage win pays the stage reward, a stage loss the normal loss; a ranked result moves the rank', () => {
+    const p = migrate(null), st = stages[0]!;
+    expect(payMatch(p, ['ember_imp'], true, 'castle', st)).toEqual(st.rewards.win);
+    expect(payMatch(p, ['ember_imp'], false, 'castle', st)).toEqual(rewardFor(false, 'castle'));
+    const { before, after } = recordRanked(p, true);
+    expect([before, after.stars, p.rank]).toEqual([startRank(), 1, after]);
   });
 });
 

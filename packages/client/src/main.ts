@@ -1,10 +1,12 @@
 // The player's path through the app: title (mode pick, ค่ายฝึก) → team setup → castle battle → result (rewards) → back.
-// Dev and shots shortcut: ?mode=battle jumps straight into a match; &bot=1 lets bots play both sides, &speed=4 fast-forwards,
+// ศึกปราบ: title → stage map → briefing → team setup → stage match → result with stars. ศึกฝีมือ: the result moves the rank
+// and keeps the match for a replay.
+// Dev and shots shortcut: ?mode=battle jumps straight into a match (&stage=1-4 a ศึกปราบ stage); &bot=1 lets bots play both sides, &speed=4 fast-forwards,
 // &seed=N picks the match, &deck=fire|wood|metal|water|earth (a sect preset), all|mixed (every card) or a comma list of
 // card ids to draw from (&leader=, &sub= the leaders).
-import { battle, battleUnits, createBattle, sects, stepBattle, TICK_HZ, type Side } from '@five-sects/sim';
+import { battle, battleUnits, chapter, createBattle, leagues, rankName, sects, stageOf, stages, STARS, stepBattle, TICK_HZ, type Rank, type Side, type Stage } from '@five-sects/sim';
 import { el, realmBadge, startMatch, type MatchResult } from './battle';
-import { aiProgress, canLevel, payMatch, progressOf } from './camp';
+import { aiProgress, canLevel, payMatch, progressOf, recordRanked, recordStage, stageOpen } from './camp';
 import { campScreen } from './campScreen';
 import { portrait } from './board';
 import { aiTeam, ALL_NAME, COLLECTION, fixTeam, isBasic, PRESETS, presetMatch, presetTeam, resolveTeam, teamSetup, type Team } from './decks';
@@ -29,11 +31,13 @@ addEventListener('keydown', (e) => {
   if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen();
 });
 const q = new URLSearchParams(location.search);
-const dev = { battle: q.get('mode') === 'battle', bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), team: resolveTeam(q) };
+const dev = { battle: q.get('mode') === 'battle', bot: q.get('bot') === '1', speed: Number(q.get('speed') ?? 1), seed: Number(q.get('seed') ?? 1), team: resolveTeam(q), stage: stageOf(q.get('stage') ?? '')?.id };
 const profile: Profile = load();
 initSound(profile.settings);
 
-type Screen = { k: 'title' } | { k: 'deck' } | { k: 'camp' } | { k: 'match'; team: Team; seed: number; redraws: number };
+type Screen =
+  | { k: 'title' } | { k: 'deck'; stage?: string } | { k: 'camp' } | { k: 'campaign' } | { k: 'brief'; stage: string } | { k: 'replay' }
+  | { k: 'match'; team: Team; seed: number; redraws: number; stage?: string };
 let dispose: (() => void) | void;
 
 function go(next: Screen) {
@@ -42,9 +46,12 @@ function go(next: Screen) {
   app.replaceChildren();
   Object.assign(window, { __flow: { screen: next.k } });
   if (next.k === 'title') title();
-  else if (next.k === 'deck') teamScreen();
+  else if (next.k === 'deck') teamScreen(next.stage ? stageOf(next.stage) : undefined);
   else if (next.k === 'camp') dispose = campScreen(app, profile, () => save(profile), () => go({ k: 'title' }));
-  else dispose = match(next.team, next.seed, next.redraws);
+  else if (next.k === 'campaign') campaignMap();
+  else if (next.k === 'brief') briefing(stageOf(next.stage)!);
+  else if (next.k === 'replay') dispose = replay();
+  else dispose = match(next.team, next.seed, next.redraws, next.stage ? stageOf(next.stage) : undefined);
 }
 
 function btn(text: string, cls: string, onclick: () => void): HTMLButtonElement {
@@ -73,14 +80,25 @@ const MODES: [Mode, string, string][] = [
   ['ranked', 'ศึกฝีมือ (เลเวลเท่ากัน)', 'ทุกตัวใช้ค่าพื้นฐานเท่ากัน วัดกันที่ฝีมือ'],
 ];
 const modeName = (m: Mode) => MODES.find((x) => x[0] === m)![1];
+// The rank as a badge in its league's place on the ladder (progression.json > ranked).
+function rankBadge(r: Rank): HTMLElement {
+  const b = el('i', `rank-badge league-${leagues[r.league]!.id}`, rankName(r));
+  b.title = 'ระดับศึกฝีมือ ขึ้นดาวเมื่อชนะ';
+  return b;
+}
+const starCount = () => stages.reduce((a, st) => a + (profile.campaign[st.id]?.stars.filter(Boolean).length ?? 0), 0);
 function modes(): HTMLElement {
   const row = el('div', 'modes');
   for (const [m, name, what] of MODES) {
     const b = btn('', `mode primary${profile.mode === m ? ' on' : ''}`, () => { profile.mode = m; save(profile); go({ k: 'deck' }); });
     b.dataset.mode = m;
     b.append(el('b', '', name), el('small', '', what));
+    if (m === 'ranked') b.append(rankBadge(profile.rank));
     row.append(b);
   }
+  const pve = btn('', 'mode primary campaign-btn', () => go({ k: 'campaign' }));
+  pve.append(el('b', '', 'ศึกปราบ'), el('small', '', `ด่านมีกลไก · ดาว ${starCount()}/${stages.length * 3}`));
+  row.append(pve);
   const camp = btn('', 'mode camp-btn', () => go({ k: 'camp' }));
   camp.append(el('b', '', 'ค่ายฝึก'), el('small', '', 'เลื่อนขั้น โรงหลอม เมือง ร้านไข่'));
   row.append(camp);
@@ -104,9 +122,9 @@ const FILTERS: { key: keyof Filter; label: string; opts: [string, string][]; tes
   { key: 'cost', label: 'ราคา', opts: [1, 2, 3, 4, 5, 6, 7].map((n) => [String(n), String(n)]), test: (c, v) => battleUnits.get(c)!.mana === Number(v) },
   { key: 'role', label: 'บทบาท', opts: [['บุก', 'ตัวบุก'], ['สกัด', 'ตัวสกัด']], test: (c, v) => battle.moves.get(battleUnits.get(c)!.move)!.roleTh === v },
 ];
-function teamScreen() {
+function teamScreen(stage?: Stage) {
   const r = el('div', 'screen team');
-  r.append(el('h1', '', `จัดทัพ · ${modeName(profile.mode)}`));
+  r.append(el('h1', '', `จัดทัพ · ${stage ? `ศึกปราบ ${stage.id} ${stage.nameTh}` : modeName(profile.mode)}`));
   const lv = (c: string) => realmBadge(profile.cards[c]!.level);
   const body = el('div', 'team-body'), list = el('div', 'deck-list'), main = el('div', 'team-main'), bar = el('div', 'filters'), grid = el('div', 'team-cards many');
   main.append(bar, grid);
@@ -189,19 +207,104 @@ function teamScreen() {
     list.append(b);
   }
   const row = el('div', 'row actions');
-  row.append(btn('กลับ', '', () => go({ k: 'title' })), redrawBtn, btn('เข้าสู่ศึก', 'primary', () => go({ k: 'match', team: profile.team, seed, redraws })));
+  row.append(btn('กลับ', '', () => go(stage ? { k: 'brief', stage: stage.id } : { k: 'title' })), redrawBtn, btn('เข้าสู่ศึก', 'primary', () => go({ k: 'match', team: profile.team, seed, redraws, stage: stage?.id })));
   r.append(body, info, handRow, row);
   app.append(r);
   show();
 }
 
+// ---- ศึกปราบ: the stage map, then a stage's briefing ----
+const stars = (got: readonly boolean[]) => got.map((x) => (x ? '★' : '☆')).join('');
+// Where each stage sits on the map, in % of the map box, along a winding road from the bottom left.
+const MAP_AT: [number, number][] = [[11, 76], [27, 38], [44, 72], [60, 30], [76, 66], [89, 26], [70, 12], [50, 14]];
+function campaignMap() {
+  const r = el('div', 'screen campaign');
+  r.append(el('h1', '', `ศึกปราบ · ${chapter.nameTh}`), el('p', 'dim center', `ดาวทั้งหมด ${starCount()}/${stages.length * 3} · ชนะด่านหนึ่งเพื่อเปิดด่านถัดไป`));
+  const map = el('div', 'stage-map');
+  const ids = stages.map((s) => s.id);
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  const road = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  road.setAttribute('points', stages.map((_, i) => MAP_AT[i]!.join(',')).join(' '));
+  svg.append(road);
+  map.append(svg);
+  stages.forEach((st, i) => {
+    const open = stageOpen(profile, ids, i), got = profile.campaign[st.id]?.stars ?? [false, false, false];
+    const b = btn('', `stage-node${open ? '' : ' locked'}${got[0] ? ' won' : ''}`, () => { if (open) go({ k: 'brief', stage: st.id }); });
+    b.dataset.stage = st.id;
+    b.disabled = !open;
+    b.style.left = `${MAP_AT[i]![0]}%`;
+    b.style.top = `${MAP_AT[i]![1]}%`;
+    b.append(el('span', 'id', st.id), nowrapWords(el('b'), st.nameTh), el('span', 'stars', open ? stars(got) : 'ยังไม่เปิด'), el('small', '', st.gimmickTh));
+    map.append(b);
+  });
+  const row = el('div', 'row actions');
+  row.append(btn('กลับ', '', () => go({ k: 'title' })));
+  r.append(map, row);
+  app.append(r);
+}
+
+function briefing(st: Stage) {
+  const r = el('div', 'screen brief');
+  const best = profile.campaign[st.id];
+  r.append(el('h1', '', `ด่าน ${st.id} · ${st.nameTh}`), el('p', 'brief-text', st.briefTh));
+  const gim = el('div', 'panel gimmick-box');
+  gim.append(el('h2', '', `กลไก: ${st.gimmickTh}`), el('p', '', st.gimmickDescTh));
+  const foe = el('div', 'panel enemy-box');
+  const cards = el('div', 'enemy-cards');
+  for (const c of st.enemy.collection) {
+    const u = battleUnits.get(c)!, t = el('div', 'enemy-card');
+    t.style.borderColor = colorOf(c);
+    t.append(portrait(c, 1, true), nowrapWords(el('b'), u.nameTh), el('small', '', c === st.enemy.leader ? 'แม่ทัพ' : c === st.enemy.sub ? 'รอง' : kindOf(c)));
+    cards.append(t);
+  }
+  const regen = st.rules.regenPct === 100 ? 'ไหลปกติ' : `ไหล ${st.rules.regenPct}% ของปกติ`;
+  foe.append(el('h2', '', `ทัพศัตรู · ทุกตัว Lv${st.level}`), el('p', 'dim', `ปราณเริ่ม ${st.rules.manaStart} · ${regen} · ป้อม ${st.rules.fortsAtPct.length} แห่ง`), cards);
+  const goals = el('div', 'panel goals-box');
+  goals.append(el('h2', '', 'เป้าหมายดาว'));
+  STARS.namesTh.forEach((name, i) => goals.append(el('p', best?.stars[i] ? 'got' : '', `${best?.stars[i] ? '★' : '☆'} ${name}`)));
+  const w = st.rewards.win;
+  goals.append(el('p', 'dim', `ชนะได้ แต้มฝึก +${w.xp} · เหรียญ +${w.coins} · ทองคำ +${w.gold}`));
+  if (best?.bestSec != null) goals.append(el('p', 'dim', `ชนะเร็วสุด ${Math.floor(best.bestSec / 60)}:${String(best.bestSec % 60).padStart(2, '0')}`));
+  const body = el('div', 'brief-body');
+  const left = el('div', 'brief-col');
+  left.append(gim, goals);
+  body.append(left, foe);
+  const row = el('div', 'row actions');
+  row.append(btn('แผนที่', '', () => go({ k: 'campaign' })), btn('จัดทัพ', 'primary', () => go({ k: 'deck', stage: st.id })));
+  r.append(body, row);
+  app.append(r);
+}
+
 // ---- match → result ----
-function match(team: Team, seed: number, redraws: number) {
+function match(team: Team, seed: number, redraws: number, stage?: Stage) {
+  const ranked = !stage && profile.mode === 'ranked';
   return startMatch(app, {
     seed, team, vs: aiTeam(team), redraws, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
-    bots: [dev.bot ? 'rush' : null, 'rush'],
-    normalized: profile.mode === 'ranked', progress: profile.mode === 'ranked' ? [null, null] : [progressOf(profile, Date.now()), aiProgress(profile)],
-  }, (r) => result(team, seed, r));
+    bots: stage || ranked ? [dev.bot ? 'paced' : null, 'paced'] : [dev.bot ? 'rush' : null, 'rush'],
+    normalized: ranked, progress: ranked ? [null, null] : [progressOf(profile, Date.now()), aiProgress(profile)],
+    modeTh: stage ? `ศึกปราบ ${stage.id}` : ranked ? 'ศึกฝีมือ' : 'ศึกทั่วไป',
+    stage: stage ? { rules: stage.rules, enemy: stage.enemy, nameTh: stage.nameTh, gimmickTh: stage.gimmickTh } : undefined,
+  }, (r) => result(team, seed, r, stage, ranked));
+}
+
+// The last ranked match played back from its record; the result says whether it ended on the saved hash.
+function replay() {
+  const last = profile.lastRanked!, s0 = last.setups[0];
+  const team: Team = { leader: s0.leader, sub: s0.sub, bench: [...s0.bench] };
+  return startMatch(app, {
+    seed: last.seed, team, vs: aiTeam(team), redraws: 0, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
+    bots: [null, 'paced'], normalized: true, progress: [null, null], modeTh: 'ศึกฝีมือ', replay: last,
+  }, (r) => {
+    const box = el('div', 'modal result');
+    const same = r.hash === last.hash;
+    box.append(el('h2', '', 'จบรีเพลย์'), el('p', 'why', verdict(r).head), el('p', same ? 'dim' : 'why', same ? 'ผลตรงกับศึกที่บันทึกไว้ทุกอย่าง' : 'ผลไม่ตรงกับที่บันทึกไว้'));
+    const row = el('div', 'row');
+    row.append(btn('ดูอีกครั้ง', 'primary', () => go({ k: 'replay' })), btn('หน้าแรก', '', () => go({ k: 'title' })));
+    box.append(row);
+    app.append(box);
+  });
 }
 
 const STEP_TH: Record<string, string> = { forts: 'จำนวนป้อมที่ถือ', mana: 'ปราณที่เหลือ', units: 'ศิษย์ที่ยังรอด', kills: 'จำนวนที่ฆ่าได้' };
@@ -216,23 +319,49 @@ function verdict(r: MatchResult): { head: string; why: string } {
   return { head, why: `หมดเวลา HP ปราสาทเท่ากัน: ตัดสินที่${STEP_TH[r.step!]}` };
 }
 
-function result(team: Team, seed: number, r: MatchResult) {
+function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefined, ranked: boolean) {
   const box = el('div', 'modal result');
   const head = r.winner === 0 ? ['won', 'ชนะ!'] : r.winner === 1 ? ['lost', 'พ่ายแพ้'] : ['draw', 'เสมอ'];
   const t = Math.floor(r.tick / TICK_HZ), v = verdict(r);
   box.append(el('h2', head[0], head[1]), el('p', `type ${head[0]}`, v.head), el('p', 'why', v.why),
     el('p', 'dim', `ปราสาทเรา ${Math.max(0, r.castles[0])} · ปราสาทศัตรู ${Math.max(0, r.castles[1])} · เวลา ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`));
   // The rewards, paid into the save once as the result shows.
-  const pay = payMatch(profile, r.hand, r.winner === -1 ? null : r.winner === 0, r.type);
+  const won = r.winner === -1 ? null : r.winner === 0;
+  const pay = payMatch(profile, r.hand, won, r.type, stage);
+  if (stage) {
+    const fresh = recordStage(profile, stage.id, r.stars, t);
+    const row = el('div', 'star-row');
+    STARS.namesTh.forEach((name, i) => {
+      const s = el('div', `star${r.stars[i] ? ' got' : ''}${fresh[i] ? ' new' : ''}`);
+      s.append(el('b', '', r.stars[i] ? '★' : '☆'), el('small', '', name));
+      if (fresh[i]) s.append(el('em', '', 'ใหม่'));
+      row.append(s);
+    });
+    box.append(row);
+  }
+  if (ranked) {
+    const { before, after } = recordRanked(profile, won);
+    profile.lastRanked = { ...r.record, hash: r.hash };
+    const line = el('p', 'rank-change');
+    line.append(rankBadge(before), el('span', '', ' → '), rankBadge(after));
+    box.append(line);
+  }
   save(profile);
   const ready = r.hand.filter((c, i) => r.hand.indexOf(c) === i && canLevel(profile, c)).map((c) => battleUnits.get(c)!.nameTh);
   const gains = el('div', 'rewards');
   gains.append(el('b', '', 'รางวัล'), el('span', '', `แต้มฝึก +${pay.xp} ให้ทุกใบในมือ`), el('span', 'coin', `เหรียญ +${pay.coins}`), el('span', 'gold', `ทองคำ +${pay.gold}`));
-  box.append(gains, el('p', 'dim', ready.length > 0 ? `เลื่อนขั้นได้ที่ค่ายฝึก: ${ready.join(' · ')}` : `${modeName(profile.mode)} · ไปค่ายฝึกเพื่อเลื่อนขั้นและหลอมอุปกรณ์`));
+  box.append(gains, el('p', 'dim', ready.length > 0 ? `เลื่อนขั้นได้ที่ค่ายฝึก: ${ready.join(' · ')}` : `${stage ? 'ศึกปราบ' : modeName(profile.mode)} · ไปค่ายฝึกเพื่อเลื่อนขั้นและหลอมอุปกรณ์`));
   const row = el('div', 'row');
-  row.append(btn('เล่นอีกครั้ง', 'primary', () => go({ k: 'match', team, seed: seed + 1, redraws: 0 })), btn('จัดทัพใหม่', '', () => go({ k: 'deck' })), btn('ค่ายฝึก', '', () => go({ k: 'camp' })), btn('หน้าแรก', '', () => go({ k: 'title' })));
+  const next = stage ? stages[stages.indexOf(stage) + 1] : undefined;
+  row.append(btn('เล่นอีกครั้ง', 'primary', () => go({ k: 'match', team, seed: seed + 1, redraws: 0, stage: stage?.id })));
+  if (stage) {
+    if (next && won) row.append(btn('ด่านถัดไป', 'primary', () => go({ k: 'brief', stage: next.id })));
+    row.append(btn('แผนที่ศึกปราบ', '', () => go({ k: 'campaign' })));
+  } else row.append(btn('จัดทัพใหม่', '', () => go({ k: 'deck' })));
+  if (ranked) row.append(btn('ดูรีเพลย์', 'replay-btn', () => go({ k: 'replay' })));
+  row.append(btn('ค่ายฝึก', '', () => go({ k: 'camp' })), btn('หน้าแรก', '', () => go({ k: 'title' })));
   box.append(row);
   app.append(box);
 }
 
-void loadSprites().then(() => go(dev.battle ? { k: 'match', team: dev.team ?? profile.team, seed: dev.seed, redraws: 0 } : { k: 'title' }));
+void loadSprites().then(() => go(dev.battle ? { k: 'match', team: dev.team ?? profile.team, seed: dev.seed, redraws: 0, stage: dev.stage } : { k: 'title' }));
