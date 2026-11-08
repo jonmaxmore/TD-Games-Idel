@@ -33,25 +33,43 @@ export function validateDeck(d: Deck, owned: readonly string[], budget = B.deck.
   return null;
 }
 
-// Picks for a leader and sub, taking the cards of order in turn: each one only if the slots after it can still be filled
-// within the budget and the large cap, a card not owned only as one of the loaners the account may borrow. Fewer than
-// deck.pick cards when nothing fits.
+// The fewest deck points n of these cards can cost with at most big large cards and lend loaners (cards not owned), or -1
+// when no n of them fit those caps. A small DP over [count][large][loaners], integers only.
+function cheapestFill(cards: readonly string[], n: number, big: number, lend: number, owned: readonly string[]): number {
+  if (big < 0 || lend < 0) return -1;
+  const NONE = -1, at = (k: number, l: number, j: number) => (k * (big + 1) + l) * (lend + 1) + j;
+  const dp: number[] = new Array((n + 1) * (big + 1) * (lend + 1)).fill(NONE);
+  dp[at(0, 0, 0)] = 0;
+  for (const c of cards) {
+    const b = battleUnits.get(c)!.size === 'large' ? 1 : 0, o = owned.includes(c) ? 0 : 1, p = deckPoints(c);
+    for (let k = n - 1; k >= 0; k--) for (let l = big - b; l >= 0; l--) for (let j = lend - o; j >= 0; j--) {
+      const v = dp[at(k, l, j)]!, to = at(k + 1, l + b, j + o);
+      if (v !== NONE && (dp[to] === NONE || v + p < dp[to]!)) dp[to] = v + p;
+    }
+  }
+  let best = NONE;
+  for (let l = 0; l <= big; l++) for (let j = 0; j <= lend; j++) { const v = dp[at(n, l, j)]!; if (v !== NONE && (best === NONE || v < best)) best = v; }
+  return best;
+}
+
+// Picks for a leader and sub, taking the cards of order in turn: each one only if the cards after it can still fill the
+// slots left within the budget, the large cap and the loaners the account may borrow (cheapestFill), so it finds a legal
+// hand whenever one exists. Fewer than deck.pick cards when none does.
 export function fillPicks(leader: string, sub: string, order: readonly string[], owned: readonly string[], budget = B.deck.budget): string[] {
   if (!battleUnits.has(leader) || !battleUnits.has(sub)) return [];
   const ok = (c: string) => battleUnits.has(c) && !isBasic(c) && c !== leader && c !== sub && (owned.includes(c) || B.deck.loaners.includes(c));
   const cand = order.filter((c, i) => ok(c) && order.indexOf(c) === i), room = loanerRoom(owned), picks: string[] = [];
   let left = budget - deckPoints(leader) - deckPoints(sub), large = deckLarge({ leader, sub, picks: [] }), lent = 0;
-  for (const c of cand) {
-    if (picks.length === B.deck.pick) break;
-    const big = battleUnits.get(c)!.size === 'large', lend = !owned.includes(c), n = B.deck.pick - picks.length - 1;
-    const rest = cand.filter((x) => x !== c && !picks.includes(x)), restLent = rest.filter((x) => !owned.includes(x)).slice(0, room - lent - (lend ? 1 : 0));
-    const need = [...rest.filter((x) => owned.includes(x)), ...restLent].map(deckPoints).sort((a, b) => a - b).slice(0, n);
-    if ((big && large >= B.hand.maxLarge) || (lend && lent >= room) || need.length < n || deckPoints(c) + need.reduce((a, x) => a + x, 0) > left) continue;
+  cand.forEach((c, i) => {
+    if (picks.length === B.deck.pick) return;
+    const big = battleUnits.get(c)!.size === 'large' ? 1 : 0, lend = owned.includes(c) ? 0 : 1;
+    const rest = cheapestFill(cand.slice(i + 1), B.deck.pick - picks.length - 1, B.hand.maxLarge - large - big, room - lent - lend, owned);
+    if (rest < 0 || deckPoints(c) + rest > left) return;
     picks.push(c);
     left -= deckPoints(c);
-    if (big) large++;
-    if (lend) lent++;
-  }
+    large += big;
+    lent += lend;
+  });
   return picks;
 }
 // The "จัดให้" pick: the owned cards with the most deck points first (data order on ties), then loaners. skip: owned cards
