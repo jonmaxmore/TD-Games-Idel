@@ -1,6 +1,6 @@
 // A headless room client for the tests: a ws socket, every server message parsed through the protocol, and waits.
 import WebSocket from 'ws';
-import { Lockstep, parseServer, type ClientMsg, type ServerMsg } from '@five-sects/protocol';
+import { Lockstep, PROTOCOL_VERSION, parseServer, type ClientMsg, type ServerMsg } from '@five-sects/protocol';
 
 type Of<T extends ServerMsg['t']> = Extract<ServerMsg, { t: T }>;
 export class TestClient {
@@ -34,7 +34,7 @@ export class TestClient {
       this.waits.push({ pred: (m) => m.t === t && pred(m as Of<T>), res: (m) => { clearTimeout(timer); this.got.splice(this.got.indexOf(m), 1); res(m as Of<T>); } });
     });
   }
-  async hello(name: string, token?: string) { this.send({ t: 'hello', v: 1, name, ...(token ? { token } : {}) }); return this.next('welcome'); }
+  async hello(name: string, token?: string) { this.send({ t: 'hello', v: PROTOCOL_VERSION, name, ...(token ? { token } : {}) }); return this.next('welcome'); }
   waitClose(ms = 3000): Promise<{ code: number; reason: string }> {
     if (this.closed) return Promise.resolve(this.closed);
     return new Promise((res, rej) => { const t = setTimeout(() => rej(new Error('not closed')), ms); this.ws.once('close', (code, r) => { clearTimeout(t); res({ code, reason: r.toString() }); }); });

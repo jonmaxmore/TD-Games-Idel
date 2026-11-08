@@ -162,7 +162,7 @@ export class Lobby {
         if (!r) return this.send(p.conn, { t: 'error', code: 'not_in_room' });
         if (r.match) return this.send(p.conn, { t: 'error', code: 'in_match' });
         if (teamError(m.team)) return this.send(p.conn, { t: 'error', code: 'bad_team' });
-        r.teams[p.seat] = { leader: m.team.leader, sub: m.team.sub };
+        r.teams[p.seat] = { leader: m.team.leader, sub: m.team.sub, picks: [...m.team.picks] };
         r.ready[p.seat] = false;
         return this.roomState(r);
       }

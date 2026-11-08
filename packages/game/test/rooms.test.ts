@@ -1,8 +1,8 @@
 // Friend rooms end to end: a real server on a free port, two headless clients over WebSocket. The battle bots play a
 // whole match through the room; both clients must end on the server's hash and replayBattle must reproduce it.
 import { afterEach, describe, expect, it } from 'vitest';
-import { battleHash, battleOver, replayBattle, type Side } from '@five-sects/sim';
-import { leaderPool, type ServerMsg } from '@five-sects/protocol';
+import { battleHash, battleOver, battleUnits, replayBattle, type Side } from '@five-sects/sim';
+import { autoTeam, leaderPool, type ServerMsg } from '@five-sects/protocol';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { buildServer, MemoryStore, type ServerOpts } from '../src/server';
 import { TestClient } from './client';
@@ -31,8 +31,8 @@ async function room(url: string) {
   const r = await b.next('room');
   expect(r.seat).toBe(1);
   expect(r.seats[0]?.name).toBe('เจ้าบ้าน');
-  a.send({ t: 'team', team: { leader: L0!, sub: S0! } });
-  b.send({ t: 'team', team: { leader: L1!, sub: S1! } });
+  a.send({ t: 'team', team: autoTeam(L0!, S0!) });
+  b.send({ t: 'team', team: autoTeam(L1!, S1!) });
   a.send({ t: 'ready', on: true });
   b.send({ t: 'ready', on: true });
   const [sa, sb] = await Promise.all([a.next('start'), b.next('start')]);
@@ -53,7 +53,7 @@ describe('friend rooms', () => {
   it('a bot-vs-bot match through a room: both clients end on the server hash, and the saved record replays to it', async () => {
     const { url, store } = await server({ tickMs: 5 }); // at 2 ms a tick the bots outrun the per-second message limits
     const { a, b, sa } = await room(url);
-    expect(sa.teams).toEqual([{ leader: L0, sub: S0 }, { leader: L1, sub: S1 }]);
+    expect(sa.teams).toEqual([autoTeam(L0!, S0!), autoTeam(L1!, S1!)]);
     bot(a, 0, 'rush', sa.seed); bot(b, 1, 'defend', sa.seed);
     const [ea, eb] = await Promise.all([a.next('end', () => true, 150_000), b.next('end', () => true, 150_000)]);
     expect(ea.end).toEqual(eb.end);
@@ -88,6 +88,19 @@ describe('friend rooms', () => {
     b.send('{"t":"cmd","tick":1}');
     expect((await b.next('error')).code).toBe('bad_message');
     expect((await b.waitClose()).code).toBe(1008);
+  });
+
+  it('refuses a team that is not a legal deck (validateDeck) with bad_team and keeps the seat without one', async () => {
+    const { url } = await server();
+    const a = await TestClient.open(url);
+    await a.hello('a');
+    a.send({ t: 'create' });
+    await a.next('room');
+    const t = autoTeam(L0!, S0!), large = leaderPool().filter((c) => battleUnits.get(c)!.size === 'large' && c !== L0 && c !== S0);
+    a.send({ t: 'team', team: { ...t, picks: [...large.slice(0, 3), t.picks[3]!] } });
+    expect((await a.next('error')).code).toBe('bad_team');
+    a.send({ t: 'team', team: t });
+    expect((await a.next('room')).seats[0]?.team).toEqual(t);
   });
 
   it('an expired room code: the host is told it closed and a join finds nothing', async () => {
