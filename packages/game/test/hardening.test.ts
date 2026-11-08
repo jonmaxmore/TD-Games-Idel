@@ -4,6 +4,7 @@ import { mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PROTOCOL_VERSION } from '@five-sects/protocol';
 import type { MatchRecord } from '../src/lobby';
 import { configFromEnv, DirStore, ipKey, parseTrustProxy, type ServerOpts } from '../src/server';
 import { room, startServer, TestClient } from './client';
@@ -119,7 +120,7 @@ describe('rooms', () => {
     const { token } = await first.hello('me');
     for (let i = 0; i < 3; i++) await (await TestClient.open(url)).hello('me', token);
     const fourth = await TestClient.open(url);
-    fourth.send({ t: 'hello', v: 1, name: 'me', token });
+    fourth.send({ t: 'hello', v: PROTOCOL_VERSION, name: 'me', token });
     expect((await fourth.next('error')).code).toBe('rate_limited');
   });
 

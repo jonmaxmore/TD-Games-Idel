@@ -3,7 +3,7 @@
 // it reached the server (negative: it arrived late and ran on the next tick instead).
 import { describe, expect, it } from 'vitest';
 import { botCommands, botRng } from '../../sim/test/battleBot';
-import { INPUT_DELAY, leaderPool } from '@five-sects/protocol';
+import { INPUT_DELAY, autoTeam, leaderPool } from '@five-sects/protocol';
 import { buildServer, MemoryStore } from '../src/server';
 import { TestClient } from './client';
 
@@ -22,7 +22,7 @@ describe('timing at 20 Hz', () => {
     const { code } = await a.next('room');
     b.send({ t: 'join', code });
     await b.next('room');
-    a.send({ t: 'team', team: { leader: L0!, sub: S0! } }); b.send({ t: 'team', team: { leader: L1!, sub: S1! } });
+    a.send({ t: 'team', team: autoTeam(L0!, S0!) }); b.send({ t: 'team', team: autoTeam(L1!, S1!) });
     a.send({ t: 'ready', on: true }); b.send({ t: 'ready', on: true });
     const st = await a.next('start');
     await b.next('start');
@@ -33,7 +33,7 @@ describe('timing at 20 Hz', () => {
       c.onMsg = (m) => {
         if (m.t === 'frame' && seat === 0) { const t = performance.now(); if (lastAt) gaps.push(t - lastAt); lastAt = t; }
         if (m.t !== 'frame' || !c.ls) return;
-        for (const h of c.ls.run(() => { for (const cmd of botCommands(c.ls!.s, seat, 'rush', mind)) if (cmd.t !== 'redraw') c.send(c.ls!.cmd(cmd)); })) c.send(h);
+        for (const h of c.ls.run(() => { for (const cmd of botCommands(c.ls!.s, seat, 'rush', mind)) c.send(c.ls!.cmd(cmd)); })) c.send(h);
       };
     }
     const pings = setInterval(() => { const t0 = performance.now(), n = Math.floor(t0) % 1e9; a.send({ t: 'ping', n }); void a.next('pong', (m) => m.n === n).then(() => rtt.push(performance.now() - t0), () => {}); }, 200);

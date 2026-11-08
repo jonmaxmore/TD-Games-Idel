@@ -1,10 +1,10 @@
-// The player's save: settings, the home sect (เลือกสำนักแรก), the cards owned, the last team set up, the match mode, the
+// The player's save: settings, the home sect (เลือกสำนักแรก), the cards owned, the saved decks and which one is in use, the match mode, the
 // account (card levels and xp, forge items, town tiers, coins, gold, egg points), ศึกปราบ stars and best times, the rewards
 // already paid (first clears, chapter stars), the ศึกฝีมือ rank and the last ranked match for its replay. Anything stored
 // that no longer fits the data (an old TD save, an old deck save, a renamed card, a bad number) falls back to defaults field
 // by field instead of a broken screen.
 import { battleCardIds, castleLevelOf, collection, homeSects, leagues, progression, stages, starterCards, startRank, type BattleRecord, type Rank } from '@five-sects/sim';
-import { fixTeam, type Team } from './decks';
+import { DECK_SLOTS, fixDecks, healTeam, type SavedDeck, type Team } from './decks';
 
 export type Mode = 'casual' | 'ranked'; // ศึกทั่วไป (progression applies) | ศึกฝีมือ (normalized)
 export interface CardProgress { level: number; xp: number; dupes: number } // dupes: training eggs bought
@@ -14,7 +14,8 @@ export interface Profile {
   home: string | null; // the home sect, null until the first-run pick
   owned: string[]; // the cards the account owns, in data order
   claimed: string[]; // rewards already paid: stage ids (first clear) and chapter-star keys ("ch1:15")
-  team: Team;
+  decks: SavedDeck[]; // DECK_SLOTS named teams, saved as they are edited
+  deck: number; // the saved deck in use
   settings: Settings;
   mode: Mode;
   cards: Record<string, CardProgress>; // every card, by id (owned or not)
@@ -44,7 +45,7 @@ export function migrate(raw: unknown): Profile {
   const v7 = r.v === 7, home = typeof r.home === 'string' && homeSects.includes(r.home) ? r.home : null;
   const p: Profile = {
     v: 7, home, owned: [], claimed: [],
-    team: { leader: '', sub: '', bench: [] },
+    decks: [], deck: 0,
     settings: { volume: typeof vol === 'number' && vol >= 0 && vol <= 100 ? Math.round(vol) : 70, muted: st.muted === true, shake: st.shake !== false },
     mode: r.mode === 'ranked' ? 'ranked' : 'casual',
     cards: Object.fromEntries(battleCardIds.map((id) => {
@@ -70,7 +71,8 @@ export function migrate(raw: unknown): Profile {
   const own = new Set([...collection.starter, ...(home ? starterCards(home) : []), ...kept.filter((c): c is string => typeof c === 'string')]);
   p.owned = battleCardIds.filter((c) => own.has(c));
   p.claimed = v7 && Array.isArray(r.claimed) ? r.claimed.filter((x): x is string => typeof x === 'string') : [];
-  p.team = fixTeam(r.team, p.owned, home);
+  p.decks = fixDecks(r.decks, r.team, p.owned, home).map((d) => ({ ...d, team: healTeam(d.team, p.owned) }));
+  p.deck = int(r.deck, 0, DECK_SLOTS - 1, 0);
   p.castleLevel = Math.min(int(r.castleLevel, 1, progression.castleLevels.length, 1), castleLevelOf(levelSum(p)));
   return p;
 }
@@ -84,11 +86,14 @@ function fixRank(raw: unknown): Rank {
 // The saved match is replayed as stored; one that is not even shaped like a record is dropped.
 function fixRecord(raw: unknown): RankedSave | null {
   const r = obj(raw);
-  const ok = typeof r.seed === 'number' && Array.isArray(r.setups) && r.setups.length === 2 && r.commands && typeof r.commands === 'object' && r.opts && typeof r.opts === 'object' && typeof r.hash === 'string';
+  const ok = typeof r.seed === 'number' && Array.isArray(r.setups) && r.setups.length === 2 && r.setups.every((s) => Array.isArray(obj(s).picks)) && r.commands && typeof r.commands === 'object' && r.opts && typeof r.opts === 'object' && typeof r.hash === 'string';
   if (!ok) return null;
   const { endTick, ...rest } = r;
   return { ...(rest as unknown as RankedSave), ...(Number.isInteger(endTick) && (endTick as number) >= 0 ? { endTick: endTick as number } : {}) };
 }
+// The team of the saved deck in use, and setting it (the caller saves).
+export const teamOf = (p: Profile): Team => p.decks[p.deck]!.team;
+export const setTeam = (p: Profile, t: Team) => { p.decks[p.deck] = { ...p.decks[p.deck]!, team: t }; };
 // The castle level's card-level sum: every owned card's level.
 export const levelSum = (p: Profile) => p.owned.reduce((a, id) => a + p.cards[id]!.level, 0);
 

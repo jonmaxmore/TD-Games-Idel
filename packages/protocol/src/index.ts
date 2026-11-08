@@ -1,9 +1,12 @@
 // Friend-room PvP wire protocol (SPEC-pvp-rooms): every message between the client and the game server, versioned, and
 // checked at the boundary by parseClient / parseServer. A message that is too large, not JSON, of an unknown type, or that
 // carries an unknown or malformed field is rejected whole. Shared by packages/client and packages/game.
-import { battle, battleUnits, rankedPool, TICK_HZ, type BattleCommand, type BattleSetup, type ResultType, type Side, type TiebreakStep } from '@five-sects/sim';
+import {
+  autoPicks, battle, battleUnits, isBasic, rankedPool, TICK_HZ, validateDeck, type BattleCommand, type BattleSetup, type DeckError, type ResultType, type Side,
+  type TiebreakStep,
+} from '@five-sects/sim';
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const TICK_MS = 1000 / TICK_HZ;
 // A client stamps each command for its latest frame + INPUT_DELAY; the server runs it at that tick, or at the next one when
 // it came late by at most LATE_TICKS, and refuses one stamped more than AHEAD_TICKS past its own tick.
@@ -25,7 +28,7 @@ export const wsUrlError = (url: string, prod: boolean): string | null =>
   url.startsWith('wss://') ? null : !url.startsWith('ws://') ? 'not a WebSocket URL' : prod ? 'ws:// in a release build' : LOOPBACK_WS.test(url) ? null : 'ws:// off this machine';
 
 // ---- the shapes ----
-export interface TeamPick { leader: string; sub: string }
+export interface TeamPick { leader: string; sub: string; picks: string[] }
 // What a client may ask the sim to do; side must be the client's own seat (checked by the server).
 export type NetCommand = Extract<BattleCommand, { t: 'summon' } | { t: 'cannon' }>;
 export type ClientMsg =
@@ -59,17 +62,13 @@ export type ServerMsg =
   | { t: 'error'; code: ErrorCode }
   | { t: 'pong'; n: number; tick: number };
 
-// ---- the team: ranked ศึกฝีมือ rules (normalized, every card in the draw), behind one function so the deck redesign
-// can change what a pick holds without touching the netcode ----
-const basics = new Set(battle.hand.basic.values());
-export const leaderPool = (): string[] => rankedPool.filter((c) => !basics.has(c));
-export function teamError(t: TeamPick): string | null {
-  const ok = leaderPool();
-  if (!ok.includes(t.leader) || !ok.includes(t.sub)) return 'unknown card';
-  if (t.leader === t.sub) return 'leader and sub must differ';
-  return null;
-}
-export const pvpSetup = (t: TeamPick): BattleSetup => ({ leader: t.leader, sub: t.sub, collection: rankedPool, bench: [] });
+// ---- the team: ranked ศึกฝีมือ rules (SPEC-deck-budget: a chosen hand from every card, the deck budget, normalized) ----
+export const leaderPool = (): string[] => rankedPool.filter((c) => !isBasic(c));
+// The server refuses a team that is not a legal deck from the ranked pool (bad_team).
+export const teamError = (t: TeamPick): DeckError | null => validateDeck(t, rankedPool);
+// A legal team for a leader and sub: the picks autoPicks makes from the ranked pool.
+export const autoTeam = (leader: string, sub: string): TeamPick => ({ leader, sub, picks: autoPicks(leader, sub, rankedPool) });
+export const pvpSetup = (t: TeamPick): BattleSetup => ({ leader: t.leader, sub: t.sub, picks: t.picks });
 export const PVP_OPTS = { normalized: true } as const;
 
 // ---- the validator: a check returns the value or throws ----
@@ -118,7 +117,7 @@ const command: Check<NetCommand> = (x, at) => {
   if (t === 'cannon') return obj({ t: oneOf('cannon'), side: sideNum, d: depth })(x, at);
   return fail(`${at}.t`, 'summon|cannon');
 };
-const team = obj({ leader: card, sub: card });
+const team = obj({ leader: card, sub: card, picks: arr(card, battle.deck.pick, battle.deck.pick) });
 const tickNum = int(0, MAX_TICK);
 // Display names: letters (Thai included), digits, spaces, _ and -; no controls, no markup.
 export const NAME_RE = /^[\p{L}\p{M}\p{N} _-]{1,16}$/u;

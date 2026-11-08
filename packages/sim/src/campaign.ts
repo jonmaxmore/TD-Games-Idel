@@ -3,7 +3,7 @@
 // it pays. Integer sim units, like data.ts.
 import campaignJson from '../../../docs/data/campaign.json';
 import { battle as B, battleCardIds, battleUnits, ticks, TILE, type BattleUnitDef } from './data';
-import { fixedHand, sectCards, type BattleSetup, type BattleState, type StageRules, type Wave } from './battle';
+import { fixedHand, handOf, sectCards, type BattleSetup, type BattleState, type StageRules, type Wave } from './battle';
 import type { Reward } from './progression';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -17,7 +17,7 @@ export type FirstClear = { card: string } | { homeRole: string } | { eggPoints: 
 export interface Gimmick { kind: string; nameTh: string; descTh: string }
 export interface Stage {
   id: string; nameTh: string; briefTh: string; teachTh: string; boss: boolean; gimmicks: Gimmick[];
-  level: number; enemy: BattleSetup; rules: StageRules; stars: [StarGoal, StarGoal, StarGoal];
+  level: number; enemy: BattleSetup; deckBudget: number; rules: StageRules; stars: [StarGoal, StarGoal, StarGoal];
   rewards: { win: Reward; firstClear: FirstClear };
 }
 export const chapter = C.chapter as { id: string; nameTh: string };
@@ -51,7 +51,8 @@ export const stages: Stage[] = (C.stages as any[]).map((s) => {
   return {
     id: s.id, nameTh: s.nameTh, briefTh: s.briefTh, teachTh: s.teachTh, boss: s.boss === true, level: s.enemy.level,
     gimmicks: (s.gimmicks as any[]).map((x) => ({ kind: x.kind, nameTh: x.nameTh, descTh: x.descTh })),
-    enemy: { ...(s.enemy.leader ? { leader: s.enemy.leader, sub: s.enemy.sub, collection: cards, bench: [] } : fixedHand(cards)), progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, s.enemy.level])) } },
+    enemy: { ...fixedHand(cards.filter((c) => c !== s.enemy.leader && c !== s.enemy.sub), s.enemy.leader ?? '', s.enemy.sub ?? ''), progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, s.enemy.level])) } },
+    deckBudget: s.deckBudget ?? B.deck.budget,
     rules: rules(s), stars: (s.stars ?? C.stars) as [StarGoal, StarGoal, StarGoal],
     rewards: { win: s.rewards.win as Reward, firstClear: s.rewards.firstClear as FirstClear },
   };
@@ -60,7 +61,7 @@ export const stageOf = (id: string) => stages.find((s) => s.id === id);
 export const gimmickNames = (st: Stage) => st.gimmicks.map((g) => g.nameTh).join(' · ');
 // Every card a stage names, for the data check: the enemy's leaders and cards, and its wave units.
 export function stageCards(st: Stage): BattleUnitDef[] {
-  return [st.enemy.leader, st.enemy.sub, ...st.enemy.collection, ...st.rules.waves.map((w) => w.card)].filter((c) => c !== '').map((c) => battleUnits.get(c)!);
+  return [...handOf(st.enemy), ...st.rules.waves.map((w) => w.card)].map((c) => battleUnits.get(c)!);
 }
 
 // The stars a finished stage match earns the player (side 0), one per goal of the stage.

@@ -34,7 +34,7 @@ const base = server.resolvedUrls.local[0];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 
 const STAGES = Array.from({ length: 10 }, (_, i) => `1-${i + 1}`);
-const DONE = { v: 7, home: 'fire', owned: ['crimson_phoenix_banner', 'wandering_archer', 'crimson_phoenix_blade', 'crimson_phoenix_striker', 'crimson_phoenix_control'], team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_control', bench: [] }, campaign: Object.fromEntries(STAGES.map((id) => [id, { stars: [true, false, false], bestSec: 100 }])) };
+const DONE = { v: 7, home: 'fire', owned: ['crimson_phoenix_banner', 'wandering_archer', 'crimson_phoenix_blade', 'crimson_phoenix_striker', 'crimson_phoenix_control'], team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_control' }, campaign: Object.fromEntries(STAGES.map((id) => [id, { stars: [true, false, false], bestSec: 100 }])) };
 async function open(name, url = '', pvpName) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(base).origin });
@@ -104,7 +104,17 @@ await K.ctx.close();
 await B.p.locator('.pvp-code').fill(code);
 await B.p.locator('.join-btn').click();
 await B.p.waitForSelector('.room-code');
-await B.p.locator('.pvp-team select').first().selectOption('vajra_stone_guardian');
+// The guest opens the deck picker over the room, makes the earth guardian its leader, lets จัดให้ fill the hand and uses it.
+await B.p.locator('.pvp-edit').click();
+await B.p.waitForSelector('.deck-sheet .deck-card');
+await B.p.locator('.deck-sheet .deck-card[data-id=vajra_stone_guardian]').click({ button: 'right' });
+await B.p.locator('.deck-menu').getByRole('menuitem', { name: 'ตั้งเป็นแม่ทัพ' }).click();
+await B.p.locator('.deck-sheet .auto-btn').click();
+await B.p.mouse.move(5, 5);
+await sleep(200);
+await shot(B.p, '05d-guest-deck-sheet');
+check(!(await B.p.locator('.deck-sheet .use-btn').isDisabled()), 'the friend-room picker offers a legal hand');
+await B.p.locator('.deck-sheet .use-btn').click();
 await A.p.waitForFunction(() => document.querySelector('.pvp-seat.side1')?.textContent?.includes('แม่ทัพ'), null, { timeout: 5000 });
 await A.p.locator('.ready-btn').click();
 await B.p.waitForFunction(() => document.querySelector('.pvp-seat.side0 .pvp-ready.on'), null, { timeout: 5000 });

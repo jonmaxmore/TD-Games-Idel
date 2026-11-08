@@ -4,7 +4,6 @@
 import sectsJson from '../../../docs/data/sects.json';
 import effectsJson from '../../../docs/data/effects.json';
 import battleJson from '../../../docs/data/battle.json';
-import collectionJson from '../../../docs/data/collection.json';
 
 export const TICK_HZ = 20;
 export const TILE = 1000;
@@ -67,7 +66,12 @@ export const battle = {
   stunImmune: ticks(BT.status.stunImmuneSec), rootImmune: ticks(BT.status.rootImmuneSec), largeControlPct: BT.status.largeControlPct as number,
   counterTags: new Map<string, string>(Object.entries(BT.counterTags as Record<string, string>)),
   counterPct: new Map<string, number>(Object.entries(BT.counterPct as Record<string, number>)),
-  hand: { size: BT.hand.size as number, maxLarge: BT.hand.maxLarge as number, redraws: BT.hand.redraws as number, basic: new Map<string, string>(Object.entries(BT.hand.basic as Record<string, string>)) },
+  hand: { size: BT.hand.size as number, maxLarge: BT.hand.maxLarge as number, basic: new Map<string, string>(Object.entries(BT.hand.basic as Record<string, string>)) },
+  deck: {
+    pick: BT.deck.pick as number, budget: BT.deck.budget as number, loaners: BT.deck.loaners as string[],
+    sizePoints: new Map<string, number>(Object.entries(BT.deck.sizePoints as Record<string, number>)),
+    cardPoints: new Map<string, number>(Object.entries(BT.deck.cardPoints as Record<string, number>)),
+  },
   auraRadius: tiles(BT.abilities.aura.radiusTiles), wardRadius: tiles(BT.abilities.ward.radiusTiles),
   abilities: new Map<string, { nameTh: string; doesTh: string }>(Object.keys(BT.abilities).map((k) => [k, { nameTh: BT.abilities[k].nameTh, doesTh: BT.abilities[k].doesTh.replace('{r}', String(BT.abilities[k].radiusTiles)) }])),
   sectTeams: new Map<string, { leader: string; sub: string }>(Object.entries(BT.sectTeams as Record<string, { leader: string; sub: string }>)),
@@ -87,6 +91,3 @@ for (const u of S.roster.units) {
     tagTh: u.tagTh ?? '', counters: u.counters ?? [], ability: u.ability ?? null, body: u.body ?? 'human',
   });
 }
-// The draw rules of collection.json: the draw pool keeps at least minDrawPool cards (bench cards past that are ignored), and
-// basic capturers (move capture) are never drawn when basicsInPool is false.
-export const draw = { minDrawPool: collectionJson.bench.minDrawPool as number, basicsInPool: collectionJson.draw.basicsInPool as boolean };

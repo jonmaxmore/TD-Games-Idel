@@ -1,7 +1,7 @@
 // Visual proof: opens the game in Chromium at 1280x720 (16:9 PC), plays it, and saves screenshots + a video to shots/.
 //   npm run shots    title, the lobby for a fresh, a mid-progress and a chapter-1-done save (primary button, unlocks, the
 //                    locked next one), its overlays (settings, profile, egg shop), the clicks from the lobby to each main
-//                    action, the versus screen, a loss with its tip, the pause menu; team setup (leader, sub, bench, redraw); a match played by hand (aim, a red marker off the
+//                    action, the versus screen, a loss with its tip, the pause menu; จัดทัพ (empty, filled, the menu, over budget, loaners, a saved-deck switch); a match played by hand (aim, a red marker off the
 //                    zone, a click summon, a drag summon, counter highlights, the cannon aimed and fired); then a bot-vs-bot
 //                    match at x4, recorded, with frames of an early field, a fight, a fort capture and the result screen;
 //                    burn/poison marks, burning ground and the stun-resistance halo; the collection filters, a hand led
@@ -50,7 +50,7 @@ const STAGES = Array.from({ length: 10 }, (_, i) => `1-${i + 1}`);
 const won = (n) => Object.fromEntries(STAGES.slice(0, n).map((id) => [id, { stars: [true, false, false], bestSec: 100 }]));
 const FIRE = ['crimson_phoenix_banner', 'jade_bamboo_banner', 'cloud_sword_banner', 'frost_tide_banner', 'vajra_stone_banner', 'wandering_archer', 'crimson_phoenix_blade', 'crimson_phoenix_striker', 'crimson_phoenix_control'];
 const LV2 = Object.fromEntries(['crimson_phoenix_banner', 'crimson_phoenix_striker', 'crimson_phoenix_control', 'crimson_phoenix_blade', 'wandering_archer', 'ember_imp'].map((id) => [id, { level: 5, xp: 0, dupes: 0 }]));
-const home = (more) => ({ v: 7, home: 'fire', owned: FIRE, team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_control', bench: [] }, ...more });
+const home = (more) => ({ v: 7, home: 'fire', owned: FIRE, team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_control' }, ...more });
 const MID = home({ campaign: won(3), cards: LV2, castleLevel: 1, coins: 180, gold: 90 });
 const NINE = home({ campaign: won(9), cards: LV2, castleLevel: 1, coins: 500, gold: 250 });
 const DONE = home({ campaign: won(10), cards: LV2, castleLevel: 1, coins: 640, gold: 320, eggPoints: 40 });
@@ -220,6 +220,10 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   check((await p.locator('.cta').getAttribute('data-cta')) === 'ranked', 'after chapter 1 the primary is ranked');
   // ranked: the primary, then เข้าสู่ศึก on the team screen (2 clicks).
   await p.locator('.cta').click();
+  await p.waitForSelector('.deck-card');
+  await sleep(200);
+  await shot(p, '66-team-ranked');
+  console.log('ranked team:', await p.locator('.team-note').textContent(), '|', await p.locator('.deck-card').count(), 'cards');
   await p.getByRole('button', { name: 'เข้าสู่ศึก' }).click();
   await p.waitForSelector('.versus');
   await sleep(200);
@@ -244,49 +248,85 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await ctx.close();
 }
 
-// 1) Front screens: the team setup of a young fire account (no bench room yet), then of an account that owns every card: a
-//    leader and a bench picked, the dealt hand, a redraw, the filters.
+// 1) Front screens: จัดทัพ for a young fire account (too few cards: loaners marked ยืม), then for an account that owns every
+//    card: the empty hand, cards clicked in, the tooltip, the right-click menu, an over-budget hand with its reason and
+//    เข้าสู่ศึก off, the saved-deck switch and rename, the filters, a hand led by beasts; then into the match.
+const ids = (p, sel) => p.locator(sel).evaluateAll((es) => es.map((e) => e.dataset.id));
+const meter = async (p) => (await p.locator('.deck-meter').innerText()).replace(/\s+/g, ' ');
 {
-  const { ctx, p } = await open('', 'front-new', null, MID);
+  const { ctx, p } = await open('', 'front-new', null, home({}));
   await toLobby(p);
   await p.locator('.cta').click();
   await p.getByRole('button', { name: 'จัดทัพ' }).click();
-  await p.waitForSelector('.team-card');
+  await p.waitForSelector('.deck-card');
   await sleep(200);
-  await shot(p, '02-team-owned');
-  console.log('team (mid):', await p.locator('.filters .count').first().textContent());
+  await shot(p, '02-team-loaner');
+  const loans = await ids(p, '.deck-slot:has(em.loan)');
+  console.log('team (young):', loans.length, 'loaners in the hand:', loans.join(','), '|', await meter(p));
+  check(loans.length > 0, 'a young account borrows loaners, marked ยืม');
   await ctx.close();
 }
 {
   const { ctx, p } = await open('', 'front', null, BIG);
   await toLobby(p);
   await p.locator('[data-go=casual]').click();
-  await p.waitForSelector('.team-card');
+  await p.waitForSelector('.deck-card');
+  await p.mouse.move(5, 5);
   await sleep(200);
   await shot(p, '02-team-fire');
-  await p.locator('.team-card[data-id=crimson_phoenix_kite] .acts button:nth-child(2)').click();
-  await p.locator('.team-card[data-id=crimson_phoenix_support] .acts button:nth-child(3)').click();
-  await p.locator('.team-card[data-id=crimson_phoenix_beast]').hover();
+  await p.locator('.clear-btn').click();
+  await sleep(150);
+  await shot(p, '03-team-empty');
+  check(await p.locator('.enter-btn').isDisabled(), 'an empty hand cannot start a match');
+  console.log('empty hand:', await p.locator('.enter-why').textContent());
+  for (const c of ['crimson_phoenix_kite', 'crimson_phoenix_support', 'ember_imp']) await p.locator(`.deck-card[data-id=${c}]`).click();
+  await p.locator('.deck-card[data-id=crimson_phoenix_beast]').hover();
+  await sleep(500);
+  await shot(p, '03-team-filled-tip');
+  console.log('three picked:', (await ids(p, '.deck-slot.pick:not(.empty)')).join(','), '|', await meter(p));
+  await p.locator('.deck-card[data-id=crimson_phoenix_beast]').click();
+  await p.mouse.move(5, 5);
+  await sleep(150);
+  check(!(await p.locator('.enter-btn').isDisabled()), 'four legal picks open เข้าสู่ศึก');
+  // An expensive leader on a full hand: the meter goes over, the reason shows and เข้าสู่ศึก stays off.
+  await p.locator('.deck-card[data-id=storm_dragon]').click({ button: 'right' });
+  await sleep(150);
+  await shot(p, '03-team-menu');
+  await p.locator('.deck-menu').getByRole('menuitem', { name: 'ตั้งเป็นแม่ทัพ' }).click();
+  await p.mouse.move(5, 5);
   await sleep(200);
-  await shot(p, '03-team-sub-bench');
-  const before = await p.locator('.hand-card b').allTextContents();
-  await p.getByRole('button', { name: /สับมือใหม่/ }).click();
+  await shot(p, '03-team-over-budget');
+  const over = await p.locator('.enter-why').textContent();
+  console.log('over budget:', over, '|', await meter(p));
+  check(await p.locator('.enter-btn').isDisabled() && /แต้ม|ตัวใหญ่/.test(over ?? ''), 'an over-budget hand says why and cannot start');
+  // Saved decks: the second slot, renamed, filled by จัดให้; back to the first, which kept its cards.
+  await p.locator('.deck-tab').nth(1).click();
+  await p.locator('.deck-name').fill('ทัพมังกร');
+  await p.locator('.auto-btn').click();
   await sleep(200);
-  const after = await p.locator('.hand-card b').allTextContents();
-  console.log('hand before redraw:', before.join(','), '| after:', after.join(','));
-  await shot(p, '03-team-redraw');
+  await shot(p, '03-team-deck-switch');
+  const tabs = await p.locator('.deck-tab').allInnerTexts();
+  console.log('saved decks:', tabs.map((t) => t.replace(/\s+/g, ' ')).join(' | '));
+  await p.locator('.deck-tab').nth(0).click();
+  check((await ids(p, '.deck-slot.leader')).join() === 'storm_dragon', 'the first saved deck kept its leader');
+  await p.locator('.deck-tab').nth(1).click();
   // The collection filters: by kind, by cost, by role, then a hand led by a dragon and a divine beast.
   for (const [f, name] of [['kind:demon', '05-filter-demons'], ['kind:divine', '05-filter-divine'], ['kind:dragon', '05-filter-dragons'], ['kind:all', null], ['cost:1', '05-filter-cost1'], ['cost:all', null], ['role:สกัด', '05-filter-guards'], ['role:all', null]]) {
     await p.locator(`.chip[data-f="${f}"]`).click();
     await sleep(150);
     if (name) await shot(p, name);
   }
-  await p.locator('.team-card[data-id=storm_dragon] .acts button:nth-child(1)').click();
-  await p.locator('.team-card[data-id=jade_tortoise] .acts button:nth-child(2)').click();
-  await p.locator('.team-card[data-id=storm_dragon]').hover();
-  await sleep(200);
+  await p.locator('.deck-slot.leader').click();
+  await p.locator('.deck-card[data-id=storm_dragon]').click();
+  await p.locator('.deck-slot.sub').click();
+  await p.locator('.deck-card[data-id=jade_tortoise]').click();
+  await p.locator('.auto-btn').click();
+  await p.locator('.deck-slot.leader').hover();
+  await sleep(500);
   await shot(p, '06-hand-beasts');
-  console.log('hand with beasts:', (await p.locator('.hand-card').evaluateAll((es) => es.map((e) => e.dataset.id))).join(','));
+  console.log('hand with beasts:', (await ids(p, '.deck-slot:not(.empty)')).join(','));
+  const kept = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('five-sects.profile')); return [s.deck, s.decks[s.deck].name, s.decks[s.deck].team.leader]; });
+  check(kept.join() === '1,ทัพมังกร,storm_dragon', `the saved deck in use, its name and its cards are saved as edited (${kept.join()})`);
   await p.getByRole('button', { name: 'เข้าสู่ศึก' }).click();
   await p.waitForFunction(() => window.__game?.s);
   await sleep(600);
@@ -476,7 +516,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   const LV = { crimson_phoenix_banner: 9, crimson_phoenix_striker: 15, crimson_phoenix_burst: 24, crimson_phoenix_beast: 30, crimson_phoenix_kite: 12, ember_imp: 3 };
   const cards = Object.fromEntries(Object.entries(LV).map(([id, level]) => [id, { level, xp: 0, dupes: 0 }]));
   cards.crimson_phoenix_striker.xp = 170;
-  const save = home({ mode: 'casual', owned: [...FIRE, 'crimson_phoenix_burst', 'crimson_phoenix_beast', 'crimson_phoenix_kite', 'ember_imp'], team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_kite', bench: [] }, cards, coins: 520, gold: 640, eggPoints: 30, castleLevel: 1, campaign: won(10) });
+  const save = home({ mode: 'casual', owned: [...FIRE, 'crimson_phoenix_burst', 'crimson_phoenix_beast', 'crimson_phoenix_kite', 'ember_imp'], team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_kite' }, cards, coins: 520, gold: 640, eggPoints: 30, castleLevel: 1, campaign: won(10) });
   const { ctx, p } = await open('', 'camp', null, save);
   await toLobby(p);
   await p.locator('[data-go=levelUp]').click();
@@ -531,7 +571,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await sleep(200);
   await shot(p, '52-briefing');
   await p.getByRole('button', { name: 'จัดทัพ' }).click();
-  await p.waitForSelector('.team-card');
+  await p.waitForSelector('.deck-card');
   await sleep(200);
   await shot(p, '53-team-stage');
   // Esc walks back: team setup -> briefing -> stage map -> lobby.

@@ -6,8 +6,8 @@ import {
   battleCardIds, castleLevelOf, chapter, firstClearPay, forgeOf, matchLevel, powerScore, progression, rankAfter, rewardFor, shopBlock, stages,
   starRewards, starterCards, starterTeam, tierOf, type Account, type BattleSetup, type Progress, type Rank, type Reward, type Stage,
 } from '@five-sects/sim';
-import { fixTeam, teamSetup } from './decks';
-import { levelSum, type Profile } from './profile';
+import { fixDecks, healTeam, setupOf } from './decks';
+import { levelSum, teamOf, type Profile } from './profile';
 
 export const xpNeed = (level: number) => (level >= progression.maxLevel ? null : progression.xpToNext[level - 1]!);
 export const canLevel = (p: Profile, card: string) => { const n = xpNeed(p.cards[card]!.level); return n != null && p.cards[card]!.xp >= n; };
@@ -34,7 +34,7 @@ const giveXp = (p: Profile, card: string, xp: number) => { const c = p.cards[car
 // A match result for the player: its reward (a stage's own on a win), xp to every card of the hand, coins and gold.
 export function payMatch(p: Profile, hand: readonly string[], won: boolean | null, type: string, stage?: Stage): Reward {
   const r = won === true && stage ? stage.rewards.win : rewardFor(won, type);
-  for (const c of new Set(hand)) if (p.owned.includes(c)) giveXp(p, c, r.xp); // a ranked hand also draws cards not owned
+  for (const c of new Set(hand)) if (p.owned.includes(c)) giveXp(p, c, r.xp); // a ranked hand or a loaner is not owned
   p.coins += r.coins;
   p.gold += r.gold;
   return r;
@@ -83,7 +83,12 @@ export function upgradeTown(p: Profile, k: TownKey): string | null {
   return null;
 }
 
-const own = (p: Profile, card: string) => { if (!p.owned.includes(card)) p.owned = battleCardIds.filter((c) => c === card || p.owned.includes(c)); };
+// A card joins the collection; a saved deck that borrowed in its place gives the loaner back (decks.ts healTeam).
+const own = (p: Profile, card: string) => {
+  if (p.owned.includes(card)) return;
+  p.owned = battleCardIds.filter((c) => c === card || p.owned.includes(c));
+  p.decks = p.decks.map((d) => ({ ...d, team: healTeam(d.team, p.owned) }));
+};
 export const won = (p: Profile, stage: string) => p.campaign[stage]?.stars[0] === true;
 export const account = (p: Profile): Account => ({ home: p.home ?? '', owned: p.owned, castleLevel: castleLevelOf(levelSum(p)), eggPoints: p.eggPoints, won: (s) => won(p, s) });
 export const SHOP_WHY: Record<string, string> = { notForSale: 'ไม่ขายในร้านไข่', shopClosed: 'ร้านไข่เปิดเมื่อผ่านด่าน 1-10', castleLevel: 'ปราสาทยังไม่ถึง', eggPoints: 'แต้มไข่ไม่พอ' };
@@ -107,7 +112,8 @@ export function chooseHome(p: Profile, home: string): void {
   if (p.home) return;
   p.home = home;
   for (const c of starterCards(home)) own(p, c);
-  p.team = fixTeam(starterTeam(home), p.owned, home);
+  p.decks = fixDecks(null, starterTeam(home), p.owned, home);
+  p.deck = 0;
   claim(p);
 }
 
@@ -147,7 +153,7 @@ export function progressOf(p: Profile, now: number): Progress {
   return { levels: Object.fromEntries(battleCardIds.map((id) => [id, p.cards[id]!.level])), gear, town: { ...p.town } };
 }
 // The player's พลังทัพ (matchmaking.md §5): the current team over the owned cards with the account's progress.
-export const playerPower = (p: Profile, now: number) => powerScore({ ...teamSetup(p.team, p.owned), progress: progressOf(p, now) });
+export const playerPower = (p: Profile, now: number) => powerScore({ ...setupOf(teamOf(p)), progress: progressOf(p, now) });
 // The AI's side in a casual match: every card at the one level whose power score is closest to the player's (the ratio is
 // held under progression.json matchmaking.casual.powerRatioMaxPct), no forge, no town.
 export function aiProgress(p: Profile, ai: BattleSetup, now: number): Progress & { ratioPct: number } {

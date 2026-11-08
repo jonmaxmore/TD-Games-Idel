@@ -5,3 +5,4 @@ export * from './battle';
 export * from './progression';
 export * from './campaign';
 export * from './collection';
+export * from './deck';

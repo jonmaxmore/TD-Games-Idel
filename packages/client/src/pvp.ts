@@ -1,14 +1,16 @@
-// ศึกกับเพื่อน (SPEC-pvp-rooms): create a room or join one by code, show the code with a copy button, pick a leader and a
-// sub-leader from every card (ศึกฝีมือ rules), ready up; the server's start message hands over to main.ts (versus, then
+// ศึกกับเพื่อน (SPEC-pvp-rooms): create a room or join one by code, show the code with a copy button, choose the hand in the
+// deck picker over every card (ศึกฝีมือ rules: the same budget, every card at base stats), ready up; the server's start message hands over to main.ts (versus, then
 // the match). The host can send the guest out (kick: they cannot come back to that room). Esc leaves the room, or the
 // screen when not in one. Every server error shows in Thai on the screen.
-import { battleUnits, sects } from '@five-sects/sim';
-import { CODE_LEN, leaderPool, normalizeCode, teamError, type Seat, type ServerMsg, type TeamPick } from '@five-sects/protocol';
+import { battle, battleUnits } from '@five-sects/sim';
+import { autoTeam, CODE_LEN, leaderPool, normalizeCode, teamError, type Seat, type ServerMsg, type TeamPick } from '@five-sects/protocol';
 import { el } from './battle';
+import { colorOf, deckPicker } from './deckPicker';
+import { deckPoints, largeOf, pairOk, RANKED_RULES, spendOf } from './decks';
 import { PLAYER_NAME } from './lobby';
 import { ERROR_TH, RoomClient, saveName, savedName, serverUrl } from './net';
-import type { Profile } from './profile';
-import { button, confirmBox } from './ui';
+import { teamOf, type Profile } from './profile';
+import { button, confirmBox, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 export type Start = Extract<ServerMsg, { t: 'start' }>;
@@ -18,14 +20,14 @@ let client: RoomClient | null = null; // one socket for the whole visit: the roo
 export const roomClient = () => client;
 export function dropClient() { client?.close(); client = null; }
 
-const cardName = (c: string) => { const u = battleUnits.get(c)!; return `${u.nameTh} · ${sects.get(u.sect)?.nameTh ?? ''} · ปราณ ${u.mana}`; };
-
-// The team a player starts from: the saved team when both cards are allowed, else the first two of the pool.
+// The team a player starts from: the saved deck in use when it is legal under ศึกฝีมือ rules, else its leaders with the
+// autoPicks hand, else the first legal pair of the pool. Only a legal team is ever sent (the server would answer bad_team).
 function firstTeam(p: Profile): TeamPick {
-  const t = { leader: p.team.leader, sub: p.team.sub };
-  if (!teamError(t)) return t;
-  const pool = leaderPool();
-  return { leader: pool[0]!, sub: pool[1]! };
+  const t = teamOf(p), pool = leaderPool();
+  const mine = { leader: t.leader, sub: t.sub, picks: [...t.picks] };
+  if (!teamError(mine)) return mine;
+  if (pool.includes(t.leader) && pool.includes(t.sub) && pairOk(t.leader, t.sub, RANKED_RULES)) return autoTeam(t.leader, t.sub);
+  return autoTeam(pool[0]!, pool[1]!);
 }
 
 export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void {
@@ -33,7 +35,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
   const status = el('p', 'pvp-status dim center'), error = el('p', 'pvp-error');
   error.setAttribute('role', 'alert');
   const body = el('div', 'pvp-body');
-  r.append(el('h1', '', 'ศึกกับเพื่อน'), el('p', 'dim center', 'เล่นกับเพื่อนด้วยรหัสห้อง · กติกาศึกฝีมือ: การ์ดทุกใบค่าเท่ากัน เลือกแค่แม่ทัพกับรอง'), status, body, error);
+  r.append(el('h1', '', 'ศึกกับเพื่อน'), el('p', 'dim center', 'เล่นกับเพื่อนด้วยรหัสห้อง · กติกาศึกฝีมือ: เลือกมือเองจากการ์ดทุกใบ งบแต้มทัพเท่ากัน ค่าเท่ากันทุกใบ'), status, body, error);
   app.append(r);
   let room: Extract<ServerMsg, { t: 'room' }> | null = null;
   let team = firstTeam(p), busy = false, gone = false;
@@ -105,37 +107,53 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
     if (!s) { box.append(el('b', 'pvp-wait', 'รอเพื่อนเข้าห้อง…'), el('p', 'dim small', 'ส่งรหัสห้องให้เพื่อน แล้วให้เพื่อนกด "เข้าห้อง"')); return box; }
     box.append(nowrapWords(el('b', 'pvp-who'), `${s.name}${mine ? ' (เรา)' : ''}`));
     if (!s.online) box.append(el('p', 'bad', 'หลุดการเชื่อมต่อ'));
-    box.append(el('p', '', s.team ? `แม่ทัพ ${battleUnits.get(s.team.leader)!.nameTh} · รอง ${battleUnits.get(s.team.sub)!.nameTh}` : 'กำลังเลือกทัพ…'));
+    box.append(el('p', '', s.team ? `แม่ทัพ ${battleUnits.get(s.team.leader)!.nameTh} · รอง ${battleUnits.get(s.team.sub)!.nameTh} · แต้มทัพ ${spendOf(s.team)}` : 'กำลังเลือกทัพ…'));
     box.append(el('em', s.ready ? 'pvp-ready on' : 'pvp-ready', s.ready ? 'พร้อมแล้ว' : 'ยังไม่พร้อม'));
     if (host && i === 1) box.append(button('ให้ออกจากห้อง', () => kick(s.name), 'ghost', 'sm', 'kick-btn'));
     return box;
   }
 
-  function picker(): HTMLElement {
-    const box = el('div', 'panel pvp-team');
-    const pool = leaderPool();
-    const sel = (label: string, key: keyof TeamPick) => {
-      const s = el('select');
-      s.setAttribute('aria-label', label);
-      for (const c of pool) { const o = el('option', '', cardName(c)); o.value = c; s.append(o); }
-      s.value = team[key];
-      s.onchange = () => {
-        const next = { ...team, [key]: s.value };
-        if (next.leader === next.sub) next[key === 'leader' ? 'sub' : 'leader'] = team[key]; // picking the other's card swaps them
-        team = next;
-        client?.send({ t: 'team', team });
-      };
-      const row = el('label', 'pvp-pick');
-      row.append(el('span', '', label), s);
-      return row;
-    };
-    box.append(el('h2', '', 'ทัพของเรา'), sel('แม่ทัพ', 'leader'), sel('รองแม่ทัพ', 'sub'),
-      el('p', 'dim small', 'มือในศึก: ธงยึดป้อมของสำนักแม่ทัพ แม่ทัพ รอง และสุ่มจากการ์ดทุกใบ ค่าเท่ากันทุกใบ'));
+  // Our hand in short (leader, sub, the picks, the meters) with จัดทัพ, which opens the deck picker over the room.
+  function picker(ready: boolean): HTMLElement {
+    const box = el('div', 'panel pvp-team'), cards = el('div', 'pvp-hand');
+    for (const c of [team.leader, team.sub, ...team.picks]) {
+      const chip = el('span', 'pvp-chip', `${battleUnits.get(c)!.nameTh} ${deckPoints(c)}`);
+      chip.style.borderColor = colorOf(c);
+      chip.dataset.id = c;
+      cards.append(chip);
+    }
+    const edit = button('จัดทัพ', openSheet, 'secondary', 'md', 'pvp-edit');
+    setDisabled(edit, ready ? 'กดยกเลิกพร้อมก่อนแก้ทัพ' : null);
+    box.append(el('h2', '', 'ทัพของเรา'), el('small', 'dim', 'แม่ทัพ · รอง · 4 ใบที่เลือก (ตัวเลขคือแต้มทัพ)'), cards,
+      el('p', 'pvp-meter', `แต้มทัพ ${spendOf(team)}/${battle.deck.budget} · ตัวใหญ่ ${largeOf(team)}/${battle.hand.maxLarge}`), edit,
+      el('p', 'dim small', 'กติกาศึกฝีมือ: เลือกจากการ์ดทุกใบ งบแต้มทัพเท่ากัน ทุกใบค่าพื้นฐานเท่ากัน'));
     return box;
+  }
+  // The deck picker in a sheet over the room: ใช้ทัพนี้ sends the team (only a legal one); ยกเลิก or Esc keeps the old one.
+  let closeSheet: (() => void) | null = null;
+  function openSheet() {
+    let draft = { ...team, picks: [...team.picks] };
+    const back = el('div', 'overlay deck-sheet'), sheet = el('div', 'sheet panel'), row = el('div', 'row actions'), why = el('p', 'enter-why');
+    back.setAttribute('role', 'dialog');
+    back.setAttribute('aria-modal', 'true');
+    back.setAttribute('aria-label', 'จัดทัพ');
+    const use = button('ใช้ทัพนี้', () => { team = draft; close(); client?.send({ t: 'team', team }); show(); }, 'primary', 'lg', 'use-btn');
+    const pk = deckPicker({ rules: RANKED_RULES, team: draft, level: () => null, onChange: (t) => { draft = { ...t, picks: [...t.picks] }; check(); } });
+    const check = () => { const p = pk.problem(); setDisabled(use, p); why.textContent = p ? `ยังใช้ไม่ได้: ${p}` : ''; };
+    const close = () => { pk.dispose(); removeEventListener('keydown', onEsc, true); back.remove(); closeSheet = null; };
+    closeSheet = close;
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') { e.stopPropagation(); close(); } }
+    addEventListener('keydown', onEsc, true);
+    row.append(button('ยกเลิก (Esc)', close, 'ghost', 'md', 'back'), why, use);
+    sheet.append(el('h2', '', 'จัดทัพ · ศึกกับเพื่อน'), pk.root, row);
+    back.append(sheet);
+    (r.parentElement ?? r).append(back); // over the whole 1280x720 stage, wider than the room screen
+    check();
   }
 
   function show() {
     if (!room) {
+      closeSheet?.();
       const menu = el('div', 'pvp-menu');
       const nameRow = el('label', 'pvp-pick');
       nameRow.append(el('span', '', 'ชื่อในศึก'), nameIn);
@@ -168,7 +186,7 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
     row.append(button('ออกจากห้อง (Esc)', leave, 'ghost', 'md', 'back leave-btn'), go);
     const hint = el('p', 'dim center small', !full ? 'เริ่มได้เมื่อเพื่อนเข้าห้องและทั้งสองฝ่ายกดพร้อม' : ready ? 'รอเพื่อนกดพร้อม…' : 'กดพร้อมเมื่อเลือกทัพเสร็จ');
     const mid = el('div', 'pvp-room');
-    mid.append(codeBox, seats, picker());
+    mid.append(codeBox, seats, picker(ready));
     body.replaceChildren(mid, hint, row);
     if (!mine?.team) client?.send({ t: 'team', team }); // the default pick goes up at once so the friend sees it
   }
@@ -180,5 +198,5 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
   addEventListener('keydown', onKey);
   if (client?.connected) { client.onMsg = onMsg; status.textContent = 'เชื่อมต่อแล้ว'; }
   show();
-  return () => { removeEventListener('keydown', onKey); if (!gone && client) client.onMsg = () => {}; r.remove(); };
+  return () => { closeSheet?.(); removeEventListener('keydown', onKey); if (!gone && client) client.onMsg = () => {}; r.remove(); };
 }
