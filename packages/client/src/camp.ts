@@ -150,7 +150,8 @@ export function progressOf(p: Profile, now: number): Progress {
     const built = progression.forge.filter((f) => forgeState(p, id, f.id, now).k === 'built').map((f) => f.id);
     if (built.length > 0) gear[id] = built;
   }
-  return { levels: Object.fromEntries(battleCardIds.map((id) => [id, p.cards[id]!.level])), gear, town: { ...p.town } };
+  // A card the account does not own is a loaner (SPEC-deck-budget §4): level 1, whatever its save entry holds.
+  return { levels: Object.fromEntries(battleCardIds.map((id) => [id, p.owned.includes(id) ? p.cards[id]!.level : 1])), gear, town: { ...p.town } };
 }
 // The player's พลังทัพ (matchmaking.md §5): the current team over the owned cards with the account's progress.
 export const playerPower = (p: Profile, now: number) => powerScore({ ...setupOf(teamOf(p)), progress: progressOf(p, now) });
