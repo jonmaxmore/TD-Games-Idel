@@ -613,10 +613,11 @@ describe('castle battle determinism', () => {
 });
 
 describe('castle battle balance', () => {
-  // The per-card table (battleBot.ts > cardTable) over 1200 random-team games: no card this roster step added (the beasts,
-  // the dragons and the archer) wins more than 8 points over its band's average when it is summoned.
+  // The per-card table (battleBot.ts > cardTable) over 4000 random-team games: no card this roster step added (the beasts,
+  // the dragons and the archer) wins more than 8 points over its band's average when it is summoned. The rush and defend
+  // bots summon a large guard in about 1 side-game in 25, so fewer games leave too few of them to read 8 points.
   it('per card over random teams: no beast, dragon or the archer is more than 8 points over its band', () => {
-    const t = cardTable(1200);
+    const t = cardTable(4000);
     const added = t.rows.filter((r) => battleUnits.get(r.card)!.kind !== 'disciple' || r.card === 'wandering_archer');
     expect(added.length).toBe(14);
     for (const r of added) expect(r.winPct - t.band.get(bandOf(r.card))!, r.card).toBeLessThanOrEqual(8);
