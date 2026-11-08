@@ -1,5 +1,7 @@
 // Visual proof: opens the game in Chromium at 1280x720 (16:9 PC), plays it, and saves screenshots + a video to shots/.
-//   npm run shots    title and team setup (leader, sub, bench, redraw); a match played by hand (aim, a red marker off the
+//   npm run shots    title, the lobby for a fresh, a mid-progress and a chapter-1-done save (primary button, unlocks, the
+//                    locked next one), its overlays (settings, profile, egg shop), the clicks from the lobby to each main
+//                    action, the versus screen, a loss with its tip, the pause menu; team setup (leader, sub, bench, redraw); a match played by hand (aim, a red marker off the
 //                    zone, a click summon, a drag summon, counter highlights, the cannon aimed and fired); then a bot-vs-bot
 //                    match at x4, recorded, with frames of an early field, a fight, a fort capture and the result screen;
 //                    burn/poison marks, burning ground and the stun-resistance halo; the collection filters, a hand led
@@ -35,14 +37,133 @@ async function open(url, name, videoDir, profile) {
   return { ctx, p };
 }
 const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
+const check = (ok, msg) => { if (!ok) errors.push(msg); };
+// Saves at three points of progress: nothing won; 1-1..1-3 won with cards levelled to castle Lv2; all of chapter 1 won.
+const won = (n) => Object.fromEntries(['1-1', '1-2', '1-3', '1-4', '1-5', '1-6'].slice(0, n).map((id) => [id, { stars: [true, false, false], bestSec: 100 }]));
+const LV2 = Object.fromEntries(['crimson_phoenix_banner', 'crimson_phoenix_striker', 'crimson_phoenix_burst', 'crimson_phoenix_beast', 'crimson_phoenix_kite', 'ember_imp'].map((id) => [id, { level: 3, xp: 0, dupes: 0 }]));
+const MID = { v: 6, campaign: won(3), cards: LV2, castleLevel: 2, coins: 180, gold: 90, eggPoints: 10 };
+const DONE = { v: 6, campaign: won(6), cards: LV2, castleLevel: 2, coins: 640, gold: 320, eggPoints: 10 };
+const toLobby = async (p) => { await p.waitForSelector('.title'); await p.locator('.title').click(); await p.waitForSelector('.lobby-bottom'); await sleep(150); };
+const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents();
 
-// 1) Front screens: title, then the team setup: a collection, a leader and a bench picked, the dealt hand, a redraw.
+// 0) Title, lobby, overlays, versus, a loss tip and the pause menu; the clicks from the lobby to each main action.
 {
-  const { ctx, p } = await open('', 'front');
+  const { ctx, p } = await open('', 'lobby-fresh');
   await p.waitForSelector('.title');
   await sleep(300);
   await shot(p, '01-title');
-  await p.locator('.mode[data-mode=casual]').click();
+  await toLobby(p);
+  await shot(p, '60-lobby-fresh');
+  console.log('fresh lobby:', await p.locator('.cta b').textContent(), '|', (await lobbyButtons(p)).join(', '));
+  check((await p.locator('.lobby-buttons .mode').count()) === 2, 'a fresh lobby shows the map and one locked button');
+  await p.locator('.gear').click();
+  await sleep(150);
+  await shot(p, '61-settings');
+  await p.keyboard.press('Escape');
+  check((await p.locator('.overlay').count()) === 0, 'Esc closes the settings');
+  await p.locator('.profile-chip').click();
+  await sleep(150);
+  await shot(p, '62-profile');
+  await p.locator('.overlay .close').click();
+  // next stage: the primary, then เข้าสู่ศึก on the briefing (2 clicks), then the versus screen.
+  await p.locator('.cta').click();
+  await p.getByRole('button', { name: 'เข้าสู่ศึก' }).click();
+  await p.waitForSelector('.versus');
+  await sleep(200);
+  await shot(p, '67-versus-stage');
+  await p.waitForFunction(() => window.__game?.s, null, { timeout: 5000 });
+  console.log('clicks lobby -> next stage: 2');
+  // Esc with no card picked pauses: the sim must not step while the menu is open.
+  await sleep(500);
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('.modal.pause');
+  const t0 = await p.evaluate(() => window.__game.s.tick);
+  await sleep(700);
+  const t1 = await p.evaluate(() => window.__game.s.tick);
+  check(t0 === t1, `the sim stepped while paused (${t0} -> ${t1})`);
+  await shot(p, '68-pause');
+  await p.locator('.pause-mute').click();
+  check(await p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile')).settings.muted === true), 'mute in the pause menu is saved');
+  await p.keyboard.press('Escape');
+  await sleep(300);
+  check((await p.evaluate(() => window.__game.s.tick)) > t1, 'Esc resumes the match');
+  await p.keyboard.press('Escape');
+  await p.getByRole('button', { name: 'กลับล็อบบี้' }).click();
+  await p.waitForSelector('.lobby-bottom');
+  // mute: the gear, then the sound toggle (2 clicks); the pause menu muted it, so this turns it back on.
+  const muted = () => p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile')).settings.muted);
+  const was = await muted();
+  await p.locator('.gear').click();
+  await p.locator('[data-set=mute]').click();
+  check((await muted()) === !was, 'the settings sound toggle is saved');
+  console.log('clicks lobby -> mute: 2; muted', was, '->', await muted());
+  await ctx.close();
+}
+{
+  const { ctx, p } = await open('', 'lobby-mid', null, MID);
+  await toLobby(p);
+  await shot(p, '63-lobby-mid');
+  console.log('mid lobby:', await p.locator('.cta b').textContent(), '|', (await lobbyButtons(p)).join(', '));
+  check((await p.locator('.mode.locked').count()) === 1, 'the mid lobby shows exactly one locked button');
+  // open an egg: ร้านไข่, then buy (2 clicks).
+  await p.locator('[data-go=eggShop]').click();
+  await sleep(150);
+  await shot(p, '64-egg-shop');
+  await p.locator('[data-egg]').first().click();
+  await sleep(200);
+  await shot(p, '65-egg-roll');
+  console.log('clicks lobby -> open an egg: 2;', await p.locator('.egg-got').textContent());
+  await p.keyboard.press('Escape');
+  // card level-up: ค่ายฝึก, the card, เลื่อนขั้น (3 clicks).
+  await ctx.close();
+}
+{
+  const { ctx, p } = await open('', 'lobby-mid-camp', null, { ...MID, cards: { ...LV2, crimson_phoenix_kite: { level: 3, xp: 60, dupes: 0 } } });
+  await toLobby(p);
+  await p.locator('[data-go=levelUp]').click();
+  await p.locator('.camp-card[data-id=crimson_phoenix_kite]').click();
+  await p.locator('.level-up').click();
+  await sleep(150);
+  await shot(p, '66-camp-no-forge');
+  console.log('clicks lobby -> card level-up: 3;', await p.locator('.camp-note').textContent());
+  await ctx.close();
+}
+{
+  const { ctx, p } = await open('', 'lobby-done', null, DONE);
+  await toLobby(p);
+  await shot(p, '69-lobby-chapter-done');
+  console.log('chapter-1 lobby:', await p.locator('.cta b').textContent(), '|', (await lobbyButtons(p)).join(', '));
+  check((await p.locator('.cta').getAttribute('data-cta')) === 'ranked', 'after chapter 1 the primary is ranked');
+  // ranked: the primary, then เข้าสู่ศึก on the team screen (2 clicks).
+  await p.locator('.cta').click();
+  await p.getByRole('button', { name: 'เข้าสู่ศึก' }).click();
+  await p.waitForSelector('.versus');
+  await sleep(200);
+  await shot(p, '67-versus-ranked');
+  await p.waitForFunction(() => window.__game?.s, null, { timeout: 5000 });
+  console.log('clicks lobby -> ranked: 2');
+  await ctx.close();
+}
+{
+  // A loss: bots play a while, then our castle falls; the result names one cause and a card that answers it.
+  const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=2&deck=fire', 'loss', null, DONE);
+  await p.waitForFunction(() => window.__game?.s?.tick > 20 * 70, null, { timeout: 60000 });
+  await p.evaluate(() => { window.__game.s.castles[0].hp = 0; });
+  await p.waitForSelector('.modal.result', { timeout: 20000 });
+  await sleep(300);
+  await shot(p, '70-loss-tip');
+  const tip = await p.locator('.loss-tip').textContent().catch(() => null);
+  console.log('loss:', await p.locator('[data-primary]').textContent(), '|', tip);
+  check(tip != null, 'a loss shows a tip');
+  check((await p.locator('.modal.result button.primary').count()) === 1, 'the result has exactly one primary');
+  await ctx.close();
+}
+
+// 1) Front screens: title, then the team setup: a collection, a leader and a bench picked, the dealt hand, a redraw.
+{
+  const { ctx, p } = await open('', 'front', null, DONE);
+  await toLobby(p);
+  await p.locator('[data-go=casual]').click();
   await p.waitForSelector('.team-card');
   await p.locator('.deck-row[data-id=fire]').click();
   await sleep(200);
@@ -129,7 +250,6 @@ const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
     await shot(p, `16-counter-hover-${i + 1}`);
   }
   // The cannon: Space arms it, the enemy nearest our castle is the aim, a click fires.
-  await p.keyboard.press('Escape');
   await p.waitForFunction(() => window.__game.s.mana[0] >= 2 && window.__game.s.castles[0].cannonCd === 0, null, { timeout: 20000 });
   await p.waitForFunction(() => window.__game.s.units.some((u) => u.side === 1 && u.d <= 8500), null, { timeout: 60000 });
   const foe = await p.evaluate(() => Math.min(...window.__game.s.units.filter((u) => u.side === 1).map((u) => u.d)));
@@ -262,10 +382,10 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   const LV = { crimson_phoenix_banner: 9, crimson_phoenix_striker: 15, crimson_phoenix_burst: 24, crimson_phoenix_beast: 30, crimson_phoenix_kite: 12, ember_imp: 3 };
   const cards = Object.fromEntries(Object.entries(LV).map(([id, level]) => [id, { level, xp: 0, dupes: 0 }]));
   cards.crimson_phoenix_striker.xp = 170;
-  const save = { v: 5, mode: 'casual', team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_kite', bench: [] }, cards, coins: 520, gold: 640, eggPoints: 30, castleLevel: 1 };
+  const save = { v: 5, mode: 'casual', team: { leader: 'crimson_phoenix_striker', sub: 'crimson_phoenix_kite', bench: [] }, cards, coins: 520, gold: 640, eggPoints: 30, castleLevel: 1, campaign: won(6) };
   const { ctx, p } = await open('', 'camp', null, save);
-  await p.waitForSelector('.title');
-  await p.locator('.camp-btn').click();
+  await toLobby(p);
+  await p.locator('[data-go=levelUp]').click();
   await p.waitForSelector('.camp-card');
   await sleep(300);
   await shot(p, '40-camp');
@@ -280,10 +400,12 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await p.locator('[data-town=wall]').click();
   await sleep(200);
   await shot(p, '43-town-upgraded');
+  console.log('camp note:', await p.locator('.camp-note').textContent());
+  await p.getByRole('button', { name: 'กลับ', exact: true }).click();
+  await p.locator('[data-go=eggShop]').click();
   await p.locator('[data-egg=mystery]').click();
   await sleep(300);
   await shot(p, '44-egg-odds-roll');
-  console.log('camp note:', await p.locator('.camp-note').textContent());
   await ctx.close();
   // The same save in a match: realm badges on the hand in ศึกทั่วไป, none in ศึกฝีมือ.
   for (const [mode, name] of [['casual', '45-hand-realms'], ['ranked', '46-hand-ranked']]) {
@@ -301,9 +423,9 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
 {
   const save = { v: 6, mode: 'casual', campaign: { '1-1': { stars: [true, true, true], bestSec: 74 }, '1-2': { stars: [true, false, false], bestSec: null } } };
   const { ctx, p } = await open('', 'campaign', null, save);
-  await p.waitForSelector('.title');
-  await shot(p, '50-title-modes');
-  await p.locator('.campaign-btn').click();
+  await toLobby(p);
+  await shot(p, '50-lobby-two-won');
+  await p.locator('[data-go=map]').click();
   await p.waitForSelector('.stage-node');
   await sleep(200);
   await shot(p, '51-stage-map');

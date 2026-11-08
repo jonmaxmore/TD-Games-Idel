@@ -21,7 +21,7 @@ let noise: AudioBuffer | null = null;
 let settings: Settings = { volume: 70, muted: false, shake: true };
 const next = new Map<Sfx, number>();
 
-function unlock() {
+export function unlockAudio(): void {
   try {
     if (!ctx) {
       ctx = new AudioContext();
@@ -38,8 +38,8 @@ function unlock() {
 
 export function initSound(s: Settings): void {
   settings = s;
-  addEventListener('pointerdown', unlock);
-  addEventListener('keydown', unlock);
+  addEventListener('pointerdown', unlockAudio);
+  addEventListener('keydown', unlockAudio);
 }
 
 export function applyVolume(): void {

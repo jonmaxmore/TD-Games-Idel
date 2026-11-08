@@ -1,10 +1,12 @@
-// ค่ายฝึก: every card with its level and realm, the picked card's level-up and forge slots, town upgrades and the egg shop
-// with its odds shown. It owns its root until dispose(); main.ts decides what follows.
+// ค่ายฝึก: every card with its level and realm, the picked card's level-up and forge slots, and town upgrades (forge and town
+// once unlocked). It owns its root until dispose(); main.ts decides what follows. The egg shop, with its odds shown, is its own
+// panel (eggShop) that main.ts opens over the lobby.
 import { battleCardIds, battleUnits, cardStats, castleLevelOf, progression, sects } from '@five-sects/sim';
 import { el, realmBadge } from './battle';
 import { portrait } from './board';
 import { build, buyEgg, canLevel, forgeState, levelUp, progressOf, townTiers, upgradeTown, xpNeed, type TownKey } from './camp';
 import { levelSum, type Profile } from './profile';
+import { unlockState } from './unlocks';
 import { cardArt } from './sprites';
 import { nowrapWords } from './words';
 
@@ -16,14 +18,15 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
   const head = el('div', 'camp-head'), purse = el('div', 'purse');
   head.append(btn('กลับ', '', back), el('h1', '', 'ค่ายฝึก'), purse);
   const grid = el('div', 'camp-cards'), detail = el('div', 'camp-detail panel'), side = el('div', 'camp-side');
-  const town = el('div', 'panel town'), shop = el('div', 'panel eggs'), note = el('p', 'camp-note');
-  side.append(town, shop);
+  const town = el('div', 'panel town'), note = el('p', 'camp-note');
+  const open = unlockState(p).open;
+  side.append(town);
   const body = el('div', 'camp-body');
-  body.append(grid, detail, side);
+  body.append(grid, detail);
+  if (open.has('town')) body.append(side);
   r.append(head, body, note);
   app.append(r);
   let pick = p.team.leader;
-  let lastEgg: { card: string; xp: number } | null = null;
   const say = (msg: string, bad = false) => { note.textContent = msg; note.classList.toggle('bad', bad); };
   const act = (msg: string | null, ok: string) => { if (msg) say(msg, true); else { save(); say(ok); } show(); };
 
@@ -65,7 +68,7 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
     detail.replaceChildren(face, realmBadge(c.level), nowrapWords(el('h2'), u.nameTh),
       el('p', 'stats', `HP ${st.hp} · ตี ${st.dmg} (ฐาน HP ${u.hp} · ตี ${u.dmg})`),
       el('p', 'dim', need == null ? 'ถึงขั้นจิตก่อรูปแล้ว' : `แต้มฝึก ${c.xp}/${need} · ได้จากไข่ซ้ำ ${c.dupes} ครั้ง`),
-      lvl, el('h3', '', 'โรงหลอม'), el('p', 'dim small', 'อุปกรณ์ที่หลอมแล้วให้ค่าสถานะแม้ไม่สวม'), slots,
+      lvl, ...(open.has('forge') ? [el('h3', '', 'โรงหลอม'), el('p', 'dim small', 'อุปกรณ์ที่หลอมแล้วให้ค่าสถานะแม้ไม่สวม'), slots] : []),
       el('p', 'dim small', 'ศึกฝีมือ (จัดอันดับ) ใช้ค่าพื้นฐานเท่ากันทุกตัว ไม่นับเลเวลและอุปกรณ์'));
   }
 
@@ -83,26 +86,6 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
     }
   }
 
-  function showShop() {
-    shop.replaceChildren(el('h3', '', 'ร้านไข่'));
-    for (const egg of progression.eggs) {
-      const t = el('table', 'odds');
-      for (const o of egg.odds) { const tr = el('tr'); tr.append(el('td', '', o.nameTh), el('td', 'pct', `${o.pct}%`)); t.append(tr); }
-      const b = btn(`ซื้อ${egg.nameTh} (${egg.cost} แต้มไข่)`, 'primary buy', () => {
-        const res = buyEgg(p, egg.id);
-        if (typeof res === 'string') return act(res, '');
-        lastEgg = res;
-        pick = res.card;
-        act(null, `ได้ ${battleUnits.get(res.card)!.nameTh} (ซ้ำ) → แต้มฝึก +${res.xp}`);
-      });
-      b.dataset.egg = egg.id;
-      b.disabled = p.eggPoints < egg.cost;
-      shop.append(el('p', 'dim small', `อัตราที่ประกาศ ในกลุ่มเดียวกันโอกาสเท่ากันทุกตัว · ใบซ้ำได้แต้มฝึก ${egg.dupeXp}`), t, b);
-    }
-    if (lastEgg) shop.append(el('p', 'egg-got', `ล่าสุด: ${battleUnits.get(lastEgg.card)!.nameTh}`));
-    shop.append(el('p', 'dim small', 'แต้มไข่ได้จากเลเวลปราสาทเท่านั้น ไม่มีขายด้วยเงินจริง'));
-  }
-
   function show() {
     const now = Date.now(), sum = levelSum(p), cl = castleLevelOf(sum), next = progression.castleLevels[cl];
     purse.replaceChildren(
@@ -111,10 +94,45 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
     grid.replaceChildren(...battleCardIds.map(tile));
     showDetail(now);
     showTown();
-    showShop();
   }
   show();
   // Forge timers count down while the screen is open.
   const timer = setInterval(() => { if (Object.values(p.forge).some((f) => Object.values(f).some((t) => t > Date.now() - 1000))) showDetail(Date.now()); }, 1000);
   return () => { clearInterval(timer); r.remove(); };
+}
+
+// ร้านไข่: each egg's odds and its buy button; a roll's card and its xp are said under it. Re-renders itself after a buy.
+export function eggShop(p: Profile, save: () => void, onChange: () => void): HTMLElement {
+  const shop = el('div', 'eggs');
+  let lastEgg: { card: string; xp: number } | null = null;
+  let msg = '', bad = false;
+  function showShop() {
+    shop.replaceChildren(el('p', 'egg-purse', `แต้มไข่ ${p.eggPoints}`));
+    for (const egg of progression.eggs) {
+      const t = el('table', 'odds');
+      for (const o of egg.odds) { const tr = el('tr'); tr.append(el('td', '', o.nameTh), el('td', 'pct', `${o.pct}%`)); t.append(tr); }
+      const b = btn(`ซื้อ${egg.nameTh} (${egg.cost} แต้มไข่)`, 'primary buy', () => {
+        const res = buyEgg(p, egg.id);
+        if (typeof res === 'string') { msg = res; bad = true; return showShop(); }
+        lastEgg = res;
+        save();
+        msg = `ได้ ${battleUnits.get(res.card)!.nameTh} (ซ้ำ) → แต้มฝึก +${res.xp}`; bad = false;
+        showShop();
+        onChange();
+      });
+      b.dataset.egg = egg.id;
+      b.disabled = p.eggPoints < egg.cost;
+      shop.append(el('p', 'dim small', `อัตราที่ประกาศ ในกลุ่มเดียวกันโอกาสเท่ากันทุกตัว · ใบซ้ำได้แต้มฝึก ${egg.dupeXp}`), t, b);
+    }
+    if (lastEgg) {
+      const got = el('div', 'egg-got');
+      const face = el('span', 'face');
+      face.append(cardArt(lastEgg.card) ?? portrait(lastEgg.card));
+      got.append(face, el('span', bad ? 'bad' : '', msg));
+      shop.append(got);
+    } else if (msg) shop.append(el('p', 'egg-got bad', msg));
+    shop.append(el('p', 'dim small', 'แต้มไข่ได้จากเลเวลปราสาทเท่านั้น ไม่มีขายด้วยเงินจริง'));
+  }
+  showShop();
+  return shop;
 }

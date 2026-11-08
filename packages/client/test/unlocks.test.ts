@@ -68,5 +68,8 @@ describe('match tips', () => {
     expect(tip).toContain(battleUnits.get(example)!.nameTh);
     expect(classesOf(battleUnits.get(flier)!)).toContain('air');
     expect(lossTip({}, battleCardIds)).toBeNull();
+    // a card with no named class (a medium support) is passed over for the next one that hurt us
+    const classless = battleCardIds.find((id) => !ui.lossTip.order.some((c) => classesOf(battleUnits.get(id)!).includes(c)));
+    if (classless) expect(lossTip({ [classless]: 999, [flier]: 5 }, battleCardIds)).toContain(battleUnits.get(flier)!.nameTh);
   });
 });
