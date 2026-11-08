@@ -2,8 +2,8 @@
 // The player is side 0 (left); the AI plays side 1 through the same bot the balance tests use. Every input becomes a
 // BattleCommand handed to stepBattle, exactly like a replay. It owns its root until dispose(); main.ts decides what follows.
 import {
-  battle, BATTLE_LEN, battleOver, battleUnits, createBattle, decision, levelOf, realmOf, sects, stepBattle, summonZone, TICK_HZ,
-  type BattleCommand, type Progress, type BattleEvent, type BattleState, type ResultType, type Side, type TiebreakStep,
+  battle, BATTLE_LEN, battleHash, battleOver, battleUnits, createBattle, decision, levelOf, realmOf, sects, starsOf, stepBattle, summonZone, TICK_HZ,
+  type BattleCommand, type BattleOpts, type BattleRecord, type BattleSetup, type Progress, type StageRules, type BattleEvent, type BattleState, type ResultType, type Side, type TiebreakStep,
 } from '@five-sects/sim';
 import { botCommands, botRng, type Policy } from '../../sim/test/battleBot';
 import { Board, cannonIcon, portrait } from './board';
@@ -26,8 +26,15 @@ export interface MatchOpts {
   seed: number; team: Team; vs: Team; redraws: number; speed: number; settings: Settings; saveSettings: () => void;
   bots: [Policy | null, Policy]; // who plays each side: null = the player
   progress: [Progress | null, Progress | null]; normalized: boolean; // each side's account; normalized: ranked ศึกฝีมือ
+  modeTh: string; // the mode named on our castle bar
+  stage?: { rules: StageRules; enemy: BattleSetup; nameTh: string; gimmickTh: string }; // a ศึกปราบ stage: its rules and enemy
+  replay?: BattleRecord; // plays this record back instead: no input, no bots
 }
-export interface MatchResult { winner: Side | -1; type: ResultType; step: TiebreakStep | null; castles: [number, number]; tick: number; hand: string[] }
+// record: the match as played, for the ranked replay; hash: its final state; stars: the ศึกปราบ goals reached.
+export interface MatchResult {
+  winner: Side | -1; type: ResultType; step: TiebreakStep | null; castles: [number, number]; tick: number; hand: string[];
+  record: BattleRecord; hash: string; stars: [boolean, boolean, boolean];
+}
 
 const TOP_H = 64, BOTTOM_H = 150; // HUD bands over the canvas, in stage pixels
 const OFF_PATH = 0.9; // tiles from the road centre a click still counts as on it
@@ -38,10 +45,15 @@ const capOf = (card: string) => battleUnits.get(card)!.perMatch;
 export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResult) => void): () => void {
   let speed = o.speed;
   const setup = (t: Team, p: Progress | null) => (p ? { ...teamSetup(t), progress: p } : teamSetup(t));
-  const s: BattleState = createBattle(o.seed, setup(o.team, o.progress[0]), setup(o.vs, o.progress[1]), { normalized: o.normalized });
-  const firstTick: BattleCommand[] = Array.from({ length: o.redraws }, () => ({ t: 'redraw', side: 0 })); // the team screen's redraws, as the replay has them
-  const rngs = [botRng(o.seed, 0), botRng(o.seed, 1)];
-  const human = o.bots[0] == null;
+  const setups: [BattleSetup, BattleSetup] = o.replay?.setups ?? [setup(o.team, o.progress[0]), o.stage?.enemy ?? setup(o.vs, o.progress[1])];
+  const opts: BattleOpts = o.replay?.opts ?? (o.stage ? { normalized: o.normalized, stage: o.stage.rules } : { normalized: o.normalized });
+  const seed = o.replay?.seed ?? o.seed;
+  const s: BattleState = createBattle(seed, setups[0], setups[1], opts);
+  // the team screen's redraws, as the replay has them
+  const firstTick: BattleCommand[] = o.replay ? o.replay.commands[0] ?? [] : Array.from({ length: o.redraws }, () => ({ t: 'redraw', side: 0 }));
+  const log: Record<number, BattleCommand[]> = firstTick.length > 0 ? { 0: firstTick } : {};
+  const rngs = [botRng(seed, 0), botRng(seed, 1)];
+  const human = o.bots[0] == null && !o.replay;
 
   const root = el('div', 'match');
   const canvas = el('canvas', 'field');
@@ -64,10 +76,12 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     box.append(nowrapWords(el('span', 'who'), name), bar, num);
     return { box, fill, num, last: -1 };
   };
-  const bars = [castleBar(0, `ปราสาทเรา · ${teamName(o.team)} · ${o.normalized ? 'ศึกฝีมือ' : 'ศึกทั่วไป'}`), castleBar(1, `ปราสาทศัตรู · ${teamName(o.vs)}`)];
+  const bars = [castleBar(0, `ปราสาทเรา · ${teamName(o.team)} · ${o.modeTh}`), castleBar(1, `ปราสาทศัตรู · ${o.stage?.nameTh ?? teamName(o.vs)}`)];
   const clockBox = el('div', 'clock'), time = el('b', 'time'), fortRow = el('div', 'forts'), regenHint = el('small');
   const fortDots = s.forts.map(() => fortRow.appendChild(el('i')));
   clockBox.append(time, fortRow, regenHint);
+  if (o.stage) clockBox.append(el('em', 'gimmick', o.stage.gimmickTh));
+  if (o.replay) clockBox.append(el('em', 'gimmick', 'รีเพลย์'));
   const ctl = el('div', 'ctl');
   const pauseBtn = el('button', 'icon', 'หยุด');
   const speedBtn = el('button', 'icon', `x${speed}`);
@@ -274,8 +288,9 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
       acc += dt * speed;
       while (acc >= 1000 / TICK_HZ && !battleOver(s)) {
         acc -= 1000 / TICK_HZ;
-        const cmds = [...(human ? pending : botCommands(s, 0, o.bots[0]!, rngs[0]!)), ...botCommands(s, 1, o.bots[1], rngs[1]!)];
+        const cmds = o.replay ? o.replay.commands[s.tick] ?? [] : [...(human ? pending : botCommands(s, 0, o.bots[0]!, rngs[0]!)), ...botCommands(s, 1, o.bots[1], rngs[1]!)];
         pending = [];
+        if (cmds.length > 0) log[s.tick] = cmds;
         const ev = stepBattle(s, cmds);
         board.sync(s, now);
         board.events(ev, now, speed);
@@ -287,7 +302,8 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     if (battleOver(s) && !ended) {
       ended = true;
       const d = decision(s);
-      const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick, hand: [...s.hands[0]] };
+      const r: MatchResult = { winner: d.winner, type: d.type, step: d.step, castles: [s.castles[0].hp, s.castles[1].hp], tick: s.tick, hand: [...s.hands[0]],
+        record: { seed, setups, opts, commands: log }, hash: battleHash(s), stars: starsOf(s) };
       setTimeout(() => onEnd(r), 1200); // the last blow lands before the result covers the field
     }
     manaFill.style.width = `${(100 * Math.min(battle.manaMax, s.mana[0] + manaProgress())) / battle.manaMax}%`;

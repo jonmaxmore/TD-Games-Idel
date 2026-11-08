@@ -1,7 +1,7 @@
 // What the ค่ายฝึก screen and the result screen do to the account: level a card up with its xp, build forge items with coins
 // and real time, buy town tiers with gold, buy eggs with egg points, and pay a match out. Castle levels are paid in egg points
 // once each. All numbers come from progression.json through packages/sim; nothing here costs real money.
-import { battleCardIds, castleLevelOf, forgeOf, progression, rewardFor, rollEgg, type Progress, type Reward } from '@five-sects/sim';
+import { battleCardIds, castleLevelOf, forgeOf, progression, rankAfter, rewardFor, rollEgg, type Progress, type Rank, type Reward, type Stage } from '@five-sects/sim';
 import { levelSum, type Profile } from './profile';
 
 export const xpNeed = (level: number) => (level >= progression.maxLevel ? null : progression.xpToNext[level - 1]!);
@@ -26,13 +26,29 @@ export function levelUp(p: Profile, card: string): { castle: number[] } | null {
 
 const giveXp = (p: Profile, card: string, xp: number) => { const c = p.cards[card]!; if (c.level < progression.maxLevel) c.xp += xp; };
 
-// A match result for the player: its reward, xp to every card of the hand, coins and gold.
-export function payMatch(p: Profile, hand: readonly string[], won: boolean | null, type: string): Reward {
-  const r = rewardFor(won, type);
+// A match result for the player: its reward (a stage's own on a win), xp to every card of the hand, coins and gold.
+export function payMatch(p: Profile, hand: readonly string[], won: boolean | null, type: string, stage?: Stage): Reward {
+  const r = won === true && stage ? stage.rewards.win : rewardFor(won, type);
   for (const c of new Set(hand)) if (p.cards[c]) giveXp(p, c, r.xp);
   p.coins += r.coins;
   p.gold += r.gold;
   return r;
+}
+
+// A finished stage: every star goal reached now is kept, and the fastest win. Returns the stars that are new.
+export function recordStage(p: Profile, id: string, stars: [boolean, boolean, boolean], sec: number): boolean[] {
+  const was = p.campaign[id] ?? { stars: [false, false, false], bestSec: null };
+  const fresh = stars.map((x, i) => x && !was.stars[i]);
+  p.campaign[id] = { stars: stars.map((x, i) => x || was.stars[i]!) as [boolean, boolean, boolean], bestSec: stars[0] ? Math.min(sec, was.bestSec ?? sec) : was.bestSec };
+  return fresh;
+}
+// A stage is open once the one before it has been won (the first always is).
+export const stageOpen = (p: Profile, ids: readonly string[], i: number) => i === 0 || p.campaign[ids[i - 1]!]?.stars[0] === true;
+// A ranked result moves the rank; returns the rank before and after.
+export function recordRanked(p: Profile, won: boolean | null): { before: Rank; after: Rank } {
+  const before = p.rank;
+  p.rank = rankAfter(before, won);
+  return { before, after: p.rank };
 }
 
 export type ForgeState = { k: 'none' } | { k: 'building'; leftSec: number } | { k: 'built' };

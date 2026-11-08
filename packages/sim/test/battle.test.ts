@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   battle, battleCardIds, battleHash, battleUnits, BATTLE_LEN, createBattle, decide, decision, fixedHand, fwd, sectSetup, stepBattle,
-  summonZone, TICK_HZ, sects, COUNTER_CLASSES, classesOf, counterPct, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
+  replayBattle, summonZone, TICK_HZ, sects, COUNTER_CLASSES, classesOf, counterPct, type BattleCommand, type BattleEvent, type BattleState, type BattleUnitDef, type Fighter, type Side,
 } from '../src';
 import { bandOf, cardTable, MIXED, playBattle, type Policy } from './battleBot';
-import { BATTLE_GOLDEN, battleGolden, replayBattle, type BattleGolden } from './goldens';
+import { BATTLE_GOLDEN, battleGolden, type BattleGolden } from './goldens';
 
 const STRIKER = 'crimson_phoenix_striker', BANNER = 'crimson_phoenix_banner', BLADE = 'jade_bamboo_blade';
 const HAND = fixedHand([
@@ -595,8 +595,8 @@ describe('castle battle determinism', () => {
   it('two runs of the same seed and commands hash the same every tick', () => {
     const { commands } = playBattle(3, 'rush', 'defend');
     const a: string[] = [], b: string[] = [];
-    replayBattle(3, [MIXED, MIXED], commands, (s) => a.push(battleHash(s)));
-    replayBattle(3, [MIXED, MIXED], commands, (s) => b.push(battleHash(s)));
+    replayBattle({ seed: 3, setups: [MIXED, MIXED], opts: {}, commands }, (s) => a.push(battleHash(s)));
+    replayBattle({ seed: 3, setups: [MIXED, MIXED], opts: {}, commands }, (s) => b.push(battleHash(s)));
     expect(a.length).toBeGreaterThan(1000);
     expect(a).toEqual(b);
   });
@@ -605,7 +605,7 @@ describe('castle battle determinism', () => {
     const g = JSON.parse(readFileSync(BATTLE_GOLDEN, 'utf8')) as BattleGolden;
     expect(JSON.stringify(battleGolden(g.seed), null, 1) + '\n' === readFileSync(BATTLE_GOLDEN, 'utf8'), 'battle-1.json is stale: run npm run sim:golden').toBe(true);
     let i = 0;
-    const end = replayBattle(g.seed, g.setups, g.commands, (s) => {
+    const end = replayBattle({ seed: g.seed, setups: g.setups, opts: {}, commands: g.commands }, (s) => {
       if (s.tick % 100 === 0) expect(battleHash(s), `tick ${s.tick}`).toBe(g.trace[i++]![1]);
     });
     expect(battleHash(end)).toBe(g.final.hash);

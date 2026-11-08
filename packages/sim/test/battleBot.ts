@@ -3,8 +3,8 @@
 // once it is under siege, push like rush when rich) and paced (keep a mana reserve, one summon every few seconds and
 // never onto a crowd of its own small units, guards first when enemies come near). Each side has its own seeded RNG.
 import {
-  battle, battleCardIds, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, stepBattle, summonZone,
-  type BattleCommand, type BattleSetup, type BattleState, type Side,
+  battle, battleCardIds, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd, nextRandom, sectSetup, stepBattle, summonZone,
+  type BattleCommand, type BattleOpts, type BattleSetup, type BattleState, type Side, type Stage,
 } from '../src';
 
 export type Policy = 'rush' | 'defend' | 'paced';
@@ -159,8 +159,8 @@ export const botRng = (seed: number, side: Side): BotMind => ({ rng: (seed * 2 +
 
 export interface BattleResult { state: BattleState; commands: Record<number, BattleCommand[]> }
 
-export function playBattle(seed: number, p0: Policy, p1: Policy, setup0 = MIXED, setup1 = MIXED): BattleResult {
-  const s = createBattle(seed, setup0, setup1);
+export function playBattle(seed: number, p0: Policy, p1: Policy, setup0 = MIXED, setup1 = MIXED, opts: BattleOpts = {}): BattleResult {
+  const s = createBattle(seed, setup0, setup1, opts);
   const rngs = [botRng(seed, 0), botRng(seed, 1)];
   const commands: Record<number, BattleCommand[]> = {};
   while (!battleOver(s)) {
@@ -170,3 +170,8 @@ export function playBattle(seed: number, p0: Policy, p1: Policy, setup0 = MIXED,
   }
   return { state: s, commands };
 }
+
+// A ศึกปราบ stage, paced bot against the stage's paced enemy: the player's setup (with its progress) on side 0.
+export const playStage = (seed: number, st: Stage, player: BattleSetup): BattleResult => playBattle(seed, 'paced', 'paced', player, st.enemy, { stage: st.rules });
+// The balance gate's player: the default fire team (battle.json > sectTeams.fire) with every card at level.
+export const fireTeamAt = (level: number): BattleSetup => ({ ...sectSetup('fire'), progress: { levels: Object.fromEntries(battleCardIds.map((c) => [c, level])) } });
