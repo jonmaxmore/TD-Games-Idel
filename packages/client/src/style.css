@@ -526,3 +526,4 @@ kbd { font: inherit; }
 .stage-node .next-flag { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: var(--fs-xs); font-weight: 700; padding: 0 var(--sp-2); background: var(--c-primary); color: var(--c-text-on-accent); border: 1px solid var(--c-accent-hi); border-radius: var(--r-sm); white-space: nowrap; }
 @keyframes beckon { 50% { box-shadow: 0 0 0 3px var(--c-accent-hi), 0 0 18px var(--c-accent-glow); } }
 @media (prefers-reduced-motion: reduce) { .stage-node.next { animation: none; box-shadow: 0 0 0 3px var(--c-accent-hi); } }
+.result-note .btn, .loss-tip .btn { flex: none; white-space: nowrap; }
