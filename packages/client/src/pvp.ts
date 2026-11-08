@@ -7,6 +7,7 @@ import { el } from './battle';
 import { PLAYER_NAME } from './lobby';
 import { ERROR_TH, RoomClient, saveName, savedName, serverUrl } from './net';
 import type { Profile } from './profile';
+import { button } from './ui';
 import { nowrapWords } from './words';
 
 export type Start = Extract<ServerMsg, { t: 'start' }>;
@@ -16,7 +17,6 @@ let client: RoomClient | null = null; // one socket for the whole visit: the roo
 export const roomClient = () => client;
 export function dropClient() { client?.close(); client = null; }
 
-const btn = (text: string, cls: string, onclick: () => void) => { const b = el('button', cls, text); b.onclick = onclick; return b; };
 const cardName = (c: string) => { const u = battleUnits.get(c)!; return `${u.nameTh} · ${sects.get(u.sect)?.nameTh ?? ''} · ปราณ ${u.mana}`; };
 
 // The team a player starts from: the saved team when both cards are allowed, else the first two of the pool.
@@ -137,31 +137,31 @@ export function pvpScreen(app: HTMLElement, p: Profile, nav: PvpNav): () => void
       const nameRow = el('label', 'pvp-pick');
       nameRow.append(el('span', '', 'ชื่อในศึก'), nameIn);
       const joinRow = el('div', 'row pvp-join');
-      joinRow.append(codeIn, btn('เข้าห้อง', 'join-btn', join));
-      const make = btn('สร้างห้อง', 'primary big create-btn', () => void create());
+      joinRow.append(codeIn, button('เข้าห้อง', join, 'secondary', 'lg', 'join-btn'));
+      const make = button('สร้างห้อง', () => void create(), 'primary', 'lg', 'create-btn');
       menu.append(nameRow, make, el('p', 'dim center', 'หรือใส่รหัสห้องที่เพื่อนส่งมา'), joinRow);
       const row = el('div', 'row actions');
-      row.append(btn('กลับล็อบบี้', '', () => { dropClient(); nav.lobby(); }));
+      row.append(button('กลับล็อบบี้ (Esc)', () => { dropClient(); nav.lobby(); }, 'ghost', 'md', 'back'));
       body.replaceChildren(menu, row);
       return;
     }
     const mine = room.seats[room.seat];
     const codeBox = el('div', 'panel pvp-codebox');
     const code = el('b', 'room-code', room.code);
-    const copy = btn('คัดลอก', 'copy-btn', () => {
+    const copy = button('คัดลอก', () => {
       const done = () => { copy.textContent = 'คัดลอกแล้ว'; setTimeout(() => { copy.textContent = 'คัดลอก'; }, 1500); };
       void navigator.clipboard?.writeText(room!.code).then(done, () => { getSelection()?.selectAllChildren(code); copy.textContent = 'กด Ctrl+C'; });
-    });
+    }, 'secondary', 'sm', 'copy-btn');
     codeBox.append(el('small', 'dim', 'รหัสห้อง'), code, copy, el('small', 'dim', `ส่งรหัสนี้ให้เพื่อน · ห้องปิดเองใน ${Math.ceil(room.expiresSec / 60)} นาทีถ้ายังไม่เริ่ม`));
     const seats = el('div', 'pvp-seats');
     seats.append(seatBox(room.seats[0], 0, room.seat === 0), el('span', 'vs-word small', 'ปะทะ'), seatBox(room.seats[1], 1, room.seat === 1));
     const ready = mine?.ready ?? false, full = room.seats[0] != null && room.seats[1] != null;
     const row = el('div', 'row actions');
-    const go = btn(ready ? 'ยกเลิกพร้อม' : 'พร้อม', `primary ready-btn${ready ? ' on' : ''}`, () => {
+    const go = button(ready ? 'ยกเลิกพร้อม' : 'พร้อม', () => {
       if (!mine?.team) client?.send({ t: 'team', team });
       client?.send({ t: 'ready', on: !ready });
-    });
-    row.append(btn('ออกจากห้อง (Esc)', 'leave-btn', leave), go);
+    }, ready ? 'secondary' : 'primary', 'lg', `ready-btn${ready ? ' on' : ''}`);
+    row.append(button('ออกจากห้อง (Esc)', leave, 'ghost', 'md', 'back leave-btn'), go);
     const hint = el('p', 'dim center small', !full ? 'เริ่มได้เมื่อเพื่อนเข้าห้องและทั้งสองฝ่ายกดพร้อม' : ready ? 'รอเพื่อนกดพร้อม…' : 'กดพร้อมเมื่อเลือกทัพเสร็จ');
     const mid = el('div', 'pvp-room');
     mid.append(codeBox, seats, picker());

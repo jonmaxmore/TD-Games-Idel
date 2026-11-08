@@ -53,7 +53,9 @@ const LUNGE_MS = 170, LUNGE = 4;
 const KICK_MS = 130, KICK = 2;
 const STOP_FRAMES = 3, STOP_GAP = 400; // hit-stop on big hits: frames held, and the least time between two
 const GLOW_CAP = 24; // additive glows per frame; past it the rest are skipped
-const NUM_CAP = 12; // live plain damage numbers; past it plain hits show none (a crowded clash stays readable)
+const NUM_CAP = 10; // live plain damage numbers; past it plain hits show none (a crowded clash stays readable)
+const NUM_MERGE_MS = 200; // hits on one target this close (times the game speed) add up into one number
+const NUM_ROW = 7; // a new number over a live one nearby rises this many board px above it, up to 3 rows
 
 class Pool<T extends Live> {
   readonly items: T[];
@@ -101,7 +103,7 @@ export class Board {
   aim: Aim | null = null;
   armed = false; // a card is picked: the summon zone shows bright
   reach: number | null = null; // the cannon is picked: how far it reaches from our castle
-  counter: string | null = null; // a card picked or hovered: enemies it is strong against glow orange, ones strong against it blue
+  counter: string | null = null; // a card picked or hovered: enemies it beats get an orange ring and ▲, ones that beat it silver and ▼
   me: Side = 0; // the player's side (a friend-room guest plays side 1, on the right)
 
   constructor(private canvas: HTMLCanvasElement, private s: BattleState, private inset: { top: number; bottom: number }) {
@@ -261,12 +263,15 @@ export class Board {
     if (e.crit || (e.type === 'castle' && e.dmg! >= 30)) this.impact(now + fly, e.crit ? 2 : 1, speed);
   }
 
-  // Hits on one target within 150 ms times the game speed add up into one number; a crit or a heal is big.
+  // Hits on one target within NUM_MERGE_MS times the game speed add up into one number; a crit or a heal is big. A number
+  // that would land on another live one stacks above it instead of over it.
   private number(t0: number, x: number, y: number, v: number, crit: boolean, heal: boolean, to: number, speed = 1, style = heal ? 2 : crit ? 1 : 0) {
-    const n = this.nums.items.find((p) => t0 < p.t1 && p.heal === heal && p.style === style && p.to === to && Math.abs(p.t0 - t0) < 150 * speed);
+    const n = this.nums.items.find((p) => t0 < p.t1 && p.heal === heal && p.style === style && p.to === to && Math.abs(p.t0 - t0) < NUM_MERGE_MS * speed);
     if (n) { n.v += v; n.crit = false; n.t1 = Math.max(n.t1, t0 + 550); return; }
     if (!crit && !heal && this.nums.items.filter((p) => t0 < p.t1).length >= NUM_CAP) return;
-    Object.assign(this.nums.take(t0, t0 + (crit ? 800 : 550)), { x: x + ((to * 7) % 7) - 3, y, v, crit, heal, to, style });
+    const nx = x + ((to * 7) % 7) - 3;
+    const under = this.nums.items.filter((p) => t0 < p.t1 && Math.abs(p.x - nx) < 12 && p.y <= y && y - p.y < NUM_ROW * 3).length;
+    Object.assign(this.nums.take(t0, t0 + (crit ? 800 : 550)), { x: nx, y: y - NUM_ROW * Math.min(3, under), v, crit, heal, to, style });
   }
 
   private ring(t0: number, ms: number, x: number, y: number, rx: number, ry: number, c: string) {
@@ -621,10 +626,13 @@ export class Board {
       top = y - fly - Math.ceil((sp.f.foot - sp.f.top + 1) / this.K) - 4;
     } else g.drawImage(figure(q.card, q.side, q.side === 1, b, over), x - FIG_X * big, y - FIG_Y * big - fly, FIG_W * big, FIG_H * big);
     this.bar(x, top, 12 * big, hp, HP_BAR[q.side]);
-    if (mark) { // and a pointer over the head, outlined, bobbing
-      const b2 = Math.round(Math.sin(now / 120) * 1.5), ty = top - 9 + b2;
-      g.fillStyle = '#120A0C'; g.fillRect(x - 4, ty - 1, 9, 2); g.fillRect(x - 3, ty + 1, 7, 2); g.fillRect(x - 2, ty + 3, 5, 2); g.fillRect(x - 1, ty + 5, 3, 1);
-      g.fillStyle = mark; g.fillRect(x - 3, ty, 7, 1); g.fillRect(x - 2, ty + 1, 5, 2); g.fillRect(x - 1, ty + 3, 3, 1); g.fillRect(x, ty + 4, 1, 1);
+    if (mark) { // and ▲ (we beat it) or ▼ (it beats us) over the head, outlined, bobbing: the shape says it, not only the colour
+      const b2 = Math.round(Math.sin(now / 120) * 1.5), ty = top - 9 + b2, up = mark === COUNTER_GLOW.strong;
+      const rows = up ? [[0, 1], [1, 3], [2, 5], [3, 7]] : [[0, 7], [1, 5], [2, 3], [3, 1]];
+      g.fillStyle = '#120A0C';
+      for (const [r, w] of rows) g.fillRect(x - (w! >> 1) - 1, ty + r! - 1, w! + 2, 3);
+      g.fillStyle = mark;
+      for (const [r, w] of rows) g.fillRect(x - (w! >> 1), ty + r!, w!, 1);
     }
     // Damage over time: a flame and/or a poison drop with its stack count beside the HP bar, flickering.
     let mx = x + 6 * big + 3;
@@ -830,8 +838,10 @@ export function portrait(card: string, side: Side = 0, flip = false): HTMLCanvas
   return c;
 }
 
-// Orange when a deals extra damage to t, blue when t deals extra damage to a, else null (orange wins a both-ways pair).
-export const COUNTER_GLOW = { strong: '#F2A23A', weak: '#4FB3FF' } as const;
+// Orange when a deals extra damage to t, silver when t deals extra damage to a, else null (orange wins a both-ways pair).
+// Never blue: blue is our side (style.css --c-ally). These match --c-strong and --c-weak; the audit's purple waits for a
+// purple in effects.json render.palette (the canvas draws only palette colours).
+export const COUNTER_GLOW = { strong: '#F2A23A', weak: '#EEF3F8' } as const;
 export function counterMark(a: BattleUnitDef, t: BattleUnitDef): string | null {
   if (counterPct(a, t) > 0) return COUNTER_GLOW.strong;
   if (counterPct(t, a) > 0) return COUNTER_GLOW.weak;

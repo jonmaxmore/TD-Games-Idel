@@ -7,6 +7,7 @@ import { build, canLevel, forgeState, levelUp, progressOf, townTiers, upgradeTow
 import { levelSum, type Profile } from './profile';
 import { unlockState } from './unlocks';
 import { cardArt } from './sprites';
+import { button, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 const btn = (text: string, cls: string, onclick: () => void) => { const b = el('button', cls, text); b.onclick = onclick; return b; };
@@ -15,7 +16,7 @@ const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padSta
 export function campScreen(app: HTMLElement, p: Profile, save: () => void, back: () => void): () => void {
   const r = el('div', 'screen camp');
   const head = el('div', 'camp-head'), purse = el('div', 'purse');
-  head.append(btn('กลับ', '', back), el('h1', '', 'ค่ายฝึก'), purse);
+  head.append(button('กลับ', back, 'ghost', 'md', 'back'), el('h1', '', 'ค่ายฝึก'), purse);
   const grid = el('div', 'camp-cards'), detail = el('div', 'camp-detail panel'), side = el('div', 'camp-side');
   const town = el('div', 'panel town'), note = el('p', 'camp-note');
   const open = unlockState(p).open;
@@ -47,13 +48,13 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
     const st = cardStats(u, progressOf(p, now));
     const face = el('span', 'face big');
     face.append(cardArt(pick) ?? portrait(pick));
-    const lvl = btn(need == null ? 'ขั้นสูงสุดแล้ว' : `เลื่อนขั้น (ใช้ ${need} แต้มฝึก)`, 'primary level-up', () => {
+    const lvl = button(need == null ? 'ขั้นสูงสุดแล้ว' : `เลื่อนขั้น (ใช้ ${need} แต้มฝึก)`, () => {
       const res = levelUp(p, pick);
       if (!res) return act('แต้มฝึกยังไม่พอ', '');
       const up = res.castle.length > 0 ? ` · ปราสาทขึ้น Lv${castleLevelOf(levelSum(p))} ได้แต้มไข่ ${res.castle.reduce((a, lv) => a + progression.castleLevels[lv - 1]!.eggPoints, 0)}` : '';
       act(null, `${u.nameTh} ขึ้น Lv${p.cards[pick]!.level}${up}`);
-    });
-    lvl.disabled = !canLevel(p, pick);
+    }, 'primary', 'md', 'level-up');
+    setDisabled(lvl, need == null ? 'ถึงขั้นสูงสุดแล้ว' : canLevel(p, pick) ? null : `แต้มฝึกยังไม่พอ (${c.xp}/${need})`);
     const slots = el('div', 'slots');
     for (const f of progression.forge) {
       const s = forgeState(p, pick, f.id, now), bonus = [f.hpPct ? `HP +${f.hpPct}%` : '', f.dmgPct ? `ตี +${f.dmgPct}%` : ''].filter(Boolean).join(' ');
@@ -76,9 +77,9 @@ export function campScreen(app: HTMLElement, p: Profile, save: () => void, back:
     for (const [k, name] of [['cannon', progression.cannonNameTh], ['wall', progression.wallNameTh]] as [TownKey, string][]) {
       const tiers = townTiers(k), at = p.town[k], next = tiers[at];
       const now = at === 0 ? 'ระดับพื้นฐาน' : k === 'cannon' ? `ตี +${progression.cannonTiers[at - 1]!.dmg} · ผลักไกลขึ้น` : `HP ปราสาท +${progression.wallTiers[at - 1]!.hp}`;
-      const b = btn(next ? `อัปเกรด (${next.gold} ทองคำ)` : 'สูงสุดแล้ว', 'up', () => act(upgradeTown(p, k), `${name} ขึ้นระดับ ${p.town[k]}`));
+      const b = button(next ? `อัปเกรด (${next.gold} ทองคำ)` : 'สูงสุดแล้ว', () => act(upgradeTown(p, k), `${name} ขึ้นระดับ ${p.town[k]}`), 'secondary', 'sm', 'up');
       b.dataset.town = k;
-      b.disabled = !next;
+      setDisabled(b, next ? null : 'ระดับสูงสุดแล้ว');
       const row = el('div', 'town-row');
       row.append(el('b', '', `${name} ระดับ ${at}/${tiers.length}`), el('small', '', now), b);
       town.append(row);

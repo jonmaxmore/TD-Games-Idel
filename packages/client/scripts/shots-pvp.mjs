@@ -1,7 +1,8 @@
 // Visual proof of ศึกกับเพื่อน: starts the game server and the client, then two Chromium contexts at 1280x720 play a
 // friend room: the lobby button, the room menu, a wrong code, create (the code, copy), join, the guest leaving with Esc and
-// coming back, both teams and ready, the versus screen, a summon from each side in the match (the guest plays on the
-// right), the host leaving (a forfeit) and both result screens; then the lobby with no server (the button disabled, in Thai).
+// coming back, both teams and ready, the versus screen, a summon from each side in the
+// match (the guest plays on the right), the host leaving (a confirmed forfeit) and both result screens; then the lobby
+// with no server (the button disabled, in Thai).
 //   npm run shots:pvp    -> shots/pvp-*.png. Exits non-zero on a console error, a page crash or a failed check.
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -114,13 +115,18 @@ await shot(A.p, '09-menu-no-pause');
 const t0 = await A.p.evaluate(() => window.__game.s.tick);
 await sleep(500);
 check((await A.p.evaluate(() => window.__game.s.tick)) > t0, 'the online menu does not pause the match');
-await A.p.getByRole('button', { name: 'ยอมแพ้และออก' }).click();
+await A.p.locator('.pause-quit').click();
+await A.p.waitForSelector('.overlay.confirm');
+await shot(A.p, '09b-forfeit-confirm');
+await A.p.locator('.overlay.confirm .confirm-yes').click();
 await Promise.all([A.p.waitForSelector('.pvp-result', { timeout: 10000 }), B.p.waitForSelector('.pvp-result', { timeout: 10000 })]);
-await sleep(300);
+await sleep(2200); // the result's rows appear one after another (style.css --t-stagger)
 await shot(A.p, '10-result-host-forfeit');
 await shot(B.p, '10-result-guest-win');
 check((await B.p.locator('.pvp-result h2').textContent()).includes('ชนะ'), 'the guest wins when the host leaves');
 check((await A.p.locator('.pvp-result h2').textContent()).includes('พ่ายแพ้'), 'the host loses by leaving');
+for (const P of [A.p, B.p]) check((await P.locator('.pvp-result .btn-primary').count()) === 1, 'the friend result has exactly one primary');
+check(await A.p.locator('.hud-top .ctl').getByText('x1').isHidden(), 'an online match has no speed button');
 await B.p.getByRole('button', { name: 'ศึกกับเพื่อนอีกครั้ง' }).click();
 await B.p.waitForSelector('.create-btn');
 await A.ctx.close(); await B.ctx.close();

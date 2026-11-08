@@ -43,6 +43,7 @@ async function open(url, name, videoDir, profile) {
 }
 const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
 const check = (ok, msg) => { if (!ok) errors.push(msg); };
+const settle = () => sleep(2200); // the result's rows appear one after another (style.css --t-stagger)
 // Saves at points of progress, all with fire as the home sect (the game pays each won stage's first clear on load): 1-1..1-3
 // won with cards levelled; 1-1..1-9 won; all of chapter 1 won with the egg shop open; a late account owning every card.
 const STAGES = Array.from({ length: 10 }, (_, i) => `1-${i + 1}`);
@@ -73,6 +74,10 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await sleep(150);
   await shot(p, '59-pick-sect-hover');
   await p.locator('.pick-card[data-home=fire]').click();
+  await sleep(150);
+  await shot(p, '59-pick-sect-selected');
+  check(await p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile') ?? '{}').home ?? null) === null, 'a click on a sect only selects it');
+  await p.locator('.pick-ok').click();
   await p.waitForSelector('.brief-body');
   await sleep(200);
   await shot(p, '59-pick-then-1-1');
@@ -101,6 +106,8 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.waitForSelector('.versus');
   await sleep(200);
   await shot(p, '67-versus-stage');
+  await p.keyboard.press('Enter');
+  check(await p.evaluate(() => window.__flow.screen) === 'match', 'any key skips the versus screen');
   await p.waitForFunction(() => window.__game?.s, null, { timeout: 5000 });
   console.log('clicks lobby -> next stage: 2');
   // Esc with no card picked pauses: the sim must not step while the menu is open.
@@ -117,8 +124,16 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.keyboard.press('Escape');
   await sleep(300);
   check((await p.evaluate(() => window.__game.s.tick)) > t1, 'Esc resumes the match');
+  // Leaving ศึกปราบ asks first (the match will not count); Esc in the box cancels and the menu stays.
   await p.keyboard.press('Escape');
-  await p.getByRole('button', { name: 'กลับล็อบบี้' }).click();
+  await p.locator('.pause-quit').click();
+  await p.waitForSelector('.overlay.confirm');
+  await sleep(150);
+  await shot(p, '68-quit-confirm');
+  await p.keyboard.press('Escape');
+  check((await p.locator('.overlay.confirm').count()) === 0 && (await p.locator('.modal.pause').count()) === 1, 'Esc in the quit confirm cancels it and keeps the pause menu');
+  await p.locator('.pause-quit').click();
+  await p.locator('.confirm-yes').click();
   await p.waitForSelector('.lobby-bottom');
   // mute: the gear, then the sound toggle (2 clicks); the pause menu muted it, so this turns it back on.
   const muted = () => p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile')).settings.muted);
@@ -182,6 +197,11 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   const buy = p.locator('.shop-grid [data-buy]:not([disabled])').first();
   const bought = await buy.getAttribute('data-buy');
   await buy.click();
+  await p.waitForSelector('.overlay.confirm');
+  await sleep(150);
+  await shot(p, '65-egg-confirm');
+  check(!(await p.evaluate((c) => JSON.parse(localStorage.getItem('five-sects.profile')).owned.includes(c), bought)), 'a buy waits for its confirm');
+  await p.locator('.confirm-yes').click();
   await sleep(200);
   await shot(p, '65-egg-bought');
   console.log('egg shop: bought', bought, '|', await p.locator('.egg-got').textContent());
@@ -214,12 +234,13 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.waitForFunction(() => window.__game?.s?.tick > 20 * 70, null, { timeout: 60000 });
   await p.evaluate(() => { window.__game.s.castles[0].hp = 0; });
   await p.waitForSelector('.modal.result', { timeout: 20000 });
-  await sleep(300);
+  await settle();
   await shot(p, '70-loss-tip');
-  const tip = await p.locator('.loss-tip').textContent().catch(() => null);
+  const tip = await p.locator('.loss-tip p').textContent().catch(() => null);
   console.log('loss:', await p.locator('[data-primary]').textContent(), '|', tip);
   check(tip != null, 'a loss shows a tip');
-  check((await p.locator('.modal.result button.primary').count()) === 1, 'the result has exactly one primary');
+  check((await p.locator('.loss-tip .tip-deck').count()) === 1, 'the loss tip has a จัดทัพ button');
+  check((await p.locator('.modal.result .btn-primary').count()) === 1, 'the result has exactly one primary');
   await ctx.close();
 }
 
@@ -313,11 +334,11 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.waitForFunction(() => window.__game.s.units.filter((u) => u.side === 0).length >= 2, null, { timeout: 5000 });
   await p.waitForFunction(() => window.__game.s.units.filter((u) => u.side === 1).length >= 3, null, { timeout: 40000 });
   await sleep(500);
-  // Hover each card until one marks an enemy (orange: it beats it, blue: it loses to it).
+  // Hover each card: the tooltip, and enemies it beats (orange ▲) or loses to (purple ▼), with the legend.
   for (let i = 0; i < 7; i++) {
     const b = await p.locator('.card').nth(i).boundingBox();
     await p.mouse.move(b.x + b.width / 2, b.y + 20);
-    await sleep(120);
+    await sleep(350);
     await shot(p, `16-counter-hover-${i + 1}`);
   }
   // The cannon: Space arms it, the enemy nearest our castle is the aim, a click fires.
@@ -372,7 +393,9 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
     if (await p.evaluate(() => window.__game.s.winner !== null)) break;
   }
   await p.waitForSelector('.modal.result', { timeout: 90000 });
-  await sleep(400);
+  await sleep(250);
+  await shot(p, '29-result-reveal');
+  await sleep(1950);
   await shot(p, '29-result');
   const end = await p.evaluate(() => ({ winner: window.__game.s.winner, tick: window.__game.s.tick, castles: window.__game.s.castles.map((c) => c.hp) }));
   console.log('bot match:', JSON.stringify(end), 'fps samples:', fps.join(','));
@@ -475,6 +498,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await p.getByRole('button', { name: 'กลับ', exact: true }).click();
   await p.locator('[data-go=eggShop]').click();
   await p.locator('.shop-grid [data-buy]:not([disabled])').first().click();
+  await p.locator('.confirm-yes').click();
   await sleep(300);
   await shot(p, '44-egg-buy');
   await ctx.close();
@@ -501,6 +525,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await p.waitForSelector('.stage-node');
   await sleep(200);
   await shot(p, '51-stage-map');
+  check((await p.locator('.stage-node.next').getAttribute('data-stage')) === '1-3' && (await p.locator('.play-next').count()) === 1, 'the map marks 1-3 as next and offers it as its primary');
   await p.locator('.stage-node[data-stage="1-3"]').click();
   await p.waitForSelector('.brief-body');
   await sleep(200);
@@ -509,15 +534,30 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await p.waitForSelector('.team-card');
   await sleep(200);
   await shot(p, '53-team-stage');
+  // Esc walks back: team setup -> briefing -> stage map -> lobby.
+  const flow = () => p.evaluate(() => window.__flow.screen);
+  const walked = [];
+  for (let i = 0; i < 3; i++) { await p.keyboard.press('Escape'); await sleep(100); walked.push(await flow()); }
+  console.log('Esc from the stage team setup:', walked.join(' -> '));
+  check(walked.join() === 'brief,campaign,lobby', `Esc goes back on each full screen (${walked.join()})`);
   await ctx.close();
   const m = await open('?mode=battle&stage=1-2&bot=1&speed=4&seed=3', 'stage-waves', null, save);
   await m.p.waitForFunction(() => window.__game?.s);
   await m.p.waitForFunction(() => window.__game.s.tick >= 20 * 41 && window.__game.s.units.filter((u) => u.card === 'ember_imp' && u.side === 1).length >= 3, null, { timeout: 90000, polling: 'raf' });
   await shot(m.p, '54-stage-waves');
   await m.p.waitForSelector('.modal.result', { timeout: 120000 });
-  await sleep(400);
+  await settle();
   await shot(m.p, '55-stage-result');
   console.log('stage 1-2 result:', await m.p.locator('.star-row').textContent());
+  const buttons = await m.p.locator('.result-actions button').allTextContents();
+  console.log('stage result buttons:', buttons.join(' | '));
+  check(buttons.length === 4 && buttons.includes('ภาพย้อนหลัง') && buttons.includes('จัดทัพ'), 'every result has the same four buttons, ภาพย้อนหลัง included');
+  // ภาพย้อนหลัง works outside ศึกฝีมือ too: the stage match plays back to the same hash.
+  await m.p.locator('.replay-btn').click();
+  await m.p.waitForSelector('.modal.result', { timeout: 120000 });
+  await settle();
+  await shot(m.p, '58-stage-replay-end');
+  check((await m.p.locator('.modal.result').textContent()).includes('ผลตรงกับ'), 'a stage match replays to the same hash');
   await m.ctx.close();
   const w = await open('?mode=battle&stage=1-7&bot=1&speed=2&seed=3', 'stage-warn', null, save);
   await w.p.waitForSelector('.toast.warn', { timeout: 90000 });
@@ -532,7 +572,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   for (const seed of [3, 4, 5, 6]) {
     const f = await open(`?mode=battle&stage=1-1&bot=1&speed=4&seed=${seed}`, 'first-clear', null, home({}));
     await f.p.waitForSelector('.modal.result', { timeout: 120000 });
-    await sleep(400);
+    await settle();
     firstClear = (await f.p.locator('.new-card').count()) > 0;
     if (firstClear) {
       await shot(f.p, '55-first-clear');
@@ -548,18 +588,65 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
 {
   const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=3&deck=fire', 'ranked', null, home({ mode: 'ranked', campaign: won(10) }));
   await p.waitForSelector('.modal.result', { timeout: 120000 });
-  await sleep(400);
+  await settle();
   await shot(p, '56-ranked-result');
   console.log('ranked:', await p.locator('.rank-change').textContent());
   await p.locator('.replay-btn').click();
   await p.waitForFunction(() => window.__game?.s?.tick > 600, null, { timeout: 60000 });
   await shot(p, '57-replay');
   await p.waitForSelector('.modal.result', { timeout: 120000 });
-  await sleep(300);
+  await settle();
   await shot(p, '58-replay-end');
   const text = await p.locator('.modal.result').textContent();
   console.log('replay end:', text);
   if (!text.includes('ผลตรงกับ')) errors.push('ranked replay did not end on the saved hash');
+  await ctx.close();
+}
+
+// 8) ศึกฝีมือ by hand: ยอมแพ้ is closed before the 60th second, then a confirmed surrender is a loss on the rank, and its
+//    replay stops on the surrender tick with the same hash.
+{
+  const { ctx, p } = await open('?mode=battle&seed=3&deck=fire&speed=4', 'surrender', null, home({ mode: 'ranked', campaign: won(10), rank: { league: 0, div: 3, stars: 1, streak: 2, points: 0 } }));
+  await p.waitForFunction(() => window.__game?.s);
+  await sleep(300);
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('.modal.pause');
+  await sleep(100);
+  await shot(p, '68-surrender-closed');
+  check(await p.locator('.pause-quit').isDisabled(), 'ยอมแพ้ is closed before the 60th second');
+  console.log('surrender early:', await p.locator('.pause-quit').textContent(), '|', await p.locator('.pause-why').textContent());
+  await p.keyboard.press('Escape');
+  await p.waitForFunction(() => window.__game.s.tick >= 20 * 61, null, { timeout: 60000 });
+  await p.keyboard.press('Escape');
+  await p.locator('.pause-quit').click();
+  await p.waitForSelector('.overlay.confirm');
+  await sleep(100);
+  await shot(p, '68-surrender-confirm');
+  await p.locator('.confirm-yes').click();
+  await p.waitForSelector('.modal.result');
+  await settle();
+  await shot(p, '56-surrender-result');
+  const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile')));
+  console.log('surrender:', await p.locator('.modal.result h2').textContent(), '| rank', JSON.stringify(saved.rank), '| endTick', saved.lastRanked?.endTick);
+  check(saved.rank.streak === 0 && saved.lastRanked?.endTick > 0, 'a surrender counts as a ranked loss and keeps its replay');
+  await p.locator('.replay-btn').click();
+  await p.waitForSelector('.modal.result', { timeout: 120000 });
+  check((await p.locator('.modal.result').textContent()).includes('ผลตรงกับ'), 'the surrendered match replays to the same hash');
+  await ctx.close();
+}
+
+// 9) The stage on other PC windows: 1080p (x1.5, no bars), 2560x1080 (x1.5 with bars left and right), 1366x768 (x1, bars).
+for (const [w, h, k] of [[1920, 1080, 1.5], [2560, 1080, 1.5], [1366, 768, 1]]) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  await ctx.addInitScript((t) => localStorage.setItem('five-sects.profile', t), JSON.stringify(MID));
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => errors.push(`fit-${w}: ${e.message}`));
+  await p.goto(base);
+  await toLobby(p);
+  await shot(p, `90-fit-${w}x${h}`);
+  const r = await p.locator('#app').boundingBox();
+  console.log(`fit ${w}x${h}:`, JSON.stringify(r));
+  check(Math.abs(r.width - 1280 * k) < 1 && Math.abs(r.height - 720 * k) < 1 && Math.abs(r.x - (w - 1280 * k) / 2) <= 1, `the stage is 1280x720 x${k}, centred, at ${w}x${h}`);
   await ctx.close();
 }
 
