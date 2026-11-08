@@ -26,6 +26,7 @@ export interface Profile {
   campaign: Record<string, StageBest>; // stages played, by id
   rank: Rank;
   lastRanked: RankedSave | null;
+  rankedOpen: boolean; // a ศึกฝีมือ match started and not yet settled: a reload or a closed tab settles it as a loss
 }
 export type RankedSave = BattleRecord & { hash: string; endTick?: number }; // the last ranked match, the hash it ended on, the tick of a surrender
 
@@ -66,6 +67,7 @@ export function migrate(raw: unknown): Profile {
     })),
     rank: fixRank(r.rank),
     lastRanked: fixRecord(r.lastRanked),
+    rankedOpen: r.rankedOpen === true,
   };
   const kept = v7 && Array.isArray(r.owned) ? r.owned : legacyOwned(p.cards, p.forge);
   const own = new Set([...collection.starter, ...(home ? starterCards(home) : []), ...kept.filter((c): c is string => typeof c === 'string')]);

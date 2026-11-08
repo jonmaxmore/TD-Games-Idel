@@ -50,7 +50,16 @@ export function recordStage(p: Profile, id: string, stars: [boolean, boolean, bo
 // A stage is open once the one before it has been won (the first always is).
 export const stageOpen = (p: Profile, ids: readonly string[], i: number) => i === 0 || p.campaign[ids[i - 1]!]?.stars[0] === true;
 // A ranked result moves the rank; returns the rank before and after.
+// A ranked match counts from its start: one never settled (the tab reloaded or closed mid-match) is a loss on the next
+// boot (settleRanked), so leaving cannot dodge it. Its result or a surrender settles it (recordRanked).
+export function startRanked(p: Profile): void { p.rankedOpen = true; }
+export function settleRanked(p: Profile): boolean {
+  if (!p.rankedOpen) return false;
+  recordRanked(p, false);
+  return true;
+}
 export function recordRanked(p: Profile, won: boolean | null): { before: Rank; after: Rank } {
+  p.rankedOpen = false;
   const before = p.rank;
   p.rank = rankAfter(before, won);
   return { before, after: p.rank };

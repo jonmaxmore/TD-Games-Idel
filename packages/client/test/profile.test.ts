@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   battle, battleCardIds, castleLevelOf, collection, createBattle, homeCard, leagues, powerRatioMaxPct, powerScore, progression, rewardFor, routeOf, stages,
-  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool, battleUnits, loanerRoom, autoPicks,
+  starterCards, starterTeam, startRank, tierOf, validateDeck, rankedPool, battleUnits, loanerRoom, autoPicks, rankAfter,
 } from '@five-sects/sim';
-import { aiProgress, build, buyCard, chooseHome, claim, levelUp, nextTeam, payMatch, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
+import { aiProgress, build, buyCard, chooseHome, claim, levelUp, nextTeam, payMatch, settleRanked, startRanked, playerPower, progressOf, recordRanked, recordStage, stageOpen, upgradeTown } from '../src/camp';
 import { addPick, aiSetup, autoFill, casualRules, DECK_SLOTS, deckPoints, deckProblem, fixTeam, isLoaner, pairOk, pickPool, RANKED_RULES, rankedTeam, resolveTeam, setRole, setupOf } from '../src/decks';
 import { levelSum, migrate, teamOf, type Profile } from '../src/profile';
 
@@ -143,6 +143,18 @@ describe('rewards and the egg shop', () => {
     expect(p.owned).toContain(homeCard('wood', 'large'));
   });
 
+  it('a player who just finished chapter 1 without training can buy a common card the moment the shop opens', () => {
+    const p = fresh('water');
+    p.campaign = won(10);
+    claim(p);
+    expect(castleLevelOf(levelSum(p))).toBe(1);
+    const card = battleCardIds.find((c) => !p.owned.includes(c) && routeOf(c, 'water').kind === 'shop' && tierOf(c).id === 'common')!;
+    const before = p.eggPoints;
+    expect(before).toBeGreaterThanOrEqual(tierOf(card).eggPoints!);
+    expect(buyCard(p, card)).not.toBeTypeOf('string');
+    expect([p.owned.includes(card), p.eggPoints]).toEqual([true, before - tierOf(card).eggPoints!]);
+  });
+
   it('the shop sells a chosen card after 1-10 at its tier price, from its castle level; an owned one trains for its dupeXp', () => {
     const p = fresh('fire'), card = battleCardIds.find((c) => routeOf(c, 'fire').kind === 'shop' && tierOf(c).id === 'common')!;
     expect(buyCard(p, card)).toBe('ร้านไข่เปิดเมื่อผ่านด่าน 1-10');
@@ -234,6 +246,24 @@ describe('match progress', () => {
     p.cards[mine]!.level = 3;
     const g = progressOf(p, 0);
     expect([g.levels![lend], g.levels![mine]]).toEqual([1, 3]);
+  });
+});
+
+describe('a ranked match left mid-way', () => {
+  it('counts as a loss on the next boot, once; one that reached its result settles nothing more', () => {
+    const p = fresh('fire');
+    p.rank = { ...p.rank, stars: 2, streak: 3 };
+    startRanked(p);
+    const back = migrate(JSON.parse(JSON.stringify(p))), lost = rankAfter(p.rank, false);
+    expect(settleRanked(back)).toBe(true);
+    expect(back.rank).toEqual(lost);
+    expect(settleRanked(migrate(JSON.parse(JSON.stringify(back))))).toBe(false);
+    const done = fresh('fire');
+    startRanked(done);
+    recordRanked(done, true);
+    const after = done.rank;
+    expect(settleRanked(migrate(JSON.parse(JSON.stringify(done))))).toBe(false);
+    expect(done.rank).toEqual(after);
   });
 });
 
