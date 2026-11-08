@@ -41,7 +41,7 @@ async function part(name: string): Promise<unknown> {
     for (let j = 0; j < ids.length; j++)
       for (const [p0, p1] of pairs)
         for (let seed = 1; seed <= seeds; seed++) {
-          const s = bot.playBattle(seed, p0, p1, sim.sectSetup(ids[i]!), sim.sectSetup(ids[j]!)).state;
+          const s = bot.playBattle(seed, p0, p1, bot.sectTeam(ids[i]!, seed, 0), bot.sectTeam(ids[j]!, seed, 1)).state;
           const r = row[j]!;
           r.w += i === j ? (s.winner === 0 ? 2 : 0) : half(s.winner); r.n += 2;
           if (s.winner === -1) r.draws++;
@@ -52,8 +52,8 @@ async function part(name: string): Promise<unknown> {
     let w = 0, n = 0;
     for (const [p0, p1] of pairs)
       for (let seed = 1; seed <= seeds; seed++) {
-        const a = bot.playBattle(seed, p0, p1, bot.CONTROL_TEAMS.earth!, sim.sectSetup('fire')).state;
-        const b = bot.playBattle(seed, p0, p1, sim.sectSetup('fire'), bot.CONTROL_TEAMS.earth!).state;
+        const a = bot.playBattle(seed, p0, p1, bot.CONTROL_TEAMS.earth!, bot.sectTeam('fire', seed, 1)).state;
+        const b = bot.playBattle(seed, p0, p1, bot.sectTeam('fire', seed, 0), bot.CONTROL_TEAMS.earth!).state;
         w += half(a.winner) + (2 - half(b.winner)); n += 4;
       }
     return (100 * w) / n;

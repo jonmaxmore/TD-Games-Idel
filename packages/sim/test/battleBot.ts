@@ -3,7 +3,7 @@
 // once it is under siege, push like rush when rich) and paced (keep a mana reserve, one summon every few seconds and
 // never onto a crowd of its own small units, guards first when enemies come near). Each side has its own seeded RNG.
 import {
-  autoPicks, battle, battleCardIds, fillPicks, isBasic, ownedAt, stages, starterTeam, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd,
+  autoPicks, battle, battleCardIds, fillPicks, isBasic, ownedAt, sectCards, stages, starterTeam, battleOver, battleUnits, BATTLE_LEN, createBattle, fwd,
   nextRandom, stepBattle, summonZone, validateDeck, type BattleCommand, type BattleOpts, type BattleSetup, type BattleState, type Side, type Stage,
 } from '../src';
 
@@ -30,6 +30,12 @@ export function randomTeam(seed: number, side: Side): BattleSetup {
     const leader = draw(ok), sub = draw(ok.filter((c) => c !== leader)), t = { leader, sub, picks: randomPicks(r, leader, sub, battleCardIds) };
     if (validateDeck(t, battleCardIds) == null) return t;
   }
+}
+// A sect's team on a seed (the 5x5 sect table): its default leader and sub-leader with seeded legal picks from its disciples,
+// so the table averages over the hands a sect can take as the old random draw did.
+export function sectTeam(sect: string, seed: number, side: Side): BattleSetup {
+  const t = battle.sectTeams.get(sect)!;
+  return { ...t, picks: randomPicks({ rng: (seed * 7919 + 101 + side * 104729) >>> 0 }, t.leader, t.sub, sectCards(sect)) };
 }
 // The mirror gate's team on a seed, the same for both sides: MIXED's leader and sub-leader with seeded picks.
 export const mirrorTeam = (seed: number): BattleSetup => ({ ...MIXED, picks: randomPicks({ rng: (seed * 7919 + 3) >>> 0 }, MIXED.leader, MIXED.sub, battleCardIds) });

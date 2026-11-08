@@ -1,5 +1,5 @@
 // Castle-battle balance tables (BATTLE_SEEDS, default 200).
-// 1. rush vs defend on the mixed mirror team (battleBot.ts > MIXED), both side orders: left wins, draws, castle falls, length.
+// 1. rush vs defend on the mixed mirror team (battleBot.ts > mirrorTeam), both side orders: left wins, draws, castle falls, length.
 // 4. (CARDS=0 skips) per card over random teams of every card (battleBot.ts > cardTable, CARD_GAMES default 4000, one seed each):
 //    win % of the side that summoned it, against its size band's average; FLAG when more than 8 points over.
 //    PACED=1 adds the same table with the paced bot: paced vs paced, then paced vs rush and defend (both sides).
@@ -8,8 +8,8 @@
 // 2. every sect team vs every other (its whole roster, battle.json > sectTeams leader and sub), both side orders, all four bot pairings:
 //    row sect's win % over its games (draws count half), and each sect's overall average. The diagonal is the mirror
 //    match's left-side win %.
-import { battle, battleUnits, decision, handOf, sectSetup, type ResultType } from '../src';
-import { bandOf, cardTable, CONTROL_TEAMS, PACED_MIXED_PAIRS, PACED_PAIRS, PAIRS, playBattle, type Policy } from '../test/battleBot';
+import { battle, battleUnits, decision, sectCards, type ResultType } from '../src';
+import { bandOf, cardTable, CONTROL_TEAMS, mirrorTeam, PACED_MIXED_PAIRS, PACED_PAIRS, PAIRS, playBattle, sectTeam, type Policy } from '../test/battleBot';
 
 const seeds = Number(process.env.BATTLE_SEEDS ?? 200);
 const pairs: [Policy, Policy][] = [['rush', 'defend'], ['defend', 'rush'], ['rush', 'rush'], ['defend', 'defend']];
@@ -19,7 +19,7 @@ for (const [a, b] of pairs) {
   let left = 0, right = 0, draw = 0, ticks = 0, hp = 0, ko = 0;
   const types: Record<ResultType, number> = { total: 0, castle: 0, hp: 0, tiebreak: 0, draw: 0 };
   for (let seed = 1; seed <= seeds; seed++) {
-    const { state: s } = playBattle(seed, a, b);
+    const t = mirrorTeam(seed), { state: s } = playBattle(seed, a, b, t, t);
     types[decision(s).type]++;
     if (s.winner === 0) left++; else if (s.winner === 1) right++; else draw++;
     ticks += s.tick; hp += Math.max(0, s.castles[0].hp) + Math.max(0, s.castles[1].hp);
@@ -39,7 +39,7 @@ if (process.env.SECTS !== '0') {
     for (let j = 0; j < ids.length; j++)
       for (const [p0, p1] of pairs)
         for (let seed = 1; seed <= seeds; seed++) {
-          const { state: s, commands } = playBattle(seed, p0, p1, sectSetup(ids[i]!), sectSetup(ids[j]!));
+          const { state: s, commands } = playBattle(seed, p0, p1, sectTeam(ids[i]!, seed, 0), sectTeam(ids[j]!, seed, 1));
           const w = s.winner === 0 ? 2 : s.winner === -1 ? 1 : 0; // half-points for side 0
           if (i !== j) {
             const sent: [Set<string>, Set<string>] = [new Set(), new Set()];
@@ -69,7 +69,7 @@ if (process.env.SECTS !== '0') {
   // in the games it was summoned at least once.
   const sideGames = n - mirrorN.reduce((a, x) => a + x, 0);
   console.log('\ncard usage (sect games): card, in hand %, summons per game held, win % when summoned');
-  for (const id of ids) for (const c of handOf(sectSetup(id))) {
+  for (const id of ids) for (const c of sectCards(id)) {
     const u = use(c);
     console.log(`${c.padEnd(26)} ${pct(u.dealt, sideGames * 2 / ids.length * 1).padStart(6)} ${(u.n / Math.max(1, u.dealt)).toFixed(2).padStart(6)} ${(u.games ? pct(u.pts, u.games * 2) : '-').padStart(6)}`);
   }
@@ -86,7 +86,7 @@ if (process.env.CONTROL === '1') {
         let w = 0, n = 0;
         for (const [p0, p1] of pairs)
           for (let seed = 1; seed <= seeds; seed++) {
-            const a = playBattle(seed, p0, p1, team, sectSetup(id)).state, b = playBattle(seed, p0, p1, sectSetup(id), team).state;
+            const a = playBattle(seed, p0, p1, team, sectTeam(id, seed, 1)).state, b = playBattle(seed, p0, p1, sectTeam(id, seed, 0), team).state;
             w += (a.winner === 0 ? 2 : a.winner === -1 ? 1 : 0) + (b.winner === 1 ? 2 : b.winner === -1 ? 1 : 0); n += 4;
           }
         return `${id} ${pct(w, n)}`;
