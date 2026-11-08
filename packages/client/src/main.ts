@@ -20,6 +20,7 @@ import { initSound, unlockAudio } from './sound';
 import { cardArt, loadSprites } from './sprites';
 import { lossTip, versusTip } from './tips';
 import { unlockState } from './unlocks';
+import { button, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 const app = document.getElementById('app')!;
@@ -97,16 +98,16 @@ function pickHome() {
   r.append(el('h1', '', 'เลือกสำนักแรก'), el('p', 'dim center', 'สำนักแรกคือบ้านเกิดของเรา ได้ศิษย์ 3 คนของสำนักนั้น พร้อมธงยึดป้อมทั้ง 5 สำนักและนักธนูพเนจร การ์ดสำนักอื่นได้ทีหลังจากด่านและร้านไข่'));
   const row = el('div', 'pick-row');
   let chosen: string | null = null;
-  const ok = btn('', 'primary pick-ok', () => { if (!chosen) return; chooseHome(profile, chosen); save(profile); go({ k: 'brief', stage: stages[0]!.id }); });
+  const ok = button('', () => { if (!chosen) return; chooseHome(profile, chosen); save(profile); go({ k: 'brief', stage: stages[0]!.id }); }, 'primary', 'lg', 'pick-ok');
   const select = (home: string) => {
     chosen = home;
     for (const c of Array.from(row.children) as HTMLElement[]) { c.classList.toggle('sel', c.dataset.home === home); c.setAttribute('aria-pressed', String(c.dataset.home === home)); }
     ok.textContent = `เริ่มที่${sects.get(home)!.nameTh}`;
-    ok.disabled = false;
+    setDisabled(ok, null);
     ok.focus();
   };
-  ok.textContent = 'เลือกสำนักก่อน';
-  ok.disabled = true;
+  ok.textContent = 'เริ่มที่สำนักนี้';
+  setDisabled(ok, 'เลือกสำนักก่อน');
   for (const home of homeSects) {
     const sc = sects.get(home)!, t = starterTeam(home), mine = starterCards(home).filter((c) => battleUnits.get(c)!.sect === home && !isBasic(c));
     const b = btn('', 'pick-card', () => select(home));
@@ -155,7 +156,7 @@ function teamScreen(stage?: Stage) {
   main.append(bar, grid);
   body.append(main);
   const owned = profile.owned, foe: BattleSetup = stage ? stage.enemy : aiSetup(profile.team);
-  const info = el('p', 'team-info'), handRow = el('div', 'hand-row'), redrawBtn = btn('', 'redraw', () => { redraws++; show(); });
+  const info = el('p', 'team-info'), handRow = el('div', 'hand-row'), redrawBtn = button('', () => { redraws++; show(); }, 'secondary', 'md', 'redraw');
   const seed = (Date.now() % 100000) + 1;
   const filter: Filter = { kind: '', cost: '', role: '' };
   let redraws = 0;
@@ -224,12 +225,12 @@ function teamScreen(stage?: Stage) {
     }));
     const left = battle.hand.redraws - redraws;
     redrawBtn.textContent = `สับมือใหม่ (เหลือ ${left})`;
-    redrawBtn.disabled = left <= 0;
+    setDisabled(redrawBtn, left <= 0 ? 'สับมือครบแล้ว' : null);
     describe(t.leader);
   };
   if (profile.mode === 'ranked' && !stage) bar.append(el('small', 'count', 'ศึกฝีมือ: มือสุ่มจากการ์ดทุกใบในเกม ค่าเท่ากัน ใช้แค่แม่ทัพและรองที่เลือก'));
   const row = el('div', 'row actions');
-  row.append(btn('กลับ', '', () => go(stage ? { k: 'brief', stage: stage.id } : { k: 'lobby' })), redrawBtn, btn('เข้าสู่ศึก', 'primary', () => go({ k: 'versus', team: profile.team, seed, redraws, stage: stage?.id })));
+  row.append(button('กลับ', () => go(stage ? { k: 'brief', stage: stage.id } : { k: 'lobby' }), 'ghost', 'md', 'back'), redrawBtn, button('เข้าสู่ศึก', () => go({ k: 'versus', team: profile.team, seed, redraws, stage: stage?.id }), 'primary', 'lg'));
   r.append(body, info, handRow, row);
   app.append(r);
   show();
@@ -263,7 +264,7 @@ function campaignMap() {
     map.append(b);
   });
   const row = el('div', 'row actions');
-  row.append(btn('กลับล็อบบี้', '', () => go({ k: 'lobby' })));
+  row.append(button('กลับล็อบบี้', () => go({ k: 'lobby' }), 'ghost', 'md', 'back'));
   r.append(map, row);
   app.append(r);
 }
@@ -299,8 +300,8 @@ function briefing(st: Stage) {
   left.append(gim, goals);
   body.append(left, foe);
   const row = el('div', 'row actions');
-  row.append(btn('แผนที่', '', () => go({ k: 'campaign' })), btn('จัดทัพ', '', () => go({ k: 'deck', stage: st.id })),
-    btn('เข้าสู่ศึก', 'primary', () => go({ k: 'versus', team: profile.team, seed: (Date.now() % 100000) + 1, redraws: 0, stage: st.id })));
+  row.append(button('แผนที่', () => go({ k: 'campaign' }), 'ghost', 'md', 'back'), button('จัดทัพ', () => go({ k: 'deck', stage: st.id })),
+    button('เข้าสู่ศึก', () => go({ k: 'versus', team: profile.team, seed: (Date.now() % 100000) + 1, redraws: 0, stage: st.id }), 'primary', 'lg'));
   r.append(body, row);
   app.append(r);
 }
@@ -359,7 +360,7 @@ function replay() {
     const same = r.hash === last.hash;
     box.append(el('h2', '', 'จบรีเพลย์'), el('p', 'why', verdict(r).head), el('p', same ? 'dim' : 'why', same ? 'ผลตรงกับศึกที่บันทึกไว้ทุกอย่าง' : 'ผลไม่ตรงกับที่บันทึกไว้'));
     const row = el('div', 'row');
-    row.append(btn('ดูอีกครั้ง', 'primary', () => go({ k: 'replay' })), btn('กลับล็อบบี้', '', () => go({ k: 'lobby' })));
+    row.append(button('กลับล็อบบี้', () => go({ k: 'lobby' }), 'ghost', 'md', 'back'), button('ดูอีกครั้ง', () => go({ k: 'replay' }), 'primary', 'lg'));
     box.append(row);
     app.append(box);
   });
@@ -433,14 +434,15 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
   const next = stage ? stages[stages.indexOf(stage) + 1] : undefined;
   const again = () => go({ k: 'versus', team, seed: seed + 1, redraws: 0, stage: stage?.id });
   const last = stage && won && !next;
-  const primary = stage && won ? (next ? btn('ด่านถัดไป', 'primary', () => go({ k: 'brief', stage: next.id })) : btn('กลับล็อบบี้', 'primary', () => go({ k: 'lobby' })))
-    : !stage && won !== false ? btn('อีกแมตช์', 'primary', again) : btn('ลองใหม่', 'primary', again);
+  const main = (text: string, f: () => void) => button(text, f, 'primary', 'lg');
+  const primary = stage && won ? (next ? main('ด่านถัดไป', () => go({ k: 'brief', stage: next.id })) : main('กลับล็อบบี้', () => go({ k: 'lobby' })))
+    : !stage && won !== false ? main('อีกแมตช์', again) : main('ลองใหม่', again);
   primary.dataset.primary = '1';
   const row = el('div', 'row result-actions');
   row.append(primary);
-  if (camp) row.append(btn('ค่ายฝึก', '', () => go({ k: 'camp' })));
-  if (ranked) row.append(btn('ดูรีเพลย์', 'replay-btn', () => go({ k: 'replay' })));
-  if (!last) row.append(btn('กลับล็อบบี้', '', () => go({ k: 'lobby' })));
+  if (camp) row.append(button('ค่ายฝึก', () => go({ k: 'camp' })));
+  if (ranked) row.append(button('ดูรีเพลย์', () => go({ k: 'replay' }), 'secondary', 'md', 'replay-btn'));
+  if (!last) row.append(button('กลับล็อบบี้', () => go({ k: 'lobby' }), 'ghost', 'md'));
   box.append(row);
   app.append(box);
 }

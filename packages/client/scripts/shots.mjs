@@ -228,7 +228,7 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   const tip = await p.locator('.loss-tip').textContent().catch(() => null);
   console.log('loss:', await p.locator('[data-primary]').textContent(), '|', tip);
   check(tip != null, 'a loss shows a tip');
-  check((await p.locator('.modal.result button.primary').count()) === 1, 'the result has exactly one primary');
+  check((await p.locator('.modal.result .btn-primary').count()) === 1, 'the result has exactly one primary');
   await ctx.close();
 }
 

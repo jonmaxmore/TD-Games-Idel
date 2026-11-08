@@ -12,7 +12,7 @@ import type { Settings } from './profile';
 import { quitRule, type QuitKind } from './quit';
 import { cardArt } from './sprites';
 import { applyVolume, play } from './sound';
-import { confirmBox } from './ui';
+import { button, confirmBox, setDisabled } from './ui';
 import { nowrapWords } from './words';
 
 export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
@@ -89,10 +89,10 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   if (o.stage && o.stage.gimmicks.length > 0) clockBox.append(el('em', 'gimmick', gimmickNames(o.stage)));
   if (o.replay) clockBox.append(el('em', 'gimmick', 'รีเพลย์'));
   const ctl = el('div', 'ctl');
-  const pauseBtn = el('button', 'icon', 'หยุด');
-  const speedBtn = el('button', 'icon', `x${speed}`);
-  const muteBtn = el('button', 'icon');
-  const shakeBtn = el('button', 'icon');
+  const pauseBtn = button('หยุด', () => {}, 'icon', 'sm');
+  const speedBtn = button(`x${speed}`, () => {}, 'icon', 'sm');
+  const muteBtn = button('', () => {}, 'icon', 'sm');
+  const shakeBtn = button('', () => {}, 'icon', 'sm');
   const showSettings = () => { muteBtn.textContent = set.muted ? 'เสียงปิด' : 'เสียง'; shakeBtn.textContent = set.shake ? 'จอสั่น' : 'จอนิ่ง'; };
   const changed = () => { board.shake = set.shake; applyVolume(); showSettings(); o.saveSettings(); };
   muteBtn.onclick = () => { set.muted = !set.muted; changed(); };
@@ -204,10 +204,10 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   canvas.addEventListener('pointerleave', () => { board.aim = null; });
 
   // The pause menu (Esc, P or หยุด): the sim does not step while it is open.
-  const pauseBox = el('div', 'modal pause'), pauseMute = el('button', 'pause-mute');
+  const pauseBox = el('div', 'modal pause'), pauseMute = button('', () => {}, 'secondary', 'lg', 'pause-mute');
   const showPauseMute = () => { pauseMute.textContent = set.muted ? 'เปิดเสียง' : 'ปิดเสียง'; };
   pauseMute.onclick = () => { set.muted = !set.muted; changed(); showPauseMute(); };
-  const resume = el('button', 'primary', 'เล่นต่อ'), quit = el('button', 'pause-quit'), quitWhy = el('p', 'pause-why');
+  const resume = button('เล่นต่อ', () => {}, 'primary', 'lg'), quit = button('', () => {}, 'ghost', 'lg', 'pause-quit'), quitWhy = el('p', 'pause-why');
   quit.onclick = () => {
     const rule = quitRule(o.quit, s.tick);
     if (rule.why) return;
@@ -217,7 +217,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const showQuit = () => {
     const rule = quitRule(o.quit, s.tick);
     quit.textContent = rule.label;
-    quit.disabled = rule.why != null;
+    setDisabled(quit, rule.why);
     quitWhy.textContent = rule.why ?? '';
   };
   const pauseRow = el('div', 'pause-menu');
