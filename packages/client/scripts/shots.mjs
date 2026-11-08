@@ -28,12 +28,15 @@ const base = server.resolvedUrls.local[0]; // the port vite really got, in case 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const errors = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The lobby asks whether the friend-room server answers; with none running, Chromium logs the refused socket. That is the
+// designed offline state (the button shows it), not a page error.
+const PROBE = /^WebSocket connection to 'ws:\/\/(localhost|127\.0\.0\.1):\d+\/v1\/ws' failed/;
 
 async function open(url, name, videoDir, profile) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, ...(videoDir ? { recordVideo: { dir: videoDir, size: { width: 1280, height: 720 } } } : {}) });
   if (profile) await ctx.addInitScript((t) => localStorage.setItem('five-sects.profile', t), JSON.stringify(profile));
   const p = await ctx.newPage();
-  p.on('console', (m) => { if (m.type() === 'error') errors.push(`${name}: ${m.text()}`); });
+  p.on('console', (m) => { if (m.type() === 'error' && !PROBE.test(m.text())) errors.push(`${name}: ${m.text()}`); });
   p.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
   await p.goto(base + url);
   return { ctx, p };
@@ -82,7 +85,7 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await sleep(150);
   await shot(p, '60-lobby-fresh');
   console.log('fresh lobby:', await p.locator('.cta b').textContent(), '|', (await lobbyButtons(p)).join(', '));
-  check((await p.locator('.lobby-buttons .mode').count()) === 3, 'a fresh lobby shows the map, the card log and one locked button');
+  check((await p.locator('.lobby-buttons .mode').count()) === 4, 'a fresh lobby shows the map, friend rooms, the card log and one locked button');
   await p.locator('.gear').click();
   await sleep(150);
   await shot(p, '61-settings');

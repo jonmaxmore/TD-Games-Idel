@@ -16,10 +16,15 @@
     "art:mockups": "node tools/blender/build.mjs --script tools/art/mockups.py",
     "sim:battle": "vite-node packages/sim/scripts/battle-measure.ts",
     "sim:campaign": "vite-node packages/sim/scripts/campaign-measure.ts",
-    "typecheck": "tsc -p packages/sim && tsc -p packages/client",
+    "typecheck": "tsc -p packages/sim && tsc -p packages/protocol && tsc -p packages/game && tsc -p packages/client",
+    "dev:server": "vite-node packages/game/src/main.ts",
     "dev": "npm run dev -w @five-sects/client",
     "build": "npm run build -w @five-sects/client",
-    "shots": "node packages/client/scripts/shots.mjs"
+    "shots": "node packages/client/scripts/shots.mjs",
+    "shots:pvp": "node packages/client/scripts/shots-pvp.mjs"
+  },
+  "overrides": {
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.21",

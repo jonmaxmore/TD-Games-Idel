@@ -425,3 +425,40 @@ button.big { font-size: 24px; font-weight: 700; min-height: 60px; }
 .modal .egg-line { color: #abdbff; font-size: 16px; }
 .toast.warn { font-size: 18px; font-weight: 700; background: #3a0d0acc; }
 .goals-box .first-clear { color: #ffe08a; font-weight: 700; }
+
+/* ---- ศึกกับเพื่อน (pvp.ts): the room menu, the room with its code and two seats, the lobby button when offline ---- */
+.lobby-buttons .mode.pvp-btn.offline:disabled { opacity: 1; border: 1px dashed #5a5266; background: #120d14; cursor: help; }
+.lobby-buttons .mode.pvp-btn.offline b { color: var(--dim); }
+.lobby-buttons .mode.pvp-btn.offline small { color: #ff9e7b; }
+.screen.pvp { gap: 10px; }
+.pvp-status { margin: 0; min-height: 20px; }
+.pvp-error { margin: 0; min-height: 28px; text-align: center; font-size: 19px; color: #ff9e7b; }
+.pvp-body { flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.pvp-menu { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+.pvp-menu .create-btn { width: 420px; }
+.pvp-join { width: 420px; }
+.pvp-join input { flex: 1; }
+input, select { font: inherit; color: var(--ink); background: #0f0b12; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; min-height: 40px; }
+input:focus, select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+input.pvp-code { font-size: 26px; letter-spacing: 6px; text-transform: uppercase; text-align: center; font-weight: 700; min-width: 0; }
+.pvp-pick { display: flex; align-items: center; gap: 10px; font-size: 17px; }
+.pvp-pick > span { min-width: 90px; color: var(--gold); }
+.pvp-pick input, .pvp-pick select { flex: 1; min-width: 300px; }
+.pvp-room { flex: 1; display: grid; grid-template-columns: 300px 1fr; grid-template-rows: auto 1fr; gap: 12px; min-height: 0; }
+.pvp-codebox { grid-row: 1 / 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.room-code { font-size: 54px; letter-spacing: 8px; color: var(--gold); text-shadow: 0 3px 0 #812200; user-select: all; font-family: ui-monospace, 'Sarabun', monospace; }
+.copy-btn { width: 160px; }
+.pvp-seats { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 10px; }
+.pvp-seats .vs-word.small { font-size: 34px; align-self: center; }
+.pvp-seat { display: flex; flex-direction: column; gap: 4px; min-height: 140px; border-left: 4px solid var(--me); }
+.pvp-seat.side1 { border-left-color: var(--foe); }
+.pvp-seat.ready { box-shadow: 0 0 0 1px var(--gold) inset; }
+.pvp-who { font-size: 24px; color: var(--ink); }
+.pvp-wait { font-size: 22px; color: var(--dim); }
+.pvp-seat .bad { color: #ff9e7b; }
+.pvp-ready { font-style: normal; align-self: flex-start; padding: 2px 10px; border-radius: 12px; border: 1px solid #5a5266; color: var(--dim); }
+.pvp-ready.on { border-color: var(--gold); color: #ffe08a; background: #3a2a10; }
+.pvp-team { display: flex; flex-direction: column; gap: 8px; }
+.ready-btn.on { background: var(--panel); }
+.net-notice { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); z-index: 20; background: #000d; border: 1px solid var(--gold); border-radius: 6px; padding: 6px 16px; font-size: 17px; pointer-events: none; white-space: nowrap; }
+.net-notice.bad { border-color: var(--foe); color: #ff9e7b; }
