@@ -78,13 +78,11 @@ describe('campaign balance', () => {
     for (let i = 1; i < win.length; i++) expect(win[i]!, `stage ${stages[i]!.id} after ${win.join(',')}`).toBeLessThanOrEqual(win[i - 1]! - 2);
   });
 
-  // The boss is checked against the home's hardest other stage with 8 points of room: at 300 seeds the old random draw
-  // already had water's boss above its 1-8 (45 vs 44), and the picked hand puts fire's boss near its 1-9 (64 vs 59).
-  it('no home sect hits a wall: each wins 1-1..1-9 at least 40% and the boss 1-10 at least 30%, and the boss is about its hardest stage', () => {
+  it('no home sect hits a wall: each wins 1-1..1-9 at least 40% and the boss 1-10 at least 30%, and the boss is its hardest stage', () => {
     homeSects.forEach((home, h) => {
       for (let i = 0; i < 9; i++) expect(bySect[i]![h]!, `${home} ${stages[i]!.id}\n${table()}`).toBeGreaterThanOrEqual(40);
       expect(bySect[9]![h]!, `${home} 1-10\n${table()}`).toBeGreaterThanOrEqual(30);
-      expect(bySect[9]![h]!, `${home} 1-10\n${table()}`).toBeLessThanOrEqual(Math.min(...bySect.slice(0, 9).map((r) => r[h]!)) + 8);
+      expect(bySect[9]![h]!, `${home} 1-10\n${table()}`).toBeLessThan(Math.min(...bySect.slice(0, 9).map((r) => r[h]!)));
     });
   });
 

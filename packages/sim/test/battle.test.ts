@@ -613,8 +613,8 @@ describe('castle battle balance', () => {
   });
 
   // Mirror decks: MIXED's leaders with seeded legal picks, the same for both sides. The deck budget keeps a second big card
-  // out of most hands, so castles fall less often than with the old random draw (42% before the budget, 31% after).
-  it('rush vs defend on mirror decks, 200 seeds, both side orders: left wins 45-55%, draws at most 5%, a castle falls in 25-60%, 120-170 s', () => {
+  // out of most hands (castles fell in 31% of games), so the castle shoots softer (castle.dmg 75 -> 62): 40% again.
+  it('rush vs defend on mirror decks, 200 seeds, both side orders: left wins 45-55%, draws at most 5%, a castle falls in 35-60%, 120-170 s', () => {
     const SEEDS = 200;
     let left = 0, draws = 0, games = 0, ko = 0, ticks = 0;
     for (const [p0, p1] of [['rush', 'defend'], ['defend', 'rush']] as [Policy, Policy][])
@@ -629,7 +629,7 @@ describe('castle battle balance', () => {
     expect((left * 100) / games).toBeGreaterThanOrEqual(45);
     expect((left * 100) / games).toBeLessThanOrEqual(55);
     expect((draws * 100) / games).toBeLessThanOrEqual(5);
-    expect((ko * 100) / games).toBeGreaterThanOrEqual(25);
+    expect((ko * 100) / games).toBeGreaterThanOrEqual(35);
     expect((ko * 100) / games).toBeLessThanOrEqual(60);
     expect(ticks / games / TICK_HZ).toBeGreaterThanOrEqual(120);
     expect(ticks / games / TICK_HZ).toBeLessThanOrEqual(170);

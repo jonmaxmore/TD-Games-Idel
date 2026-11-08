@@ -63,7 +63,7 @@
   },
   "dot": { "burnDps": 7, "burnSec": 3, "burnMaxStacks": 3, "poisonDps": 3, "poisonSec": 3, "poisonMaxStacks": 5 },
   "castle": {
-    "hp": 5000, "dmg": 75, "rate": 0.6667, "range": 4,
+    "hp": 5000, "dmg": 62, "rate": 0.6667, "range": 4,
     "cannon": { "nameTh": "ปืนใหญ่ปราสาท", "nameEn": "Castle Cannon", "mana": 2, "cooldownSec": 3, "reachTiles": 10, "radiusTiles": 1.0, "dmg": 50, "pushTiles": 1.5, "maxPush": 4 }
   },
   "results": { "total": "ชนะเด็ดขาด", "castle": "ตีเมืองแตก", "hp": "ชนะแต้ม", "tiebreak": "ชนะตัดสิน", "draw": "เสมอ" },
