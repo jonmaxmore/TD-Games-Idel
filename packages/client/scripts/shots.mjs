@@ -551,6 +551,20 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
     console.log(name, 'castle hp', await m.p.evaluate(() => window.__game.s.castles.map((c) => c.maxHp).join('/')));
     await m.ctx.close();
   }
+  // A ศึกทั่วไป match with these levels, by bots: its replay keeps the hand's levels and ends on the recorded hash.
+  const m = await open('?mode=battle&seed=3&deck=fire&bot=1&speed=8', 'casual-replay', null, save);
+  await m.p.waitForSelector('.cards .realm');
+  const played = await m.p.locator('.cards .realm').allTextContents();
+  await m.p.waitForSelector('.modal.result', { timeout: 120000 });
+  await settle();
+  await m.p.locator('.replay-btn').click();
+  await m.p.waitForSelector('.cards .realm');
+  check(JSON.stringify(await m.p.locator('.cards .realm').allTextContents()) === JSON.stringify(played), 'a casual replay shows the levels the match was played at');
+  await m.p.waitForSelector('.modal.result', { timeout: 120000 });
+  await settle();
+  await shot(m.p, '47-casual-replay-end');
+  check((await m.p.locator('.modal.result').textContent()).includes('ผลตรงกับ'), 'a casual match replays to the same hash');
+  await m.ctx.close();
 }
 
 // 6) ศึกปราบ from a save that has won 1-1 (all stars) and 1-2 (one star): the map, 1-3's briefing, its team screen; then

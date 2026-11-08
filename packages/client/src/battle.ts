@@ -154,7 +154,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
     const rank = card === o.team.leader ? 'แม่ทัพ' : card === o.team.sub ? 'รอง' : null;
     b.append(face, el('kbd', '', String(slot + 1)), el('span', 'cost', String(def.mana)), uses);
     if (rank) b.append(el('em', 'rank', rank));
-    if (!o.normalized) b.append(realmBadge(levelOf(o.progress[0], card), true));
+    if (s.progress[me]) b.append(realmBadge(levelOf(s.progress[me], card), true));
     b.append(nowrapWords(el('b', 'name'), def.nameTh), el('small', 'role', m.roleTh));
     b.addEventListener('pointerdown', (ev) => { hideTip(); if (human) { ev.preventDefault(); pick(slot); drag = { x: ev.clientX, y: ev.clientY, moved: false }; } });
     b.addEventListener('pointerenter', () => { hover = slot; showTip(slot); });
