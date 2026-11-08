@@ -40,6 +40,7 @@ async function open(url, name, videoDir, profile) {
 }
 const shot = (p, name) => p.screenshot({ path: out + `${name}.png` });
 const check = (ok, msg) => { if (!ok) errors.push(msg); };
+const settle = () => sleep(2200); // the result's rows appear one after another (style.css --t-stagger)
 // Saves at points of progress, all with fire as the home sect (the game pays each won stage's first clear on load): 1-1..1-3
 // won with cards levelled; 1-1..1-9 won; all of chapter 1 won with the egg shop open; a late account owning every card.
 const STAGES = Array.from({ length: 10 }, (_, i) => `1-${i + 1}`);
@@ -225,11 +226,12 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
   await p.waitForFunction(() => window.__game?.s?.tick > 20 * 70, null, { timeout: 60000 });
   await p.evaluate(() => { window.__game.s.castles[0].hp = 0; });
   await p.waitForSelector('.modal.result', { timeout: 20000 });
-  await sleep(300);
+  await settle();
   await shot(p, '70-loss-tip');
-  const tip = await p.locator('.loss-tip').textContent().catch(() => null);
+  const tip = await p.locator('.loss-tip p').textContent().catch(() => null);
   console.log('loss:', await p.locator('[data-primary]').textContent(), '|', tip);
   check(tip != null, 'a loss shows a tip');
+  check((await p.locator('.loss-tip .tip-deck').count()) === 1, 'the loss tip has a จัดทัพ button');
   check((await p.locator('.modal.result .btn-primary').count()) === 1, 'the result has exactly one primary');
   await ctx.close();
 }
@@ -383,7 +385,9 @@ const lobbyButtons = (p) => p.locator('.lobby-buttons .mode b').allTextContents(
     if (await p.evaluate(() => window.__game.s.winner !== null)) break;
   }
   await p.waitForSelector('.modal.result', { timeout: 90000 });
-  await sleep(400);
+  await sleep(250);
+  await shot(p, '29-result-reveal');
+  await sleep(1950);
   await shot(p, '29-result');
   const end = await p.evaluate(() => ({ winner: window.__game.s.winner, tick: window.__game.s.tick, castles: window.__game.s.castles.map((c) => c.hp) }));
   console.log('bot match:', JSON.stringify(end), 'fps samples:', fps.join(','));
@@ -532,9 +536,18 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await m.p.waitForFunction(() => window.__game.s.tick >= 20 * 41 && window.__game.s.units.filter((u) => u.card === 'ember_imp' && u.side === 1).length >= 3, null, { timeout: 90000, polling: 'raf' });
   await shot(m.p, '54-stage-waves');
   await m.p.waitForSelector('.modal.result', { timeout: 120000 });
-  await sleep(400);
+  await settle();
   await shot(m.p, '55-stage-result');
   console.log('stage 1-2 result:', await m.p.locator('.star-row').textContent());
+  const buttons = await m.p.locator('.result-actions button').allTextContents();
+  console.log('stage result buttons:', buttons.join(' | '));
+  check(buttons.length === 4 && buttons.includes('ภาพย้อนหลัง') && buttons.includes('จัดทัพ'), 'every result has the same four buttons, ภาพย้อนหลัง included');
+  // ภาพย้อนหลัง works outside ศึกฝีมือ too: the stage match plays back to the same hash.
+  await m.p.locator('.replay-btn').click();
+  await m.p.waitForSelector('.modal.result', { timeout: 120000 });
+  await settle();
+  await shot(m.p, '58-stage-replay-end');
+  check((await m.p.locator('.modal.result').textContent()).includes('ผลตรงกับ'), 'a stage match replays to the same hash');
   await m.ctx.close();
   const w = await open('?mode=battle&stage=1-7&bot=1&speed=2&seed=3', 'stage-warn', null, save);
   await w.p.waitForSelector('.toast.warn', { timeout: 90000 });
@@ -549,7 +562,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   for (const seed of [3, 4, 5, 6]) {
     const f = await open(`?mode=battle&stage=1-1&bot=1&speed=4&seed=${seed}`, 'first-clear', null, home({}));
     await f.p.waitForSelector('.modal.result', { timeout: 120000 });
-    await sleep(400);
+    await settle();
     firstClear = (await f.p.locator('.new-card').count()) > 0;
     if (firstClear) {
       await shot(f.p, '55-first-clear');
@@ -565,14 +578,14 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
 {
   const { ctx, p } = await open('?mode=battle&bot=1&speed=4&seed=3&deck=fire', 'ranked', null, home({ mode: 'ranked', campaign: won(10) }));
   await p.waitForSelector('.modal.result', { timeout: 120000 });
-  await sleep(400);
+  await settle();
   await shot(p, '56-ranked-result');
   console.log('ranked:', await p.locator('.rank-change').textContent());
   await p.locator('.replay-btn').click();
   await p.waitForFunction(() => window.__game?.s?.tick > 600, null, { timeout: 60000 });
   await shot(p, '57-replay');
   await p.waitForSelector('.modal.result', { timeout: 120000 });
-  await sleep(300);
+  await settle();
   await shot(p, '58-replay-end');
   const text = await p.locator('.modal.result').textContent();
   console.log('replay end:', text);
@@ -601,7 +614,7 @@ for (const [name, stress] of [['busy', false], ['stress', true]]) {
   await shot(p, '68-surrender-confirm');
   await p.locator('.confirm-yes').click();
   await p.waitForSelector('.modal.result');
-  await sleep(300);
+  await settle();
   await shot(p, '56-surrender-result');
   const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('five-sects.profile')));
   console.log('surrender:', await p.locator('.modal.result h2').textContent(), '| rank', JSON.stringify(saved.rank), '| endTick', saved.lastRanked?.endTick);

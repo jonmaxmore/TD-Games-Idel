@@ -32,7 +32,9 @@
   --t-fast: 120ms; --t-med: 200ms; --ease: cubic-bezier(.2, .7, .2, 1);
   font-family: 'Sarabun', system-ui, sans-serif; color: var(--c-text); background: var(--c-bg);
 }
-@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0ms; --t-med: 0ms; } }
+/* the result's rows appear one after another */
+:root { --t-reveal: 260ms; --t-stagger: 220ms; }
+@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0ms; --t-med: 0ms; --t-reveal: 0ms; --t-stagger: 0ms; } }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--c-black); }
 #app {
@@ -160,9 +162,6 @@ kbd { font: inherit; }
 .modal h2.lost { color: var(--c-foe); text-shadow: 0 3px 0 var(--c-black); }
 .modal h2.draw { color: var(--c-text); text-shadow: 0 3px 0 var(--c-disabled); }
 .modal .why { font-size: var(--fs-xl); margin: 0; }
-.modal .type { font-size: var(--fs-xl); margin: 0; color: var(--c-accent-hi); font-weight: 700; }
-.modal .type.lost { color: var(--c-bad); }
-.modal .type.draw { color: var(--c-text); }
 .modal p { margin: 0; }
 .modal .row { margin-top: var(--sp-3); width: 760px; }
 
@@ -426,7 +425,24 @@ kbd { font: inherit; }
 .vs-tip { margin: 0; padding: var(--sp-2) var(--sp-6); font-size: var(--fs-lg); border: 1px solid var(--c-accent); border-radius: var(--r-md); background: color-mix(in srgb, var(--c-surface-1) 80%, transparent); }
 .modal.pause { z-index: 12; }
 .pause-menu { display: flex; flex-direction: column; gap: var(--sp-2); width: 320px; margin-top: var(--sp-2); }
-.modal .loss-tip { max-width: 900px; padding: var(--sp-2) 18px; font-size: var(--fs-lg); color: var(--c-accent-hi); border: 1px solid var(--c-warn); border-radius: var(--r-md); background: var(--c-surface-warm); text-align: center; }
+/* the result (main.ts resultPanel): one panel, one headline with its type chip, then the mode's rows, then the fixed buttons */
+.modal.result { background: var(--c-scrim); }
+.result-panel { width: 760px; max-height: 692px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); padding: var(--sp-4) var(--sp-6) var(--sp-6); border: 1px solid var(--c-accent); box-shadow: 0 6px 0 var(--c-black); }
+.result-head { display: flex; align-items: center; gap: var(--sp-4); }
+.result-panel h2 { line-height: 1.15; }
+.result-type { font-size: var(--fs-md); font-weight: 700; padding: var(--sp-1) var(--sp-3); border: 1px solid currentColor; border-radius: var(--r-pill); color: var(--c-accent-hi); }
+.result-type.lost { color: var(--c-bad); } .result-type.draw { color: var(--c-text); }
+.result-panel .why { font-size: var(--fs-sm); color: var(--c-text-dim); text-align: center; margin-top: calc(-1 * var(--sp-2)); }
+.result-panel .row { width: 100%; margin-top: var(--sp-2); }
+.result-actions > .btn { flex: 1; } .result-actions > .back { flex: 0 0 120px; } .result-actions > .btn-primary { flex: 2; }
+.result-note { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--c-text-dim); }
+.modal .loss-tip { width: 100%; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-4); font-size: var(--fs-md); color: var(--c-accent-hi); border: 1px solid var(--c-warn); border-radius: var(--r-md); background: var(--c-surface-warm); }
+.modal .loss-tip p { flex: 1; line-height: var(--lh-thai); }
+.result-panel > * { animation: rise var(--t-reveal) var(--ease) both; animation-delay: calc(var(--i, 0) * var(--t-stagger)); }
+.result-panel .star { animation: star-in var(--t-reveal) var(--ease) both; animation-delay: calc(var(--i, 0) * var(--t-stagger)); }
+.modal.result.shown .result-panel > *, .modal.result.shown .result-panel .star { animation-delay: 0s; animation-duration: 0s; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes star-in { 0% { opacity: 0; transform: scale(0.4); } 70% { opacity: 1; transform: scale(1.15); } 100% { opacity: 1; transform: none; } }
 .result-actions > .btn-primary { flex: 2; }
 
 /* เลือกสำนักแรก */

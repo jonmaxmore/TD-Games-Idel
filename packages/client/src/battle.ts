@@ -106,7 +106,7 @@ export function startMatch(app: HTMLElement, o: MatchOpts, onEnd: (r: MatchResul
   const fortDots = s.forts.map(() => fortRow.appendChild(el('i')));
   clockBox.append(time, fortRow, regenHint);
   if (o.stage && o.stage.gimmicks.length > 0) clockBox.append(el('em', 'gimmick', gimmickNames(o.stage)));
-  if (o.replay) clockBox.append(el('em', 'gimmick', 'รีเพลย์'));
+  if (o.replay) clockBox.append(el('em', 'gimmick', 'ภาพย้อนหลัง'));
   const ctl = el('div', 'ctl');
   const pauseBtn = button('หยุด', () => {}, 'icon', 'sm');
   const speedBtn = button(`x${speed}`, () => {}, 'icon', 'sm');

@@ -15,8 +15,8 @@ import { campScreen } from './campScreen';
 import { portrait } from './board';
 import { aiSetup, benchRoom, fixTeam, isBasic, rankedSetup, resolveTeam, teamName, teamSetup, type Team } from './decks';
 import { lobbyScreen, rankBadge, starCount, toggleFullscreen } from './lobby';
-import { load, save, type Mode, type Profile } from './profile';
-import { initSound, unlockAudio } from './sound';
+import { load, save, type Mode, type Profile, type RankedSave } from './profile';
+import { initSound, play, unlockAudio } from './sound';
 import { cardArt, loadSprites } from './sprites';
 import { lossTip, versusTip } from './tips';
 import { unlockState } from './unlocks';
@@ -364,20 +364,24 @@ function match(team: Team, seed: number, redraws: number, stage?: Stage) {
   }, (r) => result(team, seed, r, stage, ranked));
 }
 
-// The last ranked match played back from its record; the result says whether it ended on the saved hash.
+// The last match played back from its record (ui-flow.md §2.3: every result offers ภาพย้อนหลัง). Ranked keeps its record in
+// the save; any other mode keeps the last one for this session. The end says whether it ended on the recorded hash.
+interface Played { record: RankedSave; modeTh: string; normalized: boolean }
+let lastPlay: Played | null = null;
+const replayable = (): Played | null => lastPlay ?? (profile.lastRanked ? { record: profile.lastRanked, modeTh: 'ศึกฝีมือ', normalized: true } : null);
 function replay() {
-  const last = profile.lastRanked!, s0 = last.setups[0];
+  const play = replayable()!, last = play.record, s0 = last.setups[0];
   const team: Team = { leader: s0.leader, sub: s0.sub, bench: [...s0.bench] };
   return startMatch(app, {
     seed: last.seed, team, mine: s0, vs: last.setups[1], redraws: 0, speed: dev.speed, settings: profile.settings, saveSettings: () => save(profile),
-    bots: [null, 'paced'], normalized: true, progress: [null, null], modeTh: 'ศึกฝีมือ', replay: last, quit: 'replay', onQuit: () => go({ k: 'lobby' }),
+    bots: [null, 'paced'], normalized: play.normalized, progress: [null, null], modeTh: play.modeTh, replay: last, quit: 'replay', onQuit: () => go({ k: 'lobby' }),
   }, (r) => {
-    const box = el('div', 'modal result');
     const same = r.hash === last.hash;
-    box.append(el('h2', '', 'จบรีเพลย์'), el('p', 'why', verdict(r).head), el('p', same ? 'dim' : 'why', same ? 'ผลตรงกับศึกที่บันทึกไว้ทุกอย่าง' : 'ผลไม่ตรงกับที่บันทึกไว้'));
-    const row = el('div', 'row');
+    const { box, panel, reveal } = resultPanel('จบภาพย้อนหลัง', 'draw', verdict(r).head, same ? 'ผลตรงกับศึกที่บันทึกไว้ทุกอย่าง' : 'ผลไม่ตรงกับที่บันทึกไว้');
+    const row = el('div', 'row result-actions');
     row.append(button('กลับล็อบบี้', () => go({ k: 'lobby' }), 'ghost', 'md', 'back'), button('ดูอีกครั้ง', () => go({ k: 'replay' }), 'primary', 'lg'));
-    box.append(row);
+    panel.append(row);
+    reveal();
     app.append(box);
   });
 }
@@ -395,12 +399,35 @@ function verdict(r: MatchResult): { head: string; why: string } {
   return { head, why: `หมดเวลา HP ปราสาทเท่ากัน: ตัดสินที่${STEP_TH[r.step!]}` };
 }
 
+// The one result layout of every mode (ux-audit.md R-1..R-4): a panel over the dimmed field with one headline, the result
+// type as a small chip, why in one dim line; then the mode's own rows; then the fixed button row. Rows appear one after
+// another (--i staggers them, a star waits its own turn); a click or any key shows everything at once.
+function resultPanel(headline: string, tone: string, type: string, why: string) {
+  const box = el('div', 'modal result'), panel = el('div', 'result-panel panel');
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-label', headline);
+  const head = el('div', 'result-head');
+  head.append(el('h2', tone, headline), el('span', `result-type ${tone}`, type));
+  panel.append(head, el('p', 'why', why));
+  box.append(panel);
+  const skip = () => box.classList.add('shown');
+  box.addEventListener('pointerdown', skip);
+  addEventListener('keydown', skip, { once: true });
+  const reveal = () => {
+    let i = 0;
+    for (const row of Array.from(panel.children) as HTMLElement[]) {
+      row.style.setProperty('--i', String(i++));
+      for (const star of Array.from(row.querySelectorAll<HTMLElement>('.star'))) star.style.setProperty('--i', String(i++));
+    }
+  };
+  return { box, panel, reveal };
+}
+
 function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefined, ranked: boolean) {
-  const box = el('div', 'modal result');
-  const head = r.winner === 0 ? ['won', 'ชนะ!'] : r.winner === 1 ? ['lost', 'พ่ายแพ้'] : ['draw', 'เสมอ'];
+  const tone = r.winner === 0 ? 'won' : r.winner === 1 ? 'lost' : 'draw';
   const t = Math.floor(r.tick / TICK_HZ), v = verdict(r);
-  box.append(el('h2', head[0], head[1]), el('p', `type ${head[0]}`, v.head), el('p', 'why', v.why),
-    el('p', 'dim', `ปราสาทเรา ${Math.max(0, r.castles[0])} · ปราสาทศัตรู ${Math.max(0, r.castles[1])} · เวลา ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`));
+  const { box, panel, reveal } = resultPanel(tone === 'won' ? 'ชนะ!' : tone === 'lost' ? 'พ่ายแพ้' : 'เสมอ', tone, v.head,
+    `${v.why} · ปราสาทเรา ${Math.max(0, r.castles[0])} · ปราสาทศัตรู ${Math.max(0, r.castles[1])} · เวลา ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`);
   // The rewards, paid into the save once as the result shows.
   const won = r.winner === -1 ? null : r.winner === 0;
   const pay = payMatch(profile, r.hand, won, r.type, stage);
@@ -415,21 +442,23 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
       if (fresh[i]) s.append(el('em', '', 'ใหม่'));
       row.append(s);
     });
-    box.append(row);
+    panel.append(row);
   }
+  const record: RankedSave = { ...r.record, hash: r.hash };
+  lastPlay = { record, modeTh: stage ? `ศึกปราบ ${stage.id}` : ranked ? 'ศึกฝีมือ' : 'ศึกทั่วไป', normalized: ranked };
   if (ranked) {
     const { before, after } = recordRanked(profile, won);
-    profile.lastRanked = { ...r.record, hash: r.hash };
+    profile.lastRanked = record;
     const line = el('p', 'rank-change');
     line.append(rankBadge(before), el('span', '', ' → '), rankBadge(after));
-    box.append(line);
+    panel.append(line);
   }
   save(profile);
   const ready = r.hand.filter((c, i) => r.hand.indexOf(c) === i && canLevel(profile, c)).map((c) => battleUnits.get(c)!.nameTh);
   const gains = el('div', 'rewards');
   gains.append(el('b', '', 'รางวัล'), el('span', '', `แต้มฝึก +${pay.xp} ให้ทุกใบในมือ`), el('span', 'coin', `เหรียญ +${pay.coins}`), el('span', 'gold', `ทองคำ +${pay.gold}`));
   const camp = unlockState(profile).open.has('levelUp');
-  box.append(gains);
+  panel.append(gains);
   // A first clear's new card (ได้การ์ดใหม่) and any egg points it or a chapter-star total paid.
   for (const g of gotten) {
     if (g.card) {
@@ -438,15 +467,26 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
       got.style.setProperty('--sect', colorOf(g.card));
       f.append(cardArt(g.card) ?? portrait(g.card));
       got.append(f, el('em', '', 'ได้การ์ดใหม่!'), nowrapWords(el('b'), u.nameTh), el('small', '', u.tagTh));
-      box.append(got);
+      panel.append(got);
     }
-    if (g.eggPoints > 0) box.append(el('p', 'egg-line', `${g.stage ? `ผ่าน ${g.stage} ครั้งแรก` : `ดาวครบ ${g.stars!.split(':')[1]} ดวง`}: แต้มไข่ +${g.eggPoints}`));
+    if (g.eggPoints > 0) panel.append(el('p', 'egg-line', `${g.stage ? `ผ่าน ${g.stage} ครั้งแรก` : `ดาวครบ ${g.stars!.split(':')[1]} ดวง`}: แต้มไข่ +${g.eggPoints}`));
   }
-  if (camp && ready.length > 0) box.append(el('p', 'dim', `เลื่อนขั้นได้ที่ค่ายฝึก: ${ready.join(' · ')}`));
-  // A loss names its likeliest cause and one card that answers it.
+  if (camp && ready.length > 0) {
+    const line = el('div', 'result-note');
+    line.append(el('span', '', `เลื่อนขั้นได้: ${ready.join(' · ')}`), button('ไปค่ายฝึก', () => go({ k: 'camp' }), 'secondary', 'sm', 'to-camp'));
+    panel.append(line);
+  }
+  const toDeck = () => go({ k: 'deck', stage: stage?.id });
+  // A loss names its likeliest cause and one card that answers it, with the way to act on it.
   const tip = won === false ? lossTip(r.foeDmg, [...profile.owned.filter((c) => !team.bench.includes(c)), ...team.bench, ...battleCardIds]) : null; // an owned answer first, else any (the card log says where to get it)
-  if (tip) box.append(nowrapWords(el('p', 'loss-tip'), `คำแนะนำ: ${tip}`));
-  // Exactly one primary: the next stage after a stage win, another match after a ranked or casual win or draw, else a retry.
+  if (tip) {
+    const line = el('div', 'loss-tip');
+    line.append(nowrapWords(el('p'), `คำแนะนำ: ${tip}`), button('จัดทัพ', toDeck, 'secondary', 'sm', 'tip-deck'));
+    panel.append(line);
+  }
+  // The same four places every time: lobby (ghost, left), จัดทัพ, ภาพย้อนหลัง, and exactly one primary on the right (the next
+  // stage after a stage win, another match after a ranked or casual win or draw, else a retry). One that does not apply is
+  // hidden in its place, so nothing moves.
   const next = stage ? stages[stages.indexOf(stage) + 1] : undefined;
   const again = () => go({ k: 'versus', team, seed: seed + 1, redraws: 0, stage: stage?.id });
   const last = stage && won && !next;
@@ -454,13 +494,14 @@ function result(team: Team, seed: number, r: MatchResult, stage: Stage | undefin
   const primary = stage && won ? (next ? main('ด่านถัดไป', () => go({ k: 'brief', stage: next.id })) : main('กลับล็อบบี้', () => go({ k: 'lobby' })))
     : !stage && won !== false ? main('อีกแมตช์', again) : main('ลองใหม่', again);
   primary.dataset.primary = '1';
+  const lobby = button('ล็อบบี้', () => go({ k: 'lobby' }), 'ghost', 'md', 'back');
+  if (last) lobby.style.visibility = 'hidden';
   const row = el('div', 'row result-actions');
-  row.append(primary);
-  if (camp) row.append(button('ค่ายฝึก', () => go({ k: 'camp' })));
-  if (ranked) row.append(button('ดูรีเพลย์', () => go({ k: 'replay' }), 'secondary', 'md', 'replay-btn'));
-  if (!last) row.append(button('กลับล็อบบี้', () => go({ k: 'lobby' }), 'ghost', 'md'));
-  box.append(row);
+  row.append(lobby, button('จัดทัพ', toDeck, 'secondary', 'md', 'deck-btn'), button('ภาพย้อนหลัง', () => go({ k: 'replay' }), 'secondary', 'md', 'replay-btn'), primary);
+  panel.append(row);
+  reveal();
   app.append(box);
+  if (won && stage) for (const s of Array.from(panel.querySelectorAll<HTMLElement>('.star.got'))) play('capture', 0.22 * Number(s.style.getPropertyValue('--i')));
 }
 
 void loadSprites().then(() => go(dev.battle ? { k: 'match', team: dev.team?.team ?? profile.team, seed: dev.seed, redraws: 0, stage: dev.stage } : { k: 'title' }));
