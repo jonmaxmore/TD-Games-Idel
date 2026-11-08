@@ -41,6 +41,13 @@
     "size": 7, "maxLarge": 2, "redraws": 3,
     "basic": { "fire": "crimson_phoenix_banner", "wood": "jade_bamboo_banner", "metal": "cloud_sword_banner", "water": "frost_tide_banner", "earth": "vajra_stone_banner", "yinyang": "cloud_sword_banner" }
   },
+  "deck": {
+    "_notes": "SPEC-deck-budget. The player picks the whole hand: the leader sect's basic capturer (free), the leader, the sub and pick cards. Those 6 non-basic cards hold at most hand.maxLarge large ones and cost at most budget deck points (a campaign.json stage may set its own deckBudget). A card's points: cardPoints[id] if set, else its mana + sizePoints[size]. loaners: cards an account that owns fewer than 6 non-basic cards may borrow into its picks, one per card it lacks. Tuned with npm run sim:deck (deck-budget-research.md section 10).",
+    "pick": 4, "budget": 26,
+    "sizePoints": { "small": 1, "medium": 0, "large": 2 },
+    "cardPoints": {},
+    "loaners": ["crimson_phoenix_blade", "jade_bamboo_blade", "cloud_sword_blade", "frost_tide_blade", "vajra_stone_blade"]
+  },
   "abilities": {
     "aura": { "nameTh": "ปลุกใจ", "doesTh": "พวกในรัศมี {r} ช่องตีแรงขึ้น {v}%", "radiusTiles": 2 },
     "ward": { "nameTh": "เกราะเทพ", "doesTh": "พวกในรัศมี {r} ช่องโดนตีเบาลง {v}%", "radiusTiles": 2 },

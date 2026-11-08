@@ -68,6 +68,11 @@ export const battle = {
   counterTags: new Map<string, string>(Object.entries(BT.counterTags as Record<string, string>)),
   counterPct: new Map<string, number>(Object.entries(BT.counterPct as Record<string, number>)),
   hand: { size: BT.hand.size as number, maxLarge: BT.hand.maxLarge as number, redraws: BT.hand.redraws as number, basic: new Map<string, string>(Object.entries(BT.hand.basic as Record<string, string>)) },
+  deck: {
+    pick: BT.deck.pick as number, budget: BT.deck.budget as number, loaners: BT.deck.loaners as string[],
+    sizePoints: new Map<string, number>(Object.entries(BT.deck.sizePoints as Record<string, number>)),
+    cardPoints: new Map<string, number>(Object.entries(BT.deck.cardPoints as Record<string, number>)),
+  },
   auraRadius: tiles(BT.abilities.aura.radiusTiles), wardRadius: tiles(BT.abilities.ward.radiusTiles),
   abilities: new Map<string, { nameTh: string; doesTh: string }>(Object.keys(BT.abilities).map((k) => [k, { nameTh: BT.abilities[k].nameTh, doesTh: BT.abilities[k].doesTh.replace('{r}', String(BT.abilities[k].radiusTiles)) }])),
   sectTeams: new Map<string, { leader: string; sub: string }>(Object.entries(BT.sectTeams as Record<string, { leader: string; sub: string }>)),
